@@ -48,10 +48,11 @@ const CreateEvents = ({
   const [eventTypeFlags, setEventTypeFlags] = useState({
     isGlobal: false,
     isTicketed: false,
-    hasPersonSteps: false,
+    isTraining: false,
   });
 
-  const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent, hasPersonSteps } = eventTypeFlags;
+  const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent, isTraining } = eventTypeFlags;
+  console.log("Event Type Flags:", isGlobalEvent);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
@@ -59,7 +60,7 @@ const CreateEvents = ({
   const [priceTiers, setPriceTiers] = useState([]);
 
   const isAdmin = user?.role === "admin";
-  console.log("view role", isAdmin)
+  console.log("isAdmin:", isAdmin);
 
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",
@@ -103,134 +104,87 @@ const CreateEvents = ({
     "Sunday",
   ];
 
- useEffect(() => {
-  console.log('CreateEvents - Props received:', {
-    selectedEventTypeObj,
-    selectedEventType,
-    eventTypes: eventTypes.map(et => ({
-      name: et.name,
-      isGlobal: et.isGlobal,
-      isTicketed: et.isTicketed,
-      hasPersonSteps: et.hasPersonSteps
-    }))
-  });
-
-  const determineEventType = () => {
-    // If we have a selectedEventTypeObj, use its properties
-    if (selectedEventTypeObj) {
-      console.log('Using selectedEventTypeObj:', selectedEventTypeObj);
-      return {
-        eventType: selectedEventTypeObj.name || selectedEventTypeObj.displayName || "",
-        isGlobal: !!selectedEventTypeObj.isGlobal,
-        isTicketed: !!selectedEventTypeObj.isTicketed,
-        hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps,
-      };
-    }
-    
-    // If we have a selectedEventType string, find the matching object
-    if (selectedEventType) {
-      console.log('Looking for event type:', selectedEventType);
-      
-      // Handle "all" and convert to "CELLS" - FIXED: Always set hasPersonSteps to true for CELLS
-      if (selectedEventType === 'all' || selectedEventType.toUpperCase() === 'ALL CELLS') {
-        console.log('Detected ALL CELLS - converting to CELLS with personal steps');
-        return {
-          eventType: 'CELLS',
-          isGlobal: false,
-          isTicketed: false,
-          hasPersonSteps: true, // FIXED: This was the issue - always true for CELLS
-        };
-      }
-      
-      // Try to find the full event type object
-      const foundEventType = eventTypes.find(et => {
-        const etName = et.name || et.displayName || '';
-        const searchName = selectedEventType;
-        
-        return (
-          etName === searchName ||
-          etName.toLowerCase() === searchName.toLowerCase() ||
-          et._id === searchName ||
-          etName.includes(searchName) ||
-          searchName.includes(etName)
-        );
-      });
-      
-      if (foundEventType) {
-        console.log('Found event type:', foundEventType);
-        return {
-          eventType: foundEventType.name || foundEventType.displayName || selectedEventType,
-          isGlobal: !!foundEventType.isGlobal,
-          isTicketed: !!foundEventType.isTicketed,
-          hasPersonSteps: !!foundEventType.hasPersonSteps,
-        };
-      } else {
-        console.log('Event type not found, using defaults');
-        // For CELLS type specifically, set hasPersonSteps to true
-        const isCellsType = selectedEventType.toUpperCase() === 'CELLS';
-        return {
-          eventType: selectedEventType,
-          isGlobal: false,
-          isTicketed: false,
-          hasPersonSteps: isCellsType, // FIXED: Set to true only for CELLS type
-        };
-      }
-    }
-    
-    return {
-      eventType: "",
-      isGlobal: false,
-      isTicketed: false,
-      hasPersonSteps: false,
-    };
+  const isCellsEventType = (eventTypeName) => {
+    if (!eventTypeName) return false;
+    const normalized = eventTypeName.toLowerCase().trim();
+    return normalized === "cells" || normalized === "all" || normalized === "all cells";
   };
 
-  const { eventType, isGlobal, isTicketed, hasPersonSteps } = determineEventType();
-
-  console.log('Final event type settings:', {
-    eventType,
-    isGlobal,
-    isTicketed,
-    hasPersonSteps
-  });
-
-  setEventTypeFlags({
-    isGlobal,
-    isTicketed,
-    hasPersonSteps,
-  });
-
-  setFormData((prev) => ({
-    ...prev,
-    eventType,
-    ...(prev.hasPersonSteps && !hasPersonSteps ? { 
-      leader1: "",
-      leader12: "" 
-    } : {})
-  }));
-
-}, [selectedEventTypeObj, selectedEventType, eventTypes]);
-
-useEffect(() => {
-  console.log('Leader fields debug:', {
-    hasPersonSteps,
-    isGlobalEvent,
-    shouldShowLeaderFields: hasPersonSteps && !isGlobalEvent,
-    formData: {
-      leader1: formData.leader1,
-      leader12: formData.leader12
-    }
-  });
-}, [hasPersonSteps, isGlobalEvent, formData.leader1, formData.leader12]);
-
   useEffect(() => {
-    console.log('Price tier debug:', {
-      isTicketedEvent,
-      isGlobalEvent,
-      shouldShowPriceTiers: isTicketedEvent && !isGlobalEvent,
-      priceTiersCount: priceTiers.length
+    const determineEventType = () => {
+      const defaultFlags = {
+        isGlobal: false,
+        isTicketed: false,
+        isTraining: false,
+      };
+      
+      if (selectedEventTypeObj) {
+        const eventTypeName = selectedEventTypeObj.name || selectedEventTypeObj.displayName || selectedEventTypeObj.eventTypeName || "";
+        
+        return {
+          eventType: eventTypeName,
+          isGlobal: selectedEventTypeObj.isGlobal === true,
+          isTicketed: selectedEventTypeObj.isTicketed === true,
+          isTraining: selectedEventTypeObj.isTraining === true,
+        };
+      }
+      
+      if (selectedEventType) {
+        // Handle "all" 
+        if (selectedEventType === 'all' || selectedEventType.toUpperCase() === 'ALL CELLS') {
+          return {
+            eventType: 'CELLS',
+            isGlobal: false,
+            isTicketed: false,
+            isTraining: false,
+          };
+        }
+        
+        const foundEventType = eventTypes.find(et => {
+          const etName = et.name || et.displayName || et.eventTypeName || '';
+          const searchName = selectedEventType;
+          
+          return (
+            etName === searchName ||
+            etName.toLowerCase() === searchName.toLowerCase() ||
+            (et._id && et._id === searchName)
+          );
+        });
+        
+        if (foundEventType) {
+          const eventTypeName = foundEventType.name || foundEventType.displayName || foundEventType.eventTypeName || selectedEventType;
+          
+          return {
+            eventType: eventTypeName,
+            isGlobal: foundEventType.isGlobal === true,
+            isTicketed: foundEventType.isTicketed === true,
+            isTraining: foundEventType.isTraining === true,
+          };
+        }
+      }
+      
+      return {
+        eventType: selectedEventType || "",
+        ...defaultFlags
+      };
+    };
+
+    const { eventType, isGlobal, isTicketed, isTraining } = determineEventType();
+
+    setEventTypeFlags({
+      isGlobal,
+      isTicketed,
+      isTraining,
     });
-  }, [isTicketedEvent, isGlobalEvent, priceTiers]);
+
+    setFormData((prev) => ({
+      ...prev,
+      eventType,
+      leader1: eventType === "CELLS" ? prev.leader1 : "",
+      leader12: eventType === "CELLS" ? prev.leader12 : "",
+    }));
+
+  }, [selectedEventTypeObj, selectedEventType, eventTypes]);
 
   useEffect(() => {
     if (isTicketedEvent && priceTiers.length === 0) {
@@ -246,55 +200,63 @@ useEffect(() => {
     }
   }, [isTicketedEvent]);
 
-  // Add to your component state
-const [allPeopleCache, setAllPeopleCache] = useState([]);
+  const fetchPeople = async (q) => {
+    if (!q.trim()) {
+      setPeopleData([]);
+      return;
+    }
 
-// Fetch all people once on component mount
-useEffect(() => {
-  const fetchAllPeople = async () => {
+    const parts = q.trim().split(/\s+/);
+    const name = parts[0];
+    const surname = parts.slice(1).join(" ");
+
     try {
+      setLoadingPeople(true);
       const token = localStorage.getItem("token");
-      const res = await fetch(`${BACKEND_URL}/people?perPage=0`, {
+      const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
-      if (res.ok) {
-        const data = await res.json();
-        const formatted = (data?.results || []).map((p) => ({
-          id: p._id,
-          fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-          email: p.Email || "",
-          leader1: p["Leader @1"] || "",
-          leader12: p["Leader @12"] || "",
-        }));
-        setAllPeopleCache(formatted);
-      }
+      if (!res.ok) throw new Error("Failed to fetch people");
+
+      const data = await res.json();
+
+      let filtered = (data?.results || data?.people || []).filter(p =>
+        (p.Name && p.Name.toLowerCase().includes(name.toLowerCase())) &&
+        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+      );
+
+      filtered.sort((a, b) => {
+        const nameA = (a.Name || "").toLowerCase();
+        const nameB = (b.Name || "").toLowerCase();
+        const surnameA = (a.Surname || "").toLowerCase();
+        const surnameB = (b.Surname || "").toLowerCase();
+
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        if (surnameA < surnameB) return -1;
+        if (surnameA > surnameB) return 1;
+        return 0;
+      });
+
+      const formatted = filtered.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+      }));
+
+      setPeopleData(formatted);
     } catch (err) {
-      console.error("Error caching people:", err);
+      console.error("Error fetching people:", err);
+      toast.error(err.message);
+      setPeopleData([]);
+    } finally {
+      setLoadingPeople(false);
     }
   };
 
-  fetchAllPeople();
-}, []);
-
-// Updated fetchPeople function
-const fetchPeople = (q) => {
-  if (!q.trim()) {
-    setPeopleData([]);
-    return;
-  }
-
-  const searchLower = q.toLowerCase().trim();
-  
-  const filtered = allPeopleCache.filter(person => {
-    const fullName = person.fullName.toLowerCase();
-    
-    // Simple: just check if full name contains the search
-    return fullName.includes(searchLower);
-  });
-
-  setPeopleData(filtered.slice(0, 10));
-};
   useEffect(() => {
     if (!eventId) return;
 
@@ -302,8 +264,6 @@ const fetchPeople = (q) => {
       try {
         const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
         const data = response.data;
-
-        console.log("Fetched event data:", data);
 
         if (data.date) {
           const dt = new Date(data.date);
@@ -327,8 +287,14 @@ const fetchPeople = (q) => {
           }));
         }
 
+        if (data.isTraining !== undefined) {
+          setEventTypeFlags(prev => ({
+            ...prev,
+            isTraining: !!data.isTraining
+          }));
+        }
+
         if (data.isTicketed) {
-          console.log("Setting price tiers for ticketed event:", data.priceTiers);
           if (data.priceTiers && Array.isArray(data.priceTiers) && data.priceTiers.length > 0) {
             const formattedPriceTiers = data.priceTiers.map(tier => ({
               name: tier.name || "",
@@ -422,6 +388,7 @@ const fetchPeople = (q) => {
     setPriceTiers([]);
     setErrors({});
   };
+  
   const formAlert = useRef()
 
   const validateForm = () => {
@@ -435,38 +402,26 @@ const fetchPeople = (q) => {
     if (!formData.date) newErrors.date = "Date is required";
     if (!formData.time) newErrors.time = "Time is required";
 
-    if (!isGlobalEvent) {
-      if (hasPersonSteps && formData.recurringDays.length === 0) {
-        newErrors.recurringDays = "Select at least one recurring day";
-      }
+    // CELLS specific validation
+    if (isCellsEventType(formData.eventType)) {
+      if (!formData.leader1) newErrors.leader1 = "Leader @1 is required";
+      if (!formData.leader12) newErrors.leader12 = "Leader @12 is required";
+    }
 
-      if (!hasPersonSteps) {
-        if (!formData.date) newErrors.date = "Date is required";
-        if (!formData.time) newErrors.time = "Time is required";
+    // Ticketed specific validation
+    if (isTicketedEvent) {
+      if (priceTiers.length === 0) {
+        newErrors.priceTiers = "Add at least one price tier for ticketed events";
+      } else {
+        priceTiers.forEach((tier, index) => {
+          if (!tier.name) newErrors[`tier_${index}_name`] = "Price name is required";
+          if (tier.price === "" || isNaN(Number(tier.price)) || Number(tier.price) < 0)
+            newErrors[`tier_${index}_price`] = "Valid price is required";
+          if (!tier.ageGroup) newErrors[`tier_${index}_ageGroup`] = "Age group is required";
+          if (!tier.memberType) newErrors[`tier_${index}_memberType`] = "Member type is required";
+          if (!tier.paymentMethod) newErrors[`tier_${index}_paymentMethod`] = "Payment method is required";
+        });
       }
-
-      if (isTicketedEvent && !isGlobalEvent) {
-        if (priceTiers.length === 0) {
-          newErrors.priceTiers = "Add at least one price tier for ticketed events";
-        } else {
-          priceTiers.forEach((tier, index) => {
-            if (!tier.name) newErrors[`tier_${index}_name`] = "Price name is required";
-            if (tier.price === "" || isNaN(Number(tier.price)) || Number(tier.price) < 0)
-              newErrors[`tier_${index}_price`] = "Valid price is required";
-            if (!tier.ageGroup) newErrors[`tier_${index}_ageGroup`] = "Age group is required";
-            if (!tier.memberType) newErrors[`tier_${index}_memberType`] = "Member type is required";
-            if (!tier.paymentMethod) newErrors[`tier_${index}_paymentMethod`] = "Payment method is required";
-          });
-        }
-      }
-
-      if (hasPersonSteps) {
-        if (!formData.leader1) newErrors.leader1 = "Leader @1 is required";
-        if (!formData.leader12) newErrors.leader12 = "Leader @12 is required";
-      }
-    } else {
-      if (!formData.date) newErrors.date = "Date is required";
-      if (!formData.time) newErrors.time = "Time is required";
     }
 
     setErrors(newErrors);
@@ -481,161 +436,93 @@ const fetchPeople = (q) => {
     return days[date.getDay()];
   };
 
- const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()){return setTimeout(()=>{formAlert.current.scrollIntoView({behavior:"smooth"})},200)};
-
-  setIsSubmitting(true);
-
-  try {
-    let eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
-    
-    if (eventTypeToSend === "all" || eventTypeToSend.toLowerCase() === "all cells") {
-      eventTypeToSend = "CELLS";
-    }
-
-    if (!eventTypeToSend) {
-      toast.error("Event type is required");
-      setIsSubmitting(false);
-      return;
-    }
-
-    console.log('Creating event with type:', eventTypeToSend);
-
-    let dayValue = "";
-
-    if (!formData.recurringDays || formData.recurringDays.length === 0) {
-      dayValue = formData.date ? getDayFromDate(formData.date) : "";
-    } else if (formData.recurringDays.length === 1) {
-      dayValue = formData.recurringDays[0];
-    } else {
-      dayValue = "Recurring";
-    }
-
-    const payload = {
-      UUID: generateUUID(),
-      eventTypeName: eventTypeToSend,
-      eventName: formData.eventName,
-      isTicketed: !!isTicketedEvent,
-      isGlobal: !!isGlobalEvent,
-      hasPersonSteps: !!hasPersonSteps,
-      location: formData.location,
-      eventLeader: formData.eventLeader,
-      eventLeaderName: formData.eventLeader,
-      eventLeaderEmail: formData.email || "",
-      description: formData.description,
-      userEmail: user?.email || "",
-      recurring_day: formData.recurringDays,
-      day: dayValue,
-      status: "open",
-      leader1: formData.leader1 || "",
-      leader12: formData.leader12 || "",
-      isRecurring: isRecurring,
-      recurringDays: isRecurring ? formData.recurringDays : [],
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()){
+      return setTimeout(() => {
+        formAlert.current.scrollIntoView({behavior:"smooth"})
+      }, 200)
     };
 
-    if (formData.date && formData.time) {
-      const [hoursStr, minutesStr] = formData.time.split(":");
-      let hours = Number(hoursStr);
-      const minutes = Number(minutesStr);
-      if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
-      if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+    setIsSubmitting(true);
 
-      payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
-        .toString()
-        .padStart(2, "0")}:00`;
+    try {
+      let eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
       
-      payload.time = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+      if (eventTypeToSend === "all" || eventTypeToSend.toLowerCase() === "all cells") {
+        eventTypeToSend = "CELLS";
+      }
+
+      const { isGlobal, isTicketed, isTraining } = eventTypeFlags;
+
+      const payload = {
+        UUID: generateUUID(),
+        eventTypeName: eventTypeToSend,
+        eventName: formData.eventName,
+        isTicketed: !!isTicketed,
+        isTraining: !!isTraining,
+        isGlobal: !!isGlobal,
+        hasPersonSteps: isCellsEventType(eventTypeToSend),
+        location: formData.location,
+        eventLeader: formData.eventLeader,
+        eventLeaderName: formData.eventLeader,
+        eventLeaderEmail: user?.email || "",
+        description: formData.description,
+        userEmail: user?.email || "",
+        recurring_day: formData.recurringDays,
+        day: formData.recurringDays.length === 0 
+             ? (formData.date ? getDayFromDate(formData.date) : "") 
+             : (formData.recurringDays.length === 1 ? formData.recurringDays[0] : "Recurring"),
+        status: "open",
+        leader1: isCellsEventType(eventTypeToSend) ? (formData.leader1 || "") : "",
+        leader12: isCellsEventType(eventTypeToSend) ? (formData.leader12 || "") : "",
+      };
+
+      if (formData.date && formData.time) {
+        const [hoursStr, minutesStr] = formData.time.split(":");
+        let hours = Number(hoursStr);
+        const minutes = Number(minutesStr);
+        if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
+        if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+
+        payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:00`;
+        payload.time = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+      }
+
+      payload.priceTiers = (isTicketed) ? priceTiers.map(tier => ({
+        name: tier.name || "",
+        price: parseFloat(tier.price) || 0,
+        ageGroup: tier.ageGroup || "",
+        memberType: tier.memberType || "",
+        paymentMethod: tier.paymentMethod || "",
+      })) : [];
+
+      const token = localStorage.getItem("token");
+      const headers = {
+        Authorization: token ? `Bearer ${token}` : "",
+        "Content-Type": "application/json",
+      };
+
+      const url = eventId 
+        ? `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}` 
+        : `${BACKEND_URL.replace(/\/$/, "")}/events`;
+      
+      const response = eventId 
+        ? await axios.put(url, payload, { headers }) 
+        : await axios.post(url, payload, { headers });
+        console.log("API Response:", response);
+      
+      toast.success(eventId ? "Event updated!" : "Event created!");
+      if (!eventId) resetForm();
+      if (isModal) onClose(true);
+
+    } catch (err) {
+      console.error("Submission Error:", err);
+      toast.error(err.response?.data?.detail || "Failed to submit event");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    if (isTicketedEvent && !isGlobalEvent) {
-      if (priceTiers.length > 0) {
-        payload.priceTiers = priceTiers.map((tier) => ({
-          name: tier.name || "",
-          price: parseFloat(tier.price) || 0,
-          ageGroup: tier.ageGroup || "",
-          memberType: tier.memberType || "",
-          paymentMethod: tier.paymentMethod || "",
-        }));
-      } else {
-        payload.priceTiers = [];
-      }
-    } else {
-      payload.priceTiers = [];
-    }
-
-    if (hasPersonSteps && !isGlobalEvent) {
-      payload.leader1 = formData.leader1 || "";
-      payload.leader12 = formData.leader12 || "";
-    }
-
-    console.log('Final Payload:', payload);
-
-    const token = localStorage.getItem("token");
-    const headers = {
-      Authorization: token ? `Bearer ${token}` : "",
-      "Content-Type": "application/json",
-    };
-
-    const response = eventId
-      ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
-      : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
-
-    console.log("Response:", response.data);
-
-    toast.success(
-      eventId ? "Event updated successfully!" : "Event created successfully!"
-    );
-
-    if (!eventId) resetForm();
-
-    setTimeout(() => {
-      if (isModal && typeof onClose === "function") {
-        onClose(true);
-      } else {
-        navigate("/events", {
-          state: {
-            refresh: true,
-            timestamp: Date.now()
-          }
-        });
-      }
-    }, 1200);
-
-  } catch (err) {
-    console.error("Error:", err);
-    console.error("Response:", err?.response?.data);
-
-    let errorMsg = "Failed to submit event";
-
-    if (err?.response?.data) {
-      const errorData = err.response.data;
-
-      if (Array.isArray(errorData.detail)) {
-        errorMsg = "Validation errors: " + errorData.detail.map(errorObj => {
-          if (errorObj.msg) return errorObj.msg;
-          if (errorObj.loc && errorObj.msg) return `${errorObj.loc.join('.')}: ${errorObj.msg}`;
-          return JSON.stringify(errorObj);
-        }).join(', ');
-      }
-      else if (errorData.detail && typeof errorData.detail === 'object') {
-        errorMsg = errorData.detail.msg || JSON.stringify(errorData.detail);
-      }
-      else if (errorData.message) {
-        errorMsg = errorData.message;
-      }
-      else if (errorData.detail) {
-        errorMsg = errorData.detail;
-      }
-    } else if (err?.message) {
-      errorMsg = err.message;
-    }
-
-    toast.error(errorMsg);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   const containerStyle = isModal
     ? {
@@ -675,143 +562,134 @@ const fetchPeople = (q) => {
     };
 
   const darkModeStyles = {
-  textField: {
-    "& .MuiOutlinedInput-root": {
-      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-      color: theme.palette.text.primary,
-      "& fieldset": {
-        borderColor: isDarkMode
-          ? theme.palette.divider
-          : "rgba(0, 0, 0, 0.23)",
-      },
-      "&:hover fieldset": {
-        borderColor: isDarkMode
-          ? theme.palette.primary.light
-          : "rgba(0, 0, 0, 0.87)",
-      },
-      "&.Mui-focused fieldset": {
-        borderColor: theme.palette.primary.main,
-        boxShadow: `0 0 0 3px ${theme.palette.primary.main}22`,
-      },
-      "& input": {
+    textField: {
+      "& .MuiOutlinedInput-root": {
+        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
         color: theme.palette.text.primary,
-        WebkitTextFillColor: theme.palette.text.primary,
+        "& fieldset": {
+          borderColor: isDarkMode
+            ? theme.palette.divider
+            : "rgba(0, 0, 0, 0.23)",
+        },
+        "&:hover fieldset": {
+          borderColor: isDarkMode
+            ? theme.palette.primary.light
+            : "rgba(0, 0, 0, 0.87)",
+        },
+        "&.Mui-focused fieldset": {
+          borderColor: theme.palette.primary.main,
+          boxShadow: `0 0 0 3px ${theme.palette.primary.main}22`,
+        },
+        "& input": {
+          color: theme.palette.text.primary,
+          WebkitTextFillColor: theme.palette.text.primary,
+        },
+        "& textarea": {
+          color: theme.palette.text.primary,
+        },
       },
-      "& textarea": {
-        color: theme.palette.text.primary,
+      "& .MuiInputAdornment-root .MuiSvgIcon-root": {
+        color: isDarkMode ? "#fff" : theme.palette.text.secondary,
+      },
+      "& .MuiInputLabel-root": {
+        color: theme.palette.text.secondary,
+        "&.Mui-focused": {
+          color: theme.palette.primary.main,
+        },
+        "&.MuiInputLabel-shrink": {
+          color: theme.palette.text.secondary,
+        },
+      },
+      "& .MuiFormHelperText-root": {
+        color: theme.palette.text.secondary,
+        "&.Mui-error": {
+          color: theme.palette.error.main,
+        },
       },
     },
-
-    //  Make date/time picker icons white in dark mode
-    "& .MuiInputAdornment-root .MuiSvgIcon-root": {
-      color: isDarkMode ? "#fff" : theme.palette.text.secondary,
-    },
-
-    "& .MuiInputLabel-root": {
-      color: theme.palette.text.secondary,
-      "&.Mui-focused": {
-        color: theme.palette.primary.main,
+    autocomplete: {
+      "& .MuiOutlinedInput-root": {
+        bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+        color: theme.palette.text.primary,
+        "& fieldset": {
+          borderColor: isDarkMode
+            ? theme.palette.divider
+            : "rgba(0, 0, 0, 0.23)",
+        },
+        "&:hover fieldset": {
+          borderColor: isDarkMode
+            ? theme.palette.primary.light
+            : "rgba(0, 0, 0, 0.87)",
+        },
+        "&.Mui-focused fieldset": {
+          borderColor: theme.palette.primary.main,
+        },
       },
-      "&.MuiInputLabel-shrink": {
+      "& .MuiAutocomplete-input": {
+        color: theme.palette.text.primary,
+      },
+      "& .MuiInputLabel-root": {
         color: theme.palette.text.secondary,
       },
     },
-    "& .MuiFormHelperText-root": {
-      color: theme.palette.text.secondary,
-      "&.Mui-error": {
-        color: theme.palette.error.main,
-      },
-    },
-  },
-
-  autocomplete: {
-    "& .MuiOutlinedInput-root": {
-      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-      color: theme.palette.text.primary,
-      "& fieldset": {
-        borderColor: isDarkMode
-          ? theme.palette.divider
-          : "rgba(0, 0, 0, 0.23)",
-      },
-      "&:hover fieldset": {
-        borderColor: isDarkMode
-          ? theme.palette.primary.light
-          : "rgba(0, 0, 0, 0.87)",
-      },
-      "&.Mui-focused fieldset": {
-        borderColor: theme.palette.primary.main,
-      },
-    },
-    "& .MuiAutocomplete-input": {
-      color: theme.palette.text.primary,
-    },
-    "& .MuiInputLabel-root": {
-      color: theme.palette.text.secondary,
-    },
-  },
-
-  formControlLabel: {
-    "& .MuiFormControlLabel-label": {
-      color: theme.palette.text.primary,
-      fontSize: "0.95rem",
-      fontWeight: 500,
-    },
-    "& .MuiCheckbox-root": {
-      color: theme.palette.text.secondary,
-      "&.Mui-checked": {
-        color: theme.palette.primary.main,
-      },
-    },
-  },
-
-  button: {
-  contained: {
-    bgcolor: isDarkMode ? "#194c99ff" : theme.palette.primary.dark,
-    color: "#fff",
-    "&:hover": {
-      bgcolor: isDarkMode ? "#2f6bbeff" : theme.palette.primary.main,
-    },
-  },
-
-    outlined: {
-      borderColor: theme.palette.divider,
-      color: theme.palette.text.primary,
-      "&:hover": {
-        borderColor: theme.palette.primary.dark,
-        bgcolor: theme.palette.action.hover,
-      },
-    },
-  },
-
-  errorText: {
-    color: theme.palette.error.main,
-  },
-
-  card: {
-    bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
-    border: `1px solid ${theme.palette.divider}`,
-  },
-
-  sectionTitle: {
-    color: theme.palette.text.primary,
-  },
-
-  helperText: {
-    color: theme.palette.text.secondary,
-  },
-
-  daysContainer: {
-    "& .MuiFormControlLabel-root": {
-      margin: 0,
+    formControlLabel: {
       "& .MuiFormControlLabel-label": {
         color: theme.palette.text.primary,
         fontSize: "0.95rem",
         fontWeight: 500,
       },
+      "& .MuiCheckbox-root": {
+        color: theme.palette.text.secondary,
+        "&.Mui-checked": {
+          color: theme.palette.primary.main,
+        },
+      },
     },
-  },
-};
+    button: {
+      contained: {
+        bgcolor: isDarkMode ? "#194c99ff" : theme.palette.primary.dark,
+        color: "#fff",
+        "&:hover": {
+          bgcolor: isDarkMode ? "#2f6bbeff" : theme.palette.primary.main,
+        },
+      },
+      outlined: {
+        borderColor: theme.palette.divider,
+        color: theme.palette.text.primary,
+        "&:hover": {
+          borderColor: theme.palette.primary.dark,
+          bgcolor: theme.palette.action.hover,
+        },
+      },
+    },
+    errorText: {
+      color: theme.palette.error.main,
+    },
+    card: {
+      bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+      border: `1px solid ${theme.palette.divider}`,
+    },
+    sectionTitle: {
+      color: theme.palette.text.primary,
+    },
+    helperText: {
+      color: theme.palette.text.secondary,
+    },
+    daysContainer: {
+      "& .MuiFormControlLabel-root": {
+        margin: 0,
+        "& .MuiFormControlLabel-label": {
+          color: theme.palette.text.primary,
+          fontSize: "0.95rem",
+          fontWeight: 500,
+        },
+      },
+    },
+  };
 
+  const isCellsEvent = isCellsEventType(formData.eventType);
+  const shouldShowLeaderFields = isCellsEvent;
+  const shouldShowPriceTiers = isTicketedEvent;
 
   return (
     <Box sx={containerStyle}>
@@ -844,42 +722,26 @@ const fetchPeople = (q) => {
               {eventId ? "Edit Event" : "Create New Event"}
             </Typography>
           )}
-          { Object.keys(errors).length !== 0 && <Alert
-          ref={formAlert}
-          sx={{
-            marginBottom:"20px"
-          }} severity="error">Please fill In all required fields</Alert>
-          }
-
+          
+          {Object.keys(errors).length !== 0 && (
+            <Alert
+              ref={formAlert}
+              sx={{ marginBottom: "20px" }}
+              severity="error"
+            >
+              Please fill in all required fields
+            </Alert>
+          )}
 
           <form onSubmit={handleSubmit}>
             <TextField
               label="Event Type *"
-              value={
-                (() => {
-                  let displayValue = formData.eventType || selectedEventTypeObj?.name || selectedEventType || "";
-                  if (displayValue === "all" || displayValue.toLowerCase() === "all cells") {
-                    return "CELLS";
-                  }
-                  return displayValue;
-                })()
-              }Create
+              value={formData.eventType === "all" ? "CELLS" : formData.eventType}
               fullWidth
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
               InputProps={{ readOnly: true }}
               disabled
-              helperText={
-                selectedEventTypeObj 
-                  ? `Type: ${selectedEventTypeObj.isGlobal ? 'Global' : 'Local'} ${selectedEventTypeObj.isTicketed ? '| Ticketed' : ''} ${selectedEventTypeObj.hasPersonSteps ? '| Personal Steps' : ''}` 
-                  : hasPersonSteps 
-                    ? "Type: Local | Personal Steps Event (Cell)" 
-                    : isGlobalEvent
-                      ? `Type: Global${isTicketedEvent ? ' | Ticketed' : ''}`
-                      : isTicketedEvent
-                        ? "Type: Local | Ticketed"
-                        : "Event type details"
-              }
             />
 
             <TextField
@@ -893,7 +755,7 @@ const fetchPeople = (q) => {
               helperText={errors.eventName}
             />
 
-            {isTicketedEvent && !isGlobalEvent && (
+            {shouldShowPriceTiers && (
               <Box sx={{ mb: 3 }}>
                 <Box
                   sx={{
@@ -903,10 +765,7 @@ const fetchPeople = (q) => {
                     mb: 2,
                   }}
                 >
-                  <Typography
-                    variant="h6"
-                    sx={darkModeStyles.sectionTitle}
-                  >
+                  <Typography variant="h6" sx={darkModeStyles.sectionTitle}>
                     Price Tiers *
                   </Typography>
                   <Button
@@ -928,14 +787,7 @@ const fetchPeople = (q) => {
                 )}
 
                 {priceTiers.map((tier, index) => (
-                  <Card
-                    key={index}
-                    sx={{
-                      mb: 2,
-                      p: 2,
-                      ...darkModeStyles.card,
-                    }}
-                  >
+                  <Card key={index} sx={{ mb: 2, p: 2, ...darkModeStyles.card }}>
                     <Box
                       sx={{
                         display: "flex",
@@ -1006,11 +858,7 @@ const fetchPeople = (q) => {
                       label="Member Type *"
                       value={tier.memberType}
                       onChange={(e) =>
-                        handlePriceTierChange(
-                          index,
-                          "memberType",
-                          e.target.value
-                        )
+                        handlePriceTierChange(index, "memberType", e.target.value)
                       }
                       fullWidth
                       size="small"
@@ -1023,11 +871,7 @@ const fetchPeople = (q) => {
                       label="Payment Method *"
                       value={tier.paymentMethod}
                       onChange={(e) =>
-                        handlePriceTierChange(
-                          index,
-                          "paymentMethod",
-                          e.target.value
-                        )
+                        handlePriceTierChange(index, "paymentMethod", e.target.value)
                       }
                       fullWidth
                       size="small"
@@ -1071,58 +915,36 @@ const fetchPeople = (q) => {
                 sx={darkModeStyles.textField}
               />
             </Box>
-
-            <Box mb={3}>
-              <Typography
-                fontWeight="bold"
-                mb={1}
-                sx={darkModeStyles.sectionTitle}
-              >
-                Is Recurring? {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
-              </Typography>    
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={isRecurring}
-                    onChange={handleIsRecurringChange}
-                  />
-                }
-                label="Yes"
-              />
-
-              <Typography
-                fontWeight="bold"
-                mb={1}
-                sx={darkModeStyles.sectionTitle}
-              >
-                Recurring Days {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
-              </Typography>
-              <Box
-                display="flex"
-                flexWrap="wrap"
-                gap={2}
-                sx={darkModeStyles.daysContainer}
-              >
-                {days.map((day) => (
-                  <FormControlLabel
-                    key={day}
-                    control={
-                      <Checkbox
-                        checked={formData.recurringDays.includes(day)}
-                        onChange={() => handleDayChange(day)}
-                        disabled={!isRecurring}
-                      />
-                    }
-                    label={day}
-                  />
-                ))}
-              </Box>
-              {errors.recurringDays && (
-                <Typography variant="caption" sx={darkModeStyles.errorText}>
-                  {errors.recurringDays}
-                </Typography>
-              )}
-            </Box>
+<Box mb={3}>
+  <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
+    Recurring Days
+  </Typography>
+  <Box
+    display="flex"
+    flexWrap="wrap"
+    gap={2}
+    sx={darkModeStyles.daysContainer}
+  >
+    {days.map((day) => (
+      <FormControlLabel
+        key={day}
+        control={
+          <Checkbox
+            checked={formData.recurringDays.includes(day)}
+            onChange={() => handleDayChange(day)}
+            // REMOVE THIS: disabled={!isRecurring}
+          />
+        }
+        label={day}
+      />
+    ))}
+  </Box>
+  {errors.recurringDays && (
+    <Typography variant="caption" sx={darkModeStyles.errorText}>
+      {errors.recurringDays}
+    </Typography>
+  )}
+</Box>
 
             <TextField
               label="Location *"
@@ -1142,28 +964,31 @@ const fetchPeople = (q) => {
               }}
             />
 
-            {/* <Box sx={{ mb: 3, position: 'relative' }}>
+            <Box sx={{ mb: 3, position: 'relative' }}>
               <TextField
                 label="Event Leader *"
                 value={formData.eventLeader}
                 onChange={(e) => {
                   handleChange("eventLeader", e.target.value);
-                  if (e.target.value.length >= 2) {
+                  if (e.target.value.trim().length >= 1) {
                     fetchPeople(e.target.value);
                   } else {
                     setPeopleData([]);
                   }
                 }}
                 onFocus={() => {
-                  if (formData.eventLeader.length === 0) {
-                    setPeopleData([]);
+                  if (formData.eventLeader.length >= 1) {
+                    fetchPeople(formData.eventLeader);
                   }
+                }}
+                onBlur={() => {
+                  setTimeout(() => setPeopleData([]), 200);
                 }}
                 fullWidth
                 size="small"
                 sx={darkModeStyles.textField}
                 error={!!errors.eventLeader}
-                helperText={errors.eventLeader || (peopleData.length > 0 ? `${peopleData.length} people found` : "Type to search for people")}
+                helperText={errors.eventLeader || "Type name and surname to search..."}
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -1171,7 +996,8 @@ const fetchPeople = (q) => {
                     </InputAdornment>
                   ),
                 }}
-                placeholder="Type name to search..."
+                placeholder="Type name and surname to search..."
+                autoComplete="off"
               />
               
               {peopleData.length > 0 && (
@@ -1206,11 +1032,10 @@ const fetchPeople = (q) => {
                       onClick={() => {
                         const selectedName = person.fullName;
                         
-                        if (hasPersonSteps && !isGlobalEvent) {
+                        if (shouldShowLeaderFields) {
                           setFormData((prev) => ({
                             ...prev,
                             eventLeader: selectedName,
-                            eventName: selectedName,
                             leader1: person.leader1 || "",
                             leader12: person.leader12 || "",
                           }));
@@ -1238,114 +1063,9 @@ const fetchPeople = (q) => {
                   Searching...
                 </Typography>
               )}
-            </Box> */}
+            </Box>
 
-            {/* // Replace the existing Event Leader TextField section with this: */}
-<Box sx={{ mb: 3, position: 'relative' }}>
-  <TextField
-    label="Event Leader *"
-    value={formData.eventLeader}
-    onChange={(e) => {
-      handleChange("eventLeader", e.target.value);
-      if (e.target.value.trim().length >= 1) {
-        fetchPeople(e.target.value);
-      } else {
-        setPeopleData([]);
-      }
-    }}
-    onFocus={() => {
-      if (formData.eventLeader.length >= 1) {
-        fetchPeople(formData.eventLeader);
-      }
-    }}
-    onBlur={() => {
-      // Delay hiding dropdown to allow for selection
-      setTimeout(() => setPeopleData([]), 200);
-    }}
-    fullWidth
-    size="small"
-    sx={darkModeStyles.textField}
-    error={!!errors.eventLeader}
-    helperText={errors.eventLeader || "Type name and surname to search..."}
-    InputProps={{
-      startAdornment: (
-        <InputAdornment position="start">
-          <PersonIcon />
-        </InputAdornment>
-      ),
-    }}
-    placeholder="Type name and surname to search..."
-    autoComplete="off"
-  />
-  
-  {peopleData.length > 0 && (
-    <Box sx={{
-      position: 'absolute',
-      top: '100%',
-      left: 0,
-      right: 0,
-      zIndex: 1000,
-      backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
-      border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
-      borderRadius: '4px',
-      boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-      maxHeight: '200px',
-      overflowY: 'auto',
-      mt: 0.5,
-    }}>
-      {peopleData.map((person) => (
-        <Box
-          key={person.id || `${person.fullName}-${person.email}`}
-          sx={{
-            padding: '12px',
-            cursor: 'pointer',
-            borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : '#f0f0f0'}`,
-            '&:hover': {
-              backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
-            },
-            '&:last-child': {
-              borderBottom: 'none',
-            },
-          }}
-          onClick={() => {
-            const selectedName = person.fullName;
-            const selectedEmail = person.email;
-            
-            if (hasPersonSteps && !isGlobalEvent) {
-              setFormData((prev) => ({
-                ...prev,
-                eventLeader: selectedName,
-                email: selectedEmail.toLowerCase(),
-                leader1: person.leader1 || "",
-                leader12: person.leader12 || "",
-              }));
-            } else {
-              handleChange("eventLeader", selectedName);
-            }
-            setPeopleData([]);
-          }}
-        >
-          <Typography variant="body1" fontWeight="500">
-            {person.fullName}
-          </Typography>
-          <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
-            {person.email}
-            {person.leader1 && ` • L@1: ${person.leader1}`}
-            {person.leader12 && ` • L@12: ${person.leader12}`}
-          </Typography>
-        </Box>
-      ))}
-    </Box>
-  )}
-  
-  {loadingPeople && (
-    <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-      Searching...
-    </Typography>
-  )}
-</Box>
-
-            {hasPersonSteps && !isGlobalEvent && (
+            {shouldShowLeaderFields && (
               <>
                 <TextField
                   label="Email *"
@@ -1383,9 +1103,9 @@ const fetchPeople = (q) => {
             )}
 
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {isTicketedEvent && !isGlobalEvent && <Chip label="Ticketed Event" color="warning" size="small" />}
-              {isGlobalEvent && <Chip label="Global Event" color="info" size="small" />}
-              {hasPersonSteps && !isGlobalEvent && <Chip label="Personal Steps Event" color="secondary" size="small" />}
+              {isCellsEvent && <Chip label="CELL" color="primary" size="small" />}
+              {shouldShowPriceTiers && <Chip label="Ticketed Event" color="warning" size="small" />}
+              {isTraining && <Chip label="Training Event" color="info" size="small" />}
             </Box>
 
             <TextField
@@ -1429,9 +1149,7 @@ const fetchPeople = (q) => {
                 variant="contained"
                 fullWidth
                 disabled={isSubmitting}
-                sx={{
-                  ...darkModeStyles.button.contained,
-                }}
+                sx={darkModeStyles.button.contained}
               >
                 {isSubmitting
                   ? eventId
