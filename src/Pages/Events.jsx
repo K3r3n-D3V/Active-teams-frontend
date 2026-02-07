@@ -1640,35 +1640,72 @@ const Events = () => {
     ]
   );
 
-  const handleEditEvent = useCallback((event) => {
-    let eventId = event._id;
-    let eventDate = event.date;
+  // const handleEditEvent = useCallback((event) => {
+  //   let eventId = event._id;
+  //   let eventDate = event.date;
 
-    if (eventId && eventId.includes("_")) {
-      const parts = eventId.split("_");
-      if (parts.length > 0 && isValidObjectId(parts[0])) {
-        eventId = parts[0];
-      }
+  //   if (eventId && eventId.includes("_")) {
+  //     const parts = eventId.split("_");
+  //     if (parts.length > 0 && isValidObjectId(parts[0])) {
+  //       eventId = parts[0];
+  //     }
+  //   }
+
+  //   const eventToEdit = {
+  //     ...event,
+  //     _id: eventId,
+  //     original_composite_id: event._id,
+  //     date: eventDate,
+  //     UUID: event.UUID || event.uuid || null,
+  //   };
+
+  //   if (!eventToEdit._id && !eventToEdit.UUID) {
+  //     toast.error(
+  //       "Cannot edit event: Missing identifier. Please refresh and try again."
+  //     );
+  //     return;
+  //   }
+
+  //   setSelectedEvent(eventToEdit);
+  //   setEditModalOpen(true);
+  // }, []);
+const handleEditEvent = useCallback((event) => {
+  let eventId = event._id;
+  let eventDate = event.date;
+
+  if (eventId && eventId.includes("_")) {
+    const parts = eventId.split("_");
+    if (parts.length > 0 && isValidObjectId(parts[0])) {
+      eventId = parts[0];
     }
+  }
 
-    const eventToEdit = {
-      ...event,
-      _id: eventId,
-      original_composite_id: event._id,
-      date: eventDate,
-      UUID: event.UUID || event.uuid || null,
-    };
+  const eventToEdit = {
+    ...event,
+    _id: eventId,
+    original_composite_id: event._id,
+    date: eventDate,
+    UUID: event.UUID || event.uuid || null,
+  };
 
-    if (!eventToEdit._id && !eventToEdit.UUID) {
-      toast.error(
-        "Cannot edit event: Missing identifier. Please refresh and try again."
-      );
-      return;
-    }
+  // ADD DEBUG LOGGING HERE
+  console.log("📅 EDIT EVENT DEBUG:", {
+    originalEventTime: event.time,
+    originalEventTimeField: event.Time,
+    eventToEditTime: eventToEdit.time,
+    eventToEditTimeField: eventToEdit.Time
+  });
 
-    setSelectedEvent(eventToEdit);
-    setEditModalOpen(true);
-  }, []);
+  if (!eventToEdit._id && !eventToEdit.UUID) {
+    toast.error(
+      "Cannot edit event: Missing identifier. Please refresh and try again."
+    );
+    return;
+  }
+
+  setSelectedEvent(eventToEdit);
+  setEditModalOpen(true);
+}, []);
 
   const handleDeleteEvent = useCallback(
     async (event) => {
@@ -3893,11 +3930,40 @@ const Events = () => {
       )}
       <EditEventModal
         isOpen={editModalOpen}
-        onClose={(shouldRefresh = false) => {
-          handleCloseEditModal(shouldRefresh);
-        }}
+  onClose={(shouldRefresh = false) => {
+    if (shouldRefresh) {
+      // Force refresh with current params
+      const refreshParams = {
+        page: currentPage,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        _t: Date.now(),
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        search: searchQuery.trim() || undefined,
+        event_type: selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
+      };
+      
+      fetchEvents(refreshParams, true);
+    }
+    setEditModalOpen(false);
+    setSelectedEvent(null);
+  }}
         event={selectedEvent}
         token={token}
+        refreshEvents={() => {
+    const refreshParams = {
+      page: currentPage,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now(),
+    };
+    
+    if (selectedStatus !== "all") refreshParams.status = selectedStatus;
+    if (searchQuery.trim()) refreshParams.search = searchQuery.trim();
+    refreshParams.event_type = selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter;
+    
+    fetchEvents(refreshParams, true);
+  }}
       />
       <Dialog
         open={confirmDeleteOpen}
