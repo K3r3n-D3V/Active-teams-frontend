@@ -71,50 +71,6 @@ const formatRecurringDays = (recurringDays) => {
   return `Every ${sorted.join(", ")} & ${last}`;
 };
 
-// const getNextOccurrence = (recurringDays, fromDate = new Date()) => {
-//   if (!recurringDays || recurringDays.length === 0) {
-//     return null;
-//   }
-
-//   const dayMap = {
-//     Sunday: 0,
-//     Monday: 1,
-//     Tuesday: 2,
-//     Wednesday: 3,
-//     Thursday: 4,
-//     Friday: 5,
-//     Saturday: 6,
-//   };
-
-//   const targetDays = recurringDays
-//     .map((day) => dayMap[day])
-//     .filter((d) => d !== undefined)
-//     .sort((a, b) => a - b);
-
-//   if (targetDays.length === 0) return null;
-
-//   const today = new Date(fromDate);
-//   today.setHours(0, 0, 0, 0);
-//   const currentDay = today.getDay();
-
-//   let daysToAdd = null;
-
-//   for (const targetDay of targetDays) {
-//     if (targetDay > currentDay) {
-//       daysToAdd = targetDay - currentDay;
-//       break;
-//     }
-//   }
-
-//   if (daysToAdd === null) {
-//     daysToAdd = 7 - currentDay + targetDays[0];
-//   }
-
-//   const nextDate = new Date(today);
-//   nextDate.setDate(nextDate.getDate() + daysToAdd);
-
-//   return nextDate;
-// };
 
 const styles = {
   container: {
@@ -1464,10 +1420,10 @@ const findEventTypeByName = (typeName) => {
   }, [eventTypes]);
 
 
+
 const fetchEvents = useCallback(
   async (filters = {}, showLoader = true) => {
     console.log("🔍 fetchEvents called with filters:", filters);
-    console.log("🎯 event_type being sent:", filters.event_type);
     
     if (showLoader) {
       setLoading(true);
@@ -1482,18 +1438,24 @@ const fetchEvents = useCallback(
         return;
       }
 
+      const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+      const userEmail = currentUser?.email || "";
+      const userName = currentUser?.name || "";
+      const userFirstName = currentUser?.firstName || userName?.split(' ')[0] || "";
+      const userSurname = currentUser?.surname || userName?.split(' ').slice(1).join(' ') || "";
+
       const params = {
         page: filters.page || currentPage,
         limit: filters.limit || rowsPerPage,
         start_date: filters.start_date || DEFAULT_API_START_DATE,
-        // ALWAYS default to "incomplete" status
         status: filters.status || selectedStatus || "incomplete",
       };
 
       if (filters.search) params.search = filters.search;
-            if (filters.event_type) {
+      if (filters.event_type) {
         params.event_type = filters.event_type;
       }
+      
       let endpoint = `${BACKEND_URL}/events`;
       
       const eventType = filters.event_type || selectedEventTypeFilter;
@@ -1507,27 +1469,44 @@ const fetchEvents = useCallback(
       if (isCellType) {
         endpoint = `${BACKEND_URL}/events/cells`;
         
+        // CRITICAL: Always send name parameters for leader at 12
+        params.firstName = userFirstName;
+        params.userSurname = userSurname;
+        
         if (isLeaderAt12) {
           params.leader_at_12_view = true;
-          if (viewFilter === "personal") params.personal = true;
-          else params.include_subordinate_cells = true;
+          params.isLeaderAt12 = true;
+          
+          if (viewFilter === "personal") {
+            params.personal = true;
+            params.show_personal_cells = true;
+          } else {
+            // For "DISCIPLES" view
+            params.include_subordinate_cells = true;
+            params.show_all_authorized = true;
+          }
         } else if (isAdmin) {
           if (viewFilter === "personal") params.personal = true;
         } else {
+          // For regular users, registrants, leaders - show personal cells only
           params.personal = true;
         }
       } else {
         endpoint = `${BACKEND_URL}/events/other`;
+        // Remove cells-specific parameters
         delete params.personal;
         delete params.leader_at_12_view;
         delete params.include_subordinate_cells;
         delete params.show_personal_cells;
         delete params.show_all_authorized;
         delete params.leader_at_1_identifier;
+        delete params.isLeaderAt12;
+        delete params.firstName;
+        delete params.userSurname;
       }
 
       const queryString = new URLSearchParams(params).toString();
-      console.log(" Full URL:", `${endpoint}?${queryString}`);
+      console.log("📤 Fetching from:", `${endpoint}?${queryString}`);
       
       const response = await authFetch(`${endpoint}?${queryString}`, {
         method: "GET",
@@ -1540,24 +1519,15 @@ const fetchEvents = useCallback(
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = await response.json();
-      console.log(" Received events:", data.events?.length || 0);
-      console.log(" Event statuses in response:", [...new Set(data.events?.map(e => e.status))]);
+      console.log("✅ Received events:", data.events?.length || 0);
       
       const allEvents = data.events || [];
-      const currentUserEmail = currentUser?.email?.toLowerCase().trim();
 
-      // Filter events based on user role and permissions
-      const filtered = allEvents.filter((event) => {
-        if (isAdmin) return true;
-        
-        const isGlobal = event.isGlobal === true;
-        const isCreator = event.userEmail?.toLowerCase().trim() === currentUserEmail;
-        const isAssignedLeader = event.eventLeaderEmail?.toLowerCase().trim() === currentUserEmail;
+      // IMPORTANT: For /events/other endpoint, let backend handle filtering
+      // The backend will return appropriate events based on role
+      const filtered = allEvents;
 
-        return isGlobal || isCreator || isAssignedLeader;
-      });
-
-      console.log(" Filtered events:", filtered.length);
+      console.log("📊 Final events to display:", filtered.length);
       
       setEvents(filtered);
       setTotalEvents(data.total_events || 0);
@@ -1576,8 +1546,9 @@ const fetchEvents = useCallback(
       }
     }
   },
-  [currentPage, rowsPerPage, authFetch, BACKEND_URL, isLeaderAt12, isAdmin, currentUser, viewFilter, logout, selectedEventTypeFilter, selectedStatus]
+  [currentPage, rowsPerPage, authFetch, BACKEND_URL, isLeaderAt12, isAdmin, isRegistrant, viewFilter, logout, selectedEventTypeFilter, selectedStatus]
 );
+
 const fetchEventTypes = useCallback(async () => {
   try {
     const token = localStorage.getItem("access_token");
@@ -5016,7 +4987,7 @@ return (
                   maxHeight: "2.8em",
                   fontStyle: description ? "normal" : "italic",
                 }}>
-                  {description || "No description available"}
+                  {description || "Gatherings for discipleship, community and spiritual growth."}
                 </Typography>
               </Box>
               
@@ -5201,7 +5172,7 @@ return (
                   lineHeight: 1.4,
                   fontStyle: description ? "normal" : "italic",
                 }}>
-                  {description || "No description available"}
+                  {description || "Gatherings for discipleship, community and spiritual growth."}
                 </Typography>
               </Box>
             </Box>
