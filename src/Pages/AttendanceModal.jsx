@@ -1124,7 +1124,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     { value: "first-time", label: "First-time commitment" },
     { value: "re-commitment", label: "Re-commitment" },
   ];
-  const [eventStatistics, setEventStatistics] = useState({
+  const [, setEventStatistics] = useState({
     totalAssociated: 0,
     lastAttendanceCount: 0,
     lastHeadcount: 0,
@@ -1263,8 +1263,8 @@ const formatDateToISO = (dateString) => {
       return `${year}-${month}-${day}`;
     }
     return dateString;
-  } catch (e) {
-    return dateString;
+  } catch (error) {
+    return dateString, error;
   }
 };
 
