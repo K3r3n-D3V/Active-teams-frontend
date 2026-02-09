@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
-
+import { DataGrid, GridToolbar } from "@mui/x-data-grid";
+import { Box , Typography ,LinearProgress } from "@mui/material"
 const AddPersonToEvents = ({ isOpen, onClose }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
@@ -1087,7 +1088,10 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
   );
 };
 
+
+
 const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitted, currentUser }) => {
+  
   const { authFetch } = useContext(AuthContext);
   const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
@@ -1581,64 +1585,6 @@ const loadWeeklyCheckins = () => {
       setCommonAttendees(formatted);
     } catch (err) {
       console.error("Failed to fetch common attendees:", err);
-    }
-  };
-
-  const savePersistentCommonAttendeesToDB = async (attendees) => {
-    if (!event) return false;
-
-    let eventId = event._id || event.id;
-
-    if (eventId && eventId.includes("_")) {
-      const parts = eventId.split("_");
-      eventId = parts[0];
-      console.log(`Cleaned event ID: ${eventId} (removed date suffix)`);
-    }
-
-    if (!eventId) {
-      toast.error("No event ID found");
-      return false;
-    }
-
-    try {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const formattedAttendees = attendees.map(p => ({
-        id: p.id || p._id || "",
-        name: p.fullName || p.name || "",
-        fullName: p.fullName || p.name || "",
-        email: p.email || "",
-        leader12: p.leader12 || "",
-        leader144: p.leader144 || "",
-        phone: p.phone || ""
-      })).filter(p => p.id);
-
-      console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
-
-      const response = await authFetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify({
-          persistent_attendees: formattedAttendees
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to save: ${response.status} - ${errorText}`);
-      }
-
-      console.log(" Attendees saved to database");
-      return true;
-
-    } catch (error) {
-      console.error("Error saving:", error);
-      toast.error("Failed to save attendees");
-      return false;
     }
   };
 
@@ -3083,177 +3029,120 @@ const loadWeeklyCheckins = () => {
                 {isMobile ? (
                   <div>
                     {loading && (
-                      <div style={{ textAlign: "center", padding: "20px" }}>
-                        Loading...
-                      </div>
+                      <Box sx={{ p: 3, width: "100%" }}>
+                                        <LinearProgress />
+                                        <Typography sx={{ mt: 2, textAlign: "center" }}>
+                                          Loading ...
+                                        </Typography>
+                                      </Box>
                     )}
                     {filteredCommonAttendees.map(renderMobileAttendeeCard)}
                   </div>
                 ) : (
-                  <div style={styles.tableContainer}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr>
-                          <th style={styles.th}>Attendees Name</th>
-                          <th style={styles.th}>Attendees Email</th>
-                          <th style={styles.th}>Attendees Leader @12</th>
-                          <th style={styles.th}>Attendees Leader @144</th>
-                          <th style={styles.th}>Attendees Number</th>
-                          <th style={{ ...styles.th, textAlign: "center" }}>
-                            Check In
-                          </th>
-                          <th style={{ ...styles.th, textAlign: "center" }}>
-                            Decision
-                          </th>
-                          <th style={{ ...styles.th, textAlign: "center", width: "50px" }}>
-                            Remove
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loading && (
-                          <tr>
-                            <td
-                              colSpan="8"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              Loading...
-                            </td>
-                          </tr>
-                        )}
-                        {!loading && filteredCommonAttendees.length === 0 && (
-                          <tr>
-                            <td
-                              colSpan="8"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              No attendees found.
-                            </td>
-                          </tr>
-                        )}
-                        {filteredCommonAttendees.map((person) => {
-                          const isPersistent = persistentCommonAttendees.some(
-                            (p) => p.id === person.id
-                          );
-
-                          return (
-                            <tr key={person.id}>
-                              <td style={styles.td}>
-                                {person.fullName || "Unknown Name"}
-                              </td>
-
-                              <td style={styles.td}>{person.email || "No email"}</td>
-
-                              <td style={styles.td}>{person.leader12 || ""}</td>
-
-                              <td style={styles.td}>{person.leader144 || ""}</td>
-
-                              <td style={styles.td}>{person.phone || ""}</td>
-
-                              <td style={{ ...styles.td, ...styles.radioCell }}>
+                   <div style={styles.tableContainer}>
+                    {(!filteredCommonAttendees || filteredCommonAttendees.length === 0) ? (
+                      <div style={{ padding: 12, color: theme.palette.text.secondary }}>No attendees found.</div>
+                    ) : (
+                      <DataGrid
+                        rows={filteredCommonAttendees}
+                        autoHeight
+                        disableSelectionOnClick
+                        getRowId={(row) => row.id}
+                        columns={[
+                          { field: "fullName", headerName: "Name", flex: 1, minWidth: 160 },
+                          { field: "email", headerName: "Email", flex: 1, minWidth: 160 },
+                          { field: "leader12", headerName: "Leader @12", flex: 0.8, minWidth: 140 },
+                          { field: "leader144", headerName: "Leader @144", flex: 0.8, minWidth: 140 },
+                          { field: "phone", headerName: "Phone", flex: 0.7, minWidth: 120 },
+                          {
+                            field: "checkin",
+                            headerName: "Check In",
+                            width: 110,
+                            sortable: false,
+                            renderCell: (params) => {
+                              const id = params.id;
+                              const isChecked = !!checkedIn[id];
+                              return (
                                 <button
+                                  onClick={() => handleCheckIn(id)}
                                   style={{
                                     ...styles.radioButton,
-                                    ...(checkedIn[person.id]
-                                      ? styles.radioButtonChecked
-                                      : {}),
-                                  }}
-                                  onClick={() =>
-                                    handleCheckIn(person.id, person.fullName || "Unknown")
-                                  }
-                                >
-                                  {checkedIn[person.id] && (
-                                    <span style={styles.radioButtonInner}>
-                                      ✓
-                                    </span>
-                                  )}
-                                </button>
-                              </td>
-
-                              {/* Column 7: Decision */}
-                              <td style={{ ...styles.td, ...styles.radioCell }}>
-                                {checkedIn[person.id] ? (
-                                  <div style={styles.decisionDropdown}>
-                                    <button
-                                      style={styles.decisionButton}
-                                      onClick={() =>
-                                        setOpenDecisionDropdown(
-                                          openDecisionDropdown === person.id
-                                            ? null
-                                            : person.id
-                                        )
-                                      }
-                                    >
-                                      <span>
-                                        {decisionTypes[person.id]
-                                          ? decisionOptions.find(
-                                            (opt) => opt.value === decisionTypes[person.id]
-                                          )?.label
-                                          : "Select Decision"}
-                                      </span>
-                                      <ChevronDown size={16} />
-                                    </button>
-                                    {openDecisionDropdown === person.id && (
-                                      <div style={styles.decisionMenu}>
-                                        {decisionOptions.map((option) => (
-                                          <div
-                                            key={option.value}
-                                            style={styles.decisionMenuItem}
-                                            onClick={() =>
-                                              handleDecisionTypeSelect(person.id, option.value)
-                                            }
-                                            onMouseEnter={(e) =>
-                                              (e.currentTarget.style.background = theme.palette.action.hover)
-                                            }
-                                            onMouseLeave={(e) =>
-                                              (e.target.style.background = "transparent")
-                                            }
-                                          >
-                                            {option.label}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <button
-                                    style={{
-                                      ...styles.radioButton,
-                                      opacity: 0.3,
-                                      cursor: "not-allowed",
-                                    }}
-                                    disabled
-                                  />
-                                )}
-                              </td>
-
-                              <td style={{ ...styles.td, textAlign: "center" }}>
-                                <button
-                                  onClick={() => handleRemoveAttendee(person.id, person.fullName || "Unknown")}
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    padding: "4px",
-                                    borderRadius: "4px",
-                                    color: theme.palette.error.main,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
+                                    ...(isChecked ? styles.radioButtonChecked : {}),
                                     margin: "0 auto",
                                   }}
-                                  title="Remove from attendees"
+                                  title={isChecked ? "Uncheck" : "Check in"}
                                 >
-                                  <X size={18} />
+                                  {isChecked ? <span style={styles.radioButtonInner}>✓</span> : null}
                                 </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                              );
+                            },
+                          },
+                          {
+                            field: "decision",
+                            headerName: "Decision",
+                            width: 180,
+                            sortable: false,
+                            renderCell: (params) => {
+                              const id = params.id;
+                              if (!checkedIn[id]) {
+                                return <div style={{ opacity: 0.4 }}>N/A</div>;
+                              }
+                              return (
+                                <select
+                                  value={decisionTypes[id] || ""}
+                                  onChange={(e) => handleDecisionTypeSelect(id, e.target.value)}
+                                  style={{
+                                    padding: "6px 8px",
+                                    borderRadius: 6,
+                                    border: `1px solid ${theme.palette.divider}`,
+                                    background: theme.palette.background.paper,
+                                    color: theme.palette.text.primary,
+                                  }}
+                                >
+                                  <option value="">Select Decision</option>
+                                  {decisionOptions.map((opt) => (
+                                    <option key={opt.value} value={opt.value}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              );
+                            },
+                          },
+                          {
+                            field: "remove",
+                            headerName: "Remove",
+                            width: 90,
+                            sortable: false,
+                            renderCell: (params) => (
+                              <button
+                                onClick={() => handleRemoveAttendee(params.id, params.row.fullName)}
+                                style={{
+                                  background: "none",
+                                  border: "none",
+                                  color: theme.palette.error.main,
+                                  cursor: "pointer",
+                                  padding: 6,
+                                }}
+                                title="Remove"
+                              >
+                                <X size={16} />
+                              </button>
+                            ),
+                          },
+                        ]}
+                        components={{ Toolbar: GridToolbar }}
+                        pageSize={10}
+                        rowsPerPageOptions={[10, 25, 50]}
+                        sx={{
+                          border: "none",
+                          ".MuiDataGrid-cell": { outline: "none !important" },
+                          "& .MuiDataGrid-columnHeaders": { background: theme.palette.background.default },
+                        }}
+                      />
+                    )}
                   </div>
-                )}
+                 )}
                 <div style={styles.statsContainer}>
                   <div style={styles.statBox}>
                     <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
@@ -3422,86 +3311,67 @@ const loadWeeklyCheckins = () => {
                     })}
                   </div>
                 ) : (
-                  <div style={styles.tableContainer}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr>
-                          <th style={styles.th}>Name</th>
-                          <th style={styles.th}>Email</th>
-                          <th style={styles.th}>Leader @12</th>
-                          <th style={styles.th}>Leader @144</th>
-                          <th style={styles.th}>Phone</th>
-                          <th style={{ ...styles.th, textAlign: "center" }}>
-                            Add
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loading && (
-                          <tr>
-                            <td
-                              colSpan="6"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              Loading...
-                            </td>
-                          </tr>
-                        )}
-                        {!loading && filteredPeople.length === 0 && (
-                          <tr>
-                            <td
-                              colSpan="6"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              No people found.
-                            </td>
-                          </tr>
-                        )}
-                        {filteredPeople.map((person) => {
-                          const isAlreadyAdded = persistentCommonAttendees.some(
-                            (p) => p.id === person.id
-                          );
-
-                          return (
-                            <tr key={person.id}>
-                              <td style={styles.td}>
-                                {person.fullName}
-                                {isAlreadyAdded && (
-                                  <span style={styles.persistentBadge}>
-                                    ADDED
-                                  </span>
+                   <div style={styles.tableContainer}>
+                    {(!filteredPeople || filteredPeople.length === 0) ? (
+                      <div style={{ padding: 12, color: theme.palette.text.secondary }}>No people found.</div>
+                    ) : (
+                      <DataGrid
+                        rows={filteredPeople}
+                        autoHeight
+                        disableSelectionOnClick
+                        getRowId={(row) => row.id}
+                        columns={[
+                          { field: "fullName", headerName: "Name", flex: 1, minWidth: 160,
+                            renderCell: (params) => (
+                              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span>{params.value}</span>
+                                {persistentCommonAttendees.some(p => p.id === params.id) && (
+                                  <span style={styles.persistentBadge}>ADDED</span>
                                 )}
-                              </td>
-                              <td style={styles.td}>{person.email}</td>
-                              <td style={styles.td}>{person.leader12}</td>
-                              <td style={styles.td}>{person.leader144}</td>
-                              <td style={styles.td}>{person.phone}</td>
-                              <td style={{ ...styles.td, textAlign: "center" }}>
+                              </div>
+                            )
+                          },
+                          { field: "email", headerName: "Email", flex: 1, minWidth: 160 },
+                          { field: "leader12", headerName: "Leader @12", flex: 0.8, minWidth: 140 },
+                          { field: "leader144", headerName: "Leader @144", flex: 0.8, minWidth: 140 },
+                          { field: "phone", headerName: "Phone", flex: 0.7, minWidth: 120 },
+                          {
+                            field: "add",
+                            headerName: "Add",
+                            width: 100,
+                            sortable: false,
+                            renderCell: (params) => {
+                              const already = persistentCommonAttendees.some(p => p.id === params.id);
+                              return (
                                 <button
+                                  onClick={() => handleAssociatePerson(params.row)}
+                                  disabled={already}
                                   style={{
                                     ...styles.iconButton,
-                                    color: isAlreadyAdded ? "#dc3545" : "#6366f1",
-                                    cursor: isAlreadyAdded ? "not-allowed" : "pointer",
-                                    opacity: isAlreadyAdded ? 0.3 : 1,
+                                    color: already ? "#dc3545" : "#6366f1",
+                                    opacity: already ? 0.4 : 1,
+                                    cursor: already ? "not-allowed" : "pointer",
                                   }}
-                                  onClick={() => handleAssociatePerson(person)}
-                                  disabled={isAlreadyAdded}
-                                  title={
-                                    isAlreadyAdded
-                                      ? "Already added"
-                                      : "Add to common attendees"
-                                  }
+                                  title={already ? "Already added" : "Add to common attendees"}
                                 >
-                                  <UserPlus size={20} />
+                                  <UserPlus size={18} />
                                 </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+                              );
+                            },
+                          },
+                        ]}
+                        components={{ Toolbar: GridToolbar }}
+                        pageSize={10}
+                        rowsPerPageOptions={[25,50,100]}
+                        sx={{
+                          border: "none",
+                          ".MuiDataGrid-cell": { outline: "none !important" },
+                          "& .MuiDataGrid-columnHeaders": { background: theme.palette.background.default },
+                        }}
+                      />
+                    )}
                   </div>
-                )}
+                 )}
               </>
             )}
           </div>
