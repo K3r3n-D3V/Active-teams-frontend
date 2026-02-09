@@ -75,7 +75,7 @@ const CreateEvents = ({
     leader1: "",
     leader12: "",
   });
-
+{/* event------------ */}
   const [isRecurring, setIsRecurring] = useState(false);
   const handleIsRecurringChange = (e) => {
   const checked = e.target.checked;
@@ -88,7 +88,7 @@ const CreateEvents = ({
     }));
   }
 };
-
+{/* event------------ */}
   const [errors, setErrors] = useState({});
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
@@ -511,7 +511,7 @@ const fetchPeople = (q) => {
     } else {
       dayValue = "Recurring";
     }
-
+    {/* event------------ */}
     const payload = {
       UUID: generateUUID(),
       eventTypeName: eventTypeToSend,
@@ -533,6 +533,7 @@ const fetchPeople = (q) => {
       isRecurring: isRecurring,
       recurringDays: isRecurring ? formData.recurringDays : [],
     };
+    {/* event------------ */}
 
     if (formData.date && formData.time) {
       const [hoursStr, minutesStr] = formData.time.split(":");
@@ -1073,11 +1074,13 @@ const fetchPeople = (q) => {
             </Box>
 
             <Box mb={3}>
+
+              {/* event------------ */}
               <Typography
                 fontWeight="bold"
                 mb={1}
                 sx={darkModeStyles.sectionTitle}
-              >
+              > 
                 Is Recurring? {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
               </Typography>    
               <FormControlLabel
@@ -1089,7 +1092,7 @@ const fetchPeople = (q) => {
                 }
                 label="Yes"
               />
-
+              {/* event------------ */}
               <Typography
                 fontWeight="bold"
                 mb={1}
