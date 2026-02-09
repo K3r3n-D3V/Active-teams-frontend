@@ -130,7 +130,7 @@ useEffect(() => {
   if (event) {
     const cleanEvent = cleanEventId(event);
     
-    console.log("🔍🔍🔍 EVENT LOAD - FULL DEBUG 🔍🔍🔍", {
+    console.log("EVENT LOAD - FULL DEBUG ", {
       // Raw data from API
       rawEvent: JSON.parse(JSON.stringify(cleanEvent)),
       
@@ -187,47 +187,26 @@ useEffect(() => {
         
         // Handle time fields - extract just HH:mm if it's an ISO string or Date object
         const lowerKey = key.toLowerCase();
-        if ((lowerKey.includes('time') && !lowerKey.includes('datetime')) || key === 'Time') {
-          if (value) {
-            if (typeof value === 'string' && value.includes('T')) {
-              // ISO string - extract just HH:mm
-              try {
-                const timePart = value.split('T')[1];
-                if (timePart) {
-                  const [hours, minutesWithSeconds] = timePart.split(':');
-                  const minutes = minutesWithSeconds ? minutesWithSeconds.substring(0, 2) : '00';
-                  // Handle UTC times by converting to local time
-                  const date = new Date(value);
-                  value = date.toLocaleTimeString('en-GB', {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                    hour12: false
-                  });
-                  console.log(`🔄 Converted ${key} ISO ${value} to local: ${value}`);
-                }
-              } catch (e) {
-                console.error(`Failed to parse time for ${key}:`, e);
-              }
-            } else if (value instanceof Date) {
-              // Date object - format as HH:mm
-              value = value.toLocaleTimeString('en-GB', {
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false
-              });
-            } else if (typeof value === 'string' && /^\d{1,2}:\d{2}$/.test(value)) {
-              // Already in HH:mm format - ensure proper formatting
-              const [hours, minutes] = value.split(':');
-              value = `${hours.padStart(2, '0')}:${minutes}`;
-            }
-          }
-        }
+if ((lowerKey.includes('date') && !lowerKey.includes('datecaptured') && !lowerKey.includes('display')) || key === 'date') {
+  if (value) {
+    if (typeof value === 'string') {
+      value = value.split('T')[0];
+      console.log(`Loading date field ${key}: ${value}`);
+    } else if (value instanceof Date) {
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const day = String(value.getDate()).padStart(2, '0');
+      value = `${year}-${month}-${day}`;
+      console.log(`Converting Date object for ${key}: ${value}`);
+    }
+  }
+}
         
         initialData[key] = value;
       }
     });
 
-    console.log("📝 SETTING FORM DATA - Time values:", {
+    console.log("SETTING FORM DATA - Time values:", {
       initialDataTime: initialData.time,
       initialDataTimeField: initialData.Time,
       initialDataType: typeof initialData.time,
@@ -239,7 +218,7 @@ useEffect(() => {
 
     setFormData(initialData);
     
-    console.log("✅ AFTER SETTING FORM DATA:", {
+    console.log("AFTER SETTING FORM DATA:", {
       formDataTime: initialData.time,
       formDataTimeField: initialData.Time,
       formDataSet: Object.keys(initialData).filter(k => k.includes('time') || k === 'Time')
@@ -277,7 +256,7 @@ useEffect(() => {
       return;
     }
     
-    console.log(`📝 Field changed: ${field} = ${value}`);
+    console.log(`Field changed: ${field} = ${value}`);
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
@@ -457,66 +436,90 @@ useEffect(() => {
     }
   };
 
-  const prepareUpdateData = () => {
-    const cleanData = {};
+const prepareUpdateData = () => {
+  const cleanData = {};
 
-    changedFields.forEach(field => {
-      if (isFieldDisabled(field)) return;
-      const value = formData[field];
+  changedFields.forEach(field => {
+    if (isFieldDisabled(field)) return;
+    
+    const value = formData[field];
 
-      if (value === '' || value === null || value === undefined) {
-        cleanData[field] = null;
-      } else {
-        // For time fields, ensure we store as simple HH:mm string
-        const fl = field.toLowerCase();
-        if (fl.includes('time') && !fl.includes('datetime')) {
-          // Extract just HH:mm from any time string
-          if (typeof value === 'string') {
-            const match = value.match(/(\d{1,2}):(\d{2})/);
-            if (match) {
-              const hours = match[1].padStart(2, '0');
-              const minutes = match[2];
-              cleanData[field] = `${hours}:${minutes}`;
-            } else {
-              cleanData[field] = value;
-            }
+    if (value === '' || value === null || value === undefined) {
+      cleanData[field] = null;
+    } else {
+      const fl = field.toLowerCase();
+      
+      if ((fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display') && !fl.includes('datetime')) || field === 'date') {
+        if (typeof value === 'string') {
+          // Extract just YYYY-MM-DD, remove any time component or timezone
+          const dateOnly = value.split('T')[0];
+          cleanData[field] = dateOnly;
+          console.log(`Saving date field ${field}: ${dateOnly}`);
+        } else {
+          cleanData[field] = value;
+        }
+      }
+      else if ((fl.includes('time') && !fl.includes('datetime')) || field === 'Time') {
+        if (typeof value === 'string') {
+          const match = value.match(/(\d{1,2}):(\d{2})/);
+          if (match) {
+            const hours = match[1].padStart(2, '0');
+            const minutes = match[2];
+            cleanData[field] = `${hours}:${minutes}`;
           } else {
             cleanData[field] = value;
           }
         } else {
           cleanData[field] = value;
         }
+      } else {
+        cleanData[field] = value;
       }
+    }
 
-      // Handle field aliases
-      if (field === 'status' || field === 'Status') {
-        cleanData['status'] = value;
-        cleanData['Status'] = value;
-      }
+    if (field === 'status' || field === 'Status') {
+      cleanData['status'] = value;
+      cleanData['Status'] = value;
+    }
 
-      if (field === 'eventName' || field === 'Event Name') {
-        cleanData['eventName'] = value;
-        cleanData['Event Name'] = value;
-      }
+    if (field === 'eventName' || field === 'Event Name') {
+      cleanData['eventName'] = value;
+      cleanData['Event Name'] = value;
+    }
 
-      if (field === 'Day' || field === 'day') {
-        cleanData['Day'] = value;
-        cleanData['day'] = value;
-      }
+    if (field === 'Day' || field === 'day') {
+      cleanData['Day'] = value;
+      cleanData['day'] = value;
+    }
 
-      if (field === 'Address' || field === 'location') {
-        cleanData['Address'] = value;
-        cleanData['location'] = value;
-      }
+    if (field === 'Address' || field === 'location') {
+      cleanData['Address'] = value;
+      cleanData['location'] = value;
+    }
 
-      if (field === 'Email' || field === 'eventLeaderEmail') {
-        cleanData['Email'] = value;
-        cleanData['eventLeaderEmail'] = value;
-      }
-    });
+    if (field === 'Email' || field === 'eventLeaderEmail') {
+      cleanData['Email'] = value;
+      cleanData['eventLeaderEmail'] = value;
+    }
 
-    return { ...cleanData, "is_permanent_deact": isPermanent };
-  };
+    if (field === 'Leader' || field === 'eventLeader' || field === 'eventLeaderName') {
+      cleanData['Leader'] = value;
+      cleanData['eventLeader'] = value;
+      cleanData['eventLeaderName'] = value;
+    }
+
+    if (field === 'time' || field === 'Time') {
+      const timeValue = typeof value === 'string' && value.match(/(\d{1,2}):(\d{2})/) 
+        ? value.match(/(\d{1,2}):(\d{2})/).slice(1).map((v, i) => i === 0 ? v.padStart(2, '0') : v).join(':')
+        : value;
+      cleanData['time'] = timeValue;
+      cleanData['Time'] = timeValue;
+    }
+  });
+
+  return { ...cleanData, "is_permanent_deact": isPermanent };
+};
+
 
   const handleSubmit = async () => {
     try {
@@ -536,18 +539,17 @@ useEffect(() => {
       }
 
       const updateData = prepareUpdateData();
-      console.log("🔍 DEBUG - Time data:", {
+      console.log("DEBUG - Time data:", {
         formDataTime: formData.time,
         formDataTimeField: formData.Time,
         updateDataTime: updateData.time,
         updateDataTimeField: updateData.Time
       });
 
-      // NO TIME CONVERSION - store exactly what user entered
       if ('Time' in updateData || 'time' in updateData) {
         const timeValue = updateData.Time || updateData.time;
         if (timeValue) {
-          console.log(`🕒 DEBUG - Storing time as-is: ${timeValue}`);
+          console.log(`DEBUG - Storing time as-is: ${timeValue}`);
         }
       }
 
@@ -726,7 +728,6 @@ useEffect(() => {
     const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
     const fl = field.toLowerCase();
 
-    // ADDED: Skip leader1, leader12, "Leader at 12", and "has Personal steps" fields for non-cell events
     if (!isCellEvent) {
       if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12') ||
         fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps') {
@@ -742,7 +743,6 @@ useEffect(() => {
       </Box>
     );
 
-    // Skip these fields entirely
     if (field === 'is_active' || field === 'Display date' || field === 'Display_date' ||
       field === 'display_date' || field === 'did_not_meet' || field === 'Did_not_meet' ||
       field === 'S' || field === 's' || field === 'Data-recurring' || field === 'data-recurring' ||
@@ -751,57 +751,58 @@ useEffect(() => {
       return null;
     }
 
-    // DATE FIELD - Fixed to show date properly
     if (
       (fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display')) ||
       field === 'date'
     ) {
       const dateValue = value ? value.split('T')[0] : '';
 
-      return (
+      const content = (
         <TextField
+          fullWidth
+          margin="normal"
+          label={labelContent}
           type="date"
           value={dateValue}
           onChange={(e) => {
             handleChange(field, e.target.value);
           }}
-          fullWidth
-          size="small"
+          InputLabelProps={{ shrink: true }}
+          error={isChanged}
+          helperText={isChanged ? "Changed" : ""}
+          disabled={isDisabled}
         />
       );
+      
+      return isDisabled && disabledReason ? (
+        <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
+      ) : <Box key={field}>{content}</Box>;
     }
 
     if (fl.includes('time') && !fl.includes('datetime')) {
-      // Skip duplicate time fields
       if (field === 'time' && availableFields.includes('Time')) {
         return null;
       }
 
-      // Get the raw time value from formData
       const rawTimeValue = value || '';
       
-      console.log(`🔍 TIME FIELD RENDER: ${field}`, {
+      console.log(`TIME FIELD RENDER: ${field}`, {
         rawValue: value,
         formDataValue: formData[field],
         typeofValue: typeof value
       });
 
-      // Handle HTML5 time input format (HH:mm)
       let displayTime = rawTimeValue;
       
-      // If time is in a Date object or has timezone info, extract just HH:mm
       if (typeof rawTimeValue === 'string') {
-        // Check if it's a full ISO string
         if (rawTimeValue.includes('T')) {
           try {
             const date = new Date(rawTimeValue);
-            // Get local time in HH:mm format
             displayTime = date.toLocaleTimeString('en-GB', { 
               hour: '2-digit', 
               minute: '2-digit',
               hour12: false 
             });
-            console.log(`🔄 Converted ISO string ${rawTimeValue} to ${displayTime}`);
           } catch (e) {
             console.error("Failed to parse time:", e);
           }
@@ -816,14 +817,14 @@ useEffect(() => {
           type="time"
           value={displayTime}
           onChange={(e) => {
-            console.log(`📝 Time changed for ${field}:`, e.target.value);
+            console.log(`Time changed for ${field}:`, e.target.value);
             handleChange(field, e.target.value);
           }}
           InputLabelProps={{ shrink: true }}
           InputProps={{
             // Prevent any browser auto-conversion
             inputProps: {
-              step: 300, // 5 minute increments
+              step: 300, 
             }
           }}
           error={isChanged}
@@ -1030,7 +1031,6 @@ useEffect(() => {
   const personFields = availableFields.filter(f => {
     const basePersonFields = ['Leader', 'eventLeader', 'eventLeaderName', 'Email', 'eventLeaderEmail', 'email'];
 
-    // ADDED: For non-cell events, exclude leader1, leader12, and "Leader at 12"
     if (!isCellEvent) {
       const fl = f.toLowerCase();
       if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12')) {
@@ -1113,23 +1113,6 @@ useEffect(() => {
 
         <DialogContent dividers>
           <Box sx={{ pt: 1 }}>
-            {/* Temporary debug button */}
-            <Button 
-              onClick={() => {
-                console.log("🔍 DEBUG CURRENT FORM DATA:", {
-                  formData,
-                  selectedEvent: event,
-                  timeField: formData.time,
-                  TimeField: formData.Time,
-                  allFields: Object.keys(formData)
-                });
-              }}
-              size="small"
-              variant="outlined"
-              sx={{ mb: 2 }}
-            >
-              Debug Time Data
-            </Button>
             
             {renderActiveStatusSection()}
 

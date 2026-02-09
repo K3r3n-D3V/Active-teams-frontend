@@ -511,15 +511,25 @@ const getEventTypeStyles = (isDarkMode, theme, isMobileView) => ({
 
 const formatDate = (date) => {
   if (!date) return "Not set";
-  const dateObj = new Date(date);
+  
+  let dateStr = date;
+  if (typeof date === 'string' && date.includes('T')) {
+    dateStr = date.split('T')[0]; 
+  }
+  
+  const dateObj = new Date(dateStr + 'T12:00:00');
+  
   if (isNaN(dateObj.getTime())) return "Not set";
-  return dateObj
+  
+  const formatted = dateObj
     .toLocaleDateString("en-GB", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     })
     .replace(/\//g, " - ");
+  
+  return formatted;
 };
 
 const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
@@ -1247,7 +1257,7 @@ const Events = () => {
       if (userProfile) {
         try {
           const user = JSON.parse(userProfile);
-          console.log("👤 Current user profile:", user);
+          console.log("Current user profile:", user);
           console.log("Leader at 1 field:", user.leaderAt1 || user.leader_at_1 || user.leaderAt1Identifier);
 
           const leaderAt1 = user.leaderAt1 || user.leader_at_1 || user.leaderAt1Identifier || '';
@@ -1689,7 +1699,7 @@ const handleEditEvent = useCallback((event) => {
   };
 
   // ADD DEBUG LOGGING HERE
-  console.log("📅 EDIT EVENT DEBUG:", {
+  console.log("EDIT EVENT DEBUG:", {
     originalEventTime: event.time,
     originalEventTimeField: event.Time,
     eventToEditTime: eventToEdit.time,
@@ -3928,7 +3938,7 @@ const handleEditEvent = useCallback((event) => {
           </Box>
         </Box>
       )}
-      <EditEventModal
+      {/* <EditEventModal
         isOpen={editModalOpen}
   onClose={(shouldRefresh = false) => {
     if (shouldRefresh) {
@@ -3964,7 +3974,136 @@ const handleEditEvent = useCallback((event) => {
     
     fetchEvents(refreshParams, true);
   }}
-      />
+      /> */}
+
+      <EditEventModal
+  isOpen={editModalOpen}
+  onClose={(shouldRefresh = false) => {
+    if (shouldRefresh) {
+      // Clear cache first to ensure fresh data
+      clearCache();
+      
+      // Build comprehensive refresh params
+      const refreshParams = {
+        page: currentPage,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        _t: Date.now(), // Cache buster
+      };
+      
+      // Add status filter
+      if (selectedStatus !== "all") {
+        refreshParams.status = selectedStatus;
+      }
+      
+      // Add search query
+      if (searchQuery.trim()) {
+        refreshParams.search = searchQuery.trim();
+      }
+      
+      // Add event type filter
+      if (selectedEventTypeFilter === "all") {
+        refreshParams.event_type = "CELLS";
+      } else {
+        refreshParams.event_type = selectedEventTypeFilter;
+      }
+      
+      // Add role-specific filters for CELLS
+      if (refreshParams.event_type === "CELLS") {
+        if (isLeaderAt12) {
+          refreshParams.leader_at_12_view = true;
+          refreshParams.include_subordinate_cells = true;
+          
+          if (currentUserLeaderAt1) {
+            refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+          }
+          
+          if (viewFilter === "personal") {
+            refreshParams.show_personal_cells = true;
+            refreshParams.personal = true;
+          } else {
+            refreshParams.show_all_authorized = true;
+          }
+        } else if (isAdmin && viewFilter === "personal") {
+          refreshParams.personal = true;
+        } else if (isRegistrant || isRegularUser) {
+          refreshParams.personal = true;
+        }
+      }
+      
+      // Clean up undefined values
+      Object.keys(refreshParams).forEach(
+        key => (refreshParams[key] === undefined || refreshParams[key] === '') && delete refreshParams[key]
+      );
+      
+      console.log("Refreshing events after edit with params:", refreshParams);
+      
+      // Fetch fresh data
+      fetchEvents(refreshParams, true);
+    }
+    
+    // Close modal and clear selection
+    setEditModalOpen(false);
+    setSelectedEvent(null);
+  }}
+  event={selectedEvent}
+  token={token}
+  refreshEvents={() => {
+    // This prop is called from within EditEventModal
+    // Clear cache and build refresh params
+    clearCache();
+    
+    const refreshParams = {
+      page: currentPage,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      _t: Date.now(), // Cache buster
+    };
+    
+    // Add filters
+    if (selectedStatus !== "all") refreshParams.status = selectedStatus;
+    if (searchQuery.trim()) refreshParams.search = searchQuery.trim();
+    
+    if (selectedEventTypeFilter === "all") {
+      refreshParams.event_type = "CELLS";
+    } else {
+      refreshParams.event_type = selectedEventTypeFilter;
+    }
+    
+    // Add role-specific filters for CELLS
+    if (refreshParams.event_type === "CELLS") {
+      if (isLeaderAt12) {
+        refreshParams.leader_at_12_view = true;
+        refreshParams.include_subordinate_cells = true;
+        
+        if (currentUserLeaderAt1) {
+          refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+        }
+        
+        if (viewFilter === "personal") {
+          refreshParams.show_personal_cells = true;
+          refreshParams.personal = true;
+        } else {
+          refreshParams.show_all_authorized = true;
+        }
+      } else if (isAdmin && viewFilter === "personal") {
+        refreshParams.personal = true;
+      } else if (isRegistrant || isRegularUser) {
+        refreshParams.personal = true;
+      }
+    }
+    
+    // Clean up undefined values
+    Object.keys(refreshParams).forEach(
+      key => (refreshParams[key] === undefined || refreshParams[key] === '') && delete refreshParams[key]
+    );
+    
+    console.log("RefreshEvents prop called with params:", refreshParams);
+    
+    // Fetch fresh data
+    fetchEvents(refreshParams, true);
+  }}
+/>
       <Dialog
         open={confirmDeleteOpen}
         onClose={() => setConfirmDeleteOpen(false)}
