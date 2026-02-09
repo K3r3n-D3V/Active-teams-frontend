@@ -219,7 +219,7 @@ const StatsDashboard = () => {
           const timeoutId = setTimeout(() => controller.abort(), 100000);
 
           try {
-            const url = `${BACKEND_URL}/events/cells?page=${page}&limit=${limit}&start_date=${startDate}`;
+            const url = `${BACKEND_URL}/events/cells?page=${page}&limit=${limit}&start_date=${startDate}&status=incomplete`;
             console.log(" → URL:", url);
 
             const res = await authFetch(url, { signal: controller.signal });
@@ -302,7 +302,7 @@ const StatsDashboard = () => {
     toast.error("Could not load overdue cells");
   } finally {
     setCellsLoading(false);
-    isFetchingRef.current = false;
+    cellsLockRef.current = false;
     console.log("fetchOverdueCells finished / released lock");
   }
 }, [authFetch]);
