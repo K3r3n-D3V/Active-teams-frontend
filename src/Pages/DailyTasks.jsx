@@ -4,12 +4,9 @@ import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
-import { useTaskUpdate } from '../contexts/TaskUpdateContext';
-
-// Global cache outside component to persist across remounts
 let globalPeopleCache = null;
 let globalCacheTimestamp = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 60 * 60 * 12 * 1000; // 5 minutes
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
@@ -69,7 +66,6 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 
 export default function DailyTasks() {
 
-  const { notifyTaskUpdate } = useTaskUpdate();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
@@ -86,7 +82,7 @@ export default function DailyTasks() {
   const [filterType, setFilterType] = useState("all");
   const [newTaskTypeName, setNewTaskTypeName] = useState("");
   const [addingTaskType, setAddingTaskType] = useState(false);
-  // const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
+ 
   
 
   const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
@@ -354,13 +350,15 @@ const markTaskComplete = async (taskId) => {
       const response = await authFetch(`${API_URL}/people?perPage=0`);
       const data = await response.json();
       const rawPeople = data?.results || [];
-
+      console.log("Raw people" , rawPeople)
       const mapped = rawPeople.map(raw => ({
         _id: (raw._id || raw.id || "").toString(),
         name: (raw.Name || raw.name || "").toString().trim(),
         surname: (raw.Surname || raw.surname || "").toString().trim(),
+        email:(raw.Email || raw.email || "").toString().trim(),
+        phone:(raw.Phone || raw.phone || raw.Number || "").toString().trim(),
       }));
-
+      console.log("Mapped",mapped.name,mapped.surname)
       globalPeopleCache = mapped;
       globalCacheTimestamp = Date.now();
       setAllPeople(mapped);
@@ -551,16 +549,56 @@ const markTaskComplete = async (taskId) => {
     });
   };
 
+ 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
       if (!user?.id) throw new Error("Logged-in user ID not found");
 
-      const person = taskData.recipient;
-      if (!person || !person.Name) {
+      // Try to resolve recipient object (accept either server shape or local mapped shape)
+      let person = taskData.recipient;
+
+      const normalize = (s) => (s || "").toString().trim().toLowerCase();
+
+      // If recipient not set or missing expected fields, try to resolve from allPeople using recipientDisplay
+      if (!person || !(person.Name || person.name)) {
+        const display = (taskData.recipientDisplay || "").trim();
+        if (display && allPeople && allPeople.length > 0) {
+          const displayNorm = normalize(display);
+
+          // exact full-match first
+          let match = allPeople.find((p) => {
+            const full = `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim();
+            return normalize(full) === displayNorm;
+          });
+
+          // token-match fallback (all tokens present in full name)
+          if (!match) {
+            const tokens = displayNorm.split(/\s+/).filter(Boolean);
+            match = allPeople.find((p) => {
+              const full = `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.toLowerCase();
+              return tokens.every((t) => full.includes(t));
+            });
+          }
+
+          if (match) {
+            person = match;
+            // persist resolved recipient into state so UI/submit remain consistent
+            setTaskData((prev) => ({ ...prev, recipient: match, recipientDisplay: display }));
+          }
+        }
+      }
+
+      if (!person || !(person.Name || person.name)) {
         throw new Error("Person details not found. Please select a valid recipient.");
       }
+
+      // Normalize person fields for payload (handle both shapes)
+      const personName = person.Name || person.name || "";
+      const personSurname = person.Surname || person.surname || "";
+      const personPhone = person.Phone || person.Number || person.phone || "";
+      const personEmail = person.Email || person.email || "";
 
       const isConsolidationTask = selectedTask?.taskType === 'consolidation' ||
         selectedTask?.is_consolidation_task;
@@ -575,9 +613,9 @@ const markTaskComplete = async (taskId) => {
             ? "consolidation"
             : formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
-          name: `${person.Name} ${person.Surname || ""}`.trim(),
-          phone: person.Phone || person.Number || "",
-          email: person.Email || "",
+          name: `${personName} ${personSurname}`.trim(),
+          phone: personPhone,
+          email: personEmail,
         },
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
@@ -593,10 +631,10 @@ const markTaskComplete = async (taskId) => {
 
       if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
-        toast.info(`Task for ${person.Name} ${person.Surname} updated successfully!`);
+        toast.info(`Task for ${personName} ${personSurname} updated successfully!`);
       } else {
         await createTask(taskPayload);
-        toast.success(`You have successfully captured ${person.Name} ${person.Surname}`);
+        toast.success(`You have successfully captured ${personName} ${personSurname}`);
       }
       handleClose();
     } catch (err) {
