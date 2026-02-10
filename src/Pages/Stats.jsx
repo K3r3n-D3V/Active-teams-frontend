@@ -307,6 +307,34 @@ const StatsDashboard = () => {
   }
 }, [authFetch]);
 
+// Helper function used when rendering overdue cells (highlighting, chips, etc.)
+const isOverdue = useCallback((cell) => {
+  if (!cell) return false;
+
+  // Prefer backend-provided flag if it exists
+  if ('is_overdue' in cell) {
+    return !!cell.is_overdue;
+  }
+
+  // Client-side calculation (matches the filter logic above)
+  const status = (cell.status || cell.Status || '').trim().toLowerCase();
+  const isIncomplete =
+    status === 'incomplete' ||
+    status.includes('incomplete') ||
+    status === 'incomp' ||
+    status === 'not completed';
+
+  const cellDate = cell.date ? new Date(cell.date) : null;
+  const isValidDate = cellDate && !isNaN(cellDate.getTime());
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const isPast = isValidDate && cellDate < today;
+
+  return isIncomplete && isPast;
+}, []);
+
   const fetchStats = useCallback(
     async (forceRefresh = false) => {
       /** CHANGE:
