@@ -1054,7 +1054,7 @@ const isLeader = normalizedRole === "leader" && !isLeaderAt12;
   const [eventTypes, setEventTypes] = useState([]);
 const [showingEvents, setShowingEvents] = useState(false);
 const [eventTypeSearch, setEventTypeSearch] = useState("");
-const [viewMode, setViewMode] = useState("grid"); // "grid" or "table"
+const [viewMode, setViewMode] = useState("grid");
 const [menuAnchor, setMenuAnchor] = useState(null);
 const [selectedTypeForMenu, setSelectedTypeForMenu] = useState(null);
 
@@ -1423,7 +1423,7 @@ const findEventTypeByName = (typeName) => {
 
 const fetchEvents = useCallback(
   async (filters = {}, showLoader = true) => {
-    console.log("🔍 fetchEvents called with filters:", filters);
+    console.log("fetchEvents called with filters:", filters);
     
     if (showLoader) {
       setLoading(true);
@@ -1506,7 +1506,7 @@ const fetchEvents = useCallback(
       }
 
       const queryString = new URLSearchParams(params).toString();
-      console.log("📤 Fetching from:", `${endpoint}?${queryString}`);
+      console.log("Fetching from:", `${endpoint}?${queryString}`);
       
       const response = await authFetch(`${endpoint}?${queryString}`, {
         method: "GET",
@@ -1519,7 +1519,7 @@ const fetchEvents = useCallback(
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = await response.json();
-      console.log("✅ Received events:", data.events?.length || 0);
+      console.log("Received events:", data.events?.length || 0);
       
       const allEvents = data.events || [];
 
@@ -1527,14 +1527,14 @@ const fetchEvents = useCallback(
       // The backend will return appropriate events based on role
       const filtered = allEvents;
 
-      console.log("📊 Final events to display:", filtered.length);
+      console.log("Final events to display:", filtered.length);
       
       setEvents(filtered);
       setTotalEvents(data.total_events || 0);
       setTotalPages(data.total_pages || 1);
 
     } catch (error) {
-      console.error("❌ Fetch error:", error);
+      console.error("Fetch error:", error);
       setEvents([]);
       if (!error.message.includes("401")) {
         toast.error("Failed to load events");
@@ -1607,7 +1607,7 @@ useEffect(() => {
       if (userProfile) {
         try {
           const user = JSON.parse(userProfile);
-          console.log("👤 Current user profile:", user);
+          console.log("Current user profile:", user);
           console.log(
             "Leader at 1 field:",
             user.leaderAt1 || user.leader_at_1 || user.leaderAt1Identifier,
@@ -2709,40 +2709,44 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
     ],
   );
 
-  const handleCloseEditModal = useCallback(
-    async (shouldRefresh = false) => {
-      setEditModalOpen(false);
-      setSelectedEvent(null);
-
-      if (shouldRefresh) {
-        clearCache();
-
-        const refreshParams = {
-          page: currentPage,
-          limit: rowsPerPage,
-          start_date: DEFAULT_API_START_DATE,
-          _t: Date.now(),
-        };
-
-        if (selectedStatus && selectedStatus !== "all") {
-          refreshParams.status = selectedStatus;
+const handleCloseEditModal = useCallback(
+  async (shouldRefresh = false, updatedEventData = null) => {
+    setEditModalOpen(false);
+    setSelectedEvent(null);
+    if (shouldRefresh) {
+      clearCache();
+      
+      if (updatedEventData) {
+        const originalDay = selectedEvent?.Day || selectedEvent?.day;
+        const newDay = updatedEventData.Day || updatedEventData.day;
+        
+        if (originalDay && newDay && originalDay !== newDay) {
+          toast.info(
+            `Cell moved from ${originalDay} to ${newDay}!\n\nNote: The cell has been updated but may not appear in the current view. Check the ${newDay} filter to see it.`,
+            {
+              autoClose: 8000,
+              position: 'top-center'
+            }
+          );
         }
+      }
+      
+      const refreshParams = {
+        page: currentPage,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        _t: Date.now(),
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type: selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
+      };
 
-        if (searchQuery && searchQuery.trim()) {
-          refreshParams.search = searchQuery.trim();
-        }
+      if (searchQuery && searchQuery.trim()) {
+        refreshParams.search = searchQuery.trim();
+      }
 
-        if (selectedEventTypeFilter === "all") {
-          refreshParams.event_type = "CELLS";
-        } else if (selectedEventTypeFilter) {
-          refreshParams.event_type = selectedEventTypeFilter;
-        }
-
-        if (
-          isLeaderAt12 &&
-          (selectedEventTypeFilter === "all" ||
-            selectedEventTypeFilter === "CELLS")
-        ) {
+      // Add role-specific filters
+      if (selectedEventTypeFilter === "all" || selectedEventTypeFilter === "CELLS") {
+        if (isLeaderAt12) {
           refreshParams.leader_at_12_view = true;
           refreshParams.include_subordinate_cells = true;
 
@@ -2756,35 +2760,39 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
           } else {
             refreshParams.show_all_authorized = true;
           }
+        } else if (isAdmin && viewFilter === "personal") {
+          refreshParams.personal = true;
         }
-
-        Object.keys(refreshParams).forEach(
-          (key) =>
-            (refreshParams[key] === undefined || refreshParams[key] === "") &&
-            delete refreshParams[key],
-        );
-
-        await fetchEvents(refreshParams, true);
-
-        setTimeout(() => {
-          fetchEvents(refreshParams, false);
-        }, 300);
       }
-    },
-    [
-      clearCache,
-      currentPage,
-      rowsPerPage,
-      selectedStatus,
-      searchQuery,
-      selectedEventTypeFilter,
-      fetchEvents,
-      DEFAULT_API_START_DATE,
-      isLeaderAt12,
-      currentUserLeaderAt1,
-      viewFilter,
-    ],
-  );
+
+      Object.keys(refreshParams).forEach(
+        (key) =>
+          (refreshParams[key] === undefined || refreshParams[key] === "") &&
+          delete refreshParams[key],
+      );
+
+      await fetchEvents(refreshParams, true);
+
+      setTimeout(() => {
+        fetchEvents({ ...refreshParams, _t: Date.now() }, false);
+      }, 300);
+    }
+  },
+  [
+    clearCache,
+    currentPage,
+    rowsPerPage,
+    selectedStatus,
+    searchQuery,
+    selectedEventTypeFilter,
+    fetchEvents,
+    DEFAULT_API_START_DATE,
+    isLeaderAt12,
+    currentUserLeaderAt1,
+    viewFilter,
+    isAdmin,
+  ],
+);
 
   const handleCloseEventTypesModal = useCallback(() => {
     setEventTypesModalOpen(false);
@@ -3322,8 +3330,8 @@ useEffect(() => {
     (key) => fetchParams[key] === undefined && delete fetchParams[key],
   );
 
-  console.log("📤 Fetching with params:", fetchParams);
-  console.log("🎯 Event Type Filter:", selectedEventTypeFilter);
+  console.log("Fetching with params:", fetchParams);
+  console.log("Event Type Filter:", selectedEventTypeFilter);
   fetchEvents(fetchParams, true);
 }, [
   selectedEventTypeFilter,
@@ -3842,7 +3850,7 @@ const handleEventTypeClick = (typeValue) => {
     delete fetchParams.include_subordinate_cells;
   }
 
-  console.log("🔍 Fetching events for type:", typeValue, "with status:", fetchParams.status);
+  console.log("Fetching events for type:", typeValue, "with status:", fetchParams.status);
   fetchEvents(fetchParams, true);
 };
 
@@ -4546,7 +4554,7 @@ return (
                           event.recurring_days.length > 1);
 
                       return {
-                        id: id,
+                         id: `${id}_${event.date}`,
                         ...event,
                         _id: id,
                         "data-recurring": isRecurring,
@@ -5187,8 +5195,8 @@ return (
                   setMenuAnchor(e.currentTarget);
                 }}
                 sx={{
-                  marginLeft: "16px", // Add some spacing from content
-                  flexShrink: 0, // Prevent icon from shrinking
+                  marginLeft: "16px",
+                  flexShrink: 0,
                   width: "32px",
                   height: "32px",
                   backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "rgba(0,0,0,0.04)",
