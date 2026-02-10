@@ -1451,18 +1451,22 @@ useEffect(() => {
                       borderBottom: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                       color: isDarkMode ? '#fff' : '#1a1a24',
                     }}
-                    onClick={() => {
+                    onClick={isDisabled ? undefined : () => {
                       const fullName = `${person.name} ${person.surname}`.trim();
                       setTaskData({
                         ...taskData,
                         recipient: person,
                         recipientDisplay: fullName,
-                          name: fullName
+                        name: fullName
                       });
                       setSearchResults([]);
                     }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    onMouseEnter={!isDisabled ? (e) => {
+                      e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6';
+                    } : undefined}
+                    onMouseLeave={!isDisabled ? (e) => {
+                      e.target.style.backgroundColor = 'transparent';
+                    } : undefined}
                   >
                     {person.name} {person.surname}
                   </li>
@@ -1496,7 +1500,7 @@ useEffect(() => {
                 fetchAssigned(value);
               }}
               autoComplete="off"
-              disabled={selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task}
+              disabled={true}
               required
               style={{
                 width: '100%',
