@@ -1457,11 +1457,11 @@ useEffect(() => {
                         ...taskData,
                         recipient: person,
                         recipientDisplay: fullName,
-                          name: fullName
+                        name: fullName
                       });
                       setSearchResults([]);
                     }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6'}
+                   onMouseEnter={(e) => e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                   >
                     {person.name} {person.surname}
@@ -1496,7 +1496,8 @@ useEffect(() => {
                 fetchAssigned(value);
               }}
               autoComplete="off"
-              disabled={selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task}
+              // disabled={selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task}
+              disabled={true}
               required
               style={{
                 width: '100%',
