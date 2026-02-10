@@ -1259,7 +1259,7 @@ const AttendanceModal = ({
     { value: "first-time", label: "First-time commitment" },
     { value: "re-commitment", label: "Re-commitment" },
   ];
-  const [, setEventStatistics] = useState({
+  const [eventStatistics, setEventStatistics] = useState({
     totalAssociated: 0,
     lastAttendanceCount: 0,
     lastHeadcount: 0,
@@ -1553,8 +1553,8 @@ const loadWeeklyCheckins = () => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      params.append("perPage", "100");
-      params.append("page", "1");
+      params.append("perPage", "0");
+      // params.append("page", "1");
 
       const res = await authFetch(
         `${BACKEND_URL}/people?${params.toString()}`,
@@ -1598,124 +1598,84 @@ const loadWeeklyCheckins = () => {
       console.error("Error pre-loading people in AttendanceModal:", err);
     }
   };
-  useEffect(() => {
-  if (isOpen && event) {
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
-    console.log(" Opening modal for event:", eventId, "Date:", event.date);
-
-    // Reset all form states
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
-    setCheckedIn({});
-    setDecisions({});
-    setDecisionTypes({});
-    setPriceTiers({});
-    setPaymentMethods({});
-    setPaidAmounts({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-
-    const loadAllData = async () => {
-      console.log(" Loading all data...");
-      
-      // Load persistent attendees first
-      await loadPersistentAttendees(eventId);
-      
-      // Then load statistics
-      await loadEventStatistics();
-      
-      // Finally load check-ins
-      loadWeeklyCheckins();
-    };
-
-    loadAllData();
-    fetchPeople();
-
-    const attendanceData = event.attendance || {};
-    const eventDate = event.date;
-    const weekAttendance = attendanceData[eventDate] || {};
-    
-    setDidNotMeet(weekAttendance?.status === "did_not_meet" || false);
-  }
-}, [isOpen, event]);
-
-const fetchPeople = async (q = "") => {  // Add default value for q
-  if (!q) {
+  const fetchPeople = (q = "") => {
+  if (!q.trim()) {
+    // Show people when no search term, but filter out those already in attendees
     if (preloadedPeople.length > 0) {
-      console.log(" Showing preloaded people list");
-      setPeople(preloadedPeople.slice(0, 50));
+      const allPeople = preloadedPeople.filter(person => {
+        const isAlreadyInAttendees = persistentCommonAttendees.some(
+          attendee => attendee.id === person.id
+        );
+        return !isAlreadyInAttendees; // Only show people NOT already in attendees
+      });
+      // Sort by name and show up to 100
+      const sorted = allPeople.sort((a, b) => a.fullName.localeCompare(b.fullName));
+      setPeople(sorted.slice(0, 100));
     } else {
       setPeople([]);
     }
     return;
   }
 
-  const queryLower = q.toLowerCase();
-
-  try {
-    const res = await authFetch(
-      `${BACKEND_URL}/people?name=${encodeURIComponent(q)}`
+  // When there's a search term, filter and exclude people already in attendees
+  const searchTerm = q.toLowerCase().trim();
+  
+  // Check if search looks like a full name (contains a space)
+  const looksLikeFullName = searchTerm.includes(" ");
+  
+  const filtered = preloadedPeople.filter(person => {
+    // Check if person is already in attendees
+    const isAlreadyInAttendees = persistentCommonAttendees.some(
+      attendee => attendee.id === person.id
     );
-
-    if (!res.ok) throw new Error("Failed to fetch people");
-
-    const data = await res.json();
-    const results = data?.results || [];
-    const filtered = results.filter((p) => {
-      const fullNameLower =
-        `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
-
-      if (fullNameLower.includes(queryLower)) return true;
-
-      const queryWords = queryLower.split(/\s+/).filter(Boolean);
-      return queryWords.every((word) => fullNameLower.includes(word));
-    });
-
-    const formatted = filtered.map((p) => ({
-      id: p._id,
-      fullName:
-        `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-      email: p.Email || p.email || "",
-      leader1:
-        p["Leader @1"] ||
-        p["Leader at 1"] ||
-        p["Leader @ 1"] ||
-        p.leader1 ||
-        (p.leaders && p.leaders[0]) ||
-        "",
-      leader12:
-        p["Leader @12"] ||
-        p["Leader at 12"] ||
-        p["Leader @ 12"] ||
-        p.leader12 ||
-        (p.leaders && p.leaders[1]) ||
-        "",
-      leader144:
-        p["Leader @144"] ||
-        p["Leader at 144"] ||
-        p["Leader @ 144"] ||
-        p.leader144 ||
-        (p.leaders && p.leaders[2]) ||
-        "",
-      phone: p.Number || p.Phone || p.phone || "",
-    }));
-
-    setPeople(formatted);
-  } catch (err) {
-    console.error("Error fetching people:", err);
-    toast.error(err.message);
-    if (preloadedPeople.length > 0) {
-      setPeople(preloadedPeople.slice(0, 50));
-    } else {
-      setPeople([]);
+    
+    // If already in attendees, don't show in search results
+    if (isAlreadyInAttendees) return false;
+    
+    // Then check search criteria
+    const fullName = person.fullName.toLowerCase();
+    const email = (person.email || "").toLowerCase();
+    const phone = (person.phone || "").toLowerCase();
+    
+    // FIRST: Always check full name, email, and phone
+    if (fullName.includes(searchTerm) ||
+        email.includes(searchTerm) ||
+        phone.includes(searchTerm)) {
+      return true;
     }
-  }
+    
+    // SECOND: Only check leader fields if search doesn't look like a full name
+    if (!looksLikeFullName) {
+      const leader1 = (person.leader1 || "").toLowerCase();
+      const leader12 = (person.leader12 || "").toLowerCase();
+      const leader144 = (person.leader144 || "").toLowerCase();
+      
+      // Check leader fields for partial matches
+      return leader1.includes(searchTerm) ||
+             leader12.includes(searchTerm) ||
+             leader144.includes(searchTerm);
+    }
+    
+    // If it looks like a full name and didn't match the person directly, return false
+    return false;
+  })
+  .sort((a, b) => a.fullName.localeCompare(b.fullName))
+  .slice(0, 100);
+  
+  setPeople(filtered);
 };
 
+const handleTabChange = (tabIndex) => {
+  setActiveTab(tabIndex);
+  // Reset search when switching tabs
+  if (tabIndex === 0) {
+    setSearchName(""); // Reset search for attendees tab
+  } else if (tabIndex === 1) {
+    setAssociateSearch(""); // Reset search for associate tab
+    // Trigger fetch to show all non-attendee people
+    setTimeout(() => fetchPeople(""), 0);
+  }
+};
   const fetchCommonAttendees = async (cellId) => {
     try {
       const token = localStorage.getItem("token");
@@ -1843,18 +1803,14 @@ const fetchPeople = async (q = "") => {  // Add default value for q
   }, [isOpen]);
 
   useEffect(() => {
-    const delay = setTimeout(() => {
-      if (isOpen && activeTab === 1) {
-        if (associateSearch.trim()) {
-          fetchPeople(associateSearch);
-        } else {
-          fetchPeople("");
-        }
-      }
-    }, 300);
+  const delay = setTimeout(() => {
+    if (isOpen && activeTab === 1) {
+      fetchPeople(associateSearch);
+    }
+  }, 300);
 
-    return () => clearTimeout(delay);
-  }, [associateSearch, isOpen, activeTab, preloadedPeople]);
+  return () => clearTimeout(delay);
+}, [associateSearch, isOpen, activeTab, preloadedPeople, persistentCommonAttendees]); // Added dependencies
 
   const handleCheckIn = (id) => {
     setCheckedIn((prev) => {
@@ -1964,6 +1920,7 @@ const fetchPeople = async (q = "") => {  // Add default value for q
     );
 
     if (isAlreadyAdded) {
+      // In associate tab, we don't remove - just show a message
       toast.info(`${person.fullName} is already in attendees list`);
       return;
     } else {
@@ -2112,16 +2069,15 @@ const fetchPeople = async (q = "") => {  // Add default value for q
   const totalOwing = Object.keys(checkedIn)
     .filter((id) => checkedIn[id])
     .reduce((sum, id) => sum + calculateOwing(id), 0);
-  const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
-    person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
-    person.email.toLowerCase().includes(searchName.toLowerCase())
-  );
+ const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
+  person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
+  person.email.toLowerCase().includes(searchName.toLowerCase()) ||
+  (person.phone && person.phone.toLowerCase().includes(searchName.toLowerCase())) ||
+  (person.leader12 && person.leader12.toLowerCase().includes(searchName.toLowerCase())) ||
+  (person.leader144 && person.leader144.toLowerCase().includes(searchName.toLowerCase()))
+);
 
-  const filteredPeople = people.filter(
-    (person) =>
-      person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
-      person.email.toLowerCase().includes(associateSearch.toLowerCase()),
-  );
+  const filteredPeople = people; // Already filtered by fetchPeople, so just use it directly
 
   const handleSave = async () => {
     const allPeople = getAllCommonAttendees();
@@ -3305,23 +3261,23 @@ ${xmlCols}
             {(!isMobile || showMobileMenu) && (
               <>
                 <button
-                  style={{
-                    ...styles.tab,
-                    ...(activeTab === 0 ? styles.tabActive : {}),
-                  }}
-                  onClick={() => setActiveTab(0)}
-                >
-                  CAPTURE ATTENDEES
-                </button>
-                <button
-                  style={{
-                    ...styles.tab,
-                    ...(activeTab === 1 ? styles.tabActive : {}),
-                  }}
-                  onClick={() => setActiveTab(1)}
-                >
-                  ASSOCIATE PERSON
-                </button>
+  style={{
+    ...styles.tab,
+    ...(activeTab === 0 ? styles.tabActive : {}),
+  }}
+  onClick={() => handleTabChange(0)}
+>
+  CAPTURE ATTENDEES
+</button>
+<button
+  style={{
+    ...styles.tab,
+    ...(activeTab === 1 ? styles.tabActive : {}),
+  }}
+  onClick={() => handleTabChange(1)}
+>
+  ASSOCIATE PERSON
+</button>
               </>
             )}
           </div>
@@ -3648,17 +3604,18 @@ ${xmlCols}
                         Loading...
                       </div>
                     )}
-                    {!loading && filteredPeople.length === 0 && (
-                      <div
-                        style={{
-                          textAlign: "center",
-                          padding: "20px",
-                          color: "#666",
-                        }}
-                      >
-                        No people found.
-                      </div>
-                    )}
+                   {!loading && filteredPeople.length === 0 && (
+  <tr>
+    <td colSpan="6" style={{ ...styles.td, textAlign: "center" }}>
+      {associateSearch.trim() 
+        ? "No people found matching your search." 
+        : persistentCommonAttendees.length > 0
+          ? "All people are already in the attendees list."
+          : "No people available to add."
+      }
+    </td>
+  </tr>
+)}
                     {filteredPeople.map((person) => {
                       const isAlreadyAdded = persistentCommonAttendees.some(
                         (p) => p.id === person.id,
@@ -3729,16 +3686,16 @@ ${xmlCols}
                             </td>
                           </tr>
                         )}
-                        {!loading && filteredPeople.length === 0 && (
-                          <tr>
-                            <td
-                              colSpan="6"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              No people found.
-                            </td>
-                          </tr>
-                        )}
+                       {!loading && filteredPeople.length === 0 && (
+  <div style={{ textAlign: "center", padding: "20px", color: "#666" }}>
+    {associateSearch.trim() 
+      ? "No people found matching your search." 
+      : persistentCommonAttendees.length > 0
+        ? "All people are already in the attendees list."
+        : "No people available to add."
+    }
+  </div>
+)}
                         {filteredPeople.map((person) => {
                           const isAlreadyAdded = persistentCommonAttendees.some(
                             (p) => p.id === person.id,
@@ -3792,12 +3749,21 @@ ${xmlCols}
             <button style={styles.closeBtn} onClick={onClose}>
               CLOSE
             </button>
-            <button
+            
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                flex: isMobile ? "1 1 100%" : "none",
+                flexWrap: isMobile ? "wrap" : "nowrap",
+              }}
+            >
+              <button
               style={{
                 ...styles.saveBtn,
-                background: attendeesCount > 0 ? "#1976d2" : "#ccc",
+                background: attendeesCount > 0 ? "#1976d2" : "#757575ff",
                 cursor: attendeesCount > 0 ? "pointer" : "not-allowed",
-                minWidth: 180,
+                width: 180,
               }}
               onClick={downloadCheckedInAttendance}
               disabled={attendeesCount === 0}
@@ -3807,16 +3773,8 @@ ${xmlCols}
                   : "Download checked-in attendance (XLS)"
               }
             >
-              DOWNLOAD ATTENDANCE (XLS)
+              DOWNLOAD ATTENDANCE(XLS)
             </button>
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                flex: isMobile ? "1 1 100%" : "none",
-                flexWrap: isMobile ? "wrap" : "nowrap",
-              }}
-            >
               <button style={styles.didNotMeetBtn} onClick={handleDidNotMeet}>
                 DID NOT MEET
               </button>

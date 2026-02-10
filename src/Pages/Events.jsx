@@ -3374,7 +3374,6 @@ useEffect(() => {
   searchQuery,
 ]);
 
-
 const StatusBadges = ({
   selectedStatus,
   setSelectedStatus,
@@ -3409,64 +3408,66 @@ const StatusBadges = ({
     },
   ];
 
-const handleStatusClick = (statusValue) => {
-  setSelectedStatus(statusValue);
-  setCurrentPage(1);
-  
-  const fetchParams = {
-    page: 1,
-    limit: rowsPerPage,
-    start_date: DEFAULT_API_START_DATE,
-    status: statusValue,
-    event_type: selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
-    _t: Date.now(),
-  };
+  const handleStatusClick = (statusValue) => {
+    setSelectedStatus(statusValue);
+    setCurrentPage(1);
+    
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      status: statusValue,
+      event_type: selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
+      _t: Date.now(),
+    };
 
-  if (searchQuery.trim()) {
-    fetchParams.search = searchQuery.trim();
-  }
-
-  const isCellEvent = selectedEventTypeFilter === "all" || 
-                     selectedEventTypeFilter === "CELLS" ||
-                     (selectedEventTypeFilter && selectedEventTypeFilter.toLowerCase().includes("cell"));
-
-  if (isCellEvent) {
-    if (isAdmin) {
-      if (viewFilter === "personal") {
-        fetchParams.personal = true;
-      }
-    } else if (isRegistrant || isRegularUser) {
-      fetchParams.personal = true;
-    } else if (isLeaderAt12) {
-      fetchParams.leader_at_12_view = true;
-      fetchParams.include_subordinate_cells = true;
-
-      if (viewFilter === "personal") {
-        fetchParams.show_personal_cells = true;
-        fetchParams.personal = true;
-      } else {
-        fetchParams.show_all_authorized = true;
-      }
-    } else if (isLeader) {
-      fetchParams.personal = true;
+    if (searchQuery.trim()) {
+      fetchParams.search = searchQuery.trim();
     }
-  }
 
-  if (!isCellEvent) {
-    delete fetchParams.personal;
-    delete fetchParams.leader_at_12_view;
-    delete fetchParams.show_personal_cells;
-    delete fetchParams.show_all_authorized;
-    delete fetchParams.include_subordinate_cells;
-  }
+    const isCellEvent = selectedEventTypeFilter === "all" || 
+                       selectedEventTypeFilter === "CELLS" ||
+                       (selectedEventTypeFilter && selectedEventTypeFilter.toLowerCase().includes("cell"));
 
-  fetchEvents(fetchParams, true);
-};
+    if (isCellEvent) {
+      if (isAdmin) {
+        if (viewFilter === "personal") {
+          fetchParams.personal = true;
+        }
+      } else if (isRegistrant || isRegularUser) {
+        fetchParams.personal = true;
+      } else if (isLeaderAt12) {
+        fetchParams.leader_at_12_view = true;
+        fetchParams.include_subordinate_cells = true;
+
+        if (viewFilter === "personal") {
+          fetchParams.show_personal_cells = true;
+          fetchParams.personal = true;
+        } else {
+          fetchParams.show_all_authorized = true;
+        }
+      } else if (isLeader) {
+        fetchParams.personal = true;
+      }
+    }
+
+    if (!isCellEvent) {
+      delete fetchParams.personal;
+      delete fetchParams.leader_at_12_view;
+      delete fetchParams.show_personal_cells;
+      delete fetchParams.show_all_authorized;
+      delete fetchParams.include_subordinate_cells;
+    }
+
+    fetchEvents(fetchParams, true);
+  };
 
   const canDownload =
     selectedStatus === "complete" || selectedStatus === "did_not_meet";
   const [period, setPeriod] = useState("current");
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isDownloadClicked, setIsDownloadClicked] = useState(false);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownOpen) {
@@ -3482,6 +3483,16 @@ const handleStatusClick = (statusValue) => {
       document.removeEventListener('click', handleClickOutside);
     };
   }, [dropdownOpen]);
+
+  // const handleDownloadClick = () => {
+  //   setIsDownloadClicked(true);
+  //   downloadEventsByStatus(selectedStatus, period);
+    
+  //   // Reset the clicked state after 500ms
+  //   setTimeout(() => {
+  //     setIsDownloadClicked(false);
+  //   }, 500);
+  // };
 
   return (
     <div style={styles.statusBadgeContainer}>
@@ -3508,144 +3519,137 @@ const handleStatusClick = (statusValue) => {
         </button>
       ))}
 
-      {/* Period selector + Bulk download: show only when COMPLETE or DID NOT MEET selected */}
       {canDownload && (
-        <div style={{ display: "flex", gap: 8, alignItems: "center", marginLeft: 6, position: "relative" }}>
-          <div style={{ position: "relative" }}>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setDropdownOpen(!dropdownOpen);
-              }}
-              style={{
-                ...styles.statusBadge,
-                padding: "0.4rem 0.8rem",
-                fontSize: "0.75rem",
-                backgroundColor: "#f1f3f5",
-                color: "#6c757d",
-                borderColor: "#ddd",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                minWidth: "120px",
-                justifyContent: "space-between",
-              }}
-              title="Select week period"
-            >
-              <span>{period === "current" ? "Current Week" : "Previous Week"}</span>
-              <span style={{ fontSize: "0.7rem" }}>▼</span>
-            </button>
-            
-            {/* Dropdown menu */}
-            {dropdownOpen && (
-              <div style={{
-                position: "absolute",
-                top: "100%",
-                left: 0,
-                zIndex: 1000,
-                backgroundColor: "#fff",
-                border: "1px solid #ddd",
-                borderRadius: "6px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                marginTop: "4px",
-                minWidth: "140px",
-                overflow: "hidden",
-              }}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPeriod("current");
-                    setDropdownOpen(false);
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "0.6rem 0.8rem",
-                    backgroundColor: period === "current" ? "#f1f3f5" : "#fff",
-                    color: "#6c757d",
-                    border: "none",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    fontSize: "0.75rem",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                    borderBottom: "1px solid #eee",
-                  }}
-                >
-                  <span style={{ 
-                    width: "8px", 
-                    height: "8px", 
-                    borderRadius: "50%", 
-                    backgroundColor: period === "current" ? "#6c757d" : "transparent",
-                    border: period === "current" ? "none" : "1px solid #ddd"
-                  }}></span>
-                  Current Week
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setPeriod("previous");
-                    setDropdownOpen(false);
-                  }}
-                  style={{
-                    width: "100%",
-                    padding: "0.6rem 0.8rem",
-                    backgroundColor: period === "previous" ? "#f1f3f5" : "#fff",
-                    color: "#6c757d",
-                    border: "none",
-                    textAlign: "left",
-                    cursor: "pointer",
-                    fontSize: "0.75rem",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "8px",
-                  }}
-                >
-                  <span style={{ 
-                    width: "8px", 
-                    height: "8px", 
-                    borderRadius: "50%", 
-                    backgroundColor: period === "previous" ? "#6c757d" : "transparent",
-                    border: period === "previous" ? "none" : "1px solid #ddd"
-                  }}></span>
-                  Previous Week
-                </button>
-              </div>
-            )}
-          </div>
-
+  <div style={{ 
+    display: "flex", 
+    alignItems: "center", 
+    marginLeft: 6, 
+    position: "relative" 
+  }}>
+    {/* SINGLE MERGED DOWNLOAD BUTTON WITH DROPDOWN */}
+    <div style={{ position: "relative" }}>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          setDropdownOpen(!dropdownOpen);
+        }}
+        title={`Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance`}
+        style={{
+          ...styles.statusBadge,
+          backgroundColor: isDownloadClicked ? "#b0bec5" : "#e3f2fd",
+          color: isDownloadClicked ? "#546e7a" : "#1976d2",
+          borderColor: isDownloadClicked ? "#546e7a" : "#1976d2",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "8px",
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          padding: "0.4rem 0.8rem 0.4rem 0.8rem",
+          fontSize: "0.75rem",
+          transition: "all 0.15s ease",
+          minWidth: "200px",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+          <GetAppIcon fontSize="small" style={{ color: "inherit" }} />
+          <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+            DOWNLOAD {selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"}
+          </span>
+        </div>
+        <span style={{ fontSize: "0.7rem", marginLeft: "4px" }}>▼</span>
+      </button>
+      
+      {/* DROPDOWN MENU - Triggers download immediately on selection */}
+      {dropdownOpen && (
+        <div 
+          style={{
+            position: "absolute",
+            top: "100%",
+            left: 0,
+            right: 0,
+            zIndex: 1000,
+            backgroundColor: "#fff",
+            border: "1px solid #ddd",
+            borderRadius: "6px",
+            boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+            marginTop: "4px",
+            minWidth: "200px",
+            overflow: "hidden",
+          }}
+        >
           <button
-            key="download-bulk"
-            onClick={() => downloadEventsByStatus(selectedStatus, period)}
-            title={`Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance (${period === "current" ? "current week" : "previous week"})`}
+            onClick={(e) => {
+              e.stopPropagation();
+              setPeriod("current");
+              setDropdownOpen(false);
+              setIsDownloadClicked(true);
+              downloadEventsByStatus(selectedStatus, "current");
+              setTimeout(() => setIsDownloadClicked(false), 500);
+            }}
             style={{
-              ...styles.statusBadge,
-              backgroundColor: "#f1f3f5",
+              width: "100%",
+              padding: "0.6rem 0.8rem",
+              backgroundColor: period === "current" ? "#f1f3f5" : "#fff",
               color: "#6c757d",
-              borderColor: "#ddd",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
+              border: "none",
+              textAlign: "left",
               cursor: "pointer",
-              whiteSpace: "nowrap",
-              padding: "0.4rem 0.8rem",
               fontSize: "0.75rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              borderBottom: "1px solid #eee",
+              transition: "all 0.1s ease",
+              "&:hover": {
+                backgroundColor: "#e3f2fd",
+              }
             }}
           >
-            <GetAppIcon fontSize="small" style={{ color: "#6c757d" }} />
-            <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
-              DOWNLOAD
-              {selectedStatus === "complete" ? " COMPLETED" : " DID NOT MEET"}
-            </span>
+            <span>Current Week</span>
+            {period === "current" && (
+              <span style={{ color: "#1976d2", fontWeight: "bold" }}>✓</span>
+            )}
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setPeriod("previous");
+              setDropdownOpen(false);
+              setIsDownloadClicked(true);
+              downloadEventsByStatus(selectedStatus, "previous");
+              setTimeout(() => setIsDownloadClicked(false), 500);
+            }}
+            style={{
+              width: "100%",
+              padding: "0.6rem 0.8rem",
+              backgroundColor: period === "previous" ? "#f1f3f5" : "#fff",
+              color: "#6c757d",
+              border: "none",
+              textAlign: "left",
+              cursor: "pointer",
+              fontSize: "0.75rem",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              transition: "all 0.1s ease",
+              "&:hover": {
+                backgroundColor: "#e3f2fd",
+              }
+            }}
+          >
+            <span>Previous Week</span>
+            {period === "previous" && (
+              <span style={{ color: "#1976d2", fontWeight: "bold" }}>✓</span>
+            )}
           </button>
         </div>
       )}
     </div>
+  </div>
+)}</div>
   );
 };
-
   const ViewFilterButtons = () => {
     const shouldShowToggle =
       (isAdmin || isLeaderAt12) &&
