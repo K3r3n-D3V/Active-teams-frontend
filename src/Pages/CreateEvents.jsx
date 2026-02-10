@@ -78,18 +78,18 @@ const CreateEvents = ({
     leader12: "",
   });
 
-  const [, setIsRecurring] = useState(false);
+const [isRecurring, setIsRecurring] = useState(false);
   const handleIsRecurringChange = (e) => {
-    const checked = e.target.checked;
-    setIsRecurring(checked);
+  const checked = e.target.checked;
+  setIsRecurring(checked);
 
-    if (!checked) {
-      setFormData((prev) => ({
-        ...prev,
-        recurringDays: [],
-      }));
-    }
-  };
+  if (!checked) {
+    setFormData((prev) => ({
+     ...prev,
+     recurringDays: [],
+    }));
+  }
+};
 
   const [errors, setErrors] = useState({});
 
@@ -481,6 +481,8 @@ const CreateEvents = ({
         status: "open",
         leader1: isCellsEventType(eventTypeToSend) ? (formData.leader1 || "") : "",
         leader12: isCellsEventType(eventTypeToSend) ? (formData.leader12 || "") : "",
+        isRecurring: isRecurring,
+        recurringDays: isRecurring ? formData.recurringDays : [],
       };
 
       if (formData.date && formData.time) {
@@ -921,6 +923,24 @@ const CreateEvents = ({
               />
             </Box>
             <Box mb={3}>
+
+              <Typography
+                fontWeight="bold"
+                mb={1}
+                sx={darkModeStyles.sectionTitle}
+              >
+                Is Recurring? {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
+              </Typography>    
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={isRecurring}
+                    onChange={handleIsRecurringChange}
+                  />
+                }
+                label="Yes"
+              />
+            
               <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
                 Recurring Days
               </Typography>
