@@ -2826,15 +2826,15 @@ ${xmlCols}
       fontWeight: 500,
       whiteSpace: "nowrap",
     },
-  tabsContainer: {
-  borderBottom: `1px solid ${theme.palette.divider}`,
-  padding: "0 clamp(15px, 3vw, 40px)",
-  display: "flex",
-  position: "relative",
-  alignItems: "center",
-  justifyContent: "flex-start",
-  flexWrap: "wrap",
-},
+    tabsContainer: {
+    borderBottom: `1px solid ${theme.palette.divider}`,
+    padding: "0 clamp(15px, 3vw, 40px)",
+    display: "flex",
+    position: "relative",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    flexWrap: "wrap",
+  },
 
     mobileMenuButton: {
       minWidth: "40px",
@@ -2847,29 +2847,27 @@ ${xmlCols}
       marginRight: "8px",
       color: "#fff",
     },
-tabsWrapper: {
-  display: "flex",
-  flexDirection: "row",
-  gap: "25px",
-  width: "auto",
-  marginTop: isMobile ? "8px" : "0",
-  flexWrap: isMobile && window.innerWidth <= 360 ? "nowrap" : "wrap",
-},
+    tabsWrapper: {
+      display: "flex",
+      flexDirection: "row",
+      gap: "25px",
+      width: "auto",
+      marginTop: isMobile ? "8px" : "0",
+      flexWrap: isMobile && window.innerWidth <= 360 ? "nowrap" : "wrap",
+    },
 
-
-
-  tab: {
-  flex: "unset",   
-  width: "auto",   
-  textAlign: "center",
-  padding: "23px 12px",
-  border: "transparent",
-  borderRadius: "4px",
-  backgroundColor: "transparent",
-  cursor: "pointer",
-  color: theme.palette.text.primary,
-  minWidth: "unset", 
-},
+    tab: {
+    flex: "unset",   
+    width: "auto",   
+    textAlign: "center",
+    padding: "23px 12px",
+    border: "transparent",
+    borderRadius: "4px",
+    backgroundColor: "transparent",
+    cursor: "pointer",
+    color: theme.palette.text.primary,
+    minWidth: "unset", 
+  },
 
 
   tabActive: {
