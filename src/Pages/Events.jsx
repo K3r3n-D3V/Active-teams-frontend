@@ -2142,8 +2142,10 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
     );
   }, [viewFilter, userRole, fetchEvents, rowsPerPage, DEFAULT_API_START_DATE]);
 
-  const handleSearchSubmit = useCallback(() => {
-    const trimmedSearch = searchQuery.trim();
+  const handleSearchSubmit = useCallback((e) => {
+    setSearchQuery(e.target.value)
+    const searchText = e.target.value
+    const trimmedSearch = searchText.trim();
 
     let shouldApplyPersonalFilter = undefined;
     if (userRole === "admin" || userRole === "leader at 12") {
@@ -3053,6 +3055,7 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
   const handleSearchChange = useCallback((e) => {
     const value = e.target.value;
     setSearchQuery(value);
+    handleSearchSubmit()
   }, []);
 
   useEffect(() => {
@@ -3627,7 +3630,7 @@ const handleStatusClick = (statusValue) => {
               cursor: "pointer",
               whiteSpace: "nowrap",
               padding: "0.4rem 0.8rem",
-              fontSize: "0.75rem",
+              fontSize: "5rem",
             }}
           >
             <GetAppIcon fontSize="small" style={{ color: "#6c757d" }} />
@@ -4318,7 +4321,7 @@ return (
               size="small"
               placeholder="Search by Event Name, Leader, or Email..."
               value={searchQuery}
-              onChange={handleSearchChange}
+              onChange={handleSearchSubmit}
               onKeyPress={(e) => {
                 if (e.key === "Enter") {
                   handleSearchSubmit();
