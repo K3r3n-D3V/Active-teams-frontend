@@ -325,6 +325,54 @@ const markTaskComplete = async (taskId) => {
       setLoading(false);
     }
   };
+    const handleRemoveConsolidation = async (consolidation) => {
+    if (!currentEventId) {
+      toast.error("Please select an event first");
+      return;
+    }
+
+    if (modalStateRef.current.isAnyModalOpen) {
+      return;
+    }
+
+    modalStateRef.current = {
+      ...modalStateRef.current,
+      isAnyModalOpen: true,
+      removalModalOpen: true
+    };
+
+    try {
+      const response = await authFetch(
+        `${BASE_URL}/service-checkin/remove-consolidation?event_id=${currentEventId}&consolidation_id=${consolidation.id}&keep_person_in_attendees=${removeOptions.keepInAttendees}`,
+        { method: 'DELETE' }
+      );
+      
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(result.message || "Consolidation and associated task removed successfully");
+        
+        // Notify DailyTasks to refresh
+        if (notifyTaskUpdate) {
+          notifyTaskUpdate(); // This will trigger DailyTasks to refresh
+        }
+        
+        const freshData = await fetchRealTimeEventData(currentEventId);
+        if (freshData) {
+          setRealTimeData(freshData);
+        }
+      }
+    } catch (error) {
+      console.error("Removal error:", error);
+      toast.error("Failed to remove. Please try again.");
+    } finally {
+      modalStateRef.current = {
+        ...modalStateRef.current,
+        isAnyModalOpen: false,
+        removalModalOpen: false
+      };
+    }
+  };
+
 
   const fetchPeople = async (q) => {
     if (!q.trim()) {
@@ -756,6 +804,19 @@ useEffect(() => {
   setTotalCount(count);
 }, [filteredTasks]); // Remove updateTask from dependencies
 
+useEffect(() => {
+  const handleStorageChange = (e) => {
+    if (e.key === 'task-refresh-trigger') {
+      fetchUserTasks(); // Refresh the task list
+    }
+  };
+
+  window.addEventListener('storage', handleStorageChange);
+  
+  return () => {
+    window.removeEventListener('storage', handleStorageChange);
+  };
+}, []);
   return (
     <div style={{
       height: '100vh',
@@ -816,7 +877,7 @@ useEffect(() => {
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '8px',
-                gap: '8px',
+           
                 backgroundColor: isDarkMode ? '#fff' : '#000',
                 color: isDarkMode ? '#000' : '#fff',
                 fontWeight: '600',
@@ -825,10 +886,10 @@ useEffect(() => {
                 border: 'none',
                 cursor: 'pointer',
                 fontSize: '14px',
-                fontSize: '14px',
+               
                 boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
                 width: '140px',
-                width: '140px',
+             
                 minHeight: '44px'
               }}
               onClick={() => handleOpen("call")}
@@ -959,7 +1020,7 @@ useEffect(() => {
                 cursor: 'pointer',
                 backgroundColor: filterType === type ? (isDarkMode ? '#fff' : '#000') : (isDarkMode ? '#2d2d2d' : '#ffffff'),
                 color: filterType === type ? (isDarkMode ? '#000' : '#fff') : (isDarkMode ? '#fff' : '#1a1a24'),
-                fontSize: '13px',
+              
                 fontSize: '13px',
                 boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
                 whiteSpace: 'nowrap', 
