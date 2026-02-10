@@ -41,8 +41,11 @@ import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
+// import useMediaQuery from '@mui/material/useMediaQuery';
 
 const formatRecurringDays = (recurringDays) => {
+  
+
   if (!recurringDays || recurringDays.length === 0) {
     return null;
   }
@@ -1057,6 +1060,9 @@ const [eventTypeSearch, setEventTypeSearch] = useState("");
 const [viewMode, setViewMode] = useState("grid"); // "grid" or "table"
 const [menuAnchor, setMenuAnchor] = useState(null);
 const [selectedTypeForMenu, setSelectedTypeForMenu] = useState(null);
+
+// const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
 
   const initialViewFilter = useMemo(() => {
     if (isLeaderAt12) {
@@ -4344,7 +4350,7 @@ return (
               }}
             />
 
-            <Button
+            {/* <Button
               variant="contained"
               onClick={handleSearchSubmit}
               disabled={loading}
@@ -4359,7 +4365,7 @@ return (
               }}
             >
               {loading ? "⏳" : "SEARCH"}
-            </Button>
+            </Button> */}
 
             <Button
               variant="outlined"
@@ -4496,23 +4502,186 @@ return (
                 </Typography>
               </Box>
             ) : (
-              paginatedEvents.map((event) => (
-                <MobileEventCard
-                  key={event._id}
-                  event={event}
-                  onOpenAttendance={() => handleCaptureClick(event)}
-                  onEdit={() => handleEditEvent(event)}
-                  onDelete={() => handleDeleteEvent(event)}
-                  isOverdue={isOverdue(event)}
-                  formatDate={formatDate}
-                  theme={theme}
-                  styles={styles}
-                  isAdmin={isAdmin}
-                  isLeaderAt12={isLeaderAt12}
-                  currentUserLeaderAt1={currentUserLeaderAt1}
-                  selectedEventTypeFilter={selectedEventTypeFilter}
-                />
-              ))
+<>
+
+{paginatedEvents.map((event) => (
+  <>
+  <MobileEventCard
+    key={event._id}
+    event={event}
+    onOpenAttendance={() => handleCaptureClick(event)}
+    onEdit={() => handleEditEvent(event)}
+    onDelete={() => handleDeleteEvent(event)}
+    isOverdue={isOverdue(event)}
+    formatDate={formatDate}
+    theme={theme}
+    styles={styles}
+    isAdmin={isAdmin}
+    isLeaderAt12={isLeaderAt12}
+    currentUserLeaderAt1={currentUserLeaderAt1}
+    selectedEventTypeFilter={selectedEventTypeFilter}
+  />
+  </>
+
+
+))}
+
+{/* MOBILE PAGINATION*/}
+<Box
+  sx={{
+    ...styles.paginationContainer,
+    flexShrink: 0,
+    backgroundColor: isDarkMode
+      ? theme.palette.background.paper
+      : "#f8f9fa",
+    borderTop: `1px solid ${
+      isDarkMode ? theme.palette.divider : "#e9ecef"
+    }`,
+    px: 2,
+    py: 1.5,               // slightly more breathing room on mobile
+    flexDirection: isMobile ? 'column' : 'row',
+    alignItems: isMobile ? 'stretch' : 'center',
+    gap: isMobile ? 1.5 : 2,
+  }}
+>
+
+  {/* Rows per page – keep but make compact */}
+  <Box
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: isMobile ? 'space-between' : 'flex-start',
+      gap: 1,
+      width: isMobile ? '100%' : 'auto',
+    }}
+  >
+    <Typography
+      variant="body2"
+      sx={{
+        color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
+        whiteSpace: 'nowrap',
+      }}
+    >
+      Rows per page:
+    </Typography>
+
+    <select
+      value={rowsPerPage}
+      onChange={handleRowsPerPageChange}
+      disabled={loading}
+      style={{
+        padding: "0.4rem 0.6rem",
+        border: "1px solid",
+        borderColor: isDarkMode ? theme.palette.divider : "#dee2e6",
+        borderRadius: "8px",
+        backgroundColor: isDarkMode ? theme.palette.background.default : "#fff",
+        color: isDarkMode ? theme.palette.text.primary : "#000",
+        fontSize: "0.875rem",
+        minWidth: isMobile ? '80px' : '100px',
+      }}
+    >
+      <option value={10}>10</option>
+      <option value={25}>25</option>
+      <option value={50}>50</option>
+      <option value={100}>100</option>
+    </select>
+  </Box>
+
+  {/* Result range – center on mobile */}
+  <Typography
+    variant="body2"
+    align={isMobile ? "center" : "left"}
+    sx={{
+      color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
+      width: isMobile ? '100%' : 'auto',
+      order: isMobile ? -1 : 'unset',     // move to top on mobile
+      mb: isMobile ? 0.5 : 0,
+    }}
+  >
+    {totalEvents > 0
+      ? `${startIndex}-${endIndex} of ${totalEvents}`
+      : "0-0 of 0"}
+  </Typography>
+
+  {/* Navigation buttons */}
+  <Box
+    sx={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: isMobile ? 2 : 1.5,
+      width: isMobile ? '100%' : 'auto',
+    }}
+  >
+    <Button
+      variant="outlined"
+      size="medium"           // bigger on mobile
+      onClick={handlePreviousPage}
+      disabled={currentPage === 1 || loading}
+      sx={{
+        minWidth: isMobile ? 64 : 88,
+        height: isMobile ? 48 : 36,
+        px: isMobile ? 2 : 1.5,
+        borderRadius: '12px',
+        color: isDarkMode ? theme.palette.text.primary : "#007bff",
+        borderColor: isDarkMode ? theme.palette.divider : "#007bff",
+        fontSize: isMobile ? '1rem' : '0.875rem',
+        "&:hover": {
+          backgroundColor: isDarkMode
+            ? "rgba(255,255,255,0.08)"
+            : "rgba(0,123,255,0.08)",
+        },
+        "&:disabled": {
+          opacity: 0.4,
+        },
+      }}
+    >
+      {loading ? "⏳" : isMobile ? "←" : "< Previous"}
+    </Button>
+
+    <Typography
+      variant="body2"
+      sx={{
+        color: isDarkMode ? theme.palette.text.secondary : "#6c757d",
+        fontWeight: 500,
+        minWidth: '80px',
+        textAlign: 'center',
+      }}
+    >
+      {isMobile
+        ? `${currentPage} / ${totalPages}`
+        : `Page ${currentPage} of ${totalPages}`}
+    </Typography>
+
+    <Button
+      variant="outlined"
+      size="medium"
+      onClick={handleNextPage}
+      disabled={currentPage >= totalPages || loading || totalPages === 0}
+      sx={{
+        minWidth: isMobile ? 64 : 88,
+        height: isMobile ? 48 : 36,
+        px: isMobile ? 2 : 1.5,
+        borderRadius: '12px',
+        color: isDarkMode ? theme.palette.text.primary : "#007bff",
+        borderColor: isDarkMode ? theme.palette.divider : "#007bff",
+        fontSize: isMobile ? '1rem' : '0.875rem',
+        "&:hover": {
+          backgroundColor: isDarkMode
+            ? "rgba(255,255,255,0.08)"
+            : "rgba(0,123,255,0.08)",
+        },
+        "&:disabled": {
+          opacity: 0.4,
+        },
+      }}
+    >
+      {loading ? "⏳" : isMobile ? "→" : "Next >"}
+    </Button>
+  </Box>
+</Box>
+</>
+
             )}
           </Box>
         ) : (
