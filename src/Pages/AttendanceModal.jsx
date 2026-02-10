@@ -11,6 +11,11 @@ import {
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
 
+const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
+const GEOAPIFY_COUNTRY_CODE = (
+  import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
+).toLowerCase();
+
 const AddPersonToEvents = ({ isOpen, onClose }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
@@ -40,6 +45,130 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     leader12: "",
     leader144: ""
   });
+
+  const [addressOptions, setAddressOptions] = useState([]);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  const [selectedAddress, setSelectedAddress] = useState(null);
+
+  const [showAddressDropdown, setShowAddressDropdown] = useState(false);
+
+  const [biasLonLat, setBiasLonLat] = useState(null);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setBiasLonLat({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+        });
+      },
+      () => {
+        setBiasLonLat(null);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }, []);
+
+  useEffect(() => {
+    if (!isOpen) return; // don’t run if modal is closed
+
+    if (!GEOAPIFY_API_KEY) {
+      setAddressError(
+        "Geoapify API key is missing. Add VITE_GEOAPIFY_API_KEY in your .env file."
+      );
+      return;
+    }
+
+    const query = (formData.address || "").trim();
+    if (query.length < 3) {
+      setAddressOptions([]);
+      setAddressError("");
+      return;
+    }
+
+    let isActive = true;
+    const controller = new AbortController();
+
+    const timer = setTimeout(async () => {
+      try {
+        setAddressLoading(true);
+        setAddressError("");
+
+        const biasParam = biasLonLat
+          ? `&bias=proximity:${encodeURIComponent(
+            biasLonLat.lon
+          )},${encodeURIComponent(biasLonLat.lat)}`
+          : "";
+
+        const url =
+          `https://api.geoapify.com/v1/geocode/autocomplete` +
+          `?text=${encodeURIComponent(query)}` +
+          `&limit=10` +
+          `&lang=en` +
+          `&filter=countrycode:${encodeURIComponent(GEOAPIFY_COUNTRY_CODE)}` +
+          biasParam +
+          `&format=json` +
+          `&apiKey=${encodeURIComponent(GEOAPIFY_API_KEY)}`;
+
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error("Address lookup failed");
+
+        const data = await res.json();
+        if (!isActive) return;
+
+        const results = Array.isArray(data?.results) ? data.results : [];
+
+        const mapped = results
+          .map((r) => ({
+            label: r.formatted || "",
+            formatted: r.formatted || "",
+            suburb: r.suburb || "",
+            city: r.city || r.town || r.village || "",
+            state: r.state || "",
+            postcode: r.postcode || "",
+            lat: r.lat,
+            lon: r.lon,
+          }))
+          .filter((x) => x.label);
+
+        setAddressOptions(mapped);
+      } catch (e) {
+        if (e?.name === "AbortError") return;
+        setAddressError(
+          "Could not load address suggestions. Please type manually."
+        );
+        setAddressOptions([]);
+      } finally {
+        if (isActive) setAddressLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      isActive = false;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [isOpen, formData.address, biasLonLat]);
+
+    const handleAddressInputChange = (value) => {
+    setFormData((prev) => ({ ...prev, address: value }));
+    setSelectedAddress(null);
+    setShowAddressDropdown(true);
+
+    if (attemptedSubmit && value.trim() !== "") {
+      // no-op, but you can clear error UI if needed
+    }
+  };
+
+  const handleAddressSelect = (option) => {
+    const formatted = option?.formatted || option?.label || "";
+    setSelectedAddress(option || null);
+    setFormData((prev) => ({ ...prev, address: formatted }));
+    setShowAddressDropdown(false);
+  };
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -676,18 +805,67 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
               />
             </div>
 
+            {/*Home Address (Geoapify autocomplete) */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
-                Home Address
-                {showError('address') && <span style={styles.required}>Required</span>}
+                Home Address {showError("address") && <span style={styles.required}>Required</span>}
               </label>
+
               <input
                 type="text"
                 value={formData.address}
-                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                onBlur={() => setTouched(prev => ({ ...prev, address: true }))}
-                style={showError('address') ? styles.inputError : styles.input}
+                onChange={(e) => handleAddressInputChange(e.target.value)}
+                onFocus={() => setShowAddressDropdown(true)}
+                onBlur={() => {
+                  setTimeout(() => setShowAddressDropdown(false), 200);
+                  setTouched((prev) => ({ ...prev, address: true }));
+                }}
+                style={showError("address") ? styles.inputError : styles.input}
+                placeholder={
+                  GEOAPIFY_API_KEY
+                    ? "Start typing your address..."
+                    : "Missing Geoapify API key. Add VITE_GEOAPIFY_API_KEY in your .env."
+                }
+                autoComplete="off"
               />
+
+              {showAddressDropdown && (addressLoading || addressOptions.length > 0 || addressError) && (
+                <div style={styles.dropdown}>
+                  {addressLoading ? (
+                    <div style={styles.loadingItem}>Searching addresses...</div>
+                  ) : addressOptions.length > 0 ? (
+                    addressOptions.map((opt) => (
+                      <div
+                        key={`${opt.lon ?? ""}-${opt.lat ?? ""}-${opt.label}`}
+                        style={styles.dropdownItem}
+                        onClick={() => handleAddressSelect(opt)}
+                        onMouseEnter={(e) => (e.currentTarget.style.background = theme.palette.action.hover)}
+                        onMouseLeave={(e) => (e.currentTarget.style.background = theme.palette.background.paper)}
+                      >
+                        <div style={{ fontWeight: "500", marginBottom: "4px" }}>{opt.label}</div>
+                        {(opt.suburb || opt.city || opt.state || opt.postcode) && (
+                          <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                            {[opt.suburb, opt.city, opt.state, opt.postcode].filter(Boolean).join(" • ")}
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : addressError ? (
+                    <div style={styles.dropdownEmpty}>{addressError}</div>
+                  ) : formData.address.trim().length < 3 ? (
+                    <div style={styles.dropdownEmpty}>Type at least 3 characters...</div>
+                  ) : (
+                    <div style={styles.dropdownEmpty}>No address matches found.</div>
+                  )}
+                </div>
+              )}
+
+              {selectedAddress?.lat && selectedAddress?.lon && (
+                <div style={styles.hint}>
+                  Selected: {selectedAddress.city || selectedAddress.suburb || "Location"} •{" "}
+                  {selectedAddress.state || "SA"}
+                </div>
+              )}
             </div>
 
             <div style={styles.buttonGroup}>
@@ -1148,228 +1326,228 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-const loadEventStatistics = async () => {
-  if (!event) return;
+  const loadEventStatistics = async () => {
+    if (!event) return;
 
-  try {
-    const eventDate = event.date;
-    console.log(" Loading stats for:", eventDate);
+    try {
+      const eventDate = event.date;
+      console.log(" Loading stats for:", eventDate);
 
-    const attendanceData = event.attendance || {};
-    console.log(" Full attendance data structure:", attendanceData);
-    let weekAttendance = {};
-    
-    if (attendanceData.status === "complete") {
-      console.log(" Found completed data directly in attendance object");
-      weekAttendance = attendanceData;
-    } else {
-      console.log(" Searching for date key in attendance data...");
-      
-      // Try all possible date formats
-      const possibleKeys = Object.keys(attendanceData).filter(key => 
-        typeof attendanceData[key] === 'object' && attendanceData[key] !== null
-      );
-      
-      console.log("Possible date keys:", possibleKeys);
-      
-      // Try to match the date in any format
-      for (const key of possibleKeys) {
-        const data = attendanceData[key];
-        
-        // Check if this looks like week data
-        if (data && (data.status === "complete" || data.attendees || data.total_headcounts)) {
-          console.log(` Checking key "${key}":`, {
-            status: data.status,
-            attendees: data.attendees?.length || 0
-          });
-          
-          if (data.status === "complete") {
-            weekAttendance = data;
-            console.log(` Using completed week from key: "${key}"`);
-            break;
+      const attendanceData = event.attendance || {};
+      console.log(" Full attendance data structure:", attendanceData);
+      let weekAttendance = {};
+
+      if (attendanceData.status === "complete") {
+        console.log(" Found completed data directly in attendance object");
+        weekAttendance = attendanceData;
+      } else {
+        console.log(" Searching for date key in attendance data...");
+
+        // Try all possible date formats
+        const possibleKeys = Object.keys(attendanceData).filter(key =>
+          typeof attendanceData[key] === 'object' && attendanceData[key] !== null
+        );
+
+        console.log("Possible date keys:", possibleKeys);
+
+        // Try to match the date in any format
+        for (const key of possibleKeys) {
+          const data = attendanceData[key];
+
+          // Check if this looks like week data
+          if (data && (data.status === "complete" || data.attendees || data.total_headcounts)) {
+            console.log(` Checking key "${key}":`, {
+              status: data.status,
+              attendees: data.attendees?.length || 0
+            });
+
+            if (data.status === "complete") {
+              weekAttendance = data;
+              console.log(` Using completed week from key: "${key}"`);
+              break;
+            }
           }
         }
       }
+
+      console.log(" Final week attendance data:", {
+        status: weekAttendance?.status,
+        attendeesCount: weekAttendance?.attendees?.length || 0,
+        headcount: weekAttendance?.total_headcounts || 0
+      });
+
+      const isCompleted = weekAttendance?.status === "complete";
+
+      if (isCompleted) {
+        const attendees = weekAttendance.attendees || [];
+        console.log(" Loading COMPLETED week with", attendees.length, "attendees");
+
+        let firstTimeCount = 0;
+        let recommitmentCount = 0;
+
+        attendees.forEach(att => {
+          const decision = (att.decision || "").toLowerCase();
+          if (decision.includes("first")) {
+            firstTimeCount++;
+          } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+            recommitmentCount++;
+          }
+        });
+
+        setEventStatistics({
+          totalAssociated: persistentCommonAttendees.length,
+          lastAttendanceCount: attendees.length,
+          lastHeadcount: weekAttendance.total_headcounts || 0,
+          lastDecisionsCount: firstTimeCount + recommitmentCount,
+          lastAttendanceBreakdown: {
+            first_time: firstTimeCount,
+            recommitment: recommitmentCount
+          }
+        });
+
+        if (weekAttendance.total_headcounts > 0) {
+          setManualHeadcount(weekAttendance.total_headcounts.toString());
+        } else {
+          setManualHeadcount("0");
+        }
+
+      } else {
+        // For INCOMPLETE weeks or no data found
+        console.log(" No completed week data found, showing zeros");
+        setEventStatistics({
+          totalAssociated: persistentCommonAttendees.length,
+          lastAttendanceCount: 0,
+          lastHeadcount: 0,
+          lastDecisionsCount: 0,
+          lastAttendanceBreakdown: {
+            first_time: 0,
+            recommitment: 0
+          }
+        });
+        setManualHeadcount("0");
+      }
+    } catch (error) {
+      console.error("Error loading event statistics:", error);
+    }
+  };
+
+  const formatDateToISO = (dateString) => {
+    try {
+      const parts = dateString.match(/\d+/g);
+      if (parts && parts.length === 3) {
+        const day = parts[0].padStart(2, '0');
+        const month = parts[1].padStart(2, '0');
+        const year = parts[2];
+        return `${year}-${month}-${day}`;
+      }
+      return dateString;
+    } catch (error) {
+      return dateString, error;
+    }
+  };
+
+  const loadWeeklyCheckins = () => {
+    if (!event) {
+      setCheckedIn({});
+      setManualHeadcount("0");
+      setDidNotMeet(false);
+      return;
     }
 
-    console.log(" Final week attendance data:", {
-      status: weekAttendance?.status,
-      attendeesCount: weekAttendance?.attendees?.length || 0,
-      headcount: weekAttendance?.total_headcounts || 0
-    });
+    // Reset all states
+    setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+
+    const attendanceData = event.attendance || {};
+    console.log(" Loading checkins from:", attendanceData);
+
+    // Find completed week data
+    let weekAttendance = {};
+
+    if (attendanceData.status === "complete") {
+      weekAttendance = attendanceData;
+      console.log(" Found checkin data directly");
+    } else {
+      // Look for completed week in object keys
+      const possibleKeys = Object.keys(attendanceData).filter(key =>
+        typeof attendanceData[key] === 'object'
+      );
+
+      for (const key of possibleKeys) {
+        const data = attendanceData[key];
+        if (data && data.status === "complete") {
+          weekAttendance = data;
+          console.log(` Found checkins in key: "${key}"`);
+          break;
+        }
+      }
+    }
 
     const isCompleted = weekAttendance?.status === "complete";
 
     if (isCompleted) {
+      console.log(" Loading completed week checkins");
+
       const attendees = weekAttendance.attendees || [];
-      console.log(" Loading COMPLETED week with", attendees.length, "attendees");
 
-      let firstTimeCount = 0;
-      let recommitmentCount = 0;
+      if (attendees.length > 0) {
+        const newCheckedIn = {};
+        const newDecisions = {};
+        const newDecisionTypes = {};
+        const newPriceTiers = {};
+        const newPaymentMethods = {};
+        const newPaidAmounts = {};
 
-      attendees.forEach(att => {
-        const decision = (att.decision || "").toLowerCase();
-        if (decision.includes("first")) {
-          firstTimeCount++;
-        } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
-          recommitmentCount++;
-        }
-      });
+        attendees.forEach(att => {
+          if (att.id) {
+            newCheckedIn[att.id] = true;
 
-      setEventStatistics({
-        totalAssociated: persistentCommonAttendees.length,
-        lastAttendanceCount: attendees.length,
-        lastHeadcount: weekAttendance.total_headcounts || 0,
-        lastDecisionsCount: firstTimeCount + recommitmentCount,
-        lastAttendanceBreakdown: {
-          first_time: firstTimeCount,
-          recommitment: recommitmentCount
-        }
-      });
+            if (att.decision) {
+              newDecisions[att.id] = true;
+              newDecisionTypes[att.id] = att.decision;
+            }
 
-      if (weekAttendance.total_headcounts > 0) {
-        setManualHeadcount(weekAttendance.total_headcounts.toString());
-      } else {
-        setManualHeadcount("0");
+            if (isTicketedEvent) {
+              if (att.priceTier || att.price) {
+                newPriceTiers[att.id] = {
+                  name: att.priceTier || "",
+                  price: att.price || 0,
+                  ageGroup: att.ageGroup || "",
+                  memberType: att.memberType || ""
+                };
+              }
+              if (att.paymentMethod) {
+                newPaymentMethods[att.id] = att.paymentMethod;
+              }
+              if (att.paid !== undefined) {
+                newPaidAmounts[att.id] = att.paid;
+              }
+            }
+          }
+        });
+
+        console.log("👥 Setting", attendees.length, "checkins");
+        setCheckedIn(newCheckedIn);
+        setDecisions(newDecisions);
+        setDecisionTypes(newDecisionTypes);
+        setPriceTiers(newPriceTiers);
+        setPaymentMethods(newPaymentMethods);
+        setPaidAmounts(newPaidAmounts);
       }
-      
+
+      const headcount = weekAttendance.total_headcounts || 0;
+      setManualHeadcount(headcount.toString());
+
     } else {
-      // For INCOMPLETE weeks or no data found
-      console.log(" No completed week data found, showing zeros");
-      setEventStatistics({
-        totalAssociated: persistentCommonAttendees.length,
-        lastAttendanceCount: 0,
-        lastHeadcount: 0,
-        lastDecisionsCount: 0,
-        lastAttendanceBreakdown: {
-          first_time: 0,
-          recommitment: 0
-        }
-      });
-      setManualHeadcount("0");
+      console.log(" No checkins to load");
     }
-  } catch (error) {
-    console.error("Error loading event statistics:", error);
-  }
-};
-
-const formatDateToISO = (dateString) => {
-  try {
-    const parts = dateString.match(/\d+/g);
-    if (parts && parts.length === 3) {
-      const day = parts[0].padStart(2, '0');
-      const month = parts[1].padStart(2, '0');
-      const year = parts[2];
-      return `${year}-${month}-${day}`;
-    }
-    return dateString;
-  } catch (error) {
-    return dateString, error;
-  }
-};
-
-const loadWeeklyCheckins = () => {
-  if (!event) {
-    setCheckedIn({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-    return;
-  }
-
-  // Reset all states
-  setCheckedIn({});
-  setDecisions({});
-  setDecisionTypes({});
-  setPriceTiers({});
-  setPaymentMethods({});
-  setPaidAmounts({});
-  setManualHeadcount("0");
-  setDidNotMeet(false);
-
-  const attendanceData = event.attendance || {};
-  console.log(" Loading checkins from:", attendanceData);
-
-  // Find completed week data
-  let weekAttendance = {};
-  
-  if (attendanceData.status === "complete") {
-    weekAttendance = attendanceData;
-    console.log(" Found checkin data directly");
-  } else {
-    // Look for completed week in object keys
-    const possibleKeys = Object.keys(attendanceData).filter(key => 
-      typeof attendanceData[key] === 'object'
-    );
-    
-    for (const key of possibleKeys) {
-      const data = attendanceData[key];
-      if (data && data.status === "complete") {
-        weekAttendance = data;
-        console.log(` Found checkins in key: "${key}"`);
-        break;
-      }
-    }
-  }
-
-  const isCompleted = weekAttendance?.status === "complete";
-
-  if (isCompleted) {
-    console.log(" Loading completed week checkins");
-    
-    const attendees = weekAttendance.attendees || [];
-    
-    if (attendees.length > 0) {
-      const newCheckedIn = {};
-      const newDecisions = {};
-      const newDecisionTypes = {};
-      const newPriceTiers = {};
-      const newPaymentMethods = {};
-      const newPaidAmounts = {};
-      
-      attendees.forEach(att => {
-        if (att.id) {
-          newCheckedIn[att.id] = true;
-
-          if (att.decision) {
-            newDecisions[att.id] = true;
-            newDecisionTypes[att.id] = att.decision;
-          }
-
-          if (isTicketedEvent) {
-            if (att.priceTier || att.price) {
-              newPriceTiers[att.id] = {
-                name: att.priceTier || "",
-                price: att.price || 0,
-                ageGroup: att.ageGroup || "",
-                memberType: att.memberType || ""
-              };
-            }
-            if (att.paymentMethod) {
-              newPaymentMethods[att.id] = att.paymentMethod;
-            }
-            if (att.paid !== undefined) {
-              newPaidAmounts[att.id] = att.paid;
-            }
-          }
-        }
-      });
-
-      console.log("👥 Setting", attendees.length, "checkins");
-      setCheckedIn(newCheckedIn);
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-      setPriceTiers(newPriceTiers);
-      setPaymentMethods(newPaymentMethods);
-      setPaidAmounts(newPaidAmounts);
-    }
-
-    const headcount = weekAttendance.total_headcounts || 0;
-    setManualHeadcount(headcount.toString());
-    
-  } else {
-    console.log(" No checkins to load");
-  }
-};
+  };
 
   const loadPersistentAttendees = async (eventId) => {
     try {
@@ -1456,50 +1634,50 @@ const loadWeeklyCheckins = () => {
     }
   };
   useEffect(() => {
-  if (isOpen && event) {
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
+    if (isOpen && event) {
+      let eventId = event._id || event.id;
+      if (eventId && eventId.includes("_")) {
+        eventId = eventId.split("_")[0];
+      }
+      console.log(" Opening modal for event:", eventId, "Date:", event.date);
+
+      // Reset all form states
+      setSearchName("");
+      setAssociateSearch("");
+      setActiveTab(0);
+      setCheckedIn({});
+      setDecisions({});
+      setDecisionTypes({});
+      setPriceTiers({});
+      setPaymentMethods({});
+      setPaidAmounts({});
+      setManualHeadcount("0");
+      setDidNotMeet(false);
+
+      const loadAllData = async () => {
+        console.log(" Loading all data...");
+
+        // Load persistent attendees first
+        await loadPersistentAttendees(eventId);
+
+        // Then load statistics
+        await loadEventStatistics();
+
+        // Finally load check-ins
+        loadWeeklyCheckins();
+      };
+
+      loadAllData();
+      fetchPeople();
+
+      // Set "did not meet" status only if this week is marked as such
+      const attendanceData = event.attendance || {};
+      const eventDate = event.date;
+      const weekAttendance = attendanceData[eventDate] || {};
+
+      setDidNotMeet(weekAttendance?.status === "did_not_meet" || false);
     }
-    console.log(" Opening modal for event:", eventId, "Date:", event.date);
-
-    // Reset all form states
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
-    setCheckedIn({});
-    setDecisions({});
-    setDecisionTypes({});
-    setPriceTiers({});
-    setPaymentMethods({});
-    setPaidAmounts({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-
-    const loadAllData = async () => {
-      console.log(" Loading all data...");
-      
-      // Load persistent attendees first
-      await loadPersistentAttendees(eventId);
-      
-      // Then load statistics
-      await loadEventStatistics();
-      
-      // Finally load check-ins
-      loadWeeklyCheckins();
-    };
-
-    loadAllData();
-    fetchPeople();
-
-    // Set "did not meet" status only if this week is marked as such
-    const attendanceData = event.attendance || {};
-    const eventDate = event.date;
-    const weekAttendance = attendanceData[eventDate] || {};
-    
-    setDidNotMeet(weekAttendance?.status === "did_not_meet" || false);
-  }
-}, [isOpen, event]);
+  }, [isOpen, event]);
 
   const fetchPeople = async (q) => {
     if (!q.trim()) {
