@@ -2123,6 +2123,11 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
     setSearchQuery(e.target.value)
     const searchText = e.target.value
     const trimmedSearch = searchText.trim();
+    console.log("TEXT", trimmedSearch)
+    if (trimmedSearch == ""){
+      console.log("TEXT2!!!!")
+      clearAllFilters()
+    }
 
     let shouldApplyPersonalFilter = undefined;
     if (userRole === "admin" || userRole === "leader at 12") {
