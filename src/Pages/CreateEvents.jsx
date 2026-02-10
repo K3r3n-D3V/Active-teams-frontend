@@ -56,8 +56,9 @@ const CreateEvents = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
-  const [loadingPeople, setLoadingPeople] = useState(false);
+  const [loadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
+  const [allPeopleCache, setAllPeopleCache] = useState([]);
 
   const isAdmin = user?.role === "admin";
   console.log("isAdmin:", isAdmin);
@@ -77,18 +78,18 @@ const CreateEvents = ({
     leader12: "",
   });
 
-  const [isRecurring, setIsRecurring] = useState(false);
+  const [, setIsRecurring] = useState(false);
   const handleIsRecurringChange = (e) => {
-  const checked = e.target.checked;
-  setIsRecurring(checked);
+    const checked = e.target.checked;
+    setIsRecurring(checked);
 
-  if (!checked) {
-    setFormData((prev) => ({
-     ...prev,
-     recurringDays: [],
-    }));
-  }
-};
+    if (!checked) {
+      setFormData((prev) => ({
+        ...prev,
+        recurringDays: [],
+      }));
+    }
+  };
 
   const [errors, setErrors] = useState({});
 
@@ -117,10 +118,10 @@ const CreateEvents = ({
         isTicketed: false,
         isTraining: false,
       };
-      
+
       if (selectedEventTypeObj) {
         const eventTypeName = selectedEventTypeObj.name || selectedEventTypeObj.displayName || selectedEventTypeObj.eventTypeName || "";
-        
+
         return {
           eventType: eventTypeName,
           isGlobal: selectedEventTypeObj.isGlobal === true,
@@ -128,7 +129,7 @@ const CreateEvents = ({
           isTraining: selectedEventTypeObj.isTraining === true,
         };
       }
-      
+
       if (selectedEventType) {
         // Handle "all" 
         if (selectedEventType === 'all' || selectedEventType.toUpperCase() === 'ALL CELLS') {
@@ -139,21 +140,21 @@ const CreateEvents = ({
             isTraining: false,
           };
         }
-        
+
         const foundEventType = eventTypes.find(et => {
           const etName = et.name || et.displayName || et.eventTypeName || '';
           const searchName = selectedEventType;
-          
+
           return (
             etName === searchName ||
             etName.toLowerCase() === searchName.toLowerCase() ||
             (et._id && et._id === searchName)
           );
         });
-        
+
         if (foundEventType) {
           const eventTypeName = foundEventType.name || foundEventType.displayName || foundEventType.eventTypeName || selectedEventType;
-          
+
           return {
             eventType: eventTypeName,
             isGlobal: foundEventType.isGlobal === true,
@@ -162,7 +163,7 @@ const CreateEvents = ({
           };
         }
       }
-      
+
       return {
         eventType: selectedEventType || "",
         ...defaultFlags
@@ -200,109 +201,80 @@ const CreateEvents = ({
     }
   }, [isTicketedEvent]);
 
-  const fetchPeople = async (q) => {
-    if (!q.trim()) {
+  const fetchPeople = (q) => {
+    if (!q || !q.trim()) {
       setPeopleData([]);
       return;
     }
 
-    const parts = q.trim().split(/\s+/);
-    const name = parts[0];
-    const surname = parts.slice(1).join(" ");
+    const searchLower = q.toLowerCase().trim();
 
-    try {
-      setLoadingPeople(true);
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+    const filtered = allPeopleCache.filter((person) => {
+      const fullName = person.fullName.toLowerCase();
 
-      if (!res.ok) throw new Error("Failed to fetch people");
+      // Simple: just check if full name contains the search
+      return fullName.includes(searchLower);
+    });
 
-      const data = await res.json();
-
-      let filtered = (data?.results || data?.people || []).filter(p =>
-        (p.Name && p.Name.toLowerCase().includes(name.toLowerCase())) &&
-        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
-      );
-
-      filtered.sort((a, b) => {
-        const nameA = (a.Name || "").toLowerCase();
-        const nameB = (b.Name || "").toLowerCase();
-        const surnameA = (a.Surname || "").toLowerCase();
-        const surnameB = (b.Surname || "").toLowerCase();
-
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        if (surnameA < surnameB) return -1;
-        if (surnameA > surnameB) return 1;
-        return 0;
-      });
-
-      const formatted = filtered.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
-      }));
-
-      setPeopleData(formatted);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      toast.error(err.message);
-      setPeopleData([]);
-    } finally {
-      setLoadingPeople(false);
-    }
+    setPeopleData(filtered.slice(0, 10));
   };
+
 
   useEffect(() => {
     if (!eventId) return;
 
     const fetchEventData = async () => {
       try {
-        const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
+        const response = await axios.get(
+          `${BACKEND_URL}/events/${eventId}`
+        );
+
         const data = response.data;
 
+        // Format date & time
         if (data.date) {
           const dt = new Date(data.date);
+
           data.date = dt.toISOString().split("T")[0];
+
           const hours = dt.getHours();
           const minutes = dt.getMinutes();
+
           data.time = `${hours.toString().padStart(2, "0")}:${minutes
             .toString()
             .padStart(2, "0")}`;
+
           data.timePeriod = hours >= 12 ? "PM" : "AM";
         }
 
+        // Recurring days
         if (data.recurring_day) {
-          data.recurringDays = Array.isArray(data.recurring_day) ? data.recurring_day : [];
+          data.recurringDays = Array.isArray(data.recurring_day)
+            ? data.recurring_day
+            : [];
         }
 
-        if (data.isTicketed !== undefined) {
-          setEventTypeFlags(prev => ({
-            ...prev,
-            isTicketed: !!data.isTicketed
-          }));
-        }
+        // Event type flags (merged into ONE update)
+        setEventTypeFlags((prev) => ({
+          ...prev,
+          isTicketed: !!data.isTicketed,
+          isTraining: !!data.isTraining,
+        }));
 
-        if (data.isTraining !== undefined) {
-          setEventTypeFlags(prev => ({
-            ...prev,
-            isTraining: !!data.isTraining
-          }));
-        }
-
+        // Ticket pricing
         if (data.isTicketed) {
-          if (data.priceTiers && Array.isArray(data.priceTiers) && data.priceTiers.length > 0) {
-            const formattedPriceTiers = data.priceTiers.map(tier => ({
+          if (
+            Array.isArray(data.priceTiers) &&
+            data.priceTiers.length > 0
+          ) {
+            const formattedPriceTiers = data.priceTiers.map((tier) => ({
               name: tier.name || "",
               price: tier.price || "",
               ageGroup: tier.ageGroup || "",
               memberType: tier.memberType || "",
               paymentMethod: tier.paymentMethod || "",
             }));
+
             setPriceTiers(formattedPriceTiers);
           } else {
             setPriceTiers([
@@ -319,7 +291,11 @@ const CreateEvents = ({
           setPriceTiers([]);
         }
 
-        setFormData((prev) => ({ ...prev, ...data }));
+        // Update form
+        setFormData((prev) => ({
+          ...prev,
+          ...data,
+        }));
 
       } catch (err) {
         console.error("Failed to fetch event:", err);
@@ -328,7 +304,9 @@ const CreateEvents = ({
     };
 
     fetchEventData();
+
   }, [eventId, BACKEND_URL]);
+
 
   const handleChange = (field, value) => {
     setFormData((prev) => {
@@ -388,7 +366,7 @@ const CreateEvents = ({
     setPriceTiers([]);
     setErrors({});
   };
-  
+
   const formAlert = useRef()
 
   const validateForm = () => {
@@ -430,17 +408,44 @@ const CreateEvents = ({
 
   const getDayFromDate = (dateString) => {
     if (!dateString) return "";
-    
+
     const date = new Date(dateString);
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     return days[date.getDay()];
   };
 
+  useEffect(() => {
+    const fetchAllPeople = async () => {
+      try {
+        const token = localStorage.getItem("token");
+        const res = await fetch(`${BACKEND_URL}/people?perPage=0`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const formatted = (data?.results || []).map((p) => ({
+            id: p._id,
+            fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+            email: p.Email || "",
+            leader1: p["Leader @1"] || "",
+            leader12: p["Leader @12"] || "",
+          }));
+          setAllPeopleCache(formatted);
+        }
+      } catch (err) {
+        console.error("Error caching people:", err);
+      }
+    };
+    fetchAllPeople();
+  }, []);
+
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!validateForm()){
+    if (!validateForm()) {
       return setTimeout(() => {
-        formAlert.current.scrollIntoView({behavior:"smooth"})
+        formAlert.current.scrollIntoView({ behavior: "smooth" })
       }, 200)
     };
 
@@ -448,7 +453,7 @@ const CreateEvents = ({
 
     try {
       let eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
-      
+
       if (eventTypeToSend === "all" || eventTypeToSend.toLowerCase() === "all cells") {
         eventTypeToSend = "CELLS";
       }
@@ -470,9 +475,9 @@ const CreateEvents = ({
         description: formData.description,
         userEmail: user?.email || "",
         recurring_day: formData.recurringDays,
-        day: formData.recurringDays.length === 0 
-             ? (formData.date ? getDayFromDate(formData.date) : "") 
-             : (formData.recurringDays.length === 1 ? formData.recurringDays[0] : "Recurring"),
+        day: formData.recurringDays.length === 0
+          ? (formData.date ? getDayFromDate(formData.date) : "")
+          : (formData.recurringDays.length === 1 ? formData.recurringDays[0] : "Recurring"),
         status: "open",
         leader1: isCellsEventType(eventTypeToSend) ? (formData.leader1 || "") : "",
         leader12: isCellsEventType(eventTypeToSend) ? (formData.leader12 || "") : "",
@@ -503,15 +508,15 @@ const CreateEvents = ({
         "Content-Type": "application/json",
       };
 
-      const url = eventId 
-        ? `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}` 
+      const url = eventId
+        ? `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`
         : `${BACKEND_URL.replace(/\/$/, "")}/events`;
-      
-      const response = eventId 
-        ? await axios.put(url, payload, { headers }) 
+
+      const response = eventId
+        ? await axios.put(url, payload, { headers })
         : await axios.post(url, payload, { headers });
-        console.log("API Response:", response);
-      
+      console.log("API Response:", response);
+
       toast.success(eventId ? "Event updated!" : "Event created!");
       if (!eventId) resetForm();
       if (isModal) onClose(true);
@@ -722,7 +727,7 @@ const CreateEvents = ({
               {eventId ? "Edit Event" : "Create New Event"}
             </Typography>
           )}
-          
+
           {Object.keys(errors).length !== 0 && (
             <Alert
               ref={formAlert}
@@ -915,36 +920,36 @@ const CreateEvents = ({
                 sx={darkModeStyles.textField}
               />
             </Box>
-<Box mb={3}>
-  <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
-    Recurring Days
-  </Typography>
-  <Box
-    display="flex"
-    flexWrap="wrap"
-    gap={2}
-    sx={darkModeStyles.daysContainer}
-  >
-    {days.map((day) => (
-      <FormControlLabel
-        key={day}
-        control={
-          <Checkbox
-            checked={formData.recurringDays.includes(day)}
-            onChange={() => handleDayChange(day)}
-            // REMOVE THIS: disabled={!isRecurring}
-          />
-        }
-        label={day}
-      />
-    ))}
-  </Box>
-  {errors.recurringDays && (
-    <Typography variant="caption" sx={darkModeStyles.errorText}>
-      {errors.recurringDays}
-    </Typography>
-  )}
-</Box>
+            <Box mb={3}>
+              <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
+                Recurring Days
+              </Typography>
+              <Box
+                display="flex"
+                flexWrap="wrap"
+                gap={2}
+                sx={darkModeStyles.daysContainer}
+              >
+                {days.map((day) => (
+                  <FormControlLabel
+                    key={day}
+                    control={
+                      <Checkbox
+                        checked={formData.recurringDays.includes(day)}
+                        onChange={() => handleDayChange(day)}
+                      // REMOVE THIS: disabled={!isRecurring}
+                      />
+                    }
+                    label={day}
+                  />
+                ))}
+              </Box>
+              {errors.recurringDays && (
+                <Typography variant="caption" sx={darkModeStyles.errorText}>
+                  {errors.recurringDays}
+                </Typography>
+              )}
+            </Box>
 
             <TextField
               label="Location *"
@@ -999,7 +1004,7 @@ const CreateEvents = ({
                 placeholder="Type name and surname to search..."
                 autoComplete="off"
               />
-              
+
               {peopleData.length > 0 && (
                 <Box sx={{
                   position: 'absolute',
@@ -1031,7 +1036,7 @@ const CreateEvents = ({
                       }}
                       onClick={() => {
                         const selectedName = person.fullName;
-                        
+
                         if (shouldShowLeaderFields) {
                           setFormData((prev) => ({
                             ...prev,
@@ -1057,7 +1062,7 @@ const CreateEvents = ({
                   ))}
                 </Box>
               )}
-              
+
               {loadingPeople && (
                 <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
                   Searching...
