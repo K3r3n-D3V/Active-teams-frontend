@@ -22,7 +22,7 @@ import PeopleListView from '../components/PeopleListView';
 // Global cache outside component to persist across remounts
 let globalPeopleCache = null;
 let globalCacheTimestamp = null;
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 60 * 60 * 3 * 1000; 
 
 // ---------------- Stages ----------------
 const stages = [
