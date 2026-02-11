@@ -3360,7 +3360,7 @@ useEffect(() => {
   fetchEvents(fetchParams, true);
 }, [
   selectedEventTypeFilter,
-  selectedStatus, // Add this dependency
+  selectedStatus, 
   viewFilter,
   currentPage,
   rowsPerPage,
@@ -3780,33 +3780,27 @@ const filteredEventTypes = useMemo(() => {
       
       console.log(`Checking "${typeName}": isGlobal = ${isGlobal}`);
       
-      // Global events: Show to everyone
       if (isGlobal) {
         console.log(`  -> Global = true, showing to everyone`);
         return true;
       }
       
-      // Non-global events (isGlobal = false):
       if (typeInfo.isGlobal === false) {
-        // Show to Admin, LeaderAt12, AND Registrant
         const showToAuthorized = isAdmin || isLeaderAt12 || isRegistrant;
         console.log(`  -> Global = false, showing to Admin/LeaderAt12/Registrant: ${showToAuthorized}`);
         return showToAuthorized;
       }
 
-      // If isGlobal is undefined
       if (isRegularUser) {
         console.log(`  -> isGlobal undefined, regular user -> HIDDEN`);
         return false;
       }
       
-      // For registrants, show if isGlobal is undefined (treat as non-global)
       if (isRegistrant) {
         console.log(`  -> isGlobal undefined, registrant -> SHOW`);
         return true;
       }
       
-      // For leaders and admins, show if isGlobal is undefined
       const showToLeadersAndAbove = isAdmin || isLeaderAt12 || isLeader;
       console.log(`  -> isGlobal undefined, leader/admin/leaderAt12 -> ${showToLeadersAndAbove}`);
       return showToLeadersAndAbove;
@@ -3829,7 +3823,7 @@ const handleEventTypeClick = (typeValue) => {
     return etName.toLowerCase() === typeValue.toLowerCase();
   }) || { name: typeValue };
   
-  setSelectedEventTypeObj(eventTypeObj); // Set the full object
+  setSelectedEventTypeObj(eventTypeObj);
   setSelectedEventTypeFilter(typeValue);
   setSelectedStatus("incomplete");
   setCurrentPage(1);
@@ -3970,7 +3964,6 @@ const allTypes = useMemo(() => {
   console.log("Available types:", availableTypes);
   console.log("Total count:", availableTypes.length);
   
-  // Updated: Registrants should also see "all" option
   const shouldSeeAll = isAdmin || isLeaderAt12 || isLeader || isRegistrant || isRegularUser;
     
   if (shouldSeeAll) {
