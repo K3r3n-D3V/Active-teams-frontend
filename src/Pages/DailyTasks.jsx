@@ -1760,7 +1760,7 @@ console.log("All available taskTypes:", taskTypes.map(t => ({
                 fetchAssigned(value);
               }}
               autoComplete="off"
-              disabled={selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task}
+              disabled={true}
               required
               style={{
                 width: '100%',
