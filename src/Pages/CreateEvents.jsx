@@ -1091,7 +1091,7 @@ handleLeaderSelect
                 mb={1}
                 sx={darkModeStyles.sectionTitle}
               > 
-                Is Recurring? {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
+                Is Recurring?2 {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
               </Typography>    
               <FormControlLabel
                 control={
