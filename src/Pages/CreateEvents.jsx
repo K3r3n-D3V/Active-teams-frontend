@@ -471,9 +471,9 @@ const CreateEvents = ({
         location: formData.location,
         eventLeader: formData.eventLeader,
         eventLeaderName: formData.eventLeader,
-        eventLeaderEmail: user?.email || "",
+        eventLeaderEmail: formData.email || "",
         description: formData.description,
-        userEmail: user?.email || "",
+        userEmail: formData.email || "",
         recurring_day: formData.recurringDays,
         day: formData.recurringDays.length === 0
           ? (formData.date ? getDayFromDate(formData.date) : "")
@@ -1036,11 +1036,13 @@ const CreateEvents = ({
                       }}
                       onClick={() => {
                         const selectedName = person.fullName;
+                        const email = person.email || person.Email || "";
 
                         if (shouldShowLeaderFields) {
                           setFormData((prev) => ({
                             ...prev,
                             eventLeader: selectedName,
+                            email: email.toLowerCase(),
                             leader1: person.leader1 || "",
                             leader12: person.leader12 || "",
                           }));
