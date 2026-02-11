@@ -73,7 +73,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
   }, []);
 
   useEffect(() => {
-    if (!isOpen) return; // don’t run if modal is closed
+    if (!isOpen) return; 
 
     if (!GEOAPIFY_API_KEY) {
       setAddressError(
@@ -1587,7 +1587,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       return;
     }
 
-    // Otherwise fetch fresh people from backend and rebuild cache
     try {
       console.log(forceRefresh ? "Force-refreshing people cache" : "Fetching fresh people for AttendanceModal cache");
       const token = localStorage.getItem("token");
@@ -2133,19 +2132,14 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
   const handleSave = async () => {
     const allPeople = getAllCommonAttendees();
-    console.log("[SAVE] All people for save:", allPeople.length);
-
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    console.log("[SAVE] Checked-in attendees:", attendeesList.length, attendeesList);
-
     // Get manual headcount from input
     const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
-    console.log("[SAVE] === DEBUG INFO ===");
-    console.log("[SAVE] Did not meet state:", didNotMeet);
-    console.log("[SAVE] Attendees checked in:", attendeesList.length);
-    console.log("[SAVE] Manual headcount:", finalHeadcount);
-    console.log("[SAVE] Decisions count:", decisionsCount);
+    console.log("Did not meet state:", didNotMeet);
+    console.log(" Attendees checked in:", attendeesList.length);
+    console.log(" Manual headcount:", finalHeadcount);
+    console.log(" Decisions count:", decisionsCount);
 
     // Get clean event ID
     let eventId = event?.id || event?._id;
@@ -2164,7 +2158,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         const person = allPeople.find((p) => p && p.id === id);
 
         if (!person) {
-          console.warn(`[SAVE] Person with id ${id} not found in allPeople`);
+          console.warn(` Person with id ${id} not found in allPeople`);
           return null;
         }
 
@@ -2200,8 +2194,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       // Only mark as "Did Not Meet" if NO attendees AND NO headcount
       const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
 
-      console.log("[SAVE] Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
-      console.log("[SAVE] Reason - didNotMeet:", didNotMeet);
+      console.log(" Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
+      console.log("Reason - didNotMeet:", didNotMeet);
 
       const payload = {
         attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
@@ -2216,17 +2210,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         })),
         leaderEmail: currentUser?.email || "",
         leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-        did_not_meet: shouldMarkAsDidNotMeet, // This will be FALSE if we have attendees
+        did_not_meet: shouldMarkAsDidNotMeet,
         isTicketed: isTicketedEvent,
         week: get_current_week_identifier(),
         headcount: finalHeadcount
       };
-
-      console.log("[SAVE] Full payload being sent:");
-      console.log("[SAVE] - did_not_meet:", payload.did_not_meet);
-      console.log("[SAVE] - attendees count:", payload.attendees.length);
-      console.log("[SAVE] - headcount:", payload.headcount);
-      console.log("[SAVE] - week:", payload.week);
 
       let result;
 

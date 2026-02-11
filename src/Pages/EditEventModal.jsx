@@ -66,6 +66,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     'status': ['status', 'Status'],
   };
 
+  console.log("User role:", fieldMapping );
   const getFieldPermissions = useCallback((field) => {
     const fl = field.toLowerCase();
     const isWeekId = fl.includes('week') && (fl.includes('identifier') || fl.includes('id'));
