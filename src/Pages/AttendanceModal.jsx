@@ -1148,73 +1148,81 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
+// FRONTEND FIX - Replace your loadEventStatistics and loadWeeklyCheckins functions
+
 const loadEventStatistics = async () => {
   if (!event) return;
 
   try {
     const eventDate = event.date;
-    console.log(" Loading stats for:", eventDate);
+    console.log("📊 Loading stats for:", eventDate);
 
     const attendanceData = event.attendance || {};
-    console.log(" Full attendance data structure:", attendanceData);
-    let weekAttendance = {};
+    console.log("📊 Attendance structure:", attendanceData);
     
-    if (attendanceData.status === "complete") {
-      console.log(" Found completed data directly in attendance object");
+    let weekAttendance = null;
+    
+    // STRATEGY 1: Check if this is OLD CELLS FORMAT (data at root level)
+    if (attendanceData.status === "complete" && attendanceData.attendees) {
+      console.log("✅ Found CELLS format (root level)");
       weekAttendance = attendanceData;
-    } else {
-      console.log(" Searching for date key in attendance data...");
-      
-      // Try all possible date formats
+    }
+    // STRATEGY 2: Check if this is NEW FORMAT (nested by date)
+    else if (attendanceData[eventDate]) {
+      console.log("✅ Found NESTED format at date key:", eventDate);
+      weekAttendance = attendanceData[eventDate];
+    }
+    // STRATEGY 3: Search for ANY completed attendance in nested structure
+    else {
+      console.log("🔍 Searching for nested attendance data...");
       const possibleKeys = Object.keys(attendanceData).filter(key => 
         typeof attendanceData[key] === 'object' && attendanceData[key] !== null
       );
       
-      console.log("Possible date keys:", possibleKeys);
+      console.log("   Possible keys:", possibleKeys);
       
-      // Try to match the date in any format
       for (const key of possibleKeys) {
         const data = attendanceData[key];
         
-        // Check if this looks like week data
         if (data && (data.status === "complete" || data.attendees || data.total_headcounts)) {
-          console.log(` Checking key "${key}":`, {
-            status: data.status,
-            attendees: data.attendees?.length || 0
-          });
-          
-          if (data.status === "complete") {
-            weekAttendance = data;
-            console.log(` Using completed week from key: "${key}"`);
-            break;
-          }
+          console.log(`✅ Found attendance at key: "${key}"`);
+          weekAttendance = data;
+          break;
         }
       }
     }
 
-    console.log(" Final week attendance data:", {
+    console.log("📊 Final attendance data:", {
+      found: !!weekAttendance,
       status: weekAttendance?.status,
-      attendeesCount: weekAttendance?.attendees?.length || 0,
+      attendees: weekAttendance?.attendees?.length || 0,
       headcount: weekAttendance?.total_headcounts || 0
     });
 
     const isCompleted = weekAttendance?.status === "complete";
 
-    if (isCompleted) {
+    if (isCompleted && weekAttendance) {
       const attendees = weekAttendance.attendees || [];
-      console.log(" Loading COMPLETED week with", attendees.length, "attendees");
+      console.log(`✅ Loading ${attendees.length} attendees`);
 
       let firstTimeCount = 0;
       let recommitmentCount = 0;
 
-      attendees.forEach(att => {
-        const decision = (att.decision || "").toLowerCase();
-        if (decision.includes("first")) {
-          firstTimeCount++;
-        } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
-          recommitmentCount++;
-        }
-      });
+      // Use pre-calculated counts if available (new format)
+      if (weekAttendance.first_time_count !== undefined) {
+        firstTimeCount = weekAttendance.first_time_count;
+        recommitmentCount = weekAttendance.recommitment_count || 0;
+      } else {
+        // Calculate from attendees (old format)
+        attendees.forEach(att => {
+          const decision = (att.decision || "").toLowerCase();
+          if (decision.includes("first")) {
+            firstTimeCount++;
+          } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+            recommitmentCount++;
+          }
+        });
+      }
 
       setEventStatistics({
         totalAssociated: persistentCommonAttendees.length,
@@ -1234,8 +1242,7 @@ const loadEventStatistics = async () => {
       }
       
     } else {
-      // For INCOMPLETE weeks or no data found
-      console.log(" No completed week data found, showing zeros");
+      console.log("ℹ️ No completed data found");
       setEventStatistics({
         totalAssociated: persistentCommonAttendees.length,
         lastAttendanceCount: 0,
@@ -1249,24 +1256,10 @@ const loadEventStatistics = async () => {
       setManualHeadcount("0");
     }
   } catch (error) {
-    console.error("Error loading event statistics:", error);
+    console.error("❌ Error loading event statistics:", error);
   }
 };
 
-const formatDateToISO = (dateString) => {
-  try {
-    const parts = dateString.match(/\d+/g);
-    if (parts && parts.length === 3) {
-      const day = parts[0].padStart(2, '0');
-      const month = parts[1].padStart(2, '0');
-      const year = parts[2];
-      return `${year}-${month}-${day}`;
-    }
-    return dateString;
-  } catch (error) {
-    return dateString, error;
-  }
-};
 
 const loadWeeklyCheckins = () => {
   if (!event) {
@@ -1276,6 +1269,7 @@ const loadWeeklyCheckins = () => {
     return;
   }
 
+  // Reset states
   setCheckedIn({});
   setDecisions({});
   setDecisionTypes({});
@@ -1285,15 +1279,24 @@ const loadWeeklyCheckins = () => {
   setManualHeadcount("0");
   setDidNotMeet(false);
 
+  const eventDate = event.date;
   const attendanceData = event.attendance || {};
-  console.log(" Loading checkins from:", attendanceData);
+  console.log("✅ Loading checkins for:", eventDate);
 
-  let weekAttendance = {};
+  let weekAttendance = null;
   
-  if (attendanceData.status === "complete") {
+  // STRATEGY 1: OLD CELLS FORMAT (root level)
+  if (attendanceData.status === "complete" && attendanceData.attendees) {
+    console.log("✅ Found CELLS format checkins");
     weekAttendance = attendanceData;
-    console.log(" Found checkin data directly");
-  } else {
+  }
+  // STRATEGY 2: NEW FORMAT (nested by date)
+  else if (attendanceData[eventDate]) {
+    console.log("✅ Found NESTED format checkins");
+    weekAttendance = attendanceData[eventDate];
+  }
+  // STRATEGY 3: Search all keys
+  else {
     const possibleKeys = Object.keys(attendanceData).filter(key => 
       typeof attendanceData[key] === 'object'
     );
@@ -1301,8 +1304,8 @@ const loadWeeklyCheckins = () => {
     for (const key of possibleKeys) {
       const data = attendanceData[key];
       if (data && data.status === "complete") {
+        console.log(`✅ Found checkins at key: "${key}"`);
         weekAttendance = data;
-        console.log(` Found checkins in key: "${key}"`);
         break;
       }
     }
@@ -1310,8 +1313,8 @@ const loadWeeklyCheckins = () => {
 
   const isCompleted = weekAttendance?.status === "complete";
 
-  if (isCompleted) {
-    console.log(" Loading completed week checkins");
+  if (isCompleted && weekAttendance) {
+    console.log("✅ Loading completed checkins");
     
     const attendees = weekAttendance.attendees || [];
     
@@ -1351,7 +1354,7 @@ const loadWeeklyCheckins = () => {
         }
       });
 
-      console.log("👥 Setting", attendees.length, "checkins");
+      console.log(`👥 Setting ${attendees.length} checkins`);
       setCheckedIn(newCheckedIn);
       setDecisions(newDecisions);
       setDecisionTypes(newDecisionTypes);
@@ -1364,9 +1367,25 @@ const loadWeeklyCheckins = () => {
     setManualHeadcount(headcount.toString());
     
   } else {
-    console.log(" No checkins to load");
+    console.log("ℹ️ No checkins to load");
   }
 };
+
+const formatDateToISO = (dateString) => {
+  try {
+    const parts = dateString.match(/\d+/g);
+    if (parts && parts.length === 3) {
+      const day = parts[0].padStart(2, '0');
+      const month = parts[1].padStart(2, '0');
+      const year = parts[2];
+      return `${year}-${month}-${day}`;
+    }
+    return dateString;
+  } catch (error) {
+    return dateString, error;
+  }
+};
+
 
   const loadPersistentAttendees = async (eventId) => {
     try {
