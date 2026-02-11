@@ -1276,7 +1276,6 @@ const loadWeeklyCheckins = () => {
     return;
   }
 
-  // Reset all states
   setCheckedIn({});
   setDecisions({});
   setDecisionTypes({});
@@ -1289,14 +1288,12 @@ const loadWeeklyCheckins = () => {
   const attendanceData = event.attendance || {};
   console.log(" Loading checkins from:", attendanceData);
 
-  // Find completed week data
   let weekAttendance = {};
   
   if (attendanceData.status === "complete") {
     weekAttendance = attendanceData;
     console.log(" Found checkin data directly");
   } else {
-    // Look for completed week in object keys
     const possibleKeys = Object.keys(attendanceData).filter(key => 
       typeof attendanceData[key] === 'object'
     );
