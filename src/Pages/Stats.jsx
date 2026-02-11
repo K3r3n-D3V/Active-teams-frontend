@@ -219,7 +219,7 @@ const StatsDashboard = () => {
           const timeoutId = setTimeout(() => controller.abort(), 100000);
 
           try {
-            const url = `${BACKEND_URL}/events/cells?page=${page}&limit=${limit}&start_date=${startDate}&status=incomplete`;
+            const url = `${BACKEND_URL}/events/cells?page=${page}&limit=${limit}&start_date=${startDate}`;
             console.log(" → URL:", url);
 
             const res = await authFetch(url, { signal: controller.signal });
@@ -260,80 +260,52 @@ const StatsDashboard = () => {
         console.log(`← Total cells fetched: ${allEvents.length}`);
         if (allEvents.length > 0) console.table(allEvents.slice(0, 5));
 
-    // ────────────────────────────────────────────────
-    // Filter only incomplete / overdue / missed cells
-    // ────────────────────────────────────────────────
-      const overdueCells = allEvents.filter(cell => {
-        if ('is_overdue' in cell) {
-          return !!cell.is_overdue;                    // true → show, false/null/undefined → hide
-        }
+        // Filter only incomplete AND past-date cells
+        const overdueCells = allEvents.filter((cell) => {
+          const status = (cell.status || cell.Status || "")
+            .toString()
+            .trim()
+            .toLowerCase();
 
-        const raw = (cell.status || cell.Status || '').trim();
-        const status = raw.toLowerCase();
+          const isIncomplete =
+            status === "incomplete" ||
+            status.includes("incomplete") ||
+            status === "incomp" ||
+            status === "not completed";
 
-        const isIncomplete = 
-          status === 'incomplete' ||
-          status.includes('incomplete') ||
-          status === 'incomp' ||
-          status === 'not completed';
+          const cellDate = cell.date ? new Date(cell.date) : null;
+          const isValidDate = cellDate && !isNaN(cellDate.getTime());
 
-        const cellDate = cell.date ? new Date(cell.date) : null;
-        const isValidDate = cellDate && !isNaN(cellDate.getTime());
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
 
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);           
+          const isPast = isValidDate && cellDate < today;
 
-        const isPast = isValidDate && cellDate < today; 
+          return isIncomplete && isPast;
+        });
 
-        return isIncomplete && isPast;
-      });
-      console.log(`Filtered down to ${overdueCells.length} overdue/incomplete cells (from ${allEvents.length} total)`);
+        console.log(
+          `Filtered down to ${overdueCells.length} overdue/incomplete cells (from ${allEvents.length} total)`
+        );
 
-      if (overdueCells.length > 0) {
-        console.table(overdueCells.slice(0, 5), ['eventName', 'date', 'status', 'eventLeaderName']);
+        setCells(overdueCells);
+      } catch (err) {
+        console.error("Overdue cells fetch failed:", err);
+        setCellsError(err.message || "Failed to load overdue cells");
+        toast.error("Could not load overdue cells");
+      } finally {
+        setCellsLoading(false);
+
+        /** CHANGE:
+         * Always release ONLY the CELLS lock here.
+         */
+        releaseFetchLock(cellsLockRef);
+
+        console.log("fetchOverdueCells finished / released CELLS lock");
       }
-
-  setCells(overdueCells);   
-  console.log(`Set cells state with ${overdueCells.length} overdue cells`);
-
-  } catch (err) {
-    console.error("Overdue cells fetch failed:", err);
-    setCellsError(err.message || "Failed to load overdue cells");
-    toast.error("Could not load overdue cells");
-  } finally {
-    setCellsLoading(false);
-    cellsLockRef.current = false;
-    console.log("fetchOverdueCells finished / released lock");
-  }
-}, [authFetch]);
-
-// Helper function used when rendering overdue cells (highlighting, chips, etc.)
-const isOverdue = useCallback((cell) => {
-  if (!cell) return false;
-
-  // Prefer backend-provided flag if it exists
-  if ('is_overdue' in cell) {
-    return !!cell.is_overdue;
-  }
-
-  // Client-side calculation (matches the filter logic above)
-  const status = (cell.status || cell.Status || '').trim().toLowerCase();
-  const isIncomplete =
-    status === 'incomplete' ||
-    status.includes('incomplete') ||
-    status === 'incomp' ||
-    status === 'not completed';
-
-  const cellDate = cell.date ? new Date(cell.date) : null;
-  const isValidDate = cellDate && !isNaN(cellDate.getTime());
-
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const isPast = isValidDate && cellDate < today;
-
-  return isIncomplete && isPast;
-}, []);
+    },
+    [authFetch, period]
+  );
 
   const fetchStats = useCallback(
     async (forceRefresh = false) => {
@@ -1312,118 +1284,125 @@ useEffect(() => {
               </Box>
             </Box>
 
-          {/* Content area */}
-          {cellsLoading ? (
-            <Box sx={{ 
-              flexGrow: 1, 
-              display: 'flex', 
-              alignItems: 'center', 
-              justifyContent: 'center' 
-            }}>
-              <CircularProgress color="warning" size={60} thickness={4} />
-            </Box>
-          ) : cellsError ? (
-            <Alert 
-              severity="error" 
-              sx={{ my: 3 }}
-              action={
-                <Button 
-                  color="error" 
-                  size="small" 
-                  onClick={fetchOverdueCells}
-                  startIcon={<Refresh />}
-                >
-                  Retry
-                </Button>
-              }
-            >
-              {cellsError}
-            </Alert>
-          ) : filteredOverdueCells.length === 0 ? (
-            <Box sx={{ 
-              flexGrow: 1, 
-              display: 'flex', 
-              flexDirection: 'column', 
-              alignItems: 'center', 
-              justifyContent: 'center',
-              color: 'text.secondary',
-              textAlign: 'center',
-              px: 3
-            }}>
-              <Warning sx={{ fontSize: 90, opacity: 0.25, mb: 3, color: 'warning.main' }} />
-              <Typography variant="h6" gutterBottom>
-                No overdue cells
-              </Typography>
-              <Typography variant="body1" sx={{ maxWidth: 480 }}>
-                All cells are up to date for the selected period.
-                <br />
-                Great work keeping everything on track!
-              </Typography>
-            </Box>
-          ) : (
-            <Box sx={{ 
-              flexGrow: 1, 
-              overflowY: 'auto',
-              pr: 1,
-              '&::-webkit-scrollbar': { width: '6px' },
-              '&::-webkit-scrollbar-track': { background: '#f1f1f1', borderRadius: '3px' },
-              '&::-webkit-scrollbar-thumb': { background: '#aaa', borderRadius: '3px' },
-              '&::-webkit-scrollbar-thumb:hover': { background: '#888' },
-            }}>
-              <Stack spacing={2}>
-                {filteredOverdueCells.map((cell) => (
-                 <Card
-                    key={cell._id}
-                    variant="outlined"
-                    sx={{
-                      transition: 'all 0.18s ease',
-                      borderLeft: isOverdue(cell) ? '4px solid #dc3545' : '1px solid',
-                      borderLeftColor: isOverdue(cell) ? '#dc3545' : 'divider',
-                      bgcolor: isOverdue(cell) ? 'error.50' : 'background.paper',
-                      '&:hover': {
-                        boxShadow: 4,
-                        transform: 'translateY(-2px)'
-                      }
-                    }}
+            {cellsLoading ? (
+              <Box
+                sx={{
+                  flexGrow: 1,
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <CircularProgress color="warning" size={60} thickness={4} />
+              </Box>
+            ) : cellsError ? (
+              <Alert
+                severity="error"
+                sx={{ my: 3 }}
+                action={
+                  <Button
+                    color="error"
+                    size="small"
+                    onClick={() => fetchOverdueCells(true)}
+                    startIcon={<Refresh />}
                   >
-                    <CardContent sx={{ py: 2, px: 2.5 }}>
-                      <Box display="flex" justifyContent="space-between" alignItems="flex-start" gap={2}>
-                        <Box flex={1}>
-                          <Typography variant="subtitle1" fontWeight={600}>
-                            {cell.eventName || 'Unnamed Cell'}
-                          </Typography>
+                    Retry
+                  </Button>
+                }
+              >
+                {cellsError}
+              </Alert>
+            ) : filteredOverdueCells.length === 0 ? (
+              <Box
+                sx={{
+                  flexGrow: 1,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "text.secondary",
+                  textAlign: "center",
+                  px: 3,
+                }}
+              >
+                <Warning
+                  sx={{ fontSize: 90, opacity: 0.25, mb: 3, color: "warning.main" }}
+                />
+                <Typography variant="h6" gutterBottom>
+                  No overdue cells
+                </Typography>
+                <Typography variant="body1" sx={{ maxWidth: 480 }}>
+                  All cells are up to date for the selected period.
+                  <br />
+                  Great work keeping everything on track!
+                </Typography>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  flexGrow: 1,
+                  overflowY: "auto",
+                  pr: 1,
+                  "&::-webkit-scrollbar": { width: "6px" },
+                  "&::-webkit-scrollbar-track": {
+                    background: "#f1f1f1",
+                    borderRadius: "3px",
+                  },
+                  "&::-webkit-scrollbar-thumb": {
+                    background: "#aaa",
+                    borderRadius: "3px",
+                  },
+                  "&::-webkit-scrollbar-thumb:hover": { background: "#888" },
+                }}
+              >
+                <Stack spacing={2}>
+                  {filteredOverdueCells.map((cell) => (
+                    <Card
+                      key={cell._id}
+                      variant="outlined"
+                      sx={{
+                        transition: "all 0.18s ease",
+                        "&:hover": { boxShadow: 4, transform: "translateY(-2px)" },
+                      }}
+                    >
+                      <CardContent sx={{ py: 2, px: 2.5 }}>
+                        <Box
+                          display="flex"
+                          justifyContent="space-between"
+                          alignItems="flex-start"
+                          gap={2}
+                        >
+                          <Box flex={1}>
+                            <Typography variant="subtitle1" fontWeight={600}>
+                              {cell.eventName || "Unnamed Cell"}
+                            </Typography>
 
-                          <Stack direction="row" spacing={2} mt={0.5} alignItems="center" flexWrap="wrap">
-                            {cell.date && (
-                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <Stack
+                              direction="row"
+                              spacing={2}
+                              mt={0.5}
+                              alignItems="center"
+                              flexWrap="wrap"
+                            >
+                              {cell.date && (
                                 <Typography variant="body2" color="text.secondary">
-                                  <Event fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
+                                  <Event
+                                    fontSize="small"
+                                    sx={{ verticalAlign: "middle", mr: 0.5 }}
+                                  />
                                   {formatDate(cell.date)}
                                 </Typography>
-                                
-                                {isOverdue(cell) && (
-                                  <Chip
-                                    label="OVERDUE"
-                                    size="small"
-                                    color="error"
-                                    variant="outlined"
-                                    sx={{
-                                      height: 20,
-                                      fontSize: '0.68rem',
-                                      fontWeight: 'bold',
-                                      borderWidth: 1.5,
-                                    }}
+                              )}
+                              {cell.eventLeaderName && (
+                                <Typography variant="body2" color="text.secondary">
+                                  <People
+                                    fontSize="small"
+                                    sx={{ verticalAlign: "middle", mr: 0.5 }}
                                   />
-                                )}
-                              </Box>
-                            )}
-                            {cell.eventLeaderName && (
-                              <Typography variant="body2" color="text.secondary">
-                                <People fontSize="small" sx={{ verticalAlign: 'middle', mr: 0.5 }} />
-                                Leader: {cell.eventLeaderName}
-                              </Typography>
-                            )}
-                          </Stack>
+                                  Leader: {cell.eventLeaderName}
+                                </Typography>
+                              )}
+                            </Stack>
 
                             {cell.description && (
                               <Typography
@@ -1436,68 +1415,57 @@ useEffect(() => {
                             )}
                           </Box>
 
-                        <Box textAlign="right">
-                          {isOverdue(cell) ? (
-                            <Box
-                              sx={{
-                                bgcolor: '#dc35451a',           // light red background
-                                color: '#dc3545',
-                                border: '1px solid #dc3545',
-                                borderRadius: 1,
-                                px: 2,
-                                py: 0.75,
-                                fontSize: '0.875rem',
-                                fontWeight: 'bold',
-                                whiteSpace: 'nowrap',
-                                display: 'inline-block',
-                              }}
-                            >
-                              OVERDUE
-                            </Box>
-                          ) : (
+                          <Box textAlign="right">
                             <Chip
-                              label={(cell.Status || 'incomplete').replace('_', ' ').toUpperCase()}
+                              label={(cell.status || cell.Status || "OVERDUE").toUpperCase()}
+                              color="warning"
                               size="small"
-                              color={
-                                cell.Status?.toLowerCase() === 'complete'     ? 'success' :
-                                cell.Status?.toLowerCase() === 'did_not_meet' ? 'error'   :
-                                                                                'default'
-                              }
-                              sx={{
-                                minWidth: 110,
-                                fontWeight: 600,
-                                textTransform: 'capitalize',
-                              }}
+                              sx={{ minWidth: 90 }}
                             />
-                          )}
-
-                          {cell.attendees?.length > 0 && (
-                            <Typography variant="caption" color="text.secondary" display="block" mt={1}>
-                              {cell.attendees.length} attendee{cell.attendees.length !== 1 ? 's' : ''}
-                            </Typography>
-                          )}
+                            {cell.attendees?.length > 0 && (
+                              <Typography
+                                variant="caption"
+                                color="text.secondary"
+                                display="block"
+                                mt={1}
+                              >
+                                {cell.attendees.length} attendee
+                                {cell.attendees.length !== 1 ? "s" : ""}
+                              </Typography>
+                            )}
+                          </Box>
                         </Box>
-                      </Box>
-                    </CardContent>
-                  </Card>
-                ))}
-              </Stack>
-            </Box>
-          )}
-        </Paper>
-      )}
-        </Box>
-        {activeTab === 1 && (
-          <Paper sx={{ 
-            p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }), 
-            height: getResponsiveValue({ xs: 'auto', sm: 'calc(100vh - 320px)', md: 3, lg: 'calc(100vh - 320px)', xl: 'calc(100vh - 320px)' }),
-            display: 'flex', 
-            flexDirection: 'column'
-          }}>
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: isXsDown ? "flex-start" : "center", 
+                      </CardContent>
+                    </Card>
+                  ))}
+                </Stack>
+              </Box>
+            )}
+          </Paper>
+        )}
+      </Box>
+
+      {/* TASKS TAB */}
+      {activeTab === 1 && (
+        <Paper
+          sx={{
+            p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }),
+            height: getResponsiveValue({
+              xs: "auto",
+              sm: "calc(100vh - 320px)",
+              md: 3,
+              lg: "calc(100vh - 320px)",
+              xl: "calc(100vh - 320px)",
+            }),
+            display: "flex",
+            flexDirection: "column",
+          }}
+        >
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: isXsDown ? "flex-start" : "center",
               mb: { xs: 2.5, md: 3 },
               flexShrink: 0,
               flexDirection: isXsDown ? "column" : "row",

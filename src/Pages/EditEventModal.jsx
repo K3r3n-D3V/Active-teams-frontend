@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions, Button, TextField, Box, Typography,
   Select, MenuItem, FormControl, InputLabel, Switch, FormControlLabel, Grid, Alert,
@@ -16,7 +16,7 @@ import {
 import { toast } from 'react-toastify';
 
 const USER_ROLES = {
-  ADMIN: 'admin', LEADER_1: 'leader1', LEADER_12: 'leader12',
+  ADMIN: 'admin', LEADER_1: 'leader1', LEADER_12: 'leader12', 
   LEADER_144: 'leader144', REGISTRANT: 'registrant', USER: 'user'
 };
 
@@ -24,8 +24,8 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [formData, setFormData] = useState({});
   const [loading, setLoading] = useState(false);
   const [editScope, setEditScope] = useState('single');
-  const [contextFilter,] = useState('all');
-  const [isCellEvent, setIsCellEvent] = useState(false);
+  const [contextFilter, ] = useState('all');
+  const [isCellEvent, setIsCellEvent] = useState(false); 
   const [, setPersonIdentifier] = useState('');
   const [originalPersonIdentifier, setOriginalPersonIdentifier] = useState('');
   const [originalContext, setOriginalContext] = useState({ day: null, location: null, eventName: null });
@@ -38,7 +38,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const [deactivationWeeks, setDeactivationWeeks] = useState(2);
   const [deactivationReason, setDeactivationReason] = useState('');
   const [isToggling, setIsToggling] = useState(false);
-  const [isPermanent, setIsPermanent] = useState(false);
+  const [isPermanent,setIsPermanent] = useState(false)
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -52,9 +52,10 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
   const isAdmin = loggedInUserRole === USER_ROLES.ADMIN;
   const isLeader1 = loggedInUserRole === USER_ROLES.LEADER_1;
+  // const isLeader12 = loggedInUserRole === USER_ROLES.LEADER_12;
   const isLeader144 = loggedInUserRole === USER_ROLES.LEADER_144;
   const hasEditPermission = isAdmin || isLeader1;
-
+  
   const fieldMapping = {
     'Leader': ['Leader', 'eventLeader', 'eventLeaderName'],
     'eventLeader': ['eventLeader', 'Leader', 'eventLeaderName'],
@@ -65,8 +66,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     'Event Name': ['Event Name', 'eventName'],
     'status': ['status', 'Status'],
   };
-
-  console.log("User role:", fieldMapping );
+console.log("EditEventModal rendered with event:", fieldMapping);
   const getFieldPermissions = useCallback((field) => {
     const fl = field.toLowerCase();
     const isWeekId = fl.includes('week') && (fl.includes('identifier') || fl.includes('id'));
@@ -75,7 +75,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     const isEventType = fl.includes('event') && (fl.includes('type') || fl === 'eventtype');
     const isRestrictedLeader = fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12');
 
-    if (isWeekId || isOriginalEventId || isComposedEventId)
+    if (isWeekId || isOriginalEventId || isComposedEventId) 
       return { disabled: true, reason: 'This field cannot be edited' };
     if (isEventType) return { disabled: true, reason: 'Event type cannot be edited' };
     if (isRestrictedLeader) {
@@ -110,41 +110,25 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       const eventType = cleanEvent['Event Type'] || cleanEvent.eventType || '';
       const isCell = eventType.toLowerCase() === 'cells';
       setIsCellEvent(isCell);
-
+      
       if (isCell) {
-        setEditScope('person');
+        setEditScope('person'); 
       } else {
-        setEditScope('single');
+        setEditScope('single'); 
       }
 
       const initialData = {};
       Object.keys(cleanEvent).forEach(key => {
         const systemFields = ['_id', '__v', 'id', 'UUID', 'created_at', 'updated_at',
           'persistent_attendees', 'attendees', 'total_attendance', 'isEventType', 'eventTypeId', 'last_updated'];
-
         if (!systemFields.includes(key)) {
-          let value = cleanEvent[key] ?? '';
-
-          const lowerKey = key.toLowerCase();
-          if ((lowerKey.includes('date') && !lowerKey.includes('datecaptured') && !lowerKey.includes('display')) || key === 'date') {
-            if (value) {
-              if (typeof value === 'string') {
-                value = value.split('T')[0];
-                console.log(`Loading date field ${key}: ${value}`);
-              } else if (value instanceof Date) {
-                const year = value.getFullYear();
-                const month = String(value.getMonth() + 1).padStart(2, '0');
-                const day = String(value.getDate()).padStart(2, '0');
-                value = `${year}-${month}-${day}`;
-                console.log(`Converting Date object for ${key}: ${value}`);
-              }
-            }
-          }
-          initialData[key] = value;
+          initialData[key] = cleanEvent[key] ?? '';
         }
       });
-      setFormData(initialData);
 
+      setFormData(initialData);
+      console.log("TOGGLE STATE",initialData.is_active === true || initialData.is_active === false ? initialData.is_active : true)
+        // ,initialData.is_active !== undefined ? initialData.is_active : true)
       setIsActiveToggle(initialData.is_active === true || initialData.is_active === false ? initialData.is_active : true);
 
       const editableFields = Object.keys(initialData).filter(key =>
@@ -168,6 +152,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       });
       setChangedFields(changed);
     }
+    console.log("HEY HEY")
   }, [formData, event]);
 
   const handleChange = (field, value) => {
@@ -176,102 +161,115 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       toast.warning(permissions.reason);
       return;
     }
-
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
+  // const  updateCells = useRef();
+
   const handleDeactivateCell = async () => {
-    try {
-      setIsToggling(true);
-      const userToken = localStorage.getItem("access_token") || token;
-
-      const params = new URLSearchParams({
-        weeks: deactivationWeeks.toString(),
-        "is_permanent_deact": isPermanent
-      });
-
-      if (deactivationReason) {
-        params.append('reason', deactivationReason);
-      }
-
-      // Determine the deactivation scope
-      if (editScope === 'single' || !isCellEvent) {
-        // Deactivate specific cell by EXACT cell name
-        const cellName = formData.eventName || formData['Event Name'];
-
-        // For OLD format cells: "Cynthia Bebel - Die Fakkel High School - School cell - Thursday"
-        // For NEW format cells: "Gia Home Cell"
-        params.append('cell_identifier', cellName);
-        params.append('person_name', originalPersonIdentifier);
-
-        if (originalContext.day) {
-          params.append('day_of_week', originalContext.day);
-        }
-      } else {
-        // Person scope
-        if (contextFilter === 'all') {
-          params.append('cell_identifier', originalPersonIdentifier);
-        } else if (contextFilter === 'day' && originalContext.day) {
-          params.append('cell_identifier', originalPersonIdentifier);
-          params.append('day_of_week', originalContext.day);
-        } else if (contextFilter === 'eventName' && originalContext.eventName) {
-          // Deactivate by EXACT cell name
-          params.append('cell_identifier', originalContext.eventName);
-          params.append('person_name', originalPersonIdentifier);
-        }
-      }
-
-      console.log("Calling endpoint with:", params.toString());
-
-      const response = await fetch(`${BACKEND_URL}/cells/deactivate?${params.toString()}`, {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${userToken}`
-        }
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.detail || 'Deactivation failed');
-      }
-
-      const result = await response.json();
-
-      // Success message
-      toast.success(
-        <div>
-          <div>{new Date(result.deactivation_end) < new Date() ? "You cell has been successfully deactivated" : result.message}</div>
-          <div style={{ fontSize: '0.85em', marginTop: '5px' }}>
-            Will auto-reactivate on: {new Date(result.deactivation_end) < new Date() ? "Never" : new Date(result.deactivation_end).toLocaleDateString()}
-          </div>
-        </div>
-      );
-
-      // Update local state
-      setIsActiveToggle(false);
-      setFormData(prev => ({
-        ...prev,
-        is_active: false,
-        deactivation_start: new Date().toISOString(),
-        deactivation_end: result.deactivation_end,
-        deactivation_reason: deactivationReason
-      }));
-
-      // Close and reset
-      setDeactivationDialogOpen(false);
-      setDeactivationReason('');
-      setDeactivationWeeks(2);
-
-      if (refreshEvents) refreshEvents();
-
-    } catch (error) {
-      console.error('Deactivation error:', error);
-      toast.error(error.message);
-      setIsActiveToggle(true);
-    } finally {
-      setIsToggling(false);
+  try {
+    setIsToggling(true);
+    const userToken = localStorage.getItem("access_token") || token;
+    
+    const params = new URLSearchParams({
+      weeks: deactivationWeeks.toString(),
+      "is_permanent_deact":isPermanent
+    });
+    console.log("BOOL",isPermanent)
+    console.log("is it?",originalContext)
+    if (deactivationReason) {
+      params.append('reason', deactivationReason);
     }
-  };
+    //sending eventName and event leader name to backend in case below conditions aren't meant
+    params.append('cell_identifier', originalContext.eventName || event?.eventName || "");
+    params.append('person_name',originalPersonIdentifier)
+
+    // Determine the deactivation scope
+    
+    if (editScope === 'single' || !isCellEvent) {
+      const cellName = formData.eventName || formData['Event Name'];
+    
+      params.append('cell_identifier', cellName);
+      params.append('person_name', originalPersonIdentifier);
+      
+      
+      if (originalContext.day) {
+        params.append('day_of_week', originalContext.day);
+      }
+    } else {
+      if (contextFilter === 'all') {
+        // params.append('cell_identifier', originalPersonIdentifier);
+      } else if (contextFilter === 'day' && originalContext.day) {
+        // params.append('cell_identifier', originalPersonIdentifier);
+        params.append('day_of_week', originalContext.day);
+      } else if (contextFilter === 'eventName' && originalContext.eventName) {
+        // Deactivate by EXACT cell name
+        params.append('person_name', originalPersonIdentifier);
+      }
+    }
+    
+    //sending event type to backend to know which event type to deact
+   
+    console.log("The thing",event)
+    console.log("Calling endpoint with:", params.toString());
+    
+    const response = await fetch(`${BACKEND_URL}/events/deactivate?${params.toString()}`, {
+      method: 'PUT',
+      headers: { 
+        'Authorization': `Bearer ${userToken}` 
+      }
+    });
+    
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Deactivation failed');
+    }
+    
+    const result = await response.json();
+    
+    
+    // Success message
+    toast.success(
+      <div>
+        <div>{new Date(result.deactivation_end) < new Date()?"You cell has been successfully deactivated":result.message}</div>
+        <div style={{ fontSize: '0.85em', marginTop: '5px' }}>
+          Will auto-reactivate on: {new Date(result.deactivation_end) < new Date()?"Never":new Date(result.deactivation_end).toLocaleDateString()}
+        </div>
+      </div>
+    );
+    
+    // Update local state
+    setIsActiveToggle(false);
+    setFormData(prev => ({
+      ...prev, 
+      is_active: false,
+      deactivation_start: new Date().toISOString(),
+      deactivation_end: result.deactivation_end,
+      deactivation_reason: deactivationReason
+    }));
+    
+    
+    // Close and reset
+    setDeactivationDialogOpen(false);
+    setDeactivationReason('');
+    setDeactivationWeeks(2);
+    
+    
+    handleSubmit({is_active: false,
+      deactivation_start: new Date().toISOString(),
+      deactivation_end: result.deactivation_end,
+      deactivation_reason: deactivationReason})
+      
+    if (refreshEvents) refreshEvents();
+    
+  } catch (error) {
+    console.error('Deactivation error:', error);
+    toast.error(error.message);
+    setIsActiveToggle(true);
+  } finally {
+    setIsToggling(false);
+  }
+};
 
   const handleReactivateCell = async () => {
     try {
@@ -282,16 +280,16 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         setIsToggling(false);
         return;
       }
-
+      
       const params = new URLSearchParams();
       let endpoint = '/cells/reactivate';
-
+      
       if (editScope === 'single' || !isCellEvent) {
         // Reactivate specific cell
         const cellName = formData.eventName || formData['Event Name'] || originalContext.eventName;
         params.append('cell_identifier', cellName);
         params.append('person_name', originalPersonIdentifier);
-
+        
         if (originalContext.day) {
           params.append('day_of_week', originalContext.day);
         }
@@ -307,34 +305,34 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           params.append('person_name', originalPersonIdentifier);
         }
       }
-
+      
       const response = await fetch(`${BACKEND_URL}${endpoint}?${params.toString()}`, {
         method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${userToken}`
+        headers: { 
+          'Authorization': `Bearer ${userToken}` 
         }
       });
-
+      
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.detail || `HTTP ${response.status}`);
       }
-
+      
       const result = await response.json();
       toast.success(result.message);
-
+      
       // Update local state
       setIsActiveToggle(true);
       setFormData(prev => ({
-        ...prev,
+        ...prev, 
         is_active: true,
         deactivation_start: null,
         deactivation_end: null,
         deactivation_reason: null
       }));
-
+      
       if (refreshEvents) refreshEvents();
-
+      
     } catch (error) {
       console.error('Reactivation error:', error);
       toast.error(`Failed to reactivate: ${error.message}`);
@@ -343,10 +341,11 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       setIsToggling(false);
     }
   };
+  console.log("THE EVENT",event)
 
   const handleActiveToggle = (newValue) => {
     if (isToggling || isFieldDisabled('is_active')) return;
-
+    
     if (newValue === false) {
       // Show deactivation dialog
       setDeactivationDialogOpen(true);
@@ -358,105 +357,58 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
   const prepareUpdateData = () => {
     const cleanData = {};
-
+    
     changedFields.forEach(field => {
       if (isFieldDisabled(field)) return;
-
       const value = formData[field];
-
+      
       if (value === '' || value === null || value === undefined) {
         cleanData[field] = null;
       } else {
-        const fl = field.toLowerCase();
-
-        if ((fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display') && !fl.includes('datetime')) || field === 'date') {
-          if (typeof value === 'string') {
-            // Extract just YYYY-MM-DD, remove any time component or timezone
-            const dateOnly = value.split('T')[0];
-            cleanData[field] = dateOnly;
-            console.log(`Saving date field ${field}: ${dateOnly}`);
-
-            try {
-              const dateObj = new Date(dateOnly);
-              const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-              const dayName = days[dateObj.getDay()];
-              cleanData['Day'] = dayName;
-              cleanData['day'] = dayName;
-              console.log(`Auto-updating Day to ${dayName} based on new date ${dateOnly}`);
-            } catch (e) {
-              console.error("Failed to auto-update day:", e);
-            }
-          } else {
-            cleanData[field] = value;
-          }
-        }
-        else if ((fl.includes('time') && !fl.includes('datetime')) || field === 'Time') {
-          if (typeof value === 'string') {
-            const match = value.match(/(\d{1,2}):(\d{2})/);
-            if (match) {
-              const hours = match[1].padStart(2, '0');
-              const minutes = match[2];
-              cleanData[field] = `${hours}:${minutes}`;
-            } else {
-              cleanData[field] = value;
-            }
-          } else {
-            cleanData[field] = value;
-          }
-        } else {
-          cleanData[field] = value;
-        }
+        cleanData[field] = value;
       }
-
+      
+      // Special handling for status fields
       if (field === 'status' || field === 'Status') {
         cleanData['status'] = value;
         cleanData['Status'] = value;
       }
-
+      
       if (field === 'eventName' || field === 'Event Name') {
         cleanData['eventName'] = value;
         cleanData['Event Name'] = value;
       }
-
+      
       if (field === 'Day' || field === 'day') {
         cleanData['Day'] = value;
         cleanData['day'] = value;
       }
-
+      
       if (field === 'Address' || field === 'location') {
         cleanData['Address'] = value;
         cleanData['location'] = value;
       }
-
+      
+      if (field === 'Time' || field === 'time') {
+        cleanData['Time'] = value;
+        cleanData['time'] = value;
+      }
+      
       if (field === 'Email' || field === 'eventLeaderEmail') {
         cleanData['Email'] = value;
         cleanData['eventLeaderEmail'] = value;
       }
-
-      if (field === 'Leader' || field === 'eventLeader' || field === 'eventLeaderName') {
-        cleanData['Leader'] = value;
-        cleanData['eventLeader'] = value;
-        cleanData['eventLeaderName'] = value;
-      }
-
-      if (field === 'time' || field === 'Time') {
-        const timeValue = typeof value === 'string' && value.match(/(\d{1,2}):(\d{2})/)
-          ? value.match(/(\d{1,2}):(\d{2})/).slice(1).map((v, i) => i === 0 ? v.padStart(2, '0') : v).join(':')
-          : value;
-        cleanData['time'] = timeValue;
-        cleanData['Time'] = timeValue;
-      }
     });
-
-    return { ...cleanData, "is_permanent_deact": isPermanent };
+    
+    return {...cleanData,"is_permanent_deact":isPermanent};
   };
 
-
-  const handleSubmit = async () => {
+  const handleSubmit = async (e,deactivationFields = {}) => {
     try {
-      setLoading(true);
+      console.log("FIELDS",changedFields)
 
-      if (changedFields.length === 0) {
+      setLoading(true);
+      if (changedFields.length === 0 && !deactivationFields) {
         toast.info("No changes made");
         onClose();
         return;
@@ -468,16 +420,9 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         setLoading(false);
         return;
       }
-
-      const updateData = prepareUpdateData();
-
-      if ('Time' in updateData || 'time' in updateData) {
-        const timeValue = updateData.Time || updateData.time;
-        if (timeValue) {
-          console.log(`DEBUG - Storing time as-is: ${timeValue}`);
-        }
-      }
-
+     
+      const updateData = deactivationFields?{...prepareUpdateData(),...deactivationFields}:prepareUpdateData() ;
+      console.log("data",updateData)
       if (Object.keys(updateData).length === 0) {
         toast.info("No valid changes to save");
         setLoading(false);
@@ -488,24 +433,26 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
       const originalEventName = event['Event Name'] || event.eventName;
       const originalDay = event.Day || event.day;
-
+      // const originalPerson = event.Leader || event.eventLeader || event.eventLeaderName;
+      
       const newEventName = formData['Event Name'] || formData.eventName;
       const newDay = formData.Day || formData.day;
 
       if (editScope === 'single') {
         let identifier = event._id || event.id || event.UUID;
         if (identifier?.includes?.('_')) identifier = identifier.split('_')[0];
-
+        
         if (!identifier) {
           toast.error("Cannot update: Event ID not found");
           setLoading(false);
           return;
         }
-
+        
         endpoint = `/events/cells/${identifier}`;
         method = 'PUT';
         body = JSON.stringify(updateData);
-
+        
+        
         if (newEventName && newEventName !== originalEventName) {
           const confirmMsg = `Update event name from "${originalEventName}" to "${newEventName}"?\n\nThis will update ONLY this specific event.\n\nContinue?`;
           if (!window.confirm(confirmMsg)) {
@@ -513,35 +460,35 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             return;
           }
         }
-      }
+      } 
       else if (editScope === 'person') {
         if (!originalPersonIdentifier) {
           toast.error("Cannot update: Person identifier not found");
           setLoading(false);
           return;
         }
-
+        
         if (!originalEventName) {
           toast.error("Cannot update: Original event name is required for 'Update All'");
           setLoading(false);
           return;
         }
-
+        
         if (!originalDay) {
           toast.error("Cannot update: Original day is required for 'Update All'");
           setLoading(false);
           return;
         }
-
+        
         endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/event/${encodeURIComponent(originalEventName)}/day/${encodeURIComponent(originalDay)}`;
         method = 'PUT';
         body = JSON.stringify(updateData);
-
+        
         let confirmMsg = `This will update ONLY:\n\n`;
         confirmMsg += `• Person: ${originalPersonIdentifier}\n`;
         confirmMsg += `• Event name: "${originalEventName}"\n`;
         confirmMsg += `• Day: ${originalDay}\n\n`;
-
+        
         const changes = [];
         if (newEventName && newEventName !== originalEventName) {
           changes.push(`Event name: "${originalEventName}" → "${newEventName}"`);
@@ -549,20 +496,20 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         if (newDay && newDay !== originalDay) {
           changes.push(`Day: ${originalDay} → ${newDay}`);
         }
-
-        const otherFields = changedFields.filter(f =>
+        
+        const otherFields = changedFields.filter(f => 
           !['Event Name', 'eventName', 'Day', 'day'].includes(f)
         );
         if (otherFields.length > 0) {
           changes.push(`Other fields: ${otherFields.join(', ')}`);
         }
-
+        
         if (changes.length > 0) {
           confirmMsg += `Changes:\n${changes.join('\n')}\n\n`;
         }
-
+        
         confirmMsg += `Continue?`;
-
+        
         if (!window.confirm(confirmMsg)) {
           setLoading(false);
           return;
@@ -577,11 +524,11 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       }
 
       const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userToken}`
-        },
+        method, 
+        headers: { 
+          'Content-Type': 'application/json', 
+          'Authorization': `Bearer ${userToken}` 
+        }, 
         body
       });
 
@@ -589,7 +536,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         const errorText = await response.text();
         let errorData;
         try { errorData = JSON.parse(errorText); } catch { errorData = { detail: errorText }; }
-
+        
         if (response.status === 404) {
           toast.error(`Not found: ${errorData.detail || 'The event or events could not be found'}`);
         } else if (response.status === 401) {
@@ -600,12 +547,12 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         } else {
           toast.error(`Update failed: ${errorData.detail || errorData.message || `Error ${response.status}`}`);
         }
-
+        
         throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
       }
 
       const result = await response.json();
-
+      
       if (editScope === 'person') {
         if (result.success) {
           if (result.modified_count === 0) {
@@ -627,16 +574,8 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           toast.error(result.message || 'Update failed');
         }
       }
-
-      if (refreshEvents) {
-        await refreshEvents();
-      }
-
-      onClose(true, {
-        Day: formData.Day || formData.day,
-        day: formData.Day || formData.day,
-        date: formData.date,
-      });
+      
+      onClose(true);
 
     } catch (error) {
       console.error("Error saving:", error);
@@ -657,13 +596,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
     const fl = field.toLowerCase();
 
-    if (!isCellEvent) {
-      if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12') ||
-        fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps') {
-        return null;
-      }
-    }
-
     const labelContent = (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         {displayName}
@@ -672,89 +604,46 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       </Box>
     );
 
-    if (field === 'is_active' || field === 'Display date' || field === 'Display_date' ||
-      field === 'display_date' || field === 'did_not_meet' || field === 'Did_not_meet' ||
-      field === 'S' || field === 's' || field === 'Data-recurring' || field === 'data-recurring' ||
-      field === 'is_recurring' || field === 'isRecurring' || field === 'is_overdue' ||
-      field === 'isOverdue') {
+    // Skip these fields entirely
+    if (field === 'is_active' || field === 'Display date' || field === 'Display_date' || 
+        field === 'display_date' || field === 'did_not_meet' || field === 'Did_not_meet' ||
+        field === 'S' || field === 's' || field === 'Data-recurring' || field === 'data-recurring' ||
+        field === 'is_recurring' || field === 'isRecurring' || field === 'is_overdue' || 
+        field === 'isOverdue') {
       return null;
     }
 
-    if (
-      (fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display')) ||
-      field === 'date'
-    ) {
-      const dateValue = value ? value.split('T')[0] : '';
-
+    if ((fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display')) || field === 'date') {
+      let dateValue = '';
+      if (value) {
+        try {
+          const date = new Date(value);
+          if (!isNaN(date.getTime())) {
+            dateValue = date.toISOString().slice(0, 16);
+          }
+        } catch (e) {
+          console.warn(`Invalid date for ${field}:`, value, e);
+        }
+      }
+      
       const content = (
-        <TextField
-          fullWidth
-          margin="normal"
-          label={labelContent}
-          type="date"
+        <TextField fullWidth margin="normal" label={labelContent} type="datetime-local"
           value={dateValue}
-          onChange={(e) => {
-            handleChange(field, e.target.value);
-          }}
-          InputLabelProps={{ shrink: true }}
-          error={isChanged}
-          helperText={isChanged ? "Changed" : ""}
-          disabled={isDisabled}
-        />
+          onChange={(e) => handleChange(field, e.target.value)}
+          InputLabelProps={{ shrink: true }} error={isChanged}
+          helperText={isChanged ? "Changed" : ""} disabled={isDisabled} />
       );
-
       return isDisabled && disabledReason ? (
         <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
       ) : <Box key={field}>{content}</Box>;
     }
 
     if (fl.includes('time') && !fl.includes('datetime')) {
-      if (field === 'time' && availableFields.includes('Time')) {
-        return null;
-      }
-
-      const rawTimeValue = value || '';
-
-      let displayTime = rawTimeValue;
-
-      if (typeof rawTimeValue === 'string') {
-        if (rawTimeValue.includes('T')) {
-          try {
-            const date = new Date(rawTimeValue);
-            displayTime = date.toLocaleTimeString('en-GB', {
-              hour: '2-digit',
-              minute: '2-digit',
-              hour12: false
-            });
-          } catch (e) {
-            console.error("Failed to parse time:", e);
-          }
-        }
-      }
-
       const content = (
-        <TextField
-          fullWidth
-          margin="normal"
-          label={labelContent}
-          type="time"
-          value={displayTime}
-          onChange={(e) => {
-            console.log(`Time changed for ${field}:`, e.target.value);
-            handleChange(field, e.target.value);
-          }}
-          InputLabelProps={{ shrink: true }}
-          InputProps={{
-            inputProps: {
-              step: 300,
-            }
-          }}
-          error={isChanged}
-          helperText={isChanged ? "Changed" : ""}
-          disabled={isDisabled}
-        />
+        <TextField fullWidth margin="normal" label={labelContent} type="time" value={value || ''}
+          onChange={(e) => handleChange(field, e.target.value)} InputLabelProps={{ shrink: true }}
+          error={isChanged} helperText={isChanged ? "Changed" : ""} disabled={isDisabled} />
       );
-
       return isDisabled && disabledReason ? (
         <Tooltip key={field} title={disabledReason} arrow><Box>{content}</Box></Tooltip>
       ) : <Box key={field}>{content}</Box>;
@@ -883,64 +772,60 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     const isCurrentlyActive = formData.is_active !== false;
     const deactivationEnd = formData.deactivation_end || formData.deactivationEnd;
     const currentDeactivationReason = formData.deactivation_reason || formData.deactivationReason;
-
+    
     return (
-      <Box sx={{
-        mb: 3, p: 2, border: '1px solid',
+      <Box sx={{ mb: 3, p: 2, border: '1px solid',
         borderColor: isCurrentlyActive ? 'success.main' : 'warning.main', borderRadius: 2,
-        bgcolor: isCurrentlyActive ? 'success.50' : 'warning.50'
-      }}>
+        bgcolor: isCurrentlyActive ? 'success.50' : 'warning.50' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <Typography variant="subtitle1" sx={{
-            display: 'flex', alignItems: 'center', gap: 1,
-            color: isCurrentlyActive ? 'success.dark' : 'warning.dark'
-          }}>
-            {isCurrentlyActive ? (<><PlayArrow color="success" />{isCellEvent ? 'Cell' : 'Event'} is Active</>) :
+          <Typography variant="subtitle1" sx={{ display: 'flex', alignItems: 'center', gap: 1,
+            color: isCurrentlyActive ? 'success.dark' : 'warning.dark' }}>
+            {isCurrentlyActive ? (<><PlayArrow color="success" />{isCellEvent ? 'Cell' : 'Event'} is Active</>) : 
               (<><Pause color="warning" />{isCellEvent ? 'Cell' : 'Event'} is Deactivated</>)}
           </Typography>
           <FormControlLabel control={
-            <Switch checked={isActiveToggle}
-              onChange={(e) => {
-                handleActiveToggle(e.target.checked);
-              }}
-              disabled={isToggling || isFieldDisabled('is_active')}
-              color={isCurrentlyActive ? "success" : "warning"} />
-          }
+              <Switch checked={isActiveToggle}
+                onChange={(e) => {
+                  handleActiveToggle(e.target.checked);
+                }}
+                disabled={isToggling || isFieldDisabled('is_active')}
+                color={isCurrentlyActive ? "success" : "warning"} />
+            }
             label={<Typography variant="body2">{isActiveToggle ? 'Active' : 'Deactivated'}{isToggling && '...'}</Typography>}
             sx={{ m: 0 }} />
         </Box>
-        {!isCurrentlyActive && deactivationEnd && (
-          <Alert
-            severity="warning"
-            icon={false}
-            sx={{ mt: 1, mb: 1 }}
-          >
-            <Typography variant="body2">
-              <strong>Deactivated until:</strong>{' '}
-              {new Date(deactivationEnd) < new Date() ? "Never" : new Date(deactivationEnd).toLocaleDateString('en-ZA', {
-                weekday: 'long',
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              })}
-            </Typography>
+       {!isCurrentlyActive && deactivationEnd && (
+  <Alert
+    severity="warning"
+    icon={false}
+    sx={{ mt: 1, mb: 1 }}
+  >
+    <Typography variant="body2">
+      <strong>Deactivated until:</strong>{' '}
+      {new Date(deactivationEnd) < new Date()? "Never": new Date(deactivationEnd).toLocaleDateString('en-ZA', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      })}
+    </Typography>
 
-            {currentDeactivationReason && (
-              <Typography variant="body2" sx={{ mt: 0.5 }}>
-                <strong>Reason:</strong> {currentDeactivationReason}
-              </Typography>
-            )}
-          </Alert>
-        )}
+    {currentDeactivationReason && (
+      <Typography variant="body2" sx={{ mt: 0.5 }}>
+        <strong>Reason:</strong> {currentDeactivationReason}
+      </Typography>
+    )}
+  </Alert>
+)}
 
-
+        
         {editScope === 'person' && isCellEvent && (
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1 }}>
-            {contextFilter === 'day' && originalContext.day &&
+            {contextFilter === 'day' && originalContext.day && 
               `${isActiveToggle ? 'Deactivating' : 'Activating'} only ${originalContext.day} cells`}
-            {contextFilter === 'eventName' && originalContext.eventName &&
+            {contextFilter === 'eventName' && originalContext.eventName && 
               `${isActiveToggle ? 'Deactivating' : 'Activating'} only "${originalContext.eventName}" cells`}
-            {contextFilter === 'all' &&
+            {contextFilter === 'all' && 
               `${isActiveToggle ? 'Deactivating' : 'Activating'} ALL cells for this person`}
           </Typography>
         )}
@@ -950,62 +835,27 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
   if (!event) return null;
 
-  const personFields = availableFields.filter(f => {
-    const basePersonFields = ['Leader', 'eventLeader', 'eventLeaderName', 'Email', 'eventLeaderEmail', 'email'];
-
-    if (!isCellEvent) {
-      const fl = f.toLowerCase();
-      if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12')) {
-        return false;
-      }
-    }
-
-    // For cell events, include all leader fields
-    if (isCellEvent) {
-      return [...basePersonFields, 'leader1', 'leader12', 'Leader at 12'].includes(f);
-    }
-
-    return basePersonFields.includes(f);
-  });
+  const personFields = availableFields.filter(f =>
+    ['Leader', 'eventLeader', 'eventLeaderName', 'Email', 'eventLeaderEmail', 'email',
+      'leader1', 'leader12', 'Leader at 12'].includes(f)
+  );
 
   const eventFields = availableFields.filter(f => {
     const fl = f.toLowerCase();
-
-    // ADDED: For non-cell events, exclude "has Personal steps"
-    if (!isCellEvent && (fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps')) {
-      return false;
-    }
-
     const allowed = ['eventname', 'event name', 'event type', 'eventtypename', 'description',
-      'status', 'isticketed', 'isglobal'];
-
-    // For cell events, include haspersonsteps
-    if (isCellEvent) {
-      allowed.push('haspersonsteps', 'has personal steps', 'haspersonalsteps');
-    }
-
+      'status', 'isticketed', 'isglobal', 'haspersonsteps'];
     return allowed.includes(fl);
   });
 
   const locationFields = availableFields.filter(f => ['Address', 'location', 'address'].includes(f));
   const timeFields = availableFields.filter(f => ['date', 'Date Of Event', 'time', 'Time', 'Day', 'recurring_day'].includes(f));
   const otherFields = availableFields.filter(f => {
-    const skipFields = ['is_active', 'Display date', 'Display_date', 'display_date',
-      'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring',
-      'data-recurring', 'is_recurring', 'isRecurring', 'is_overdue', 'isOverdue'];
-
-    // ADDED: For non-cell events, also skip these fields from "other fields"
-    if (!isCellEvent) {
-      const fl = f.toLowerCase();
-      if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12') ||
-        fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps') {
-        skipFields.push(f);
-      }
-    }
-
+    const skipFields = ['is_active', 'Display date', 'Display_date', 'display_date', 
+                        'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring', 
+                        'data-recurring', 'is_recurring', 'isRecurring', 'is_overdue', 'isOverdue'];
     return ![...personFields, ...eventFields, ...locationFields, ...timeFields, ...skipFields].includes(f);
   });
-
+  
   const eventName = formData.eventName || formData['Event Name'] || 'Unnamed Event';
 
   return (
@@ -1034,38 +884,37 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         </DialogTitle>
 
         <DialogContent dividers>
-          <Box sx={{ pt: 1 }}>
+  <Box sx={{ pt: 1 }}>
+    {renderActiveStatusSection()}
 
-            {renderActiveStatusSection()}
+    <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+      <Typography variant="subtitle2" gutterBottom>
+        Update Method:
+      </Typography>
 
-            <Box sx={{ mb: 3, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-              <Typography variant="subtitle2" gutterBottom>
-                Update Method:
-              </Typography>
-
-              <FormControl fullWidth>
-                {isCellEvent ? (
-                  <Box sx={{
-                    p: 2,
-                    border: 1,
-                    borderColor: 'primary.main',
-                    borderRadius: 1,
-                    bgcolor: 'primary.50'
-                  }}>
-                    <Typography variant="body2" fontWeight="bold" color="primary.main">
-                      Update All Recurring Events
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      Required for Cell consistency. All occurrences will be updated.
-                    </Typography>
-                  </Box>
+      <FormControl fullWidth>
+        {isCellEvent ? (
+          <Box sx={{ 
+            p: 2, 
+            border: 1, 
+            borderColor: 'primary.main', 
+            borderRadius: 1, 
+            bgcolor: 'primary.50' 
+          }}>
+            <Typography variant="body2" fontWeight="bold" color="primary.main">
+              Update All Recurring Events
+            </Typography>
+            <Typography variant="caption" color="text.secondary">
+              Required for Cell consistency. All occurrences will be updated.
+            </Typography>
+          </Box>
                 ) : (
-                  <Box sx={{
-                    p: 2,
-                    border: 1,
-                    borderColor: 'success.main',
-                    borderRadius: 1,
-                    bgcolor: 'success.50'
+                  <Box sx={{ 
+                    p: 2, 
+                    border: 1, 
+                    borderColor: 'success.main', 
+                    borderRadius: 1, 
+                    bgcolor: 'success.50' 
                   }}>
                     <Typography variant="body2" fontWeight="bold" color="success.main">
                       Single Event Only
@@ -1080,7 +929,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               {isCellEvent && (
                 <Alert severity="info" sx={{ mt: 2 }}>
                   <Typography variant="body2">
-                    Changes will apply to all occurrences.
+                     Changes will apply to all occurrences.
                   </Typography>
                 </Alert>
               )}
@@ -1176,51 +1025,25 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                   </Box>
                 )}
 
-                <Box sx={{ mb: 3 }}>
-                  <Typography variant="subtitle1" gutterBottom>
-                    Time & Location
-                  </Typography>
-                  <Grid container spacing={2}>
-                    {/* Location field */}
-                    {locationFields.map(field => (
-                      <Grid item xs={12} md={4} key={field}>
-                        {renderField(field)}
-                      </Grid>
-                    ))}
+                <Grid container spacing={3}>
+                  {locationFields.length > 0 && (
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle1" gutterBottom>
+                        Location
+                      </Typography>
+                      {locationFields.map(field => renderField(field))}
+                    </Grid>
+                  )}
 
-                    {/* Date field */}
-                    {timeFields.filter(f => {
-                      const fl = f.toLowerCase();
-                      return (fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display')) || f === 'date' || f === 'Date Of Event';
-                    }).map(field => (
-                      <Grid item xs={12} md={4} key={field}>
-                        {renderField(field)}
-                      </Grid>
-                    ))}
-
-                    {/* Time field */}
-                    {timeFields.filter(f => {
-                      const fl = f.toLowerCase();
-                      return (fl.includes('time') && !fl.includes('datetime')) && (f === 'Time' || f === 'time');
-                    }).map(field => (
-                      <Grid item xs={12} md={4} key={field}>
-                        {renderField(field)}
-                      </Grid>
-                    ))}
-
-                    {/* Other time-related fields (Day, recurring_day) */}
-                    {timeFields.filter(f => {
-                      const fl = f.toLowerCase();
-                      const isDate = (fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display')) || f === 'date' || f === 'Date Of Event';
-                      const isTime = (fl.includes('time') && !fl.includes('datetime')) && (f === 'Time' || f === 'time');
-                      return !isDate && !isTime;
-                    }).map(field => (
-                      <Grid item xs={12} md={6} key={field}>
-                        {renderField(field)}
-                      </Grid>
-                    ))}
-                  </Grid>
-                </Box>
+                  {timeFields.length > 0 && (
+                    <Grid item xs={12} md={6}>
+                      <Typography variant="subtitle1" gutterBottom>
+                        Time & Schedule
+                      </Typography>
+                      {timeFields.map(field => renderField(field))}
+                    </Grid>
+                  )}
+                </Grid>
 
                 {otherFields.length > 0 && (
                   <Box sx={{ mt: 3 }}>
@@ -1247,32 +1070,16 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               </Box>
             ) : (
               <Grid container spacing={2}>
-                {/* Event Name, Leader, Email, Status, Day, Description fields */}
                 {['eventName', 'Event Name', 'eventLeader', 'Leader', 'eventLeaderEmail', 'Email',
-                  'status', 'recurring_day', 'Day', 'description']
+                  'date', 'Date Of Event', 'time', 'Time', 'location', 'Address',
+                  'status',
+                  'recurring_day', 'Day', 'description', 'leader1', 'leader12', 'Leader at 12']
                   .filter(field => availableFields.includes(field))
                   .map(field => (
                     <Grid item xs={12} md={6} key={field}>
                       {renderField(field)}
                     </Grid>
                   ))}
-
-                {/* Date, Time, and Location side by side - each taking 4 columns (1/3 of row) */}
-                {(availableFields.includes('date') || availableFields.includes('Date Of Event')) && (
-                  <Grid item xs={12} md={4}>
-                    {renderField(availableFields.includes('date') ? 'date' : 'Date Of Event')}
-                  </Grid>
-                )}
-                {(availableFields.includes('time') || availableFields.includes('Time')) && (
-                  <Grid item xs={12} md={4}>
-                    {renderField(availableFields.includes('Time') ? 'Time' : 'time')}
-                  </Grid>
-                )}
-                {(availableFields.includes('location') || availableFields.includes('Address')) && (
-                  <Grid item xs={12} md={4}>
-                    {renderField(availableFields.includes('Address') ? 'Address' : 'location')}
-                  </Grid>
-                )}
               </Grid>
             )}
           </Box>
@@ -1302,6 +1109,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                 Cancel
               </Button>
               <Button
+                // ref={updateCells}
                 onClick={handleSubmit}
                 variant="contained"
                 disabled={loading || changedFields.length === 0 || changedFields.some(f => isFieldDisabled(f))}
@@ -1321,7 +1129,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         open={deactivationDialogOpen}
         onClose={() => {
           setDeactivationDialogOpen(false);
-          setIsActiveToggle(true);
+          setIsActiveToggle(true); 
         }}
         maxWidth="sm"
         fullWidth
@@ -1334,29 +1142,30 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         <DialogContent>
           <Typography variant="body1" gutterBottom>
             {editScope === 'person' ? (
-              contextFilter === 'day' && originalContext.day ?
+              contextFilter === 'day' && originalContext.day ? 
                 `You are about to deactivate ${originalContext.day} cells for "${originalPersonIdentifier}".` :
-                contextFilter === 'eventName' && originalContext.eventName ?
-                  `You are about to deactivate "${originalContext.eventName}" cells for "${originalPersonIdentifier}".` :
-                  `You are about to deactivate ALL cells for "${originalPersonIdentifier}".`
+              contextFilter === 'eventName' && originalContext.eventName ?
+                `You are about to deactivate "${originalContext.eventName}" cells for "${originalPersonIdentifier}".` :
+                `You are about to deactivate ALL cells for "${originalPersonIdentifier}".`
             ) : (
               `You are about to deactivate "${eventName}".`
             )}
           </Typography>
-
+          
           <FormControl fullWidth margin="normal">
             <InputLabel>Deactivation Period</InputLabel>
             <Select
               value={deactivationWeeks}
-              onChange={(e) => {
+              onChange={(e) =>{ 
                 setDeactivationWeeks(e.target.value);
                 if (e.target.value === -1) {
-                  setIsPermanent(true);
+                  setIsPermanent(true)
                 } else {
-                  setIsPermanent(false);
+                  setIsPermanent(false)
                 }
               }}
               label="Deactivation Period"
+            
             >
               <MenuItem value={1}>1 Week</MenuItem>
               <MenuItem value={2}>2 Weeks</MenuItem>
@@ -1367,7 +1176,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
               <MenuItem value={-1}>Never</MenuItem>
             </Select>
           </FormControl>
-
+          
           <TextField
             fullWidth
             margin="normal"
@@ -1378,7 +1187,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
             multiline
             rows={2}
           />
-
+          
           <Alert severity="info" sx={{ mt: 2 }}>
             <Typography variant="body2">
               The cell will automatically reactivate after the deactivation period ends.
@@ -1386,10 +1195,10 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           </Alert>
         </DialogContent>
         <DialogActions>
-          <Button
+          <Button 
             onClick={() => {
               setDeactivationDialogOpen(false);
-              setIsActiveToggle(true);
+              setIsActiveToggle(true); 
             }}
             disabled={isToggling}
           >
