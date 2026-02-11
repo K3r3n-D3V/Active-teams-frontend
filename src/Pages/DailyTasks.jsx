@@ -440,7 +440,7 @@ const markTaskComplete = async (taskId) => {
         setTasks((prev) => [
           {
             ...data.task,
-            assignedTo: data.task.assignedfor,
+            assignedTo: data.task.name || `${user.name} ${user.surname}`,
             date: data.task.followup_date,
             status: (data.task.status || "Open").toLowerCase(),
             taskName: data.task.name,
