@@ -20,6 +20,7 @@ import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
+const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 
 const initialFormState = {
   name: "",
@@ -86,6 +87,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     leader144: ""
   });
   const [showLeaderFields, setShowLeaderFields] = useState(false);
+  const [addressSuggestions, setAddressSuggestions] = useState([]);
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+
+  const debouncedAddressInput = useDebounce(searchInputs.address || "", 500);
 
   useEffect(() => {
     if (!open) {
@@ -196,6 +201,53 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
     fetchAllPeople();
   }, [open, authFetch]);
+
+  useEffect(() => {
+    if (!debouncedAddressInput || debouncedAddressInput.length < 3) {
+      setAddressSuggestions([]);
+      return;
+    }
+
+    // If the Geoapify API key is not configured, skip the request and
+    // keep suggestions empty. This prevents requests like apiKey=undefined
+    // which cause 401 responses in the console.
+    if (!GEOAPIFY_API_KEY) {
+      console.warn('VITE_GEOAPIFY_API_KEY is not set; address autocomplete disabled.');
+      setAddressSuggestions([]);
+      setIsLoadingAddress(false);
+      return;
+    }
+
+    const fetchAddresses = async () => {
+      setIsLoadingAddress(true);
+      try {
+        const response = await fetch(
+          `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(
+            debouncedAddressInput
+          )}&apiKey=${GEOAPIFY_API_KEY}`
+        );
+      
+        if (!response.ok) throw new Error('Failed to fetch addresses');
+      
+        const data = await response.json();
+        const suggestions = data.features?.map(feature => ({
+          label: feature.properties.formatted,
+          address: feature.properties.formatted
+        })) || [];
+      
+        setAddressSuggestions(suggestions);
+      } catch (err) {
+        console.error('Geoapify error:', err);
+        setAddressSuggestions([]);
+      } finally {
+        setIsLoadingAddress(false);
+      }
+    };
+
+    fetchAddresses();
+  }, [debouncedAddressInput, GEOAPIFY_API_KEY]);
+
+
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -558,9 +610,42 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
             required: true
           })}
           {renderAutocomplete('invitedBy', 'Invited By', true, false)}
-          {renderTextField('address', 'Home Address *', {
-            required: true
-          })}
+        <Autocomplete
+            freeSolo
+            options={addressSuggestions}
+            getOptionLabel={(option) => {
+            if (typeof option === "string") return option;
+              return option.label || option.address || "";
+             }}
+            value={formData.address}
+            onChange={(e, newValue) => {
+            const address = typeof newValue === "string" ? newValue : (newValue?.address || newValue?.label || "");
+            setFormData(prev => ({ ...prev, address }));
+            setErrors(prev => ({ ...prev, address: "" }));
+           }}
+           onInputChange={(e, newInputValue) => {
+           setSearchInputs(prev => ({ ...prev, address: newInputValue }));
+           setFormData(prev => ({ ...prev, address: newInputValue }));
+           setErrors(prev => ({ ...prev, address: "" }));
+           }}
+           loading={isLoadingAddress}
+           loadingText="Searching addresses..."
+           noOptionsText={debouncedAddressInput?.length < 3 ? "Type at least 3 characters" : "No addresses found"}
+           renderInput={(params) => (
+        <TextField
+          {...params}
+          label="Home Address *"
+          error={!!errors.address}
+          helperText={errors.address}
+          margin="normal"
+          fullWidth
+          sx={uniformInputSx}
+         />
+        )}
+        disabled={isSubmitting}
+        blurOnSelect
+        clearOnBlur={false}
+        />
           {renderTextField('email', 'Email Address *', {
             type: 'email',
             required: true
