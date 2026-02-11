@@ -3133,7 +3133,7 @@ const loadWeeklyCheckins = () => {
                         ]}
                         components={{ Toolbar: GridToolbar }}
                         pageSize={10}
-                        rowsPerPageOptions={[10, 25, 50]}
+                        rowsPerPageOptions={[10, 25, 50,100]}
                         sx={{
                           border: "none",
                           ".MuiDataGrid-cell": { outline: "none !important" },
