@@ -96,6 +96,8 @@ const [isEditTypeModalOpen, setIsEditTypeModalOpen] = useState(false);
 const [editTaskTypeName, setEditTaskTypeName] = useState("");
 const [updatingTaskType, setUpdatingTaskType] = useState(false);
 
+
+
 const [deletingTaskType, setDeletingTaskType] = useState(false);
 
   
@@ -219,6 +221,10 @@ const markTaskComplete = async (taskId) => {
     toast.error("Failed to update task: " + err.message);
   }
 };
+
+ console.log("Deleting:", selectedTypeToManage);console.log("Deleting tasktype:", selectedTypeToManage?.name, selectedTypeToManage?.id);
+
+
   const fetchTaskTypes = async () => {
     try {
       const res = await authFetch(`${API_URL}/tasktypes`);
@@ -230,109 +236,140 @@ const markTaskComplete = async (taskId) => {
       toast.error(err.message);
     }
   };
-// 1. Better error handling + show real error message
-const createTaskType = async () => {
-  if (!newTaskTypeName.trim()) {
-    toast.warning("Please enter a task type name");
-    return;
-  }
 
-  setAddingTaskType(true);
-  try {
-    const res = await authFetch(`${API_URL}/tasktypes`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: newTaskTypeName.trim() }),
-    });
-
-    if (!res.ok) {
-      const errorData = await res.json();
-      throw new Error(errorData.detail || errorData.message || "Failed to create");
+  const createTaskType = async () => {
+    if (!newTaskTypeName.trim()) {
+      toast.warning("Please enter a task type name");
+      return;
     }
+    setAddingTaskType(true);
+    try {
+      const res = await authFetch(`${API_URL}/tasktypes`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newTaskTypeName.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || 'Failed to create task type');
+      setTaskTypes([...taskTypes, data.taskType || data]);
+      setNewTaskTypeName("");
+      setIsAddTypeModalOpen(false);
+    } catch (err) {
+      console.error("Error creating task type:", err.message);
+      toast.error("Failed to create task type: " + err.message);
+    } finally {
+      setAddingTaskType(false);
+    }
+  };
 
-    const data = await res.json();
-    setTaskTypes(prev => [...prev, data]);   // ← data is already the created object
-    setNewTaskTypeName("");
-    setIsAddTypeModalOpen(false);
-    toast.success("Task type created successfully!");
-  } catch (err) {
-    console.error(err);
-    toast.error(err.message || "Failed to create task type");
-  } finally {
-    setAddingTaskType(false);
-  }
-};
-
-  const updateTaskType = async () => {
-  if (!selectedTypeToManage?._id) {
-    toast.error("Task type not found");
+const updateTaskType = async () => {
+  if (!selectedTypeToManage) {
+    toast.error("No task type selected");
     return;
   }
 
-  if (!editTaskTypeName.trim()) {
+  const taskTypeId = selectedTypeToManage._id || selectedTypeToManage.id;
+  if (!taskTypeId) {
+    toast.error("Missing task type ID");
+    return;
+  }
+
+  const newName = editTaskTypeName.trim();
+  if (!newName) {
     toast.warning("Please enter a task type name");
+    return;
+  }
+
+  if (newName === selectedTypeToManage.name) {
+    toast.info("No changes to save");
+    setIsEditTypeModalOpen(false);
     return;
   }
 
   setUpdatingTaskType(true);
 
   try {
-    const res = await authFetch(`${API_URL}/tasktypes/${selectedTypeToManage._id}`, {
+    const res = await authFetch(`${API_URL}/tasktypes/${taskTypeId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name: editTaskTypeName.trim() }),
+      body: JSON.stringify({ name: newName }),
     });
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed to update task type");
+
+    if (!res.ok) {
+      throw new Error(data.message || "Failed to update task type");
+    }
+
+    // Immediate local update – no refresh needed
+    setTaskTypes((prev) =>
+      prev.map((t) => {
+        const tid = t._id || t.id;
+        if (tid === taskTypeId) {
+          return { ...t, name: newName };
+        }
+        return t;
+      })
+    );
 
     toast.success("Task type updated!");
 
-    setTaskTypes((prev) =>
-      prev.map((t) =>
-        t._id === selectedTypeToManage._id ? { ...t, name: editTaskTypeName.trim() } : t
-      )
-    );
-
+    // Clean up UI
     setIsEditTypeModalOpen(false);
     setTypeMenuOpen(false);
     setSelectedTypeToManage(null);
     setEditTaskTypeName("");
+
   } catch (err) {
-    console.error(err);
-    toast.error(err.message);
+    console.error("Update error:", err);
+    toast.error(err.message || "Could not update task type");
   } finally {
     setUpdatingTaskType(false);
   }
 };
 
-// Recommended delete version
-const deleteTaskType = async () => {
-  if (!selectedTypeToManage?._id) return;
+const deleteTaskType = async (taskTypeId) => {
+  if (!taskTypeId || typeof taskTypeId !== 'string') {
+    toast.error("No valid task type ID provided");
+    console.warn("Invalid ID passed to deleteTaskType:", taskTypeId);
+    return;
+  }
 
-  if (!window.confirm("Really delete this task type?")) return;
+  console.log("Deleting TaskType ID:", taskTypeId);
 
   setDeletingTaskType(true);
+
   try {
-    const res = await authFetch(`${API_URL}/tasktypes/${selectedTypeToManage._id}`, {
+    const res = await authFetch(`${API_URL}/tasktypes/${taskTypeId}`, {
       method: "DELETE",
     });
 
+    const data = await res.json();
+
+    console.log("Delete response:", data);
+    console.log("Delete status:", res.status);
+
     if (!res.ok) {
-      const err = await res.json();
-      throw new Error(err.detail || err.message || "Delete failed");
+      throw new Error(data.message || "Failed to delete task type");
     }
 
     toast.success("Task type deleted!");
-    setTaskTypes(prev => prev.filter(t => t._id !== selectedTypeToManage._id));
+
+    // This is the important fix
+    setTaskTypes((prev) => 
+      prev.filter((t) => (t._id || t.id) !== taskTypeId)
+    );
+
     setTypeMenuOpen(false);
     setSelectedTypeToManage(null);
   } catch (err) {
-    toast.error(err.message);
+    console.error(err);
+    toast.error(err.message || "Error deleting task type");
   } finally {
     setDeletingTaskType(false);
   }
 };
+
 
   const fetchUserTasks = async () => {
     if (!user?.email) return;
@@ -574,9 +611,9 @@ const deleteTaskType = async () => {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setTaskData({ ...taskData, [name]: value });
-  };
+  setTaskData({ ...taskData, [e.target.name]: e.target.value });
+};
+
 
  const updateTask = async (taskId, updatedData) => {
   try {
@@ -993,30 +1030,38 @@ useEffect(() => {
               <UserPlus size={18} /> Visit Task
             </button>
 
-            {user?.role === 'admin' && (
-              <button
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  backgroundColor: isDarkMode ? '#fff' : '#000',
-                  color: isDarkMode ? '#000' : '#fff',
-                  fontWeight: '600',
-                  padding: '12px 20px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-                  width: '140px',
-                  minHeight: '44px'
-                }}
-                onClick={() => setIsAddTypeModalOpen(true)}
-              >
-                <Plus size={18} /> New Task Type
-              </button>
-            )}
+
+            {isAdmin && (
+
+            
+  <button
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      backgroundColor: isDarkMode ? '#fff' : '#000',
+      color: isDarkMode ? '#000' : '#fff',
+      fontWeight: '600',
+      padding: '12px 20px',
+      borderRadius: '10px',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: '14px',
+      boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+      width: '140px',
+      minHeight: '44px'
+    }}
+  onClick={() => {
+  console.log("New Task Type button clicked – setter exists:", !!setNewTaskTypeName);
+  setIsAddTypeModalOpen(true);
+  setNewTaskTypeName("");
+}}
+  // ... rest of styles
+>
+  <Plus size={18} /> New Task Type
+</button>
+)}
           </div>
 
           <div style={{ marginTop: '20px' }}>
@@ -1297,96 +1342,7 @@ useEffect(() => {
         </div>
       </div>
 
-      {isAddTypeModalOpen && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            backgroundColor: "rgba(0,0,0,0.75)",
-            display: "flex",
-            justifyContent: "center",
-            alignItems: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: isDarkMode ? '#1e1e1e' : "#fff",
-              color: isDarkMode ? '#fff' : '#1a1a24',
-              padding: "24px",
-              borderRadius: "16px",
-              width: "90%",
-              maxWidth: "440px",
-              boxShadow: isDarkMode ? "0 20px 60px rgba(255,255,255,0.1)" : "0 20px 60px rgba(0,0,0,0.3)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
-              border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-            }}
-          >
-            <h2 style={{
-              margin: 0,
-              fontSize: "20px",
-              fontWeight: "700",
-              textAlign: 'center'
-            }}>
-              Add New Task Type
-            </h2>
-            <input
-              type="text"
-              value={newTaskTypeName}
-              onChange={(e) => setNewTaskTypeName(e.target.value)}
-              placeholder="Enter task type name"
-              autoFocus
-              style={{
-                padding: "12px 14px",
-                fontSize: "14px",
-                borderRadius: "10px",
-                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                color: isDarkMode ? '#fff' : '#1a1a24',
-                width: "100%",
-                boxSizing: "border-box",
-                outline: 'none',
-              }}
-            />
-            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
-              <button
-                onClick={createTaskType}
-                disabled={addingTaskType}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: isDarkMode ? '#fff' : '#000',
-                  color: isDarkMode ? '#000' : '#fff',
-                  fontWeight: "600",
-                  borderRadius: "10px",
-                  border: "none",
-                  cursor: addingTaskType ? "not-allowed" : "pointer",
-                  fontSize: "14px",
-                  opacity: addingTaskType ? 0.7 : 1,
-                  flex: 1
-                }}
-              >
-                {addingTaskType ? "Adding..." : "Add"}
-              </button>
-              <button
-                onClick={() => setIsAddTypeModalOpen(false)}
-                style={{
-                  padding: "10px 20px",
-                  backgroundColor: isDarkMode ? '#2d2d2d' : "#e5e5e5",
-                  color: isDarkMode ? '#fff' : "#1a1a24",
-                  fontWeight: "600",
-                  borderRadius: "10px",
-                  border: `1px solid ${isDarkMode ? '#444' : 'transparent'}`,
-                  cursor: "pointer",
-                  fontSize: "14px",
-                  flex: 1
-                }}
-              >
-                Cancel
-              </button>
-
-              {isEditTypeModalOpen && (
+{isEditTypeModalOpen && (
   <div
     style={{
       position: "fixed",
@@ -1395,88 +1351,89 @@ useEffect(() => {
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
-      zIndex: 1200,
+      zIndex: 2000,  // make sure it's on top
     }}
   >
     <div
       style={{
-        backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
-        color: isDarkMode ? "#fff" : "#1a1a24",
-        padding: "24px",
+        backgroundColor: isDarkMode ? '#1e1e1e' : "#fff",
+        color: isDarkMode ? '#fff' : '#1a1a24',
+        padding: "32px",
         borderRadius: "16px",
         width: "90%",
-        maxWidth: "440px",
-        boxShadow: isDarkMode
-          ? "0 20px 60px rgba(255,255,255,0.1)"
-          : "0 20px 60px rgba(0,0,0,0.3)",
-        display: "flex",
-        flexDirection: "column",
-        gap: "16px",
-        border: `1px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+        maxWidth: "480px",
+        boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
+        position: "relative",
       }}
     >
-      <h2 style={{ margin: 0, fontSize: "20px", fontWeight: "700", textAlign: "center" }}>
+      {/* Debug banner so you know it's really the edit modal */}
+      <div style={{
+        background: "#fef3c7",
+        color: "#92400e",
+        padding: "8px 12px",
+        borderRadius: "8px",
+        marginBottom: "16px",
+        fontWeight: "bold",
+        textAlign: "center"
+      }}>
+        
+      </div>
+
+      <h2 style={{ margin: "0 0 24px 0", textAlign: "center" }}>
         Edit Task Type
       </h2>
 
-     <label htmlFor="editTaskTypeName" style={{ fontWeight: "600" }}>
-  Task Type Name
-</label>
+      <input
+        type="text"
+        value={editTaskTypeName}
+        onChange={(e) => setEditTaskTypeName(e.target.value)}
+        placeholder="Task type name"
+        autoFocus
+        style={{
+          width: "100%",
+          padding: "12px 16px",
+          fontSize: "16px",
+          borderRadius: "10px",
+          border: `2px solid ${isDarkMode ? '#555' : '#d1d5db'}`,
+          backgroundColor: isDarkMode ? '#2a2a2a' : '#f9fafb',
+          color: isDarkMode ? '#fff' : '#111827',
+          marginBottom: "24px",
+        }}
+      />
 
-<input
-  id="editTaskTypeName"
-  name="editTaskTypeName"
-  type="text"
-  value={editTaskTypeName}
-  onChange={(e) => setEditTaskTypeName(e.target.value)}
-  placeholder="Enter new name"
-  autoFocus
-  style={{
-    padding: "12px 14px",
-    fontSize: "14px",
-    borderRadius: "10px",
-    border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
-    backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
-    color: isDarkMode ? "#fff" : "#1a1a24",
-    width: "100%",
-    boxSizing: "border-box",
-    outline: "none",
-  }}
-/>
-
-
-      <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+      <div style={{ display: "flex", gap: "16px" }}>
         <button
           onClick={updateTaskType}
-          disabled={updatingTaskType}
+          disabled={updatingTaskType || !editTaskTypeName.trim()}
           style={{
-            padding: "10px 20px",
-            backgroundColor: isDarkMode ? "#fff" : "#000",
-            color: isDarkMode ? "#000" : "#fff",
-            fontWeight: "600",
+            flex: 1,
+            padding: "12px",
+            backgroundColor: "#2563eb",
+            color: "white",
             borderRadius: "10px",
             border: "none",
+            fontWeight: "600",
             cursor: updatingTaskType ? "not-allowed" : "pointer",
-            fontSize: "14px",
             opacity: updatingTaskType ? 0.7 : 1,
-            flex: 1,
           }}
         >
-          {updatingTaskType ? "Saving..." : "Save"}
+          {updatingTaskType ? "Saving..." : "Save Changes"}
         </button>
 
         <button
-          onClick={() => setIsEditTypeModalOpen(false)}
+          onClick={() => {
+            setIsEditTypeModalOpen(false);
+            setEditTaskTypeName("");
+          }}
           style={{
-            padding: "10px 20px",
-            backgroundColor: isDarkMode ? "#2d2d2d" : "#e5e5e5",
-            color: isDarkMode ? "#fff" : "#1a1a24",
-            fontWeight: "600",
-            borderRadius: "10px",
-            border: `1px solid ${isDarkMode ? "#444" : "transparent"}`,
-            cursor: "pointer",
-            fontSize: "14px",
             flex: 1,
+            padding: "12px",
+            backgroundColor: "#6b7280",
+            color: "white",
+            borderRadius: "10px",
+            border: "none",
+            fontWeight: "600",
+            cursor: "pointer",
           }}
         >
           Cancel
@@ -1486,10 +1443,9 @@ useEffect(() => {
   </div>
 )}
 
-            </div>
-          </div>
-        </div>
-      )}
+
+
+    
 
       <Modal isOpen={isModalOpen} onClose={handleClose} isDarkMode={isDarkMode}>
         <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleSubmit}>
@@ -1507,15 +1463,19 @@ useEffect(() => {
           </h3>
 
          <div>
-        <label style={{
-          display: 'block',
-          fontSize: '13px',
-          fontWeight: '600',
-          color: isDarkMode ? '#fff' : '#1a1a24',
-          marginBottom: '6px'
-        }}>
-          Task Type
-        </label>
+  <label style={{
+    display: 'block',
+    fontSize: '13px',
+    fontWeight: '600',
+    color: isDarkMode ? '#fff' : '#1a1a24',
+    marginBottom: '6px'
+  }}>
+    Task Type
+  </label>
+  
+<div style={{ color: "orange", fontSize: "13px", margin: "8px 0" }}>
+  
+</div>
 
   <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
     <select
@@ -1536,9 +1496,10 @@ useEffect(() => {
     >
       <option value="">Select a task type</option>
       {taskTypes.map((opt) => (
-        <option key={opt._id || opt.name} value={opt.name || opt}>
-          {opt.name || opt}
-        </option>
+        <option key={opt._id || opt.id} value={opt._id || opt.id}>
+  {opt.name}
+</option>
+
       ))}
     </select>
 
@@ -1546,30 +1507,63 @@ useEffect(() => {
     {isAdmin && (
       <div style={{ position: "relative" }}>
         <button
-          type="button"
-          onClick={() => {
-            const selected = taskTypes.find((t) => t.name === taskData.taskType);
-            if (!selected) {
-              toast.info("Select a task type first");
-              return;
-            }
-            setSelectedTypeToManage(selected);
-            setTypeMenuOpen(!typeMenuOpen);
-          }}
-          style={{
-            padding: "10px 14px",
-            borderRadius: "10px",
-            border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
-            backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
-            color: isDarkMode ? "#fff" : "#000",
-            fontWeight: "800",
-            cursor: "pointer",
-            fontSize: "18px",
-            lineHeight: "1",
-          }}
-        >
-          ;
-        </button>
+  type="button"
+  onClick={() => {
+  if (!taskData.taskType) {
+    toast.info("Please select a task type first");
+    return;
+  }
+
+  const selectedValue = taskData.taskType.trim();
+
+console.log("Looking for task type with value:", selectedValue);
+console.log("All available taskTypes:", taskTypes.map(t => ({
+  id: t._id || t.id,
+  name: t.name
+})));
+
+  console.log("Selected value from form:", selectedValue);
+
+  // Try to find by ID first (normal case)
+  let selected = taskTypes.find(t => 
+    String(t._id || t.id) === selectedValue
+  );
+
+  // Fallback: if no match by ID, maybe it's storing the name by mistake
+  if (!selected) {
+    console.warn("No match by ID — trying to match by name");
+    selected = taskTypes.find(t => t.name === selectedValue);
+  }
+
+  if (!selected) {
+    console.error("Still no match for:", selectedValue);
+    console.log("Available types:", taskTypes);
+    toast.error("Cannot find the selected task type");
+    return;
+  }
+
+  console.log("Found task type to manage:", {
+    id: selected._id || selected.id,
+    name: selected.name
+  });
+
+  setSelectedTypeToManage(selected);
+  setTypeMenuOpen(true);
+}}
+  style={{
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+    backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
+    color: isDarkMode ? "#fff" : "#000",
+    fontWeight: "800",
+    cursor: "pointer",
+    fontSize: "18px",
+    lineHeight: "1",
+  }}
+>
+  ;
+</button>
 
         {/* Popup menu */}
         {typeMenuOpen && selectedTypeToManage && (
@@ -1589,49 +1583,74 @@ useEffect(() => {
               overflow: "hidden",
             }}
           >
-            <button
-              type="button"
-              onClick={() => {
-                setEditTaskTypeName(selectedTypeToManage.name);
-                setIsEditTypeModalOpen(true);
-              }}
-              style={{
-                width: "100%",
-                padding: "12px",
-                border: "none",
-                background: "transparent",
-                cursor: "pointer",
-                textAlign: "left",
-                fontWeight: "600",
-                color: isDarkMode ? "#fff" : "#000",
-              }}
-            >
-              Edit
-            </button>
+           <button
+  type="button"
+  onClick={() => {
+    if (!selectedTypeToManage) {
+      console.warn("No selectedTypeToManage when clicking Edit");
+      return;
+    }
 
-            <button
-              type="button"
-              onClick={deleteTaskType}
-              disabled={deletingTaskType}
-              style={{
-                width: "100%",
-                padding: "12px",
-                border: "none",
-                background: "transparent",
-                cursor: deletingTaskType ? "not-allowed" : "pointer",
-                textAlign: "left",
-                fontWeight: "700",
-                color: "#ef4444",
-              }}
-            >
-              {deletingTaskType ? "Deleting..." : "Delete"}
-            </button>
+    console.log("EDIT button clicked → opening edit modal");
+    console.log("Current selected name:", selectedTypeToManage.name);
+    console.log("Current selected ID:", selectedTypeToManage._id || selectedTypeToManage.id);
+
+    setEditTaskTypeName(selectedTypeToManage.name || "");
+    setIsEditTypeModalOpen(true);           // ← MUST be true here
+    setTypeMenuOpen(false);                 // close the small ; menu
+  }}
+  style={{
+    width: "100%",
+    padding: "12px",
+    border: "none",
+    background: "transparent",
+    cursor: "pointer",
+    textAlign: "left",
+    fontWeight: "600",
+    color: isDarkMode ? "#fff" : "#000",
+  }}
+>
+  Edit
+</button>
+
+           <button
+  type="button"
+  onClick={() => {
+    console.log("Delete button clicked → current selectedTypeToManage:", selectedTypeToManage);
+
+    const id = selectedTypeToManage?._id || selectedTypeToManage?.id;
+    if (!id) {
+      toast.error("Cannot delete — missing task type ID");
+      console.warn("No valid ID found in selectedTypeToManage", selectedTypeToManage);
+      return;
+    }
+
+    console.log("Proceeding to delete with ID:", id);
+    deleteTaskType(id);
+  }}
+  disabled={deletingTaskType || !selectedTypeToManage}
+  style={{
+    width: "100%",
+    padding: "12px",
+    border: "none",
+    background: "transparent",
+    cursor: deletingTaskType ? "not-allowed" : "pointer",
+    textAlign: "left",
+    fontWeight: "700",
+    color: "#ef4444",
+  }}
+>
+  {deletingTaskType ? "Deleting..." : "Delete"}
+</button>
+            
           </div>
         )}
       </div>
     )}
   </div>
 </div>
+
+
 
 
           <div style={{ position: 'relative' }}>
@@ -1758,6 +1777,7 @@ useEffect(() => {
                   ? "Leader name (read-only)"
                   : "Enter name to assign task"
               }
+              
             />
             {assignedResults.length > 0 && !(selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task) && (
               <ul
@@ -1906,6 +1926,98 @@ useEffect(() => {
           </div>
         </form>
       </Modal>
+
+{isAddTypeModalOpen && (
+  <div
+    style={{
+      position: "fixed",
+      inset: 0,
+      backgroundColor: "rgba(0,0,0,0.75)",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      zIndex: 2000, // high enough to be on top
+    }}
+  >
+    <div
+      style={{
+        backgroundColor: isDarkMode ? "#1e1e1e" : "#ffffff",
+        color: isDarkMode ? "#ffffff" : "#1a1a24",
+        padding: "32px",
+        borderRadius: "16px",
+        width: "90%",
+        maxWidth: "480px",
+        boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
+        position: "relative",
+      }}
+    >
+      <h2 style={{ margin: "0 0 24px 0", textAlign: "center", fontSize: "24px" }}>
+        Add New Task Type
+      </h2>
+
+      <input
+        type="text"
+        value={newTaskTypeName}
+        onChange={(e) => setNewTaskTypeName(e.target.value)}
+        placeholder="Enter task type name"
+        autoFocus
+        style={{
+          width: "100%",
+          padding: "14px 16px",
+          fontSize: "16px",
+          borderRadius: "10px",
+          border: `2px solid ${isDarkMode ? "#555" : "#d1d5db"}`,
+          backgroundColor: isDarkMode ? "#2a2a2a" : "#f9fafb",
+          color: isDarkMode ? "#fff" : "#111827",
+          marginBottom: "24px",
+          outline: "none",
+        }}
+      />
+
+      <div style={{ display: "flex", gap: "16px" }}>
+        <button
+          onClick={createTaskType}
+          disabled={addingTaskType || !newTaskTypeName.trim()}
+          style={{
+            flex: 1,
+            padding: "14px",
+            backgroundColor: "#2563eb",
+            color: "white",
+            borderRadius: "10px",
+            border: "none",
+            fontWeight: "600",
+            fontSize: "16px",
+            cursor: addingTaskType ? "not-allowed" : "pointer",
+            opacity: addingTaskType ? 0.7 : 1,
+          }}
+        >
+          {addingTaskType ? "Adding..." : "Add"}
+        </button>
+
+        <button
+          onClick={() => {
+            setIsAddTypeModalOpen(false);
+            setNewTaskTypeName("");
+          }}
+          style={{
+            flex: 1,
+            padding: "14px",
+            backgroundColor: "#6b7280",
+            color: "white",
+            borderRadius: "10px",
+            border: "none",
+            fontWeight: "600",
+            fontSize: "16px",
+            cursor: "pointer",
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+)}
+
       <ToastContainer
         position="top-right"
         autoClose={3000}
