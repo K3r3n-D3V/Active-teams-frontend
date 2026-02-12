@@ -9,12 +9,10 @@ import {
   Typography,
   useTheme,
   IconButton,
-  Card,
-  CardContent,
+  Alert,
 } from "@mui/material";
-import CloseIcon from '@mui/icons-material/Close';
-import CategoryIcon from '@mui/icons-material/Category';
-import DescriptionIcon from '@mui/icons-material/Description';
+import CloseIcon from "@mui/icons-material/Close";
+import CategoryIcon from "@mui/icons-material/Category";
 
 const EventTypesModal = ({
   open,
@@ -25,49 +23,19 @@ const EventTypesModal = ({
 }) => {
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
+
   const [formData, setFormData] = useState({
     name: "",
-    isTicketed: false,
-    isGlobal: false,
-    hasPersonSteps: false,
     description: "",
+    isTicketed: false,
+    isTraining: false,  
+    isGlobal: false,
   });
 
   const [errors, setErrors] = useState({});
   const nameInputRef = useRef(null);
   const isDarkMode = theme.palette.mode === "dark";
-
-  const darkModeStyles = {
-    modalBg: isDarkMode ? theme.palette.background.paper : "#fff",
-    modalBorder: isDarkMode ? `1px solid ${theme.palette.divider}` : "1px solid rgba(0,0,0,0.08)",
-    headerBg: isDarkMode ? theme.palette.background.default : "#f8f9fa",
-    headerColor: theme.palette.text.primary,
-    textColor: theme.palette.text.primary,
-    input: {
-      "& .MuiOutlinedInput-root": {
-        bgcolor: isDarkMode ? "#272727" : "#fff",
-        color: theme.palette.text.primary,
-        "& fieldset": {
-          borderColor: isDarkMode ? theme.palette.divider : "rgba(0,0,0,0.23)",
-        },
-        "&:hover fieldset": {
-          borderColor: theme.palette.primary.main,
-        },
-        "&.Mui-focused fieldset": {
-          borderColor: theme.palette.primary.main,
-        },
-      },
-      "& .MuiFormHelperText-root": {
-        color: isDarkMode ? theme.palette.text.secondary : "rgba(0,0,0,0.6)",
-      },
-      "& .MuiInputLabel-root": {
-        color: isDarkMode ? theme.palette.text.secondary : "rgba(0,0,0,0.6)",
-      },
-    },
-    formControlLabel: {
-      color: theme.palette.text.primary,
-    },
-  };
+  console.log("Selected Event Type in Modal:", isDarkMode);
 
   useEffect(() => {
     if (open && selectedEventType) {
@@ -75,8 +43,10 @@ const EventTypesModal = ({
         name: selectedEventType.name || "",
         description: selectedEventType.description || "",
         isTicketed: !!selectedEventType.isTicketed,
-        isGlobal: !!selectedEventType.isGlobal,
-        hasPersonSteps: !!selectedEventType.hasPersonSteps,
+        isTraining: !!selectedEventType.isTraining, 
+        isGlobal: typeof selectedEventType.isGlobal === "boolean"
+          ? selectedEventType.isGlobal
+          : false,
       });
     } else if (open && !selectedEventType) {
       resetForm();
@@ -85,85 +55,43 @@ const EventTypesModal = ({
 
   useEffect(() => {
     if (open && nameInputRef.current) {
-      setTimeout(() => {
-        if (nameInputRef.current) {
-          nameInputRef.current.focus();
-        }
-      }, 100);
+      setTimeout(() => nameInputRef.current?.focus(), 100);
     }
   }, [open]);
+
+  const resetForm = () => {
+    setFormData({
+      name: "",
+      description: "",
+      isTicketed: false,
+      isTraining: false,  
+      isGlobal: false,
+    });
+    setErrors({});
+  };
+
+  const handleCheckboxChange = (name) => (event) => {
+    setFormData((prev) => ({ ...prev, [name]: event.target.checked }));
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+  };
 
   const validateForm = () => {
     const newErrors = {};
 
     if (!formData.name.trim()) {
       newErrors.name = "Event Type Name is required";
-    } else if (formData.name.trim().length < 2) {
-      newErrors.name = "Event Type Name must be at least 2 characters";
-    } else if (formData.name.trim().length > 50) {
-      newErrors.name = "Event Type Name must be less than 50 characters";
     }
 
     if (!formData.description.trim()) {
       newErrors.description = "Event description is required";
-    } else if (formData.description.trim().length < 10) {
-      newErrors.description = "Description must be at least 10 characters";
-    } else if (formData.description.trim().length > 500) {
-      newErrors.description = "Description must be less than 500 characters";
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  };
-
- const handleCheckboxChange = (name) => (event) => {
-  const { checked } = event.target;
-  
-  setFormData((prev) => {
-    const newData = { ...prev, [name]: checked };
-    
-    if (name === "isGlobal" && checked) {
-      newData.hasPersonSteps = false;
-    } else if (name === "hasPersonSteps" && checked) {
-      newData.isGlobal = false;
-    }
-    
-    return newData;
-  });
-
-  if (errors[name]) {
-    setErrors((prev) => ({ ...prev, [name]: "" }));
-  }
-};
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-
-    if (errors[name]) {
-      setErrors((prev) => ({ ...prev, [name]: "" }));
-    }
-  };
-
-  const nameCharCount = formData.name ? formData.name.length : 0;
-  const descCharCount = formData.description ? formData.description.length : 0;
-
-  const handleKeyPress = (e) => {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      if (!loading) handleSubmit();
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      isTicketed: false,
-      isGlobal: false,
-      hasPersonSteps: false,
-      description: "",
-    });
-    setErrors({});
   };
 
   const handleSubmit = async () => {
@@ -171,44 +99,36 @@ const EventTypesModal = ({
 
     setLoading(true);
     try {
-      const eventTypeName = formData.name.trim();
-      
       const eventTypeData = {
-        name: eventTypeName,
-        description: formData.description.trim(),
+        name: formData.name.trim().toLowerCase(),
+        eventTypeName: formData.name.trim().toLowerCase(),
+        description: formData.description.trim().toLowerCase(),
         isTicketed: formData.isTicketed,
+        isTraining: formData.isTraining,
         isGlobal: formData.isGlobal,
-        hasPersonSteps: formData.hasPersonSteps,
+        isEventType: true,
       };
 
       let result;
-      if (selectedEventType && (selectedEventType.name || selectedEventType._id)) {
-        result = await onSubmit(eventTypeData, selectedEventType._id || selectedEventType.name);
+      if (selectedEventType?._id) {
+        result = await onSubmit(eventTypeData, selectedEventType._id);
       } else {
         result = await onSubmit(eventTypeData);
       }
 
       if (setSelectedEventTypeObj) {
-        const completeEventType = {
+        setSelectedEventTypeObj({
           ...eventTypeData,
-          name: eventTypeName,
-          _id: selectedEventType?._id || result?._id || result?.id,
-        };
-        
-        setSelectedEventTypeObj(completeEventType);
+          _id: result?._id,
+        });
       }
 
       resetForm();
       onClose();
-      return result;
     } catch (error) {
-      if (error.response?.data?.detail) {
-        setErrors({ submit: error.response.data.detail });
-      } else {
-        setErrors({ submit: "Failed to save event type. Please try again." });
-      }
-      
-      throw error;
+      setErrors({
+        submit: error.response?.data?.detail || "Failed to save event type.",
+      });
     } finally {
       setLoading(false);
     }
@@ -217,222 +137,137 @@ const EventTypesModal = ({
   const handleClose = () => {
     if (loading) return;
     resetForm();
-    
-    if (typeof onClose === "function") onClose();
+    onClose?.();
   };
 
   return (
-    <Modal
-      open={open}
-      onClose={handleClose}
-      sx={{
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: "20px",
-      }}
-    >
+    <Modal open={open} onClose={handleClose}>
       <Box
         sx={{
-          width: { xs: "95%", sm: "85%", md: "600px" },
-          maxWidth: "600px",
-          bgcolor: darkModeStyles.modalBg,
-          color: darkModeStyles.textColor,
+          width: "600px",
+          bgcolor: "background.paper",
           borderRadius: 2,
-          boxShadow: theme.shadows[10],
-          overflow: "hidden",
-          maxHeight: "90vh",
-          display: "flex",
-          flexDirection: "column",
-          border: darkModeStyles.modalBorder,
+          mx: "auto",
+          my: "10vh",
         }}
       >
-        {/* Header */}
-        <Box
-          sx={{
-            backgroundColor: darkModeStyles.headerBg,
-            color: darkModeStyles.headerColor,
-            padding: { xs: "16px 20px", sm: "20px 24px" },
-            display: "flex",
-            alignItems: "center",
-            gap: 2,
-            borderBottom: `1px solid ${theme.palette.divider}`,
-          }}
-        >
+        <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 2 }}>
           <CategoryIcon color="primary" />
-          <Box sx={{ flex: 1 }}>
-            <Typography variant="h5" component="h2" sx={{ fontWeight: "600", fontSize: "1.25rem" }}>
-              {selectedEventType ? "Edit Event Type" : "Create Event Type"}
-            </Typography>
-            <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-              {selectedEventType ? "Update existing event type details" : "Define a new type of event"}
-            </Typography>
-          </Box>
-          <IconButton
-            onClick={handleClose}
-            disabled={loading}
-            sx={{
-              color: 'text.secondary',
-              '&:hover': {
-                backgroundColor: 'action.hover',
-              },
-            }}
-          >
+          <Typography variant="h6" sx={{ flex: 1 }}>
+            {selectedEventType ? "Edit Event Type" : "Create Event Type"}
+          </Typography>
+          <IconButton onClick={handleClose}>
             <CloseIcon />
           </IconButton>
         </Box>
 
-        {/* Content */}
-        <Box sx={{ p: 3, flex: 1, overflow: 'auto' }}>
-          <Card variant="outlined" sx={{ mb: 3 }}>
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: "600", mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                <CategoryIcon fontSize="small" />
-                Basic Information
-              </Typography>
-              
-              <TextField
-                inputRef={nameInputRef}
-                label="Event Type Name"
-                name="name"
-                fullWidth
-                value={formData.name}
-                onChange={handleInputChange}
-                onKeyPress={handleKeyPress}
-                error={!!errors.name}
-                helperText={
-                  errors.name || 
-                  `${nameCharCount}/50 characters` +
-                  (nameCharCount > 45 ? " (approaching limit)" : "")
+        <Box sx={{ p: 3 }}>
+          <TextField
+            inputRef={nameInputRef}
+            label="Event Type Name"
+            name="name"
+            fullWidth
+            value={formData.name}
+            onChange={handleInputChange}
+            sx={{ mb: 2 }}
+            error={!!errors.name}
+            helperText={errors.name}
+          />
+
+          <TextField
+            label="Event Description"
+            name="description"
+            fullWidth
+            multiline
+            rows={3}
+            value={formData.description}
+            onChange={handleInputChange}
+            sx={{ mb: 3 }}
+            error={!!errors.description}
+            helperText={errors.description}
+          />
+
+          {/* Visibility Settings */}
+          <Box sx={{ mb: 3, p: 2, bgcolor: "rgba(0,0,0,0.02)", borderRadius: 1 }}>
+
+            <Typography fontWeight={600} sx={{ mb: 2 }}>
+
+              isGlobal Event            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.isGlobal === true}
+                    onChange={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        isGlobal: true,
+                      }))
+                    }
+                  />
                 }
-                placeholder="e.g., Cell Group, Conference, Workshop, Training"
-                disabled={loading}
-                sx={{ mb: 3, ...darkModeStyles.input }}
+                label="True"
               />
 
-              <TextField
-                label="Event Description"
-                name="description"
-                fullWidth
-                multiline
-                rows={3}
-                value={formData.description}
-                onChange={handleInputChange}
-                error={!!errors.description}
-                helperText={
-                  errors.description || 
-                  `${descCharCount}/500 characters` +
-                  (descCharCount > 450 ? " (approaching limit)" : "")
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.isGlobal === false}
+                    onChange={() =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        isGlobal: false,
+                      }))
+                    }
+                  />
                 }
-                placeholder="Describe the purpose and characteristics of this event type..."
-                disabled={loading}
-                sx={{ ...darkModeStyles.input }}
+                label="False"
               />
-            </CardContent>
-          </Card>
+            </Box>
+          </Box>
 
-          <Card variant="outlined">
-            <CardContent sx={{ p: 3 }}>
-              <Typography variant="h6" sx={{ fontWeight: "600", mb: 2 }}>
-                Event Type Settings
-              </Typography>
+          {/* Form Type Settings */}
+          <Box sx={{ mb: 3, p: 2, bgcolor: "rgba(0,123,255,0.05)", borderRadius: 1 }}>
+            <Typography fontWeight={600} sx={{ mb: 2 }}>
+              Type Settings:
+            </Typography>
 
-              <Box
-                sx={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 2,
-                }}
-              >
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      name="isTicketed"
-                      checked={formData.isTicketed}
-                      onChange={handleCheckboxChange("isTicketed")}
-                      color="primary"
-                      disabled={loading}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="subtitle1" fontWeight="500">
-                        Ticketed Event
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.isTicketed}
+                  onChange={handleCheckboxChange("isTicketed")}
                 />
+              }
+              label="Ticketed Event"
+              sx={{ mb: 2, display: 'block' }}
+            />
 
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      name="isGlobal"
-                      checked={formData.isGlobal}
-                      onChange={handleCheckboxChange("isGlobal")}
-                      color="primary"
-                      disabled={loading}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="subtitle1" fontWeight="500">
-                        Global Event
-                      </Typography>
-                     
-                    </Box>
-                  }
-                  sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
+            {/* ADDED TRAINING CHECKBOX */}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={formData.isTraining}
+                  onChange={handleCheckboxChange("isTraining")}
                 />
+              }
+              label="Training Event"
+              sx={{ display: 'block' }}
+            />
+          </Box>
 
-                <FormControlLabel
-                  control={
-                    <Checkbox
-                      name="hasPersonSteps"
-                      checked={formData.hasPersonSteps}
-                      onChange={handleCheckboxChange("hasPersonSteps")}
-                      color="primary"
-                      disabled={loading}
-                    />
-                  }
-                  label={
-                    <Box>
-                      <Typography variant="subtitle1" fontWeight="500">
-                        Personal Steps Event
-                      </Typography>
-                    </Box>
-                  }
-                  sx={{ color: darkModeStyles.formControlLabel.color, alignItems: 'flex-start' }}
-                />
-              </Box>
+          {errors.submit && (
+            <Typography color="error" sx={{ mt: 2 }}>
+              {errors.submit}
+            </Typography>
+          )}
 
-              {errors.submit && (
-                <Typography variant="body2" sx={{ color: 'error.main', mt: 2 }}>
-                  {errors.submit}
-                </Typography>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Buttons */}
-          <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 2, mt: 4 }}>
-            <Button
-              variant="outlined"
-              onClick={handleClose}
-              disabled={loading}
-              sx={{ minWidth: '100px' }}
-            >
+          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 3 }}>
+            <Button onClick={handleClose} sx={{ mr: 2 }}>
               Cancel
             </Button>
-            <Button
-              variant="contained"
-              onClick={handleSubmit}
-              disabled={loading}
-              sx={{ minWidth: '120px' }}
-            >
-              {loading ? "Saving..." : selectedEventType ? "Update" : "Create"}
+            <Button variant="contained" onClick={handleSubmit}>
+              {loading ? "Saving..." : "Save"}
             </Button>
           </Box>
         </Box>
