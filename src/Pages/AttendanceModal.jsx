@@ -1326,23 +1326,108 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  const loadEventStatistics = async () => {
-    if (!event) return;
+const loadEventStatistics = async () => {
+  if (!event) return;
 
-    try {
-      const eventDate = event.date;
-      console.log(" Loading stats for:", eventDate);
+  try {
+    const eventDate = event.date;
+    console.log("Loading stats for:", eventDate);
+    console.log("Event data received:", event);
 
-      const attendanceData = event.attendance || {};
-      console.log(" Full attendance data structure:", attendanceData);
-      let weekAttendance = {};
+    // For non-cell events, the statistics might be directly on the event object
+    // or in the attendance_data/attendance object
+    
+    let weekAttendance = {};
+    let firstTimeCount = 0;
+    let recommitmentCount = 0;
+    let attendeesCount = 0;
+    let headcount = 0;
+    let totalAssociated = 0;
 
-      if (attendanceData.status === "complete") {
-        console.log(" Found completed data directly in attendance object");
-        weekAttendance = attendanceData;
+    // CASE 1: Check if event has direct statistics from events/eventsdata endpoint
+    if (event.checked_in_count !== undefined || event.total_headcounts !== undefined) {
+      console.log("Found direct statistics on event object");
+      
+      attendeesCount = event.checked_in_count || 0;
+      headcount = event.total_headcounts || 0;
+      totalAssociated = event.total_associated || persistentCommonAttendees.length || 0;
+      
+      // Get decisions if available
+      if (event.decisions) {
+        firstTimeCount = event.decisions.first_time || 0;
+        recommitmentCount = event.decisions.recommitment || 0;
+      }
+      
+      // Also get attendees if available
+      if (event.attendees && Array.isArray(event.attendees)) {
+        weekAttendance.attendees = event.attendees;
+        
+        // Count decisions from attendees
+        event.attendees.forEach(att => {
+          const decision = (att.decision || "").toLowerCase();
+          if (decision.includes("first")) {
+            firstTimeCount++;
+          } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+            recommitmentCount++;
+          }
+        });
+      }
+      
+      weekAttendance = {
+        status: "complete",
+        attendees: event.attendees || [],
+        total_headcounts: headcount,
+        checked_in_count: attendeesCount,
+        statistics: {
+          total_associated: totalAssociated,
+          weekly_attendance: attendeesCount,
+          total_headcounts: headcount,
+          decisions: {
+            first_time: firstTimeCount,
+            recommitment: recommitmentCount,
+            total: firstTimeCount + recommitmentCount
+          }
+        }
+      };
+    }
+    // CASE 2: Check if event has attendance_data object
+    else if (event.attendance_data) {
+      console.log("Found attendance_data on event object");
+      weekAttendance = event.attendance_data;
+      
+      if (weekAttendance.statistics) {
+        attendeesCount = weekAttendance.statistics.weekly_attendance || 0;
+        headcount = weekAttendance.statistics.total_headcounts || 0;
+        firstTimeCount = weekAttendance.statistics.decisions?.first_time || 0;
+        recommitmentCount = weekAttendance.statistics.decisions?.recommitment || 0;
+        totalAssociated = weekAttendance.statistics.total_associated || persistentCommonAttendees.length;
       } else {
-        console.log(" Searching for date key in attendance data...");
-
+        attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
+        headcount = weekAttendance.total_headcounts || 0;
+        totalAssociated = persistentCommonAttendees.length;
+        
+        // Count decisions from attendees
+        if (weekAttendance.attendees) {
+          weekAttendance.attendees.forEach(att => {
+            const decision = (att.decision || "").toLowerCase();
+            if (decision.includes("first")) {
+              firstTimeCount++;
+            } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+              recommitmentCount++;
+            }
+          });
+        }
+      }
+    }
+    // CASE 3: Check standard attendance object by date
+    else {
+      const attendanceData = event.attendance || {};
+      
+      // Try to find attendance for this date
+      if (attendanceData.status === "complete") {
+        weekAttendance = attendanceData;
+        console.log("Found completed data directly in attendance object");
+      } else {
         // Try all possible date formats
         const possibleKeys = Object.keys(attendanceData).filter(key =>
           typeof attendanceData[key] === 'object' && attendanceData[key] !== null
@@ -1353,83 +1438,80 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         // Try to match the date in any format
         for (const key of possibleKeys) {
           const data = attendanceData[key];
-
-          // Check if this looks like week data
+          
+          // Check if this matches our event date
           if (data && (data.status === "complete" || data.attendees || data.total_headcounts)) {
-            console.log(` Checking key "${key}":`, {
-              status: data.status,
-              attendees: data.attendees?.length || 0
-            });
-
-            if (data.status === "complete") {
+            const entryDate = data.event_date_iso || data.event_date_exact;
+            
+            if (entryDate === eventDate || key === eventDate || eventDate.includes(key) || key.includes(eventDate)) {
               weekAttendance = data;
-              console.log(` Using completed week from key: "${key}"`);
+              console.log(`Using completed week from key: "${key}"`);
               break;
             }
           }
         }
       }
-
-      console.log(" Final week attendance data:", {
-        status: weekAttendance?.status,
-        attendeesCount: weekAttendance?.attendees?.length || 0,
-        headcount: weekAttendance?.total_headcounts || 0
-      });
-
-      const isCompleted = weekAttendance?.status === "complete";
-
-      if (isCompleted) {
-        const attendees = weekAttendance.attendees || [];
-        console.log(" Loading COMPLETED week with", attendees.length, "attendees");
-
-        let firstTimeCount = 0;
-        let recommitmentCount = 0;
-
-        attendees.forEach(att => {
-          const decision = (att.decision || "").toLowerCase();
-          if (decision.includes("first")) {
-            firstTimeCount++;
-          } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
-            recommitmentCount++;
-          }
-        });
-
-        setEventStatistics({
-          totalAssociated: persistentCommonAttendees.length,
-          lastAttendanceCount: attendees.length,
-          lastHeadcount: weekAttendance.total_headcounts || 0,
-          lastDecisionsCount: firstTimeCount + recommitmentCount,
-          lastAttendanceBreakdown: {
-            first_time: firstTimeCount,
-            recommitment: recommitmentCount
-          }
-        });
-
-        if (weekAttendance.total_headcounts > 0) {
-          setManualHeadcount(weekAttendance.total_headcounts.toString());
-        } else {
-          setManualHeadcount("0");
+      
+      // Extract statistics from weekAttendance
+      if (weekAttendance.status === "complete") {
+        const stats = weekAttendance.statistics || {};
+        attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
+        headcount = weekAttendance.total_headcounts || 0;
+        firstTimeCount = stats.decisions?.first_time || 0;
+        recommitmentCount = stats.decisions?.recommitment || 0;
+        totalAssociated = stats.total_associated || persistentCommonAttendees.length;
+        
+        // If statistics not available, count from attendees
+        if (firstTimeCount === 0 && recommitmentCount === 0 && weekAttendance.attendees) {
+          weekAttendance.attendees.forEach(att => {
+            const decision = (att.decision || "").toLowerCase();
+            if (decision.includes("first")) {
+              firstTimeCount++;
+            } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+              recommitmentCount++;
+            }
+          });
         }
-
       } else {
-        // For INCOMPLETE weeks or no data found
-        console.log(" No completed week data found, showing zeros");
-        setEventStatistics({
-          totalAssociated: persistentCommonAttendees.length,
-          lastAttendanceCount: 0,
-          lastHeadcount: 0,
-          lastDecisionsCount: 0,
-          lastAttendanceBreakdown: {
-            first_time: 0,
-            recommitment: 0
-          }
-        });
-        setManualHeadcount("0");
+        // No completed data found
+        totalAssociated = persistentCommonAttendees.length;
       }
-    } catch (error) {
-      console.error("Error loading event statistics:", error);
     }
-  };
+
+    console.log("Final statistics:", {
+      attendeesCount,
+      headcount,
+      firstTimeCount,
+      recommitmentCount,
+      totalAssociated
+    });
+
+    // Update event statistics state
+    setEventStatistics({
+      totalAssociated: totalAssociated,
+      lastAttendanceCount: attendeesCount,
+      lastHeadcount: headcount,
+      lastDecisionsCount: firstTimeCount + recommitmentCount,
+      lastAttendanceBreakdown: {
+        first_time: firstTimeCount,
+        recommitment: recommitmentCount
+      }
+    });
+
+    // Update manual headcount
+    if (headcount > 0) {
+      setManualHeadcount(headcount.toString());
+    } else {
+      setManualHeadcount("0");
+    }
+
+    // Also store the weekAttendance data for potential other uses
+    window.__lastLoadedAttendance = weekAttendance;
+
+  } catch (error) {
+    console.error("Error loading event statistics:", error);
+  }
+};
 
   const formatDateToISO = (dateString) => {
     try {
@@ -1446,109 +1528,168 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  const loadWeeklyCheckins = () => {
-    if (!event) {
-      setCheckedIn({});
-      setManualHeadcount("0");
-      setDidNotMeet(false);
-      return;
-    }
-
-    // Reset all states
+const loadWeeklyCheckins = () => {
+  if (!event) {
     setCheckedIn({});
-    setDecisions({});
-    setDecisionTypes({});
-    setPriceTiers({});
-    setPaymentMethods({});
-    setPaidAmounts({});
     setManualHeadcount("0");
     setDidNotMeet(false);
+    return;
+  }
 
-    const attendanceData = event.attendance || {};
-    console.log(" Loading checkins from:", attendanceData);
+  // Reset all states
+  setCheckedIn({});
+  setDecisions({});
+  setDecisionTypes({});
+  setPriceTiers({});
+  setPaymentMethods({});
+  setPaidAmounts({});
+  setManualHeadcount("0");
+  setDidNotMeet(false);
 
-    // Find completed week data
-    let weekAttendance = {};
+  if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
+    console.log("Loading checkins from direct event.attendees:", event.attendees.length);
+    
+    const newCheckedIn = {};
+    const newDecisions = {};
+    const newDecisionTypes = {};
 
-    if (attendanceData.status === "complete") {
-      weekAttendance = attendanceData;
-      console.log(" Found checkin data directly");
-    } else {
-      // Look for completed week in object keys
-      const possibleKeys = Object.keys(attendanceData).filter(key =>
-        typeof attendanceData[key] === 'object'
-      );
-
-      for (const key of possibleKeys) {
-        const data = attendanceData[key];
-        if (data && data.status === "complete") {
-          weekAttendance = data;
-          console.log(` Found checkins in key: "${key}"`);
-          break;
+    event.attendees.forEach(att => {
+      if (att.id) {
+        newCheckedIn[att.id] = true;
+        
+        if (att.decision) {
+          newDecisions[att.id] = true;
+          newDecisionTypes[att.id] = att.decision;
         }
       }
+    });
+
+    setCheckedIn(newCheckedIn);
+    setDecisions(newDecisions);
+    setDecisionTypes(newDecisionTypes);
+    
+    if (event.total_headcounts) {
+      setManualHeadcount(event.total_headcounts.toString());
     }
+    
+    return;
+  }
 
-    const isCompleted = weekAttendance?.status === "complete";
+  // CASE 2: Check if event has attendance_data
+  if (event.attendance_data && event.attendance_data.attendees) {
+    console.log("Loading checkins from event.attendance_data");
+    
+    const newCheckedIn = {};
+    const newDecisions = {};
+    const newDecisionTypes = {};
 
-    if (isCompleted) {
-      console.log(" Loading completed week checkins");
+    event.attendance_data.attendees.forEach(att => {
+      if (att.id) {
+        newCheckedIn[att.id] = true;
+        
+        if (att.decision) {
+          newDecisions[att.id] = true;
+          newDecisionTypes[att.id] = att.decision;
+        }
+      }
+    });
 
-      const attendees = weekAttendance.attendees || [];
+    setCheckedIn(newCheckedIn);
+    setDecisions(newDecisions);
+    setDecisionTypes(newDecisionTypes);
+    
+    if (event.attendance_data.total_headcounts) {
+      setManualHeadcount(event.attendance_data.total_headcounts.toString());
+    }
+    
+    return;
+  }
 
-      if (attendees.length > 0) {
-        const newCheckedIn = {};
-        const newDecisions = {};
-        const newDecisionTypes = {};
-        const newPriceTiers = {};
-        const newPaymentMethods = {};
-        const newPaidAmounts = {};
+  // CASE 3: Original logic - try to find from attendance object
+  const attendanceData = event.attendance || {};
+  console.log("Loading checkins from attendance:", attendanceData);
 
-        attendees.forEach(att => {
-          if (att.id) {
-            newCheckedIn[att.id] = true;
+  // Find completed week data
+  let weekAttendance = {};
 
-            if (att.decision) {
-              newDecisions[att.id] = true;
-              newDecisionTypes[att.id] = att.decision;
+  if (attendanceData.status === "complete") {
+    weekAttendance = attendanceData;
+    console.log("Found checkin data directly");
+  } else {
+    // Look for completed week in object keys
+    const possibleKeys = Object.keys(attendanceData).filter(key =>
+      typeof attendanceData[key] === 'object'
+    );
+
+    for (const key of possibleKeys) {
+      const data = attendanceData[key];
+      if (data && data.status === "complete") {
+        weekAttendance = data;
+        console.log(`Found checkins in key: "${key}"`);
+        break;
+      }
+    }
+  }
+
+  const isCompleted = weekAttendance?.status === "complete";
+
+  if (isCompleted) {
+    console.log("Loading completed week checkins");
+
+    const attendees = weekAttendance.attendees || [];
+
+    if (attendees.length > 0) {
+      const newCheckedIn = {};
+      const newDecisions = {};
+      const newDecisionTypes = {};
+      const newPriceTiers = {};
+      const newPaymentMethods = {};
+      const newPaidAmounts = {};
+
+      attendees.forEach(att => {
+        if (att.id) {
+          newCheckedIn[att.id] = true;
+
+          if (att.decision) {
+            newDecisions[att.id] = true;
+            newDecisionTypes[att.id] = att.decision;
+          }
+
+          if (isTicketedEvent) {
+            if (att.priceTier || att.price) {
+              newPriceTiers[att.id] = {
+                name: att.priceTier || "",
+                price: att.price || 0,
+                ageGroup: att.ageGroup || "",
+                memberType: att.memberType || ""
+              };
             }
-
-            if (isTicketedEvent) {
-              if (att.priceTier || att.price) {
-                newPriceTiers[att.id] = {
-                  name: att.priceTier || "",
-                  price: att.price || 0,
-                  ageGroup: att.ageGroup || "",
-                  memberType: att.memberType || ""
-                };
-              }
-              if (att.paymentMethod) {
-                newPaymentMethods[att.id] = att.paymentMethod;
-              }
-              if (att.paid !== undefined) {
-                newPaidAmounts[att.id] = att.paid;
-              }
+            if (att.paymentMethod) {
+              newPaymentMethods[att.id] = att.paymentMethod;
+            }
+            if (att.paid !== undefined) {
+              newPaidAmounts[att.id] = att.paid;
             }
           }
-        });
+        }
+      });
 
-        console.log("👥 Setting", attendees.length, "checkins");
-        setCheckedIn(newCheckedIn);
-        setDecisions(newDecisions);
-        setDecisionTypes(newDecisionTypes);
-        setPriceTiers(newPriceTiers);
-        setPaymentMethods(newPaymentMethods);
-        setPaidAmounts(newPaidAmounts);
-      }
-
-      const headcount = weekAttendance.total_headcounts || 0;
-      setManualHeadcount(headcount.toString());
-
-    } else {
-      console.log(" No checkins to load");
+      console.log("👥 Setting", attendees.length, "checkins");
+      setCheckedIn(newCheckedIn);
+      setDecisions(newDecisions);
+      setDecisionTypes(newDecisionTypes);
+      setPriceTiers(newPriceTiers);
+      setPaymentMethods(newPaymentMethods);
+      setPaidAmounts(newPaidAmounts);
     }
-  };
 
+    const headcount = weekAttendance.total_headcounts || 0;
+    setManualHeadcount(headcount.toString());
+
+  } else {
+    console.log("No checkins to load");
+  }
+};
   const loadPersistentAttendees = async (eventId) => {
     try {
       const token = localStorage.getItem("token");
@@ -1915,7 +2056,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }));
     setOpenPaymentDropdown(null);
   };
-
   const handlePaidAmountChange = (id, value) => {
     const numValue = parseFloat(value) || 0;
     setPaidAmounts((prev) => ({
@@ -2045,61 +2185,65 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  const getAllCommonAttendees = () => {
-    const persistent = [...(persistentCommonAttendees || [])];
-    let savedAttendees = [];
+const getAllCommonAttendees = () => {
+  const persistent = [...(persistentCommonAttendees || [])];
+  let savedAttendees = [];
 
-    if (event?.attendance?.attendees?.length > 0) {
-      savedAttendees = event.attendance.attendees;
-    }
-    else if (event?.attendees?.length > 0) {
-      savedAttendees = event.attendees;
-    }
+  // Try multiple sources for saved attendees
+  if (event?.attendance?.attendees?.length > 0) {
+    savedAttendees = event.attendance.attendees;
+  }
+  else if (event?.attendance_data?.attendees?.length > 0) {
+    savedAttendees = event.attendance_data.attendees;
+  }
+  else if (event?.attendees?.length > 0) {
+    savedAttendees = event.attendees;
+  }
 
-    const combinedMap = new Map();
+  const combinedMap = new Map();
 
-    persistent.forEach(att => {
-      if (att && att.id) {
-        const attendeeId = att.id || att._id || "";
-        if (attendeeId) {
-          combinedMap.set(attendeeId, {
-            ...att,
-            id: attendeeId,
-            fullName: att.fullName || att.name || "Unknown Person",
-            email: att.email || "",
-            leader12: att.leader12 || "",
-            leader144: att.leader144 || "",
-            phone: att.phone || "",
-            isPersistent: true
-          });
-        }
+  persistent.forEach(att => {
+    if (att && att.id) {
+      const attendeeId = att.id || att._id || "";
+      if (attendeeId) {
+        combinedMap.set(attendeeId, {
+          ...att,
+          id: attendeeId,
+          fullName: att.fullName || att.name || "Unknown Person",
+          email: att.email || "",
+          leader12: att.leader12 || "",
+          leader144: att.leader144 || "",
+          phone: att.phone || "",
+          isPersistent: true
+        });
       }
-    });
+    }
+  });
 
-    savedAttendees.forEach(savedAtt => {
-      if (savedAtt && savedAtt.id) {
-        const attendeeId = savedAtt.id || savedAtt._id || "";
-        if (attendeeId) {
-          const existing = combinedMap.get(attendeeId) || {};
-          combinedMap.set(attendeeId, {
-            ...existing,
-            ...savedAtt,
-            id: attendeeId,
-            fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
-            email: savedAtt.email || existing.email || "",
-            leader12: savedAtt.leader12 || existing.leader12 || "",
-            leader144: savedAtt.leader144 || existing.leader144 || "",
-            phone: savedAtt.phone || existing.phone || "",
-            checked_in: savedAtt.checked_in !== false,
-            decision: savedAtt.decision || existing.decision || "",
-            isPersistent: existing.isPersistent || false
-          });
-        }
+  savedAttendees.forEach(savedAtt => {
+    if (savedAtt && savedAtt.id) {
+      const attendeeId = savedAtt.id || savedAtt._id || "";
+      if (attendeeId) {
+        const existing = combinedMap.get(attendeeId) || {};
+        combinedMap.set(attendeeId, {
+          ...existing,
+          ...savedAtt,
+          id: attendeeId,
+          fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
+          email: savedAtt.email || existing.email || "",
+          leader12: savedAtt.leader12 || existing.leader12 || "",
+          leader144: savedAtt.leader144 || existing.leader144 || "",
+          phone: savedAtt.phone || existing.phone || "",
+          checked_in: savedAtt.checked_in !== false,
+          decision: savedAtt.decision || existing.decision || "",
+          isPersistent: existing.isPersistent || false
+        });
       }
-    });
+    }
+  });
 
-    return Array.from(combinedMap.values());
-  };
+  return Array.from(combinedMap.values());
+};
 
   const attendeesCount = Object.keys(checkedIn).filter(
     (id) => checkedIn[id]
