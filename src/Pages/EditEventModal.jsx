@@ -657,6 +657,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     const fieldType = typeof value === 'object' && value !== null ? 'object' : typeof value;
     const fl = field.toLowerCase();
 
+    // Hide cell-specific fields for non-cell events
     if (!isCellEvent) {
       if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12') ||
         fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps') {
@@ -951,27 +952,30 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   if (!event) return null;
 
   const personFields = availableFields.filter(f => {
-    const basePersonFields = ['Leader', 'eventLeader', 'eventLeaderName', 'Email', 'eventLeaderEmail', 'email'];
-
+    const fl = f.toLowerCase();
+    
+    // For non-cell events, exclude cell-specific leader fields
     if (!isCellEvent) {
-      const fl = f.toLowerCase();
       if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12')) {
         return false;
       }
     }
 
+    const basePersonFields = ['Leader', 'eventLeader', 'eventLeaderName', 'Email', 'eventLeaderEmail', 'email'];
+    
     // For cell events, include all leader fields
     if (isCellEvent) {
       return [...basePersonFields, 'leader1', 'leader12', 'Leader at 12'].includes(f);
     }
 
+    // For non-cell events, only include base person fields
     return basePersonFields.includes(f);
   });
 
   const eventFields = availableFields.filter(f => {
     const fl = f.toLowerCase();
 
-    // ADDED: For non-cell events, exclude "has Personal steps"
+    // For non-cell events, exclude "has Personal steps"
     if (!isCellEvent && (fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps')) {
       return false;
     }
@@ -994,7 +998,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring',
       'data-recurring', 'is_recurring', 'isRecurring', 'is_overdue', 'isOverdue'];
 
-    // ADDED: For non-cell events, also skip these fields from "other fields"
+    // For non-cell events, also skip these fields from "other fields"
     if (!isCellEvent) {
       const fl = f.toLowerCase();
       if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12') ||
