@@ -158,19 +158,8 @@ const { notifyTaskUpdate } = useTaskUpdate();
     if (isLgDown) return lg;
     return xl;
   };
-// Add these after your existing state declarations
-const [removalModal, setRemovalModal] = useState({
-  open: false,
-  type: '', // 'new_person' or 'consolidation'
-  data: null,
-  validation: null,
-  isLoading: false
-});
 
-const [removeOptions, setRemoveOptions] = useState({
-  removeFromAttendees: true,
-  keepInAttendees: true
-});
+
 
 const [contextMenu, setContextMenu] = useState({
   mouseX: null,
@@ -388,35 +377,6 @@ const [contextMenu, setContextMenu] = useState({
   };
 // Add these functions after your other handler functions
 
-const handleRemoveNewPerson = async (person) => {
-  if (!currentEventId) {
-    toast.error("Please select an event first");
-    return;
-  }
-
-  try {
-    // First validate the removal
-    const validateResponse = await authFetch(
-      `${BASE_URL}/service-checkin/validate-removal?event_id=${currentEventId}&person_id=${person.id}`
-    );
-    
-    if (validateResponse.ok) {
-      const validation = await validateResponse.json();
-      
-      // Show the removal confirmation modal
-      setRemovalModal({
-        open: true,
-        type: 'new_person',
-        data: person,
-        validation: validation,
-        isLoading: false
-      });
-    }
-  } catch (error) {
-    console.error("Validation error:", error);
-    toast.error("Failed to validate removal");
-  }
-};
 
 const handleRemoveConsolidation = async (consolidation) => {
   if (!currentEventId) {
@@ -425,91 +385,52 @@ const handleRemoveConsolidation = async (consolidation) => {
   }
 
   try {
-    const validateResponse = await authFetch(
-      `${BASE_URL}/service-checkin/validate-removal?event_id=${currentEventId}&consolidation_id=${consolidation.id}`
+    setIsDeleting(true);
+    
+    const response = await authFetch(
+      `${BASE_URL}/service-checkin/remove-consolidation?event_id=${currentEventId}&consolidation_id=${consolidation.id}&keep_person_in_attendees=true`,
+      { method: 'DELETE' }
     );
     
-    if (validateResponse.ok) {
-      const validation = await validateResponse.json();
+    if (response.ok) {
+      const result = await response.json();
       
-      setRemovalModal({
-        open: true,
-        type: 'consolidation',
-        data: consolidation,
-        validation: validation,
-        isLoading: false
-      });
-    }
-  } catch (error) {
-    console.error("Validation error:", error);
-    toast.error("Failed to validate removal");
-  }
-};
-
-const confirmRemoval = async () => {
-  setRemovalModal(prev => ({ ...prev, isLoading: true }));
-  
-  try {
-    const { type, data } = removalModal;
-    
-    if (type === 'new_person') {
-      // ... existing new person removal code ...
-    } else if (type === 'consolidation') {
-      // Call backend to remove consolidation
-      const response = await authFetch(
-        `${BASE_URL}/service-checkin/remove-consolidation?event_id=${currentEventId}&consolidation_id=${data.id}&keep_person_in_attendees=${removeOptions.keepInAttendees}`,
-        { method: 'DELETE' }
-      );
-      
-      if (response.ok) {
-        const result = await response.json();
+      if (result.task_deletion?.deleted && result.task_deletion.count > 0) {
+        toast.success(`Consolidation removed and ${result.task_deletion.count} task(s) deleted`);
         
-        if (result.task_deletion?.deleted && result.task_deletion.count > 0) {
-          toast.success(`Consolidation removed and ${result.task_deletion.count} task(s) deleted`);
-          
-          // Trigger task update event for DailyTasks
-          if (notifyTaskUpdate) {
-            notifyTaskUpdate();
+        // Trigger task update event for DailyTasks
+        if (notifyTaskUpdate) {
+          notifyTaskUpdate();
+        }
+        
+        window.dispatchEvent(new CustomEvent('taskUpdated', { 
+          detail: { 
+            action: 'tasksDeleted',
+            count: result.task_deletion.count,
+            consolidationId: consolidation.id,
+            taskIds: result.task_deletion.task_ids
           }
-          
-          window.dispatchEvent(new CustomEvent('taskUpdated', { 
-            detail: { 
-              action: 'tasksDeleted',
-              count: result.task_deletion.count,
-              consolidationId: data.id,
-              taskIds: result.task_deletion.task_ids
-            }
-          }));
-          
-        } else {
-          toast.success(result.message || "Consolidation removed successfully");
-        }
+        }));
         
-        // Refresh the data
-        const freshData = await fetchRealTimeEventData(currentEventId);
-        if (freshData) {
-          setRealTimeData(freshData);
-        }
+      } else {
+        toast.success(result.message || "Consolidation removed successfully");
+      }
+      
+      // Refresh the data
+      const freshData = await fetchRealTimeEventData(currentEventId);
+      if (freshData) {
+        setRealTimeData(freshData);
       }
     }
   } catch (error) {
     console.error("Removal error:", error);
     toast.error("Failed to remove. Please try again.");
   } finally {
-    // Close the modal and reset
-    setRemovalModal({
-      open: false,
-      type: '',
-      data: null,
-      validation: null,
-      isLoading: false
-    });
-    setRemoveOptions({
-      removeFromAttendees: true,
-      keepInAttendees: true
-    });
+    setIsDeleting(false);
   }
 };
+
+
 // Context menu handlers
 const handleContextMenu = (event, person, type) => {
   event.preventDefault();
@@ -530,181 +451,8 @@ const handleCloseContextMenu = () => {
   });
 };
 
-// Replace the EnhancedRemovalConfirmation function with this:
-const EnhancedRemovalConfirmation = () => {
-  const { open, type, data, validation, isLoading } = removalModal;
-  
-  if (!open) return null;
-  
-  const personName = type === 'new_person' 
-    ? `${data?.name || ''} ${data?.surname || ''}`.trim()
-    : `${data?.person_name || ''} ${data?.person_surname || ''}`.trim();
-  
-  return (
-    <Dialog 
-      open={open} 
-      onClose={() => !isLoading && setRemovalModal(prev => ({ ...prev, open: false }))}
-      maxWidth="md"
-      fullWidth
-    >
-      <DialogTitle>
-        {type === 'new_person' ? 'Remove New Person' : 'Remove Consolidation'}
-      </DialogTitle>
-      <DialogContent>
-        <DialogContentText>
-          Are you sure you want to remove{" "}
-          <strong>{personName || 'this person'}</strong>?
-          {type === 'new_person' 
-            ? ' They will be removed from the new people list.'
-            : ' This consolidation record will be removed.'
-          }
-        </DialogContentText>
-        
-        {/* Show task deletion warning for consolidation removal */}
-        {type === 'consolidation' && validation?.affected_tasks && validation.affected_tasks.length > 0 && (
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'error.light', borderRadius: 1 }}>
-            <Typography variant="subtitle2" gutterBottom sx={{ color: 'error.dark', fontWeight: 'bold' }}>
-              ⚠️ TASK DELETION WARNING:
-            </Typography>
-            <Typography variant="body2" color="error.dark" sx={{ mb: 1 }}>
-              The following {validation.affected_tasks.length} task(s) will be deleted:
-            </Typography>
-            <Box sx={{ maxHeight: 150, overflowY: 'auto', pl: 1 }}>
-              {validation.affected_tasks.map((task, idx) => (
-                <Typography key={idx} variant="body2" color="error.dark" sx={{ fontSize: '0.85rem', mb: 0.5 }}>
-                  • {task.contacted_person?.name || 'Unknown'} → Assigned to: {task.assigned_to || task.assignedfor || 'Unknown'}
-                </Typography>
-              ))}
-            </Box>
-          </Box>
-        )}
-        
-        {validation && validation.warnings && validation.warnings.length > 0 && (
-          <Box sx={{ mt: 2, p: 2, bgcolor: 'warning.light', borderRadius: 1 }}>
-            <Typography variant="subtitle2" gutterBottom>
-              ⚠️ Warnings:
-            </Typography>
-            {validation.warnings.map((warning, idx) => (
-              <Typography key={idx} variant="body2" color="warning.dark">
-                • {warning}
-              </Typography>
-            ))}
-          </Box>
-        )}
-        
-        {type === 'new_person' && (
-          <Box sx={{ mt: 2 }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={removeOptions.removeFromAttendees}
-                  onChange={(e) => setRemoveOptions(prev => ({
-                    ...prev,
-                    removeFromAttendees: e.target.checked
-                  }))}
-                />
-              }
-              label="Also remove from attendees list"
-            />
-          </Box>
-        )}
-        
-        {type === 'consolidation' && (
-          <Box sx={{ mt: 2 }}>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={removeOptions.keepInAttendees}
-                  onChange={(e) => setRemoveOptions(prev => ({
-                    ...prev,
-                    keepInAttendees: e.target.checked
-                  }))}
-                />
-              }
-              label="Keep person in attendees list"
-            />
-          </Box>
-        )}
-        
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block' }}>
-          This action cannot be undone.
-        </Typography>
-      </DialogContent>
-      <DialogActions>
-        <Button 
-          onClick={() => setRemovalModal(prev => ({ ...prev, open: false }))}
-          disabled={isLoading}
-        >
-          Cancel
-        </Button>
-        <Button 
-          onClick={confirmRemoval}
-          color="error"
-          variant="contained"
-          disabled={isLoading}
-          startIcon={<DeleteForeverIcon />}
-        >
-          {isLoading ? 'Removing...' : 
-            type === 'consolidation' && validation?.affected_tasks?.length > 0 
-              ? `Remove & Delete ${validation.affected_tasks.length} Task(s)` 
-              : 'Confirm Removal'
-          }
-        </Button>
-      </DialogActions>
-    </Dialog>
-  );
-};
 
-// Add this right after EnhancedRemovalConfirmation, before the return statement
-const ContextMenu = () => (
-  <Menu
-    open={contextMenu.mouseY !== null}
-    onClose={handleCloseContextMenu}
-    anchorReference="anchorPosition"
-    anchorPosition={
-      contextMenu.mouseY !== null && contextMenu.mouseX !== null
-        ? { top: contextMenu.mouseY, left: contextMenu.mouseX }
-        : undefined
-    }
-  >
-    {contextMenu.type === 'new_person' && (
-      <MenuItem 
-        onClick={() => {
-          handleRemoveNewPerson(contextMenu.data);
-          handleCloseContextMenu();
-        }}
-      >
-        <ListItemIcon>
-          <DeleteForeverIcon fontSize="small" />
-        </ListItemIcon>
-        <ListItemText>Remove from New People</ListItemText>
-      </MenuItem>
-    )}
-    
-    {contextMenu.type === 'consolidation' && (
-      <MenuItem 
-        onClick={() => {
-          handleRemoveConsolidation(contextMenu.data);
-          handleCloseContextMenu();
-        }}
-      >
-        <ListItemIcon>
-          <DeleteForeverIcon fontSize="small" />
-        </ListItemIcon>
-        <ListItemText>Remove Consolidation</ListItemText>
-      </MenuItem>
-    )}
-    
-    <Divider />
-    
-    <MenuItem onClick={handleCloseContextMenu}>
-      <ListItemIcon>
-        <CloseIcon fontSize="small" />
-      </ListItemIcon>
-      <ListItemText>Cancel</ListItemText>
-    </MenuItem>
-  </Menu>
-);
+
   const fetchAllPeople = async () => {
     setIsLoadingPeople(true);
     try {
@@ -3767,8 +3515,8 @@ useEffect(() => {
         consolidatedPeople={filteredConsolidatedPeople}
         currentEventId={currentEventId}
       />
-       <EnhancedRemovalConfirmation />
-      <ContextMenu />
+      
+      
     </Box>
   );
 }
