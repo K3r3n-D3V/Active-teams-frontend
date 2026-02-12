@@ -1553,7 +1553,7 @@ const loadWeeklyCheckins = () => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      params.append("perPage", "200");
+      params.append("perPage", "0");
       // params.append("page", "1");
 
       const res = await authFetch(
@@ -2069,13 +2069,34 @@ const handleTabChange = (tabIndex) => {
   const totalOwing = Object.keys(checkedIn)
     .filter((id) => checkedIn[id])
     .reduce((sum, id) => sum + calculateOwing(id), 0);
- const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
-  person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
-  person.email.toLowerCase().includes(searchName.toLowerCase()) ||
-  (person.phone && person.phone.toLowerCase().includes(searchName.toLowerCase())) ||
-  (person.leader12 && person.leader12.toLowerCase().includes(searchName.toLowerCase())) ||
-  (person.leader144 && person.leader144.toLowerCase().includes(searchName.toLowerCase()))
-);
+ const filteredCommonAttendees = getAllCommonAttendees().filter(person => {
+  const searchTerm = searchName.toLowerCase().trim();
+  if (!searchTerm) return true; // Show all when no search
+  
+  const looksLikeFullName = searchTerm.includes(" ");
+  
+  // Check name, email, phone first
+  const fullName = person.fullName?.toLowerCase() || "";
+  const email = person.email?.toLowerCase() || "";
+  const phone = person.phone?.toLowerCase() || "";
+  
+  // Check if matches name, email, or phone
+  if (fullName.includes(searchTerm) || 
+      email.includes(searchTerm) || 
+      (phone && phone.includes(searchTerm))) {
+    return true;
+  }
+  
+  // Only check leader fields if NOT a full name search
+  if (!looksLikeFullName) {
+    const leader12 = person.leader12?.toLowerCase() || "";
+    const leader144 = person.leader144?.toLowerCase() || "";
+    return leader12.includes(searchTerm) || leader144.includes(searchTerm);
+  }
+  
+  return false;
+});
+
 
   const filteredPeople = people; // Already filtered by fetchPeople, so just use it directly
 
@@ -3604,17 +3625,15 @@ ${xmlCols}
                         Loading...
                       </div>
                     )}
-                   {!loading && filteredPeople.length === 0 && (
-  <tr>
-    <td colSpan="6" style={{ ...styles.td, textAlign: "center" }}>
-      {associateSearch.trim() 
-        ? "No people found matching your search." 
-        : persistentCommonAttendees.length > 0
-          ? "All people are already in the attendees list."
-          : "No people available to add."
-      }
-    </td>
-  </tr>
+                  {!loading && filteredPeople.length === 0 && (
+  <div style={{ textAlign: "center", padding: "20px", color: "#666" }}>
+    {associateSearch.trim() 
+      ? "No people found matching your search." 
+      : persistentCommonAttendees.length > 0
+        ? "All people are already in the attendees list."
+        : "No people available to add."
+    }
+  </div>
 )}
                     {filteredPeople.map((person) => {
                       const isAlreadyAdded = persistentCommonAttendees.some(
@@ -3687,14 +3706,16 @@ ${xmlCols}
                           </tr>
                         )}
                        {!loading && filteredPeople.length === 0 && (
-  <div style={{ textAlign: "center", padding: "20px", color: "#666" }}>
-    {associateSearch.trim() 
-      ? "No people found matching your search." 
-      : persistentCommonAttendees.length > 0
-        ? "All people are already in the attendees list."
-        : "No people available to add."
-    }
-  </div>
+  <tr>
+    <td colSpan="6" style={{ ...styles.td, textAlign: "center" }}>
+      {associateSearch.trim() 
+        ? "No people found matching your search." 
+        : persistentCommonAttendees.length > 0
+          ? "All people are already in the attendees list."
+          : "No people available to add."
+      }
+    </td>
+  </tr>
 )}
                         {filteredPeople.map((person) => {
                           const isAlreadyAdded = persistentCommonAttendees.some(
