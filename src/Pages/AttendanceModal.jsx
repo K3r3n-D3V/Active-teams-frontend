@@ -1546,7 +1546,6 @@ const loadWeeklyCheckins = () => {
   setManualHeadcount("0");
   setDidNotMeet(false);
 
-  // CASE 1: Check if event has direct attendees from events/eventsdata
   if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
     console.log("Loading checkins from direct event.attendees:", event.attendees.length);
     
