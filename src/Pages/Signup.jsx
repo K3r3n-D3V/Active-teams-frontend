@@ -26,11 +26,14 @@ import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
 import { AuthContext } from "../contexts/AuthContext";
 import axios from "axios";
-// 1. IMPORT ToastContainer and toast
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+// Geoapify
+const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
+const GEOAPIFY_COUNTRY_CODE = "za"; // locked to South Africa
 
 const WelcomeOverlay = ({ name, mode }) => {
   const pieces = Array.from({ length: 90 }).map((_, index) => {
@@ -41,8 +44,16 @@ const WelcomeOverlay = ({ name, mode }) => {
     const dur = 2 + Math.random() * 1.5;
     const delay = Math.random() * 0.6;
     const colors = [
-      "#f94144", "#f3722c", "#f8961e", "#f9844a", "#f9c74f",
-      "#90be6d", "#43aa8b", "#577590", "#9b5de5", "#00bbf9",
+      "#f94144",
+      "#f3722c",
+      "#f8961e",
+      "#f9844a",
+      "#f9c74f",
+      "#90be6d",
+      "#43aa8b",
+      "#577590",
+      "#9b5de5",
+      "#00bbf9",
     ];
     const backgroundColor = colors[Math.floor(Math.random() * colors.length)];
     const borderRadius = Math.random() > 0.6 ? `${size / 2}px` : "2px";
@@ -75,7 +86,8 @@ const WelcomeOverlay = ({ name, mode }) => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: mode === "dark" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.65)",
+        background:
+          mode === "dark" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.65)",
         backdropFilter: "blur(2px)",
         overflow: "hidden",
         "@keyframes fall": {
@@ -101,7 +113,8 @@ const WelcomeOverlay = ({ name, mode }) => {
         }}
       >
         <Typography variant="h5" fontWeight="bold" gutterBottom>
-          Welcome{name ? ", " : ""}{name || "Friend"}!
+          Welcome{name ? ", " : ""}
+          {name || "Friend"}!
         </Typography>
         <Typography variant="body1">
           Your account is ready. Taking you to your dashboard...
@@ -117,7 +130,7 @@ const initialForm = {
   date_of_birth: "",
   home_address: "",
   invited_by: "",
-  leader:"",
+  leader: "",
   phone_number: "",
   email: "",
   gender: "",
@@ -134,11 +147,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeName, setWelcomeName] = useState("");
   const isDark = mode === "dark";
-  
-  // Define toast settings for consistency
+
   const toastOptions = {
     position: "top-center",
-    autoClose: 3500, // Toast duration
+    autoClose: 3500,
     hideProgressBar: false,
     closeOnClick: true,
     pauseOnHover: true,
@@ -152,11 +164,38 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
+
+  // People cache + invited by
   const [allPeople, setAllPeople] = useState([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [cacheLoading, setCacheLoading] = useState(true);
   const [cacheError, setCacheError] = useState("");
+
+  // Geoapify address autocomplete
+  const [addressOptions, setAddressOptions] = useState([]);
+  const [addressLoading, setAddressLoading] = useState(false);
+  const [addressError, setAddressError] = useState("");
+  const [selectedAddress, setSelectedAddress] = useState(null);
+
+  // Bias location for better SA results
+  const [biasLonLat, setBiasLonLat] = useState(null);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setBiasLonLat({
+          lat: pos.coords.latitude,
+          lon: pos.coords.longitude,
+        });
+      },
+      () => {
+        setBiasLonLat(null);
+      },
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  }, []);
 
   const inputFieldSx = {
     "& .MuiOutlinedInput-root": {
@@ -179,7 +218,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
       color: isDark ? "#ffffff" : "#000000",
       bgcolor: "transparent !important",
       "&:-webkit-autofill": {
-        WebkitBoxShadow: isDark ? "0 0 0 100px #1a1a1a inset !important" : "0 0 0 100px #f8f9fa inset !important",
+        WebkitBoxShadow: isDark
+          ? "0 0 0 100px #1a1a1a inset !important"
+          : "0 0 0 100px #f8f9fa inset !important",
         WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
         transition: "background-color 5000s ease-in-out 0s",
       },
@@ -209,18 +250,16 @@ const Signup = ({ onSignup, mode, setMode }) => {
       try {
         setCacheLoading(true);
         setCacheError("");
-        
+
         const response = await axios.get(`${BACKEND_URL}/cache/people`);
-        
+
         if (response.data.success) {
           const peopleData = response.data.cached_data || [];
           setAllPeople(peopleData);
         } else {
           throw new Error("Failed to load cache");
         }
-        
       } catch (err) {
-        // Use toast.error for non-critical background error
         toast.error("Failed to load people data. Autocomplete may not work.", {
           ...toastOptions,
           autoClose: 5000,
@@ -232,37 +271,107 @@ const Signup = ({ onSignup, mode, setMode }) => {
     };
 
     fetchAllPeople();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const filteredPeople = useMemo(() => {
-    if (!searchQuery || searchQuery.length < 1) {
-      return allPeople.slice(0, 100);
+  // Geoapify Autocomplete (debounced, SA only)
+  useEffect(() => {
+    if (!GEOAPIFY_API_KEY) {
+      setAddressError("Geoapify API key is missing. Add VITE_GEOAPIFY_API_KEY in your .env file.");
+      return;
     }
-    
+
+    const query = (form.home_address || "").trim();
+    if (query.length < 3) {
+      setAddressOptions([]);
+      setAddressError("");
+      return;
+    }
+
+    let isActive = true;
+    const controller = new AbortController();
+
+    const timer = setTimeout(async () => {
+      try {
+        setAddressLoading(true);
+        setAddressError("");
+
+        const biasParam = biasLonLat
+          ? `&bias=proximity:${encodeURIComponent(biasLonLat.lon)},${encodeURIComponent(biasLonLat.lat)}`
+          : "";
+
+        const url =
+          `https://api.geoapify.com/v1/geocode/autocomplete` +
+          `?text=${encodeURIComponent(query)}` +
+          `&limit=10` +
+          `&lang=en` +
+          `&filter=countrycode:${encodeURIComponent(GEOAPIFY_COUNTRY_CODE)}` +
+          biasParam +
+          `&format=json` +
+          `&apiKey=${encodeURIComponent(GEOAPIFY_API_KEY)}`;
+
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) throw new Error("Address lookup failed");
+
+        const data = await res.json();
+        if (!isActive) return;
+
+        const results = Array.isArray(data?.results) ? data.results : [];
+
+        const mapped = results
+          .map((r) => ({
+            label: r.formatted || "",
+            formatted: r.formatted || "",
+            suburb: r.suburb || "",
+            city: r.city || r.town || r.village || "",
+            state: r.state || "",
+            postcode: r.postcode || "",
+            lat: r.lat,
+            lon: r.lon,
+          }))
+          .filter((x) => x.label);
+
+        setAddressOptions(mapped);
+      } catch (e) {
+        if (e?.name === "AbortError") return;
+        setAddressError("Could not load address suggestions. Please type manually.");
+        setAddressOptions([]);
+      } finally {
+        if (isActive) setAddressLoading(false);
+      }
+    }, 350);
+
+    return () => {
+      isActive = false;
+      controller.abort();
+      clearTimeout(timer);
+    };
+  }, [form.home_address, biasLonLat]);
+
+  const filteredPeople = useMemo(() => {
+    if (!searchQuery || searchQuery.length < 1) return allPeople.slice(0, 100);
+
     const query = searchQuery.toLowerCase().trim();
-    
-    const results = allPeople.filter(person => {
-      const fullName = `${person.Name || ''} ${person.Surname || ''}`.toLowerCase().trim();
-      const email = (person.Email || '').toLowerCase();
-      const name = (person.Name || '').toLowerCase();
-      const surname = (person.Surname || '').toLowerCase();
-      
-      return fullName.includes(query) || 
-               name.includes(query) || 
-               email.includes(query) || 
-               surname.includes(query);
+
+    const results = allPeople.filter((person) => {
+      const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase().trim();
+      const email = (person.Email || "").toLowerCase();
+      const name = (person.Name || "").toLowerCase();
+      const surname = (person.Surname || "").toLowerCase();
+
+      return fullName.includes(query) || name.includes(query) || email.includes(query) || surname.includes(query);
     });
 
     results.sort((a, b) => {
-      const aFullName = `${a.Name || ''} ${a.Surname || ''}`.toLowerCase().trim();
-      const bFullName = `${b.Name || ''} ${b.Surname || ''}`.toLowerCase().trim();
-      
+      const aFullName = `${a.Name || ""} ${a.Surname || ""}`.toLowerCase().trim();
+      const bFullName = `${b.Name || ""} ${b.Surname || ""}`.toLowerCase().trim();
+
       if (aFullName.startsWith(query) && !bFullName.startsWith(query)) return -1;
       if (!aFullName.startsWith(query) && bFullName.startsWith(query)) return 1;
-      
+
       if (aFullName === query && bFullName !== query) return -1;
       if (aFullName !== query && bFullName === query) return 1;
-      
+
       return aFullName.length - bFullName.length;
     });
 
@@ -270,9 +379,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
   }, [allPeople, searchQuery]);
 
   const autocompleteOptions = useMemo(() => {
-    return filteredPeople.map(person => ({
+    return filteredPeople.map((person) => ({
       ...person,
-      label: `${person.Name || ''} ${person.Surname || ''}`.trim() || 'Unknown Name',
+      label: `${person.Name || ""} ${person.Surname || ""}`.trim() || "Unknown Name",
       key: person._id || person.key,
     }));
   }, [filteredPeople]);
@@ -282,20 +391,17 @@ const Signup = ({ onSignup, mode, setMode }) => {
     if (!form.name.trim()) newErrors.name = "Name is required";
     if (!form.surname.trim()) newErrors.surname = "Surname is required";
     if (!form.date_of_birth) newErrors.date_of_birth = "Date of Birth is required";
-    else if (new Date(form.date_of_birth) > new Date())
-      newErrors.date_of_birth = "Date cannot be in the future";
+    else if (new Date(form.date_of_birth) > new Date()) newErrors.date_of_birth = "Date cannot be in the future";
     if (!form.home_address.trim()) newErrors.home_address = "Home Address is required";
-    if (!form.invited_by.trim()) newErrors.invited_by = "Invited By is required";
     if (!form.phone_number.trim()) newErrors.phone_number = "Phone Number is required";
+    if (!form.invited_by.trim()) newErrors.invited_by = "Invited By is required";
     if (!form.email.trim()) newErrors.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = "Invalid email";
     if (!form.gender) newErrors.gender = "Select a gender";
     if (!form.password) newErrors.password = "Password is required";
-    else if (form.password.length < 6)
-      newErrors.password = "Password must be at least 6 characters";
+    else if (form.password.length < 6) newErrors.password = "Password must be at least 6 characters";
     if (!form.confirm_password) newErrors.confirm_password = "Confirm your password";
-    else if (form.confirm_password !== form.password)
-      newErrors.confirm_password = "Passwords do not match";
+    else if (form.confirm_password !== form.password) newErrors.confirm_password = "Passwords do not match";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -304,34 +410,31 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const handleChange = (e) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     if (errors[e.target.name]) {
-      setErrors(prev => ({ ...prev, [e.target.name]: "" }));
+      setErrors((prev) => ({ ...prev, [e.target.name]: "" }));
     }
   };
 
   const handleInvitedByChange = (event, newValue) => {
     const invitedByValue = newValue ? newValue.label : "";
-    setForm(prev => ({ ...prev, invited_by: invitedByValue }));
-    
-    if (errors.invited_by) {
-      setErrors(prev => ({ ...prev, invited_by: "" }));
-    }
+    setForm((prev) => ({ ...prev, invited_by: invitedByValue }));
+    if (errors.invited_by) setErrors((prev) => ({ ...prev, invited_by: "" }));
   };
 
-  const handleGenderChange = (e)=>{
-    const genderVal = e.target.value
-    setForm(prev => ({ ...prev, gender: genderVal, leader: genderVal === "male"?"Gavin Enslin":"Vicky Enslin" }));
-
-    if (errors.gender) {
-      setErrors(prev => ({ ...prev,gender: "" }));
-    }
-  }
+  const handleGenderChange = (e) => {
+    const genderVal = e.target.value;
+    setForm((prev) => ({
+      ...prev,
+      gender: genderVal,
+      leader: genderVal === "male" ? "Gavin Enslin" : "Vicky Enslin",
+    }));
+    if (errors.gender) setErrors((prev) => ({ ...prev, gender: "" }));
+  };
 
   const handleSearchChange = (event, value) => {
     setSearchQuery(value);
   };
 
   const handleSubmit = async (e) => {
-    console.log(form)
     e.preventDefault();
     if (!validate()) return;
 
@@ -339,7 +442,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
     const submitData = { ...form };
     delete submitData.confirm_password;
-    
+
     try {
       const res = await fetch(`${BACKEND_URL}/signup`, {
         method: "POST",
@@ -350,7 +453,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
       const data = await res.json();
 
       if (!res.ok) {
-        // 2. Replace alert with toast.error for signup failure
         toast.error(data?.detail || "Signup failed. Please try again.", toastOptions);
       } else {
         const userData = {
@@ -364,44 +466,34 @@ const Signup = ({ onSignup, mode, setMode }) => {
           email: submitData.email,
           gender: submitData.gender,
         };
-        console.log("hasLeader",userData)
+
         setUserProfile(userData);
-        
         if (onSignup) onSignup(submitData);
 
         try {
-          // Attempt to log in immediately after successful signup
           await login(submitData.email, submitData.password);
-          
-          // 3. SUCCESS TOAST: Show success toast notification
           toast.success("You've been signed up!", toastOptions);
-
         } catch (loginErr) {
-          // If auto-login fails, redirect to login page and show error toast
           toast.error("Signup successful, but automatic login failed. Please log in.", {
             ...toastOptions,
             autoClose: 5000,
           });
-          // Redirect immediately if auto-login fails, no need to wait for success toast
-          navigate("/login"); 
+          navigate("/login");
           return;
         }
-        
-        // If login succeeded, proceed with welcome overlay and dashboard redirect
+
         setWelcomeName(submitData.name || submitData.email);
         setShowWelcome(true);
-        
-        // 4. FIX: Use a timeout that is slightly longer than the WelcomeOverlay duration (2000ms)
-        // Note: The WelcomeOverlay is managing the delay before navigation.
+
         setTimeout(() => {
           setForm(initialForm);
           setShowWelcome(false);
+          setSelectedAddress(null);
+          setAddressOptions([]);
           navigate("/");
-        }, 2000); 
-        
+        }, 2000);
       }
     } catch (error) {
-      // 5. Replace alert with toast.error for network/server errors
       toast.error("Network or server error occurred.", toastOptions);
     } finally {
       setLoading(false);
@@ -421,14 +513,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
         alignItems: "center",
       }}
     >
-      {/* 6. Add ToastContainer with high zIndex to ensure visibility */}
-      <ToastContainer 
-          limit={1} 
-          containerStyle={{ zIndex: 99999 }} 
-      />
-      
+      <ToastContainer limit={1} containerStyle={{ zIndex: 99999 }} />
+
       {showWelcome && <WelcomeOverlay name={welcomeName} mode={mode} />}
-      
+
       <Box sx={{ position: "absolute", top: 16, right: 16 }}>
         <IconButton
           onClick={() => {
@@ -447,7 +535,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
         </IconButton>
       </Box>
-      
+
       <Box
         sx={{
           maxWidth: 800,
@@ -484,27 +572,15 @@ const Signup = ({ onSignup, mode, setMode }) => {
             {cacheError}
           </Alert>
         )}
-        
 
-        <Box
-          component="form"
-          onSubmit={handleSubmit}
-          display="flex"
-          flexDirection="column"
-          gap={3}
-        >
-          <Box
-            display="grid"
-            gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }}
-            gap={2.5}
-          >
+        <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={3}>
+          <Box display="grid" gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }} gap={2.5}>
+            {/* Name / Surname / DOB / Email */}
             {[
               ["name", "Name"],
               ["surname", "Surname"],
               ["date_of_birth", "Date Of Birth", "date"],
               ["email", "Email Address", "email"],
-              ["home_address", "Home Address"],
-              ["phone_number", "Phone Number"],
             ].map(([name, label, type]) => (
               <TextField
                 key={name}
@@ -521,25 +597,160 @@ const Signup = ({ onSignup, mode, setMode }) => {
                   ...inputFieldSx,
                   "& .MuiOutlinedInput-root": {
                     ...inputFieldSx["& .MuiOutlinedInput-root"],
-                    '& fieldset': {
-                      borderColor: errors[name] ? theme.palette.error.main : (isDark ? "#333333" : "#e0e0e0"),
+                    "& fieldset": {
+                      borderColor: errors[name] ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
                     },
                   },
-                  "& .MuiFormHelperText-root": { 
-                    color: errors[name] ? theme.palette.error.main : (isDark ? "#999999" : "#666666")
+                  "& .MuiFormHelperText-root": {
+                    color: errors[name] ? theme.palette.error.main : isDark ? "#999999" : "#666666",
                   },
                 }}
               />
             ))}
-            
-            
 
+            {/* Home Address (LEFT) */}
+            <Box sx={{ gridColumn: { xs: "1", sm: "1" } }}>
+              <Autocomplete
+                freeSolo
+                options={addressOptions}
+                value={selectedAddress}
+                inputValue={form.home_address}
+                onInputChange={(event, newInputValue) => {
+                  setForm((prev) => ({ ...prev, home_address: newInputValue }));
+                  setSelectedAddress(null);
+                  if (errors.home_address) setErrors((prev) => ({ ...prev, home_address: "" }));
+                }}
+                onChange={(event, newValue) => {
+                  const formatted =
+                    typeof newValue === "string"
+                      ? newValue
+                      : newValue?.formatted || newValue?.label || "";
+
+                  setSelectedAddress(typeof newValue === "string" ? null : newValue);
+                  setForm((prev) => ({ ...prev, home_address: formatted }));
+
+                  if (errors.home_address) setErrors((prev) => ({ ...prev, home_address: "" }));
+                }}
+                getOptionLabel={(option) => (typeof option === "string" ? option : option.label || "")}
+                filterOptions={(x) => x}
+                loading={addressLoading}
+                ListboxProps={{
+                  sx: {
+                    bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                    "& .MuiAutocomplete-option": {
+                      color: isDark ? "#ffffff" : "#000000",
+                      "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" },
+                      "&[aria-selected='true']": {
+                        bgcolor: isDark ? "#333333" : "#e0e0e0",
+                        "&:hover": { bgcolor: isDark ? "#3a3a3a" : "#d5d5d5" },
+                      },
+                    },
+                  },
+                }}
+                PaperComponent={({ children }) => (
+                  <Paper
+                    sx={{
+                      bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                      border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}`,
+                    }}
+                  >
+                    {children}
+                  </Paper>
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Home Address"
+                    name="home_address"
+                    error={!!errors.home_address}
+                    helperText={
+                      errors.home_address ||
+                      addressError ||
+                      (GEOAPIFY_API_KEY
+                        ? "Start typing your address..."
+                        : "Missing Geoapify API key. Add VITE_GEOAPIFY_API_KEY in your .env.")
+                    }
+                    fullWidth
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {addressLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                    sx={{
+                      ...inputFieldSx,
+                      "& .MuiOutlinedInput-root": {
+                        ...inputFieldSx["& .MuiOutlinedInput-root"],
+                        "& fieldset": {
+                          borderColor: errors.home_address
+                            ? theme.palette.error.main
+                            : isDark
+                            ? "#333333"
+                            : "#e0e0e0",
+                        },
+                      },
+                      "& .MuiFormHelperText-root": {
+                        color: errors.home_address
+                          ? theme.palette.error.main
+                          : addressError
+                          ? theme.palette.warning.main
+                          : isDark
+                          ? "#999999"
+                          : "#666666",
+                        mx: 0,
+                      },
+                    }}
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props} key={`${option.lon ?? ""}-${option.lat ?? ""}-${option.label}`}>
+                    <Box>
+                      <Typography variant="body1">{option.label}</Typography>
+                      {(option.suburb || option.city || option.state || option.postcode) && (
+                        <Typography variant="caption" color="text.secondary">
+                          {[option.suburb, option.city, option.state, option.postcode].filter(Boolean).join(" • ")}
+                        </Typography>
+                      )}
+                    </Box>
+                  </li>
+                )}
+              />
+            </Box>
+
+            {/* Phone Number (RIGHT) */}
+            <TextField
+              label="Phone Number"
+              name="phone_number"
+              type="text"
+              value={form.phone_number}
+              onChange={handleChange}
+              error={!!errors.phone_number}
+              helperText={errors.phone_number}
+              fullWidth
+              sx={{
+                ...inputFieldSx,
+                "& .MuiOutlinedInput-root": {
+                  ...inputFieldSx["& .MuiOutlinedInput-root"],
+                  "& fieldset": {
+                    borderColor: errors.phone_number ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
+                  },
+                },
+                "& .MuiFormHelperText-root": {
+                  color: errors.phone_number ? theme.palette.error.main : isDark ? "#999999" : "#666666",
+                },
+              }}
+            />
+
+            {/* Invited By (LEFT) */}
             <Box sx={{ gridColumn: { xs: "1", sm: "1" } }}>
               <Autocomplete
                 freeSolo
                 options={autocompleteOptions}
-                getOptionLabel={(option) => typeof option === "string" ? option : option.label}
-                value={autocompleteOptions.find(option => option.label === form.invited_by) || form.invited_by}
+                getOptionLabel={(option) => (typeof option === "string" ? option : option.label)}
+                value={autocompleteOptions.find((option) => option.label === form.invited_by) || form.invited_by}
                 onChange={handleInvitedByChange}
                 onInputChange={handleSearchChange}
                 filterOptions={(x) => x}
@@ -549,21 +760,17 @@ const Signup = ({ onSignup, mode, setMode }) => {
                     bgcolor: isDark ? "#1a1a1a" : "#ffffff",
                     "& .MuiAutocomplete-option": {
                       color: isDark ? "#ffffff" : "#000000",
-                      "&:hover": {
-                        bgcolor: isDark ? "#2a2a2a" : "#f5f5f5",
-                      },
+                      "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" },
                       "&[aria-selected='true']": {
                         bgcolor: isDark ? "#333333" : "#e0e0e0",
-                        "&:hover": {
-                          bgcolor: isDark ? "#3a3a3a" : "#d5d5d5",
-                        },
+                        "&:hover": { bgcolor: isDark ? "#3a3a3a" : "#d5d5d5" },
                       },
                     },
                   },
                 }}
                 PaperComponent={({ children }) => (
-                  <Paper 
-                    sx={{ 
+                  <Paper
+                    sx={{
                       bgcolor: isDark ? "#1a1a1a" : "#ffffff",
                       border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}`,
                     }}
@@ -592,12 +799,12 @@ const Signup = ({ onSignup, mode, setMode }) => {
                       ...inputFieldSx,
                       "& .MuiOutlinedInput-root": {
                         ...inputFieldSx["& .MuiOutlinedInput-root"],
-                        '& fieldset': {
-                          borderColor: errors.invited_by ? theme.palette.error.main : (isDark ? "#333333" : "#e0e0e0"),
+                        "& fieldset": {
+                          borderColor: errors.invited_by ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
                         },
                       },
-                      "& .MuiFormHelperText-root": { 
-                        color: errors.invited_by ? theme.palette.error.main : (isDark ? "#999999" : "#666666"),
+                      "& .MuiFormHelperText-root": {
+                        color: errors.invited_by ? theme.palette.error.main : isDark ? "#999999" : "#666666",
                         mx: 0,
                       },
                     }}
@@ -606,9 +813,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 renderOption={(props, option) => (
                   <li {...props} key={option.key || option._id}>
                     <Box>
-                      <Typography variant="body1">
-                        {option.label}
-                      </Typography>
+                      <Typography variant="body1">{option.label}</Typography>
                       {option.Email && (
                         <Typography variant="caption" color="text.secondary">
                           {option.Email}
@@ -618,19 +823,19 @@ const Signup = ({ onSignup, mode, setMode }) => {
                   </li>
                 )}
                 sx={{
-                  '& .MuiAutocomplete-inputRoot': {
-                    paddingRight: '9px !important',
-                  }
+                  "& .MuiAutocomplete-inputRoot": {
+                    paddingRight: "9px !important",
+                  },
                 }}
               />
             </Box>
-            
+
+            {/* Leader (RIGHT) */}
             <TextField
-              // field is readonly and can not be clicked
               readOnly
               label="Leader@1"
               name="leader"
-              type={"text"}
+              type="text"
               value={form.leader}
               error={!!errors.leader}
               helperText={errors.leader}
@@ -640,16 +845,17 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 pointerEvents: "none",
                 "& .MuiOutlinedInput-root": {
                   ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  '& fieldset': {
-                    borderColor: errors.leader ? theme.palette.error.main : (isDark ? "#333333" : "#e0e0e0"),
+                  "& fieldset": {
+                    borderColor: errors.leader ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
                   },
                 },
-                "& .MuiFormHelperText-root": { 
-                  color: errors.leader ? theme.palette.error.main : (isDark ? "#999999" : "#666666")
+                "& .MuiFormHelperText-root": {
+                  color: errors.leader ? theme.palette.error.main : isDark ? "#999999" : "#666666",
                 },
               }}
             />
 
+            {/* Gender (LEFT) */}
             <FormControl fullWidth error={!!errors.gender}>
               <InputLabel sx={{ color: isDark ? "#999999" : "#666666", "&.Mui-focused": { color: "#42a5f5" } }}>
                 Gender
@@ -657,7 +863,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
               <Select
                 name="gender"
                 value={form.gender}
-                //changed gender onChange function
                 onChange={handleGenderChange}
                 label="Gender"
                 sx={{
@@ -673,12 +878,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
                   "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
                     borderColor: "#42a5f5",
                   },
-                  "& .MuiSelect-select": {
-                    bgcolor: "transparent !important",
-                    "&:focus": {
-                      bgcolor: "transparent !important",
-                    },
-                  },
                 }}
                 MenuProps={{
                   PaperProps: {
@@ -686,14 +885,10 @@ const Signup = ({ onSignup, mode, setMode }) => {
                       bgcolor: isDark ? "#1a1a1a" : "#ffffff",
                       "& .MuiMenuItem-root": {
                         color: isDark ? "#ffffff" : "#000000",
-                        "&:hover": {
-                          bgcolor: isDark ? "#2a2a2a" : "#f5f5f5",
-                        },
+                        "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" },
                         "&.Mui-selected": {
                           bgcolor: isDark ? "#333333" : "#e0e0e0",
-                          "&:hover": {
-                            bgcolor: isDark ? "#3a3a3a" : "#d5d5d5",
-                          },
+                          "&:hover": { bgcolor: isDark ? "#3a3a3a" : "#d5d5d5" },
                         },
                       },
                     },
@@ -712,10 +907,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 </Typography>
               )}
             </FormControl>
-            
-            
-            
 
+            {/* Password (RIGHT) */}
             <TextField
               label="Password"
               name="password"
@@ -728,23 +921,19 @@ const Signup = ({ onSignup, mode, setMode }) => {
               InputProps={{
                 style: {
                   fontFamily: "monospace",
-                  WebkitTextSecurity:`${showPassword ? "" : "disc"}`
+                  WebkitTextSecurity: `${showPassword ? "" : "disc"}`,
                 },
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton 
-                      onClick={() => setShowPassword(!showPassword)} 
+                    <IconButton
+                      onClick={() => setShowPassword(!showPassword)}
                       edge="end"
                       tabIndex={-1}
                       disableRipple
                       sx={{
                         color: isDark ? "#cccccc" : "#666666",
-                        '&:hover': {
-                          backgroundColor: 'transparent',
-                        },
-                        '&:focus': {
-                          outline: 'none',
-                        }
+                        "&:hover": { backgroundColor: "transparent" },
+                        "&:focus": { outline: "none" },
                       }}
                     >
                       {!showPassword ? <VisibilityOff /> : <Visibility />}
@@ -756,17 +945,14 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 ...inputFieldSx,
                 "& .MuiOutlinedInput-root": {
                   ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  '& fieldset': {
-                    borderColor: errors.password ? theme.palette.error.main : (isDark ? "#333333" : "#e0e0e0"),
+                  "& fieldset": {
+                    borderColor: errors.password ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
                   },
-                },
-                "& .MuiFormHelperText-root": { 
-                  color: errors.password ? theme.palette.error.main : (isDark ? "#999999" : "#666666")
                 },
               }}
             />
-            
 
+            {/* Confirm Password (LEFT, and right side stays empty like your screenshot) */}
             <TextField
               label="Confirm Password"
               name="confirm_password"
@@ -779,23 +965,19 @@ const Signup = ({ onSignup, mode, setMode }) => {
               InputProps={{
                 style: {
                   fontFamily: "monospace",
-                  WebkitTextSecurity:`${showConfirmPassword ? "" : "disc"}`
+                  WebkitTextSecurity: `${showConfirmPassword ? "" : "disc"}`,
                 },
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton 
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)} 
+                    <IconButton
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
                       edge="end"
                       tabIndex={-1}
                       disableRipple
                       sx={{
                         color: isDark ? "#cccccc" : "#666666",
-                        '&:hover': {
-                          backgroundColor: 'transparent',
-                        },
-                        '&:focus': {
-                          outline: 'none',
-                        }
+                        "&:hover": { backgroundColor: "transparent" },
+                        "&:focus": { outline: "none" },
                       }}
                     >
                       {!showConfirmPassword ? <VisibilityOff /> : <Visibility />}
@@ -807,18 +989,17 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 ...inputFieldSx,
                 "& .MuiOutlinedInput-root": {
                   ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  '& fieldset': {
-                    borderColor: errors.confirm_password ? theme.palette.error.main : (isDark ? "#333333" : "#e0e0e0"),
+                  "& fieldset": {
+                    borderColor: errors.confirm_password
+                      ? theme.palette.error.main
+                      : isDark
+                      ? "#333333"
+                      : "#e0e0e0",
                   },
-                },
-                "& .MuiFormHelperText-root": { 
-                  color: errors.confirm_password ? theme.palette.error.main : (isDark ? "#999999" : "#666666")
                 },
               }}
             />
           </Box>
-          
-          
 
           {Object.keys(errors).length > 0 && (
             <Alert severity="error" sx={{ borderRadius: 2 }}>
@@ -839,15 +1020,9 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 px: 4,
                 py: 1.5,
                 fontWeight: "bold",
-                "&:hover": {
-                  backgroundColor: "#222",
-                },
-                "&:active": {
-                  backgroundColor: "#444",
-                },
-                "&:disabled": {
-                  backgroundColor: "#666",
-                },
+                "&:hover": { backgroundColor: "#222" },
+                "&:active": { backgroundColor: "#444" },
+                "&:disabled": { backgroundColor: "#666" },
               }}
             >
               {loading ? "Signing Up..." : "Sign Up"}
