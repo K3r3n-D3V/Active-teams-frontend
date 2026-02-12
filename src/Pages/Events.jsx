@@ -587,6 +587,15 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
 
     const containsPersonSteps =
       keyLower.includes("person") && keyLower.includes("steps");
+    
+    // ADD THIS: Exclude time-related fields
+    const containsTime = 
+      keyLower.includes("time") || 
+      keyLower.includes("timestamp") || 
+      keyLower.includes("checked") ||
+      keyLower.includes("checkin") ||
+      keyLower.includes("check_in");
+
     const shouldExclude =
       exactMatch ||
       caseInsensitiveMatch ||
@@ -595,10 +604,12 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       containsOriginated ||
       containsLeader12 ||
       shouldExcludeLeader1 ||
-      containsPersonSteps;
+      containsPersonSteps ||
+      containsTime; // ADD THIS LINE
 
     return !shouldExclude;
   });
+  
   const columns = [];
 
   columns.push({
@@ -696,7 +707,12 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       minWidth: 150,
       renderCell: (params) => {
         const value = params.value;
-        if (key.toLowerCase().includes("date")) return formatDate(value);
+        
+        // MODIFY THIS: Only format date fields, not time fields
+        if (key.toLowerCase().includes("date") && !key.toLowerCase().includes("time")) {
+          return formatDate(value);
+        }
+        
         if (!value) return "-";
 
         return (
@@ -838,39 +854,38 @@ ${xmlCols}
   };
 
   const normalizeEventAttendance = (event) => {
-    if (!event) return [];
-    const eventDate = event.date;
-    let weekAttendance = event.attendance || {};
-    if (
-      weekAttendance &&
-      typeof weekAttendance === "object" &&
-      !weekAttendance.status
-    ) {
-      weekAttendance = weekAttendance[eventDate] || {};
-    }
-    const attendees = weekAttendance?.attendees || event.attendees || [];
+  if (!event) return [];
+  const eventDate = event.date;
+  let weekAttendance = event.attendance || {};
+  if (
+    weekAttendance &&
+    typeof weekAttendance === "object" &&
+    !weekAttendance.status
+  ) {
+    weekAttendance = weekAttendance[eventDate] || {};
+  }
+  const attendees = weekAttendance?.attendees || event.attendees || [];
 
-    // map to rows similar to AttendanceModal
-    return (attendees || []).map((att) => ({
-      "Event ID": event._id || event.id || "",
-      "Event Name": event.eventName || event.Event_Name || event.name || "",
-      "Event Date": formatDate(event.date),
-      "Attendee ID": att.id || att._id || "",
-      Name: att.fullName || att.name || "",
-      Email: att.email || "",
-      "Leader @12": att.leader12 || "",
-      "Leader @144": att.leader144 || "",
-      Phone: att.phone || "",
-      "Checked In Time": att.time || "",
-      Decision: att.decision || "",
-      "Price Tier": att.priceTier || att.price_tier || "",
-      "Payment Method": att.paymentMethod || "",
-      Price: att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-      Paid: att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-      Owing: att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-    }));
-  };
-
+  // REMOVE "Checked In Time" from this mapping
+  return (attendees || []).map((att) => ({
+    "Event ID": event._id || event.id || "",
+    "Event Name": event.eventName || event.Event_Name || event.name || "",
+    "Event Date": formatDate(event.date),
+    "Attendee ID": att.id || att._id || "",
+    Name: att.fullName || att.name || "",
+    Email: att.email || "",
+    "Leader @12": att.leader12 || "",
+    "Leader @144": att.leader144 || "",
+    Phone: att.phone || "",
+    // REMOVE THIS LINE: "Checked In Time": att.time || "",
+    Decision: att.decision || "",
+    "Price Tier": att.priceTier || att.price_tier || "",
+    "Payment Method": att.paymentMethod || "",
+    Price: att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
+    Paid: att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
+    Owing: att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
+  }));
+};
   const fetchEventFull = async (event) => {
     try {
       let eventId = event._id || event.id;
