@@ -1553,7 +1553,7 @@ const loadWeeklyCheckins = () => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      params.append("perPage", "20000");
+      params.append("perPage", "0");
       // params.append("page", "1");
 
       const res = await authFetch(
