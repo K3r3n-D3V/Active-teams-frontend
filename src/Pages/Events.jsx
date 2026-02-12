@@ -2599,118 +2599,6 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
     ],
   );
 
-  // const handleSaveEvent = useCallback(
-  //   async (eventData) => {
-  //     try {
-  //       const eventIdentifier = selectedEvent?._id;
-
-  //       if (!eventIdentifier) {
-  //         throw new Error("No event identifier found");
-  //       }
-
-  //       const token = localStorage.getItem("access_token");
-  //       if (!token) {
-  //         throw new Error("No authentication token found");
-  //       }
-
-  //       const cleanPayload = Object.entries(eventData).reduce(
-  //         (acc, [key, value]) => {
-  //           if (value !== undefined && value !== null && value !== "") {
-  //             acc[key] = value;
-  //           }
-  //           return acc;
-  //         },
-  //         {},
-  //       );
-
-  //       const endpoint = `${BACKEND_URL}/events/${eventIdentifier}`;
-
-  //       const response = await authFetch(endpoint, {
-  //         method: "PUT",
-  //         headers: {
-  //           "Content-Type": "application/json",
-  //           Authorization: `Bearer ${token}`,
-  //         },
-  //         body: JSON.stringify(cleanPayload),
-  //       });
-
-  //       if (!response.ok) {
-  //         let errorData;
-  //         let errorMessage;
-
-  //         try {
-  //           errorData = await response.json();
-
-  //           if (typeof errorData === "string") {
-  //             errorMessage = errorData;
-  //           } else if (errorData.detail) {
-  //             errorMessage =
-  //               typeof errorData.detail === "string"
-  //                 ? errorData.detail
-  //                 : JSON.stringify(errorData.detail);
-  //           } else if (errorData.message) {
-  //             errorMessage = errorData.message;
-  //           } else {
-  //             errorMessage = JSON.stringify(errorData);
-  //           }
-  //         } catch {
-  //           errorMessage = `HTTP ${response.status}: ${response.statusText}`;
-  //         }
-
-  //         throw new Error(errorMessage);
-  //       }
-  //       const updatedEvent = await response.json();
-
-  //       clearCache();
-
-  //       toast.success("Event updated successfully!");
-
-  //       setEditModalOpen(false);
-  //       setSelectedEvent(null);
-
-  //       setTimeout(() => {
-  //         const refreshParams = {
-  //           page: currentPage,
-  //           limit: rowsPerPage,
-  //           start_date: DEFAULT_API_START_DATE,
-  //           _t: Date.now(),
-  //         };
-
-  //         if (selectedEventTypeFilter !== "all") {
-  //           refreshParams.event_type = selectedEventTypeFilter;
-  //         }
-
-  //         if (selectedStatus !== "all") {
-  //           refreshParams.status = selectedStatus;
-  //         }
-
-  //         if (searchQuery.trim()) {
-  //           refreshParams.search = searchQuery.trim();
-  //         }
-
-  //         fetchEvents(refreshParams, true);
-  //       }, 500);
-
-  //       return { success: true, event: updatedEvent };
-  //     } catch (error) {
-  //       console.error(" Error saving event:", error);
-  //       toast.error(`Failed to update event: ${error.message}`);
-  //       throw error;
-  //     }
-  //   },
-  //   [
-  //     selectedEvent,
-  //     BACKEND_URL,
-  //     clearCache,
-  //     currentPage,
-  //     rowsPerPage,
-  //     selectedStatus,
-  //     selectedEventTypeFilter,
-  //     searchQuery,
-  //     fetchEvents,
-  //     DEFAULT_API_START_DATE,
-  //   ],
-  // );
 
 const handleCloseEditModal = useCallback(
   async (shouldRefresh = false, updatedEventData = null) => {
@@ -4540,7 +4428,7 @@ return (
                     disableRowSelectionOnClick
                     hideRowSelectionOnClick
                     hideFooter
-                    pageSizeOptions={[10, 25, 50, 100]}
+                    pageSizeOptions={[10, 25, 50, 100, 250]}
                     paginationModel={{
                       page: currentPage - 1,
                       pageSize: rowsPerPage,
@@ -4686,6 +4574,7 @@ return (
                   <option value={25}>25</option>
                   <option value={50}>50</option>
                   <option value={100}>100</option>
+                  <option value={250}>250</option>
                 </select>
               </Box>
 
