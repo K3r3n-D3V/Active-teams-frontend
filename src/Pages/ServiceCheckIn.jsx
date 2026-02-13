@@ -1,13 +1,12 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
 import {
-  // ... your existing imports
-  Checkbox,         // Add this
-  FormControlLabel, // Add this
-  Menu,             // Add this
-  DialogContentText, // Add this
-  ListItemIcon,     // Add this
+  Checkbox,         
+  FormControlLabel, 
+  Menu,          
+  DialogContentText,
+  ListItemIcon,    
   ListItemText, 
-        // Add this
+  
 } from "@mui/material";
 import {
   Box,
@@ -375,7 +374,6 @@ const [contextMenu, setContextMenu] = useState({
       setIsRefreshing(false);
     }
   };
-// Add these functions after your other handler functions
 
 
 const handleRemoveConsolidation = async (consolidation) => {
@@ -398,7 +396,6 @@ const handleRemoveConsolidation = async (consolidation) => {
       if (result.task_deletion?.deleted && result.task_deletion.count > 0) {
         toast.success(`Consolidation removed and ${result.task_deletion.count} task(s) deleted`);
         
-        // Trigger task update event for DailyTasks
         if (notifyTaskUpdate) {
           notifyTaskUpdate();
         }
@@ -416,7 +413,6 @@ const handleRemoveConsolidation = async (consolidation) => {
         toast.success(result.message || "Consolidation removed successfully");
       }
       
-      // Refresh the data
       const freshData = await fetchRealTimeEventData(currentEventId);
       if (freshData) {
         setRealTimeData(freshData);
@@ -431,14 +427,13 @@ const handleRemoveConsolidation = async (consolidation) => {
 };
 
 
-// Context menu handlers
 const handleContextMenu = (event, person, type) => {
   event.preventDefault();
   setContextMenu({
     mouseX: event.clientX - 2,
     mouseY: event.clientY - 4,
     data: person,
-    type: type // 'new_person' or 'consolidation'
+    type: type 
   });
 };
 
@@ -1135,12 +1130,10 @@ const handleFinishConsolidation = async (task) => {
       console.log("Consolidation data refreshed from backend");
     }
 
-    // ADD THIS: Trigger task update for DailyTasks
     if (notifyTaskUpdate) {
-      notifyTaskUpdate(); // Use context if available
+      notifyTaskUpdate();
     }
     
-    // Also dispatch the custom event as a fallback
     window.dispatchEvent(new CustomEvent('taskUpdated', { 
       detail: { 
         action: 'consolidationCreated',
@@ -1335,7 +1328,6 @@ const handleFinishConsolidation = async (task) => {
 
   const ws = XLSX.utils.json_to_sheet(worksheetData, { header: headers });
 
-  // Auto-size columns (optional but nice)
   ws['!cols'] = headers.map((h, i) => {
     let maxw = h.length;
     worksheetData.forEach(row => {
@@ -1352,14 +1344,12 @@ const handleFinishConsolidation = async (task) => {
   const fullFilename = `${filename}_${today}.xlsx`;
 
   try {
-    // Generate binary string
     const wbout = XLSX.write(wb, {
       bookType: 'xlsx',
       type: 'binary',
-      compression: true   // ← helps reduce size + can fix some corruptions
+      compression: true   
     });
 
-    // Convert binary string → ArrayBuffer
     const buf = s2ab(wbout);
 
     const blob = new Blob([buf], {
@@ -1374,7 +1364,6 @@ const handleFinishConsolidation = async (task) => {
     document.body.appendChild(link);
     link.click();
 
-    // Cleanup
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
@@ -1385,7 +1374,6 @@ const handleFinishConsolidation = async (task) => {
   }
 };
 
-// Helper – make sure this is defined exactly like this
 function s2ab(s) {
   const buf = new ArrayBuffer(s.length);
   const view = new Uint8Array(buf);
@@ -2105,14 +2093,12 @@ function s2ab(s) {
             gap: 1
           }}>
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              {/* Clear Name & Surname Display */}
               <Box sx={{ mb: 1 }}>
                 <Typography variant="subtitle1" fontWeight={600} noWrap>
                   {showNumber && `${index}. `}{mappedAttendee.name} {mappedAttendee.surname}
                 </Typography>
               </Box>
 
-              {/* Contact Information */}
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mb: 1.5 }}>
                 {mappedAttendee.phone && (
                   <Typography variant="body2" color="text.secondary" noWrap>
@@ -2126,7 +2112,6 @@ function s2ab(s) {
                 )}
               </Box>
 
-              {/* Leader information - all three fields */}
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                 {mappedAttendee.leader1 && (
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
@@ -2163,7 +2148,6 @@ function s2ab(s) {
               </Box>
             </Box>
 
-            {/* Remove button */}
             <Tooltip title="Remove from check-in">
               <IconButton
                 color="error"
@@ -2184,7 +2168,6 @@ function s2ab(s) {
   };
 
 
-  // Update the NewPersonCard component to include remove button
 const NewPersonCard = ({ person, showNumber, index }) => (
   <Card
     variant="outlined"
@@ -2220,7 +2203,6 @@ const NewPersonCard = ({ person, showNumber, index }) => (
             />
           )}
         </Box>
-        {/* ADD REMOVE BUTTON HERE */}
         <Tooltip title="Remove from new people">
           <IconButton
             size="small"
@@ -2398,7 +2380,6 @@ const NewPersonCard = ({ person, showNumber, index }) => (
         ))}
       </Grid>
 
-      {/* Controls - More compact for mobile */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={isSmDown ? 12 : 6} md={4}>
           <Select
@@ -2473,7 +2454,6 @@ const NewPersonCard = ({ person, showNumber, index }) => (
   );
 
 
-// Find this useEffect in ServiceCheckIn and fix it:
 useEffect(() => {
   if (currentEventId) {
     const loadRealTimeData = async () => {
@@ -2493,7 +2473,7 @@ useEffect(() => {
   } else {
     setRealTimeData(null);
   }
-}, [currentEventId]); // Add proper dependencies
+}, [currentEventId]); 
 
 
   useEffect(() => {
@@ -2589,7 +2569,6 @@ useEffect(() => {
         isLoading={isDeleting}
       />
 
-      {/* Stats Cards */}
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
         <Grid item xs={6} sm={6} md={4}>
           <StatsCard
@@ -2641,7 +2620,6 @@ useEffect(() => {
         </Grid>
       </Grid>
 
-      {/* Controls */}
       <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
         <Grid item xs={12} sm={isSmDown ? 12 : 6} md={4}>
           <Select
@@ -2781,7 +2759,6 @@ useEffect(() => {
         </Grid>
       </Grid>
 
-      {/* Main Content */}
       <Box sx={{ minHeight: 400, width: '100%' }}>
         <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, minHeight: '36px', width: '100%' }}>
           <Tabs
@@ -2961,7 +2938,6 @@ useEffect(() => {
         )}
       </Box>
 
-      {/* Add / Edit Dialog */}
       <AddPersonDialog
         open={openDialog}
         onClose={() => setOpenDialog(false)}
@@ -2973,7 +2949,6 @@ useEffect(() => {
         currentEventId={currentEventId}
       />
 
-      {/* PRESENT Attendees Modal */}
       <Dialog
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -3183,7 +3158,6 @@ useEffect(() => {
         </DialogActions>
       </Dialog>
 
-      {/* NEW PEOPLE Modal */}
       <Dialog
         open={newPeopleModalOpen}
         onClose={() => setNewPeopleModalOpen(false)}
@@ -3240,7 +3214,6 @@ useEffect(() => {
                   )}
                 </Box>
               ) : (
-// In the New People modal table, add a new column for actions:
 <Table size="small" stickyHeader>
   <TableHead>
     <TableRow>
@@ -3250,7 +3223,6 @@ useEffect(() => {
       <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
-      {/* ADD THIS NEW COLUMN */}
       <TableCell sx={{ fontWeight: 600, width: '80px' }}>Actions</TableCell>
     </TableRow>
   </TableHead>
@@ -3282,7 +3254,6 @@ useEffect(() => {
           <TableCell>{mappedPerson.email || "—"}</TableCell>
           <TableCell>{mappedPerson.gender || "—"}</TableCell>
           <TableCell>{mappedPerson.invitedBy || "—"}</TableCell>
-          {/* ADD THIS CELL WITH REMOVE BUTTON */}
           <TableCell>
             <Tooltip title="Remove from new people">
               <IconButton
@@ -3323,7 +3294,6 @@ useEffect(() => {
         </DialogActions>
       </Dialog>
 
-      {/* CONSOLIDATED Modal */}
       <Dialog
         open={consolidatedModalOpen}
         onClose={() => setConsolidatedModalOpen(false)}
@@ -3380,7 +3350,6 @@ useEffect(() => {
                   )}
                 </Box>
               ) : (
-               // In the Consolidated modal table, add actions column:
 <Table size="small" stickyHeader>
   <TableHead>
     <TableRow>
@@ -3390,7 +3359,6 @@ useEffect(() => {
       <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
       <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-      {/* ADD THIS NEW COLUMN */}
       <TableCell sx={{ fontWeight: 600, width: '80px' }}>Actions</TableCell>
     </TableRow>
   </TableHead>
@@ -3442,7 +3410,6 @@ useEffect(() => {
           <TableCell>
             {mappedPerson.created_at ? new Date(mappedPerson.created_at).toLocaleDateString() : '—'}
           </TableCell>
-          {/* ADD THIS CELL WITH REMOVE BUTTON */}
           <TableCell>
             <Tooltip title="Remove consolidation">
               <IconButton
