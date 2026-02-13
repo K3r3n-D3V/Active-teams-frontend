@@ -546,15 +546,6 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
 
     const containsPersonSteps =
       keyLower.includes("person") && keyLower.includes("steps");
-    
-    // ADD THIS: Exclude time-related fields
-    const containsTime = 
-      keyLower.includes("time") || 
-      keyLower.includes("timestamp") || 
-      keyLower.includes("checked") ||
-      keyLower.includes("checkin") ||
-      keyLower.includes("check_in");
-
     const shouldExclude =
       exactMatch ||
       caseInsensitiveMatch ||
@@ -563,12 +554,10 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       containsOriginated ||
       containsLeader12 ||
       shouldExcludeLeader1 ||
-      containsPersonSteps ||
-      containsTime; // ADD THIS LINE
+      containsPersonSteps;
 
     return !shouldExclude;
   });
-  
   const columns = [];
 
   columns.push({
@@ -666,12 +655,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       minWidth: 150,
       renderCell: (params) => {
         const value = params.value;
-        
-        // MODIFY THIS: Only format date fields, not time fields
-        if (key.toLowerCase().includes("date") && !key.toLowerCase().includes("time")) {
-          return formatDate(value);
-        }
-        
+        if (key.toLowerCase().includes("date")) return formatDate(value);
         if (!value) return "-";
 
         return (
@@ -813,19 +797,6 @@ ${xmlCols}
   };
 
   const normalizeEventAttendance = (event) => {
-<<<<<<< HEAD
-  if (!event) return [];
-  const eventDate = event.date;
-  let weekAttendance = event.attendance || {};
-  if (
-    weekAttendance &&
-    typeof weekAttendance === "object" &&
-    !weekAttendance.status
-  ) {
-    weekAttendance = weekAttendance[eventDate] || {};
-  }
-  const attendees = weekAttendance?.attendees || event.attendees || [];
-=======
     if (!event) return [];
     const eventDate = event.date;
     let weekAttendance = event.attendance || {};
@@ -858,28 +829,7 @@ ${xmlCols}
       Owing: att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
     }));
   };
->>>>>>> main
 
-  // REMOVE "Checked In Time" from this mapping
-  return (attendees || []).map((att) => ({
-    "Event ID": event._id || event.id || "",
-    "Event Name": event.eventName || event.Event_Name || event.name || "",
-    "Event Date": formatDate(event.date),
-    "Attendee ID": att.id || att._id || "",
-    Name: att.fullName || att.name || "",
-    Email: att.email || "",
-    "Leader @12": att.leader12 || "",
-    "Leader @144": att.leader144 || "",
-    Phone: att.phone || "",
-    // REMOVE THIS LINE: "Checked In Time": att.time || "",
-    Decision: att.decision || "",
-    "Price Tier": att.priceTier || att.price_tier || "",
-    "Payment Method": att.paymentMethod || "",
-    Price: att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-    Paid: att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-    Owing: att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-  }));
-};
   const fetchEventFull = async (event) => {
     
     try {
@@ -1111,6 +1061,10 @@ const [eventTypeSearch, setEventTypeSearch] = useState("");
 const [viewMode, setViewMode] = useState("grid");
 const [menuAnchor, setMenuAnchor] = useState(null);
 const [selectedTypeForMenu, setSelectedTypeForMenu] = useState(null);
+
+  const [period, setPeriod] = useState("current");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [isDownloadClicked, setIsDownloadClicked] = useState(false)
 
   const initialViewFilter = useMemo(() => {
     if (isLeaderAt12) {
@@ -3278,12 +3232,7 @@ useEffect(() => {
   fetchEvents(fetchParams, true);
 }, [
   selectedEventTypeFilter,
-<<<<<<< HEAD
-  selectedStatus, 
-  viewFilter,
-=======
   showingEvents, 
->>>>>>> main
   currentPage,
   rowsPerPage,
   selectedStatus,
@@ -3295,6 +3244,22 @@ useEffect(() => {
   isLeaderAt12,
   DEFAULT_API_START_DATE
 ]);
+
+useEffect(() => {
+  const handleClickOutside = () => {
+    if (dropdownOpen) {
+      setDropdownOpen(false);
+    }
+  };
+
+  if (dropdownOpen) {
+    document.addEventListener('click', handleClickOutside);
+  }
+
+  return () => {
+    document.removeEventListener('click', handleClickOutside);
+  };
+}, [dropdownOpen]);
 
 const StatusBadges = ({
   selectedStatus,
@@ -3330,66 +3295,64 @@ const StatusBadges = ({
     },
   ];
 
-  const handleStatusClick = (statusValue) => {
-    setSelectedStatus(statusValue);
-    setCurrentPage(1);
-    
-    const fetchParams = {
-      page: 1,
-      limit: rowsPerPage,
-      start_date: DEFAULT_API_START_DATE,
-      status: statusValue,
-      event_type: selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
-      _t: Date.now(),
-    };
+const handleStatusClick = (statusValue) => {
+  setSelectedStatus(statusValue);
+  setCurrentPage(1);
+  
+  const fetchParams = {
+    page: 1,
+    limit: rowsPerPage,
+    start_date: DEFAULT_API_START_DATE,
+    status: statusValue,
+    event_type: selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
+    _t: Date.now(),
+  };
 
-    if (searchQuery.trim()) {
-      fetchParams.search = searchQuery.trim();
-    }
+  if (searchQuery.trim()) {
+    fetchParams.search = searchQuery.trim();
+  }
 
-    const isCellEvent = selectedEventTypeFilter === "all" || 
-                       selectedEventTypeFilter === "CELLS" ||
-                       (selectedEventTypeFilter && selectedEventTypeFilter.toLowerCase().includes("cell"));
+  const isCellEvent = selectedEventTypeFilter === "all" || 
+                     selectedEventTypeFilter === "CELLS" ||
+                     (selectedEventTypeFilter && selectedEventTypeFilter.toLowerCase().includes("cell"));
 
-    if (isCellEvent) {
-      if (isAdmin) {
-        if (viewFilter === "personal") {
-          fetchParams.personal = true;
-        }
-      } else if (isRegistrant || isRegularUser) {
-        fetchParams.personal = true;
-      } else if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
-        fetchParams.include_subordinate_cells = true;
-
-        if (viewFilter === "personal") {
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          fetchParams.show_all_authorized = true;
-        }
-      } else if (isLeader) {
+  if (isCellEvent) {
+    if (isAdmin) {
+      if (viewFilter === "personal") {
         fetchParams.personal = true;
       }
-    }
+    } else if (isRegistrant || isRegularUser) {
+      fetchParams.personal = true;
+    } else if (isLeaderAt12) {
+      fetchParams.leader_at_12_view = true;
+      fetchParams.include_subordinate_cells = true;
 
-    if (!isCellEvent) {
-      delete fetchParams.personal;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
+      if (viewFilter === "personal") {
+        fetchParams.show_personal_cells = true;
+        fetchParams.personal = true;
+      } else {
+        fetchParams.show_all_authorized = true;
+      }
+    } else if (isLeader) {
+      fetchParams.personal = true;
     }
+  }
 
-    fetchEvents(fetchParams, true);
-  };
+  if (!isCellEvent) {
+    delete fetchParams.personal;
+    delete fetchParams.leader_at_12_view;
+    delete fetchParams.show_personal_cells;
+    delete fetchParams.show_all_authorized;
+    delete fetchParams.include_subordinate_cells;
+  }
+
+  fetchEvents(fetchParams, true);
+};
 
   const canDownload =
     selectedStatus === "complete" || selectedStatus === "did_not_meet";
   const [period, setPeriod] = useState("current");
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [isDownloadClicked, setIsDownloadClicked] = useState(false);
-
   useEffect(() => {
     const handleClickOutside = () => {
       if (dropdownOpen) {
@@ -3405,16 +3368,6 @@ const StatusBadges = ({
       document.removeEventListener('click', handleClickOutside);
     };
   }, [dropdownOpen]);
-
-  // const handleDownloadClick = () => {
-  //   setIsDownloadClicked(true);
-  //   downloadEventsByStatus(selectedStatus, period);
-    
-  //   // Reset the clicked state after 500ms
-  //   setTimeout(() => {
-  //     setIsDownloadClicked(false);
-  //   }, 500);
-  // };
 
   return (
     <div style={styles.statusBadgeContainer}>
@@ -3441,7 +3394,8 @@ const StatusBadges = ({
         </button>
       ))}
 
-      {canDownload && (
+      {/* Period selector + Bulk download: show only when COMPLETE or DID NOT MEET selected */}
+ {canDownload && (
   <div style={{ 
     display: "flex", 
     alignItems: "center", 
@@ -3569,9 +3523,11 @@ const StatusBadges = ({
       )}
     </div>
   </div>
-)}</div>
+)}
+    </div>
   );
 };
+
   const ViewFilterButtons = () => {
     const shouldShowToggle =
       (isAdmin || isLeaderAt12) &&
@@ -3694,112 +3650,6 @@ const EventTypeSelector = ({
     return getFilteredEventTypes(allTypes);
   }, [eventTypes]);
 
-<<<<<<< HEAD
-    return allTypes.filter(typeName => {
-      const typeInfo = eventTypeMap[typeName.toLowerCase()] || {};
-      const isGlobal = typeInfo.isGlobal === true;
-      
-      console.log(`Checking "${typeName}": isGlobal = ${isGlobal}`);
-      
-      if (isGlobal) {
-        console.log(`  -> Global = true, showing to everyone`);
-        return true;
-      }
-      
-      if (typeInfo.isGlobal === false) {
-        const showToAuthorized = isAdmin || isLeaderAt12 || isRegistrant;
-        console.log(`  -> Global = false, showing to Admin/LeaderAt12/Registrant: ${showToAuthorized}`);
-        return showToAuthorized;
-      }
-
-      if (isRegularUser) {
-        console.log(`  -> isGlobal undefined, regular user -> HIDDEN`);
-        return false;
-      }
-      
-      if (isRegistrant) {
-        console.log(`  -> isGlobal undefined, registrant -> SHOW`);
-        return true;
-      }
-      
-      const showToLeadersAndAbove = isAdmin || isLeaderAt12 || isLeader;
-      console.log(`  -> isGlobal undefined, leader/admin/leaderAt12 -> ${showToLeadersAndAbove}`);
-      return showToLeadersAndAbove;
-    });
-  } catch (error) {
-    console.error("Error filtering event types:", error);
-    if (isAdmin || isLeaderAt12 || isRegistrant) {
-      return allTypes;
-    } else if (isLeader) {
-      return allTypes;
-    } else {
-      return [];
-    }
-  }
-}, [eventTypes, isAdmin, isLeaderAt12, isLeader, isRegistrant, isRegularUser, userRole]);
-
-const handleEventTypeClick = (typeValue) => {
-  const eventTypeObj = eventTypes.find(et => {
-    const etName = et.name || et.eventTypeName || et.displayName || "";
-    return etName.toLowerCase() === typeValue.toLowerCase();
-  }) || { name: typeValue };
-  
-  setSelectedEventTypeObj(eventTypeObj);
-  setSelectedEventTypeFilter(typeValue);
-  setSelectedStatus("incomplete");
-  setCurrentPage(1);
-  const fetchParams = {
-    page: 1,
-    limit: rowsPerPage,
-    start_date: DEFAULT_API_START_DATE,
-    event_type: typeValue === "all" ? "CELLS" : typeValue,
-    status: "incomplete", 
-    _t: Date.now(), 
-  };
-
-  if (searchQuery.trim()) {
-    fetchParams.search = searchQuery.trim();
-  }
-
-  const isCellEvent = typeValue === "all" || typeValue === "CELLS" || typeValue.toLowerCase().includes("cell");
-  
-  if (isCellEvent) {
-    if (isAdmin) {
-      if (viewFilter === "personal") {
-        fetchParams.personal = true;
-      }
-    } 
-    else if (isRegistrant || isRegularUser) {
-      fetchParams.personal = true;
-    } 
-    else if (isLeaderAt12) {
-      fetchParams.leader_at_12_view = true;
-      fetchParams.include_subordinate_cells = true;
-
-      if (viewFilter === "personal") {
-        fetchParams.show_personal_cells = true;
-        fetchParams.personal = true;
-      } else {
-        fetchParams.show_all_authorized = true;
-      }
-    } 
-    else if (isLeader) {
-      fetchParams.personal = true;
-    }
-  } else {
-    delete fetchParams.personal;
-    delete fetchParams.leader_at_12_view;
-    delete fetchParams.show_personal_cells;
-    delete fetchParams.show_all_authorized;
-    delete fetchParams.include_subordinate_cells;
-  }
-
-  console.log("🔍 Fetching events for type:", typeValue, "with status:", fetchParams.status);
-  fetchEvents(fetchParams, true);
-};
-
-  const eventTypeStyles = {
-=======
   const handleEventTypeClick = (typeValue) => {
         const eventTypeObj = eventTypes.find(et => {
       const etName = et.name || et.eventTypeName || et.displayName || "";
@@ -3815,7 +3665,6 @@ const handleEventTypeClick = (typeValue) => {
       };
 
   const eventTypeStyles = externalStyles || {
->>>>>>> main
     container: {
       backgroundColor: isDarkMode ? theme.palette.background.paper : "#f8f9fa",
       borderRadius: "12px",
@@ -3895,19 +3744,8 @@ const handleEventTypeClick = (typeValue) => {
     },
   };
 
-<<<<<<< HEAD
-const allTypes = useMemo(() => {
-  const availableTypes = filteredEventTypes;
-  
-  console.log("=== FINAL Filtered Types ===");
-  console.log("Available types:", availableTypes);
-  console.log("Total count:", availableTypes.length);
-  
-  const shouldSeeAll = isAdmin || isLeaderAt12 || isLeader || isRegistrant || isRegularUser;
-=======
   const allTypes = useMemo(() => {
     const availableTypes = filteredEventTypes;
->>>>>>> main
     
     console.log("=== FINAL Filtered Types ===");
     console.log("Available types:", availableTypes);
