@@ -38,7 +38,6 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
   const open = Boolean(anchorEl);
 
   const handleMenuClick = e => { e.stopPropagation(); setAnchorEl(e.currentTarget); };
-  const handleMenuClose = () => setAnchorEl(null);
   const handleEdit = () => { onEdit(person); handleMenuClose(); };
   const handleDelete = () => { onDelete(person._id); handleMenuClose(); };
 
@@ -392,7 +391,11 @@ export const PeopleSection = () => {
           leader12: (raw["Leader @12"] || "").toString().trim(),
           leader144: (raw["Leader @144"] || "").toString().trim(),
           leader1728: (raw["Leader @1728"] || "").toString().trim(),
-        }
+        },
+        // precompute lowercase search text to avoid repeated toLowerCase in filters
+        searchText: (
+          `${(raw.Name || raw.name || "")} ${(raw.Surname || raw.surname || "")} ${(raw.Email || raw.email || "")} ${(raw.Number || raw.Phone || "")} ${(raw.Address || raw.address || "")} ${(raw["Leader @1"] || "")} ${(raw["Leader @12"] || "")} ${(raw["Leader @144"] || "")}`
+        ).toLowerCase(),
       }));
 
       globalPeopleCache = mapped;
