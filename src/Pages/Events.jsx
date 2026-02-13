@@ -1491,7 +1491,7 @@ const fetchEvents = useCallback(
           params.personal = true;
         }
       } else {
-        endpoint = `${BACKEND_URL}/events/eventsdata`;
+        endpoint = `${BACKEND_URL}/events/other`;
         delete params.personal;
         delete params.leader_at_12_view;
         delete params.include_subordinate_cells;
