@@ -1549,6 +1549,8 @@ const fetchEvents = useCallback(
   [currentPage, rowsPerPage, authFetch, BACKEND_URL, isLeaderAt12, isAdmin, isRegistrant, viewFilter, logout, selectedEventTypeFilter, selectedStatus]
 );
 
+
+
 const fetchEventTypes = useCallback(async () => {
   try {
     const token = localStorage.getItem("access_token");
