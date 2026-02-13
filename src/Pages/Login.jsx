@@ -69,7 +69,7 @@ const Login = ({ mode, setMode }) => {
       
       // The protected route will automatically navigate to home
     } catch (err) {
-      setError(err.message || "Login failed.");
+      setError("Please Signup if you don't have an account!");
     } finally {
       setLoading(false);
     }

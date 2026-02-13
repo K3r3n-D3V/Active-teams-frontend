@@ -5,9 +5,12 @@ import { BrowserRouter } from 'react-router-dom';
 import AuthProvider from './contexts/AuthContext';
 import { UserProvider } from './contexts/UserContext';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
+import { TaskUpdateProvider } from './contexts/TaskUpdateContext';
+
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
+       <TaskUpdateProvider>
     <ErrorBoundary>
     <AuthProvider>
       <UserProvider>
@@ -17,5 +20,6 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       </UserProvider>
     </AuthProvider>
     </ErrorBoundary>
+       </TaskUpdateProvider>
   </React.StrictMode>
 );

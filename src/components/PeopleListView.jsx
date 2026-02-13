@@ -39,7 +39,7 @@ const PeopleListView = ({ people, onEdit, onDelete, loading }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const [selectedPerson, setSelectedPerson] = useState(null);
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(25);
   const [expandedRow, setExpandedRow] = useState(null);
 
   const handleMenuClick = (e, person) => {
@@ -270,7 +270,7 @@ const PeopleListView = ({ people, onEdit, onDelete, loading }) => {
         </Box>
 
         <TablePagination
-          rowsPerPageOptions={[10, 25, 50, 100]}
+          rowsPerPageOptions={[10, 25, 50, 100,250]}
           component="div"
           count={people.length}
           rowsPerPage={rowsPerPage}
@@ -429,7 +429,7 @@ const PeopleListView = ({ people, onEdit, onDelete, loading }) => {
       </TableContainer>
 
       <TablePagination
-        rowsPerPageOptions={[10, 25, 50, 100]}
+        rowsPerPageOptions={[10, 25, 50, 100,250]}
         component="div"
         count={people.length}
         rowsPerPage={rowsPerPage}
