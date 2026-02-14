@@ -38,6 +38,7 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
   const open = Boolean(anchorEl);
 
   const handleMenuClick = e => { e.stopPropagation(); setAnchorEl(e.currentTarget); };
+  const handleMenuClose = () => setAnchorEl(null);
   const handleEdit = () => { onEdit(person); handleMenuClose(); };
   const handleDelete = () => { onDelete(person._id); handleMenuClose(); };
 
@@ -846,7 +847,7 @@ export const PeopleSection = () => {
         ) : (
           <Box sx={{ px: 2 }}>
             <PeopleListView
-              people={filteredPeople}
+              people={paginatedPeople}
               onEdit={handleEditPerson}
               onDelete={(id) => {
                 removePersonFromCache(id);
