@@ -2258,13 +2258,11 @@ ${xmlCols}
     // );
   }, [viewFilter, userRole, fetchEvents, rowsPerPage, DEFAULT_API_START_DATE]);
 
-
- 
   const [allCurrentEvents, setAllCurrentEvents] = useState([]); //all events fetched for current filters, used for searching
   const [isSearching, setIsSearching] = useState(null);
 
   const fetchAllCurrentEvents = useCallback(async () => {
-    console.log("clicked! ")
+    console.log("clicked! ");
     try {
       if (isSearching) return; // Prevent multiple simultaneous fetches
       let shouldApplyPersonalFilter = undefined;
@@ -2305,7 +2303,7 @@ ${xmlCols}
       const data = await response.json();
       console.log("filtered Received events:", data.events?.length || 0);
       const allEvents = data.events || [];
-      setAllCurrentEvents(allEvents)
+      setAllCurrentEvents(allEvents);
     } catch (e) {
       console.error("Error fetching all current events", e);
     }
@@ -2319,67 +2317,72 @@ ${xmlCols}
     DEFAULT_API_START_DATE,
   ]);
   const handleSearchSubmit = (searchText) => {
-    if(!searchText.trim()) return
+    if (!searchText.trim()) return;
     const trimmedSearch = searchText.trim();
-    
 
-    const newArray = allCurrentEvents.filter((event)=>{
+    const newArray = allCurrentEvents.filter((event) => {
       let found = false;
-    [
-      "Event Name",
-      "eventName",
-      "EventName",
-      "Leader",
-      "eventLeaderName",
-      "EventLeaderName",
-      "Email",
-      "eventLeaderEmail",
-      "EventLeaderEmail",
-      "Leader at 12",
-      "Leader @12",
-      "leader12",
-    ].forEach((field) => {
-      if (event[field] && typeof event[field] === "string") {
-        found = found || event[field].toLowerCase().includes(trimmedSearch.toLowerCase())
-
-      }
+      [
+        "Event Name",
+        "eventName",
+        "EventName",
+        "Leader",
+        "eventLeaderName",
+        "EventLeaderName",
+        "Email",
+        "eventLeaderEmail",
+        "EventLeaderEmail",
+        "Leader at 12",
+        "Leader @12",
+        "leader12",
+      ].forEach((field) => {
+        if (event[field] && typeof event[field] === "string") {
+          found =
+            found ||
+            event[field].toLowerCase().includes(trimmedSearch.toLowerCase());
+        }
+      });
+      return found;
     });
-    return found
-    })
-    console.log("searched", allCurrentEvents,"with",trimmedSearch)
-    setTotalEvents(newArray.length|| 0);
-    return newArray
+    console.log("searched", allCurrentEvents, "with", trimmedSearch);
+    setTotalEvents(newArray.length || 0);
+    return newArray;
   };
-
 
   const searchDebounceRef = useRef(null);
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   useEffect(() => {
+    if (searchQuery.trim() === "") {
+      setIsSearching(false);
+    } else if (!isSearching) setIsSearching(true);
+    
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchQuery);
+    }, 300); // 300ms debounce
+
+    return () => {
       if (searchDebounceRef.current) {
         clearTimeout(searchDebounceRef.current);
       }
-  
-      searchDebounceRef.current = setTimeout(() => {
-        setDebouncedSearchTerm(searchQuery);
-      }, 300); // 300ms debounce
-  
-      return () => {
-        if (searchDebounceRef.current) {
-          clearTimeout(searchDebounceRef.current);
-        }
-      };
-    }, [searchQuery]);
+    };
+  }, [searchQuery]);
 
-    const filteredEvents = useMemo(()=>{
-    if(isSearching === null) return events
-    if(!debouncedSearchTerm.trim()) return events
-    return handleSearchSubmit(debouncedSearchTerm) || []
-  },[
+  const filteredEvents = useMemo(() => {
+    if (isSearching === null) return events;
+    if (!debouncedSearchTerm.trim()) return events;
+    return handleSearchSubmit(debouncedSearchTerm) || [];
+  }, [allCurrentEvents, debouncedSearchTerm]);
+  console.log(
+    "issearching",
+    isSearching,
+    filteredEvents,
     allCurrentEvents,
-    debouncedSearchTerm
-  ])
-  console.log("issearching", isSearching, filteredEvents, allCurrentEvents);
-
+    searchQuery,
+  );
 
   const handleRowsPerPageChange = useCallback(
     (e) => {
@@ -4429,12 +4432,8 @@ ${xmlCols}
                 onClick={fetchAllCurrentEvents}
                 disabled={loading}
                 onChange={(e) => {
-                  
                   const value = e.target.value;
                   setSearchQuery(value);
-                  if (value.trim() === "") {
-                    setIsSearching(false);
-                  } else if (!isSearching) setIsSearching(true);
                 }}
                 onKeyPress={(e) => {
                   if (e.key === "Enter") {
@@ -4649,7 +4648,8 @@ ${xmlCols}
                     Loading events...
                   </Typography>
                 </Box>
-              ) : paginatedEvents.length === 0 || isSearching && filteredEvents?.length === 0 ? (
+              ) : paginatedEvents.length === 0 ||
+                (isSearching && filteredEvents?.length === 0) ? (
                 <Box
                   sx={{
                     textAlign: "center",
@@ -4663,43 +4663,45 @@ ${xmlCols}
                 </Box>
               ) : (
                 <>
-                  {!isSearching? paginatedEvents.map((event) => (
-                    <>
-                      <MobileEventCard
-                        key={event._id}
-                        event={event}
-                        onOpenAttendance={() => handleCaptureClick(event)}
-                        onEdit={() => handleEditEvent(event)}
-                        onDelete={() => handleDeleteEvent(event)}
-                        isOverdue={isOverdue(event)}
-                        formatDate={formatDate}
-                        theme={theme}
-                        styles={styles}
-                        isAdmin={isAdmin}
-                        isLeaderAt12={isLeaderAt12}
-                        currentUserLeaderAt1={currentUserLeaderAt1}
-                        selectedEventTypeFilter={selectedEventTypeFilter}
-                      />
-                    </>
-                  )):filteredEvents.map((event) => (
-                    <>
-                      <MobileEventCard
-                        key={event._id}
-                        event={event}
-                        onOpenAttendance={() => handleCaptureClick(event)}
-                        onEdit={() => handleEditEvent(event)}
-                        onDelete={() => handleDeleteEvent(event)}
-                        isOverdue={isOverdue(event)}
-                        formatDate={formatDate}
-                        theme={theme}
-                        styles={styles}
-                        isAdmin={isAdmin}
-                        isLeaderAt12={isLeaderAt12}
-                        currentUserLeaderAt1={currentUserLeaderAt1}
-                        selectedEventTypeFilter={selectedEventTypeFilter}
-                      />
-                    </>
-                  ))}
+                  {!isSearching
+                    ? paginatedEvents.map((event) => (
+                        <>
+                          <MobileEventCard
+                            key={event._id}
+                            event={event}
+                            onOpenAttendance={() => handleCaptureClick(event)}
+                            onEdit={() => handleEditEvent(event)}
+                            onDelete={() => handleDeleteEvent(event)}
+                            isOverdue={isOverdue(event)}
+                            formatDate={formatDate}
+                            theme={theme}
+                            styles={styles}
+                            isAdmin={isAdmin}
+                            isLeaderAt12={isLeaderAt12}
+                            currentUserLeaderAt1={currentUserLeaderAt1}
+                            selectedEventTypeFilter={selectedEventTypeFilter}
+                          />
+                        </>
+                      ))
+                    : filteredEvents.map((event) => (
+                        <>
+                          <MobileEventCard
+                            key={event._id}
+                            event={event}
+                            onOpenAttendance={() => handleCaptureClick(event)}
+                            onEdit={() => handleEditEvent(event)}
+                            onDelete={() => handleDeleteEvent(event)}
+                            isOverdue={isOverdue(event)}
+                            formatDate={formatDate}
+                            theme={theme}
+                            styles={styles}
+                            isAdmin={isAdmin}
+                            isLeaderAt12={isLeaderAt12}
+                            currentUserLeaderAt1={currentUserLeaderAt1}
+                            selectedEventTypeFilter={selectedEventTypeFilter}
+                          />
+                        </>
+                      ))}
 
                   {/* MOBILE PAGINATION*/}
                   <Box
@@ -4901,7 +4903,8 @@ ${xmlCols}
                       Loading events...
                     </Typography>
                   </Box>
-                ) : paginatedEvents.length === 0 || isSearching && filteredEvents?.length === 0 ? (
+                ) : paginatedEvents.length === 0 ||
+                  (isSearching && filteredEvents?.length === 0) ? (
                   <Typography sx={{ p: 3, textAlign: "center" }}>
                     No events found matching your criteria.
                   </Typography>
@@ -4911,7 +4914,7 @@ ${xmlCols}
                   >
                     <DataGrid
                       rows={
-                        !isSearching && filteredEvents.length
+                        !isSearching
                           ? paginatedEvents.map((event, idx) => {
                               const id =
                                 event._id || event.id || event.UUID || idx;
@@ -4947,7 +4950,7 @@ ${xmlCols}
                       }
                       columns={[
                         ...generateDynamicColumns(
-                          !isSearching && filteredEvents.length ? paginatedEvents : filteredEvents,
+                          !isSearching ? paginatedEvents : filteredEvents,
                           isOverdue,
                           selectedEventTypeFilter,
                         ),
