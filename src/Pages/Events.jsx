@@ -2229,10 +2229,11 @@ ${xmlCols}
       </Box>
     );
   };
-
+c
   const clearAllFilters = useCallback(() => {
     setSearchQuery("");
     setIsSearching(false);
+    setTotalEvents(events.length||0)
     // setFilterOptions({
     //   leader: "",
     //   day: "all",
@@ -2355,7 +2356,8 @@ ${xmlCols}
     if (searchQuery.trim() === "") {
       setIsSearching(false);
     } else if (!isSearching) setIsSearching(true);
-    
+    clearAllFilters();
+
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
     }
