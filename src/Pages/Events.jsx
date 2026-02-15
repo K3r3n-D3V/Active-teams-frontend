@@ -1491,7 +1491,7 @@ ${xmlCols}
         params.personal = true;
       }
     } else {
-      endpoint = `${BACKEND_URL}/events/other`;
+      endpoint = `${BACKEND_URL}/events/eventsdata`;
       // Remove cells-specific parameters
       delete params.personal;
       delete params.leader_at_12_view;
@@ -2229,7 +2229,7 @@ ${xmlCols}
       </Box>
     );
   };
-c
+
   const clearAllFilters = useCallback(() => {
     setSearchQuery("");
     setIsSearching(false);
@@ -2354,9 +2354,9 @@ c
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   useEffect(() => {
     if (searchQuery.trim() === "") {
+      clearAllFilters();
       setIsSearching(false);
     } else if (!isSearching) setIsSearching(true);
-    clearAllFilters();
 
     if (searchDebounceRef.current) {
       clearTimeout(searchDebounceRef.current);
