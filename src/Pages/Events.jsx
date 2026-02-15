@@ -1457,9 +1457,7 @@ const fetchEvents = useCallback(
       if (filters.event_type) {
         params.event_type = filters.event_type;
       }
-      
       let endpoint = `${BACKEND_URL}/events`;
-      
       const eventType = filters.event_type || selectedEventTypeFilter;
       const isCellType = 
         !eventType || 
