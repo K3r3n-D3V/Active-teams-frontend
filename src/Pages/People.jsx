@@ -6,21 +6,22 @@ import {
   Box, Paper, Typography, Badge, useTheme, useMediaQuery, Card, CardContent,
   IconButton, Chip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
   TextField, InputAdornment, Button, Snackbar, Alert, Skeleton, ToggleButton,
-  ToggleButtonGroup, Tooltip, Pagination, CircularProgress, LinearProgress
+  ToggleButtonGroup, Tooltip, Pagination, CircularProgress, LinearProgress, Grid
 } from '@mui/material';
 import {
   Search as SearchIcon, Add as AddIcon, MoreVert as MoreVertIcon,
   Edit as EditIcon, Delete as DeleteIcon, Email as EmailIcon,
   Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon,
   ViewModule as ViewModuleIcon, ViewList as ViewListIcon, People as PeopleIcon,
-  PersonOutline as PersonOutlineIcon
+  PersonOutline as PersonOutlineIcon, EmojiEvents as WinIcon,
+  Handshake as ConsolidateIcon, School as DiscipleIcon, Send as SendIcon
 } from '@mui/icons-material';
 import AddPersonDialog from '../components/AddPersonDialog';
 import PeopleListView from '../components/PeopleListView';
 
 // Global cache outside component to persist across remounts
-let globalPeopleCache = null;
-let globalCacheTimestamp = null;
+if (!window.globalPeopleCache) window.globalPeopleCache = null;
+if (!window.globalCacheTimestamp) window.globalCacheTimestamp = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // ---------------- Stages ----------------
@@ -233,6 +234,13 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
         });
       }
 
+      // Force a cache update to trigger count recalculation
+      window.globalPeopleCache = allPeople.map(p =>
+        String(p._id) === String(draggableId)
+          ? { ...p, Stage: newStage, lastUpdated: data.UpdatedAt || new Date().toISOString() }
+          : p
+      );
+
     } catch (err) {
       console.error("Failed to update Stage:", err.message || err);
 
@@ -245,7 +253,7 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
   };
 
   // Only show skeleton if loading AND no data at all (first ever load)
-  if (loading && people.length === 0 && !globalPeopleCache) {
+  if (loading && people.length === 0 && !window.globalPeopleCache) {
     return (
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
         {stages.map(Stage => (
@@ -302,13 +310,14 @@ export const PeopleSection = () => {
   const theme = useTheme();
   const { user, authFetch } = useContext(AuthContext);
   const { userProfile } = useContext(UserContext);
+  
   // ensure currentUserName is defined (fixes ReferenceError)
   const currentUserName = (user?.name && user?.surname)
     ? `${(user.name || '').trim()} ${(user.surname || '').trim()}`.toLowerCase()
     : (userProfile?.name ? userProfile.name.toLowerCase() : '').trim();
-  const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
+  
+  const [allPeople, setAllPeople] = useState(window.globalPeopleCache || []);
   const [loading, setLoading] = useState(false);
-  const [isRefining, setIsRefining] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('name');
@@ -322,187 +331,232 @@ export const PeopleSection = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [viewMode, setViewMode] = useState('grid');
   const [viewFilter, setViewFilter] = useState('myPeople'); // 'all' or 'myPeople'
+  const [stageFilter, setStageFilter] = useState('all'); // 'all' or specific stage
   const [gridPage, setGridPage] = useState(1);
+  const [isSearching, setIsSearching] = useState(false);
   const ITEMS_PER_PAGE = 100;
   const isFetchingRef = useRef(false);
   const searchDebounceRef = useRef(null);
+  const peopleFetchPromiseRef = useRef(null);
   
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
   // Fetch all people with caching and in-flight guard
   const fetchAllPeople = useCallback(async (forceRefresh = false) => {
     const now = Date.now();
-    if (!forceRefresh && globalPeopleCache && globalCacheTimestamp && (now - globalCacheTimestamp < CACHE_DURATION)) {
-      setAllPeople(globalPeopleCache);
-      return globalPeopleCache;
+    
+    // Return cache if fresh enough
+    if (!forceRefresh && window.globalPeopleCache && window.globalCacheTimestamp && (now - window.globalCacheTimestamp < CACHE_DURATION)) {
+      setAllPeople(window.globalPeopleCache);
+      return window.globalPeopleCache;
     }
 
-    if (isFetchingRef.current) {
-      return globalPeopleCache || [];
+    // If already fetching, wait for that promise
+    if (isFetchingRef.current && peopleFetchPromiseRef.current) {
+      try {
+        const result = await peopleFetchPromiseRef.current;
+        return result || window.globalPeopleCache || [];
+      } catch (e) {
+        return window.globalPeopleCache || [];
+      }
     }
 
     isFetchingRef.current = true;
     setLoading(true);
-    try {
-      const response = await authFetch(`${BACKEND_URL}/people?perPage=0`);
-      if (!response || !response.ok) throw new Error('Failed to fetch people');
-      const data = await response.json();
-      const rawPeople = data?.results || [];
-      const mapped = rawPeople.map(raw => {
-        const name = (raw.Name || raw.name || "").toString().trim();
-        const surname = (raw.Surname || raw.surname || "").toString().trim();
-        const email = (raw.Email || raw.email || "").toString().trim();
-        const phone = (raw.Number || raw.Phone || "").toString().trim();
-        const address = (raw.Address || raw.address || "").toString().trim();
-        const leader1 = (raw["Leader @1"] || "").toString().trim();
-        const leader12 = (raw["Leader @12"] || "").toString().trim();
-        const leader144 = (raw["Leader @144"] || "").toString().trim();
-        const leader1728 = (raw["Leader @1728"] || "").toString().trim();
+    
+    peopleFetchPromiseRef.current = (async () => {
+      try {
+        const response = await authFetch(`${BACKEND_URL}/people?perPage=0`);
+        if (!response || !response.ok) throw new Error('Failed to fetch people');
+        const data = await response.json();
+        const rawPeople = data?.results || [];
+        
+        const mapped = rawPeople.map(raw => {
+          const name = (raw.Name || raw.name || "").toString().trim();
+          const surname = (raw.Surname || raw.surname || "").toString().trim();
+          const email = (raw.Email || raw.email || "").toString().trim();
+          const phone = (raw.Number || raw.Phone || "").toString().trim();
+          const address = (raw.Address || raw.address || "").toString().trim();
+          const leader1 = (raw["Leader @1"] || "").toString().trim();
+          const leader12 = (raw["Leader @12"] || "").toString().trim();
+          const leader144 = (raw["Leader @144"] || "").toString().trim();
+          const leader1728 = (raw["Leader @1728"] || "").toString().trim();
 
-        const fullName = `${name} ${surname}`.trim();
-        const fullNameLower = fullName.toLowerCase();
-        const emailLower = email.toLowerCase();
-        const leadersCombinedLower = `${leader1} ${leader12} ${leader144} ${leader1728}`.toLowerCase();
-        const searchText = `${fullNameLower} ${emailLower} ${phone} ${address.toLowerCase()} ${leadersCombinedLower}`;
+          const fullName = `${name} ${surname}`.trim();
+          const fullNameLower = fullName.toLowerCase();
+          const emailLower = email.toLowerCase();
+          const phoneLower = phone.toLowerCase();
+          const addressLower = address.toLowerCase();
+          const leadersCombinedLower = `${leader1} ${leader12} ${leader144} ${leader1728}`.toLowerCase();
 
-        return {
-          _id: (raw._id || raw.id || "").toString(),
-          name,
-          surname,
-          fullName,
-          fullNameLower,
-          emailLower,
-          gender: (raw.Gender || raw.gender || "").toString().trim(),
-          dob: raw.Birthday || raw.DateOfBirth || "",
-          location: address,
-          email,
-          phone,
-          Stage: (raw.Stage || "Win").toString().trim(),
-          lastUpdated: raw.UpdatedAt || null,
-          invitedBy: (raw.InvitedBy || "").toString().trim(),
-          leaders: { leader1, leader12, leader144, leader1728 },
-          searchText,
-          leadersCombinedLower
-        };
-      });
+          return {
+            _id: (raw._id || raw.id || "").toString(),
+            name,
+            surname,
+            fullName,
+            fullNameLower,
+            emailLower,
+            phoneLower,
+            addressLower,
+            gender: (raw.Gender || raw.gender || "").toString().trim(),
+            dob: raw.Birthday || raw.DateOfBirth || "",
+            location: address,
+            email,
+            phone,
+            Stage: (raw.Stage || "Win").toString().trim(),
+            lastUpdated: raw.UpdatedAt || null,
+            invitedBy: (raw.InvitedBy || "").toString().trim(),
+            leaders: { leader1, leader12, leader144, leader1728 },
+            leadersCombinedLower
+          };
+        });
 
-      globalPeopleCache = mapped;
-      globalCacheTimestamp = Date.now();
-      setAllPeople(mapped);
-      return mapped;
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setSnackbar({ open: true, message: `Failed to load people: ${err?.message}`, severity: 'error' });
-      return globalPeopleCache || [];
-    } finally {
-      setLoading(false);
-      isFetchingRef.current = false;
-    }
+        window.globalPeopleCache = mapped;
+        window.globalCacheTimestamp = Date.now();
+        setAllPeople(mapped);
+        return mapped;
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setSnackbar({ open: true, message: `Failed to load people: ${err?.message}`, severity: 'error' });
+        return window.globalPeopleCache || [];
+      } finally {
+        setLoading(false);
+        isFetchingRef.current = false;
+        peopleFetchPromiseRef.current = null;
+      }
+    })();
+
+    return await peopleFetchPromiseRef.current;
   }, [BACKEND_URL, authFetch]);
 
-useEffect(() => {
-    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-    // slightly longer debounce to avoid excessive work on very large datasets
-    searchDebounceRef.current = setTimeout(() => setDebouncedSearchTerm(searchTerm), 500);
-    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
-  }, [searchTerm]);
+  // Debounce search term
   useEffect(() => {
-    let cancelled = false;
-    const REFINEMENT_THRESHOLD = 2 * 60 * 1000; // 2 minutes
-
-    const refineIfNeeded = async () => {
-      if (!debouncedSearchTerm || !debouncedSearchTerm.trim()) return;
-
-    return peopleList.filter(person => {
-      switch (field) {
-        case 'name': {
-          const nameLower = person.name.toLowerCase();
-          const surnameLower = person.surname.toLowerCase();
-          const fullName = `${nameLower} ${surnameLower}`;
-          
-          return nameLower.includes(searchLower) ||
-            surnameLower.includes(searchLower) ||
-            fullName.includes(searchLower);
-        }
-        case 'email':
-          return person.email.toLowerCase().includes(searchLower);
-        case 'phone':
-          return person.phone.includes(searchValue.trim());
-        case 'location':
-          return person.location.toLowerCase().includes(searchLower);
-        case 'leaders': {
-          const leader1Lower = person.leaders.leader1.toLowerCase();
-          const leader12Lower = person.leaders.leader12.toLowerCase();
-          const leader144Lower = person.leaders.leader144.toLowerCase();
-          const leader1728Lower = person.leaders.leader1728.toLowerCase();
-
-      // If we already have relatively fresh data and some local people, skip refinement
-      if (globalPeopleCache && allPeople && allPeople.length > 0 && cacheAge < REFINEMENT_THRESHOLD) {
-        return;
-        await fetchAllPeople(false);
-      } catch (e) {
-        // ignore - keep whatever results the local quick-search produced
-        console.error("Refinement failed:", e);
-      } finally {
-        if (!cancelled) setIsRefining(false);
-      }
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    
+    if (searchTerm.trim()) {
+      setIsSearching(true);
+    }
+    
+    searchDebounceRef.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setIsSearching(false);
+    }, 300);
+    
+    return () => { 
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); 
     };
-    refineIfNeeded();
-    return () => { cancelled = true; };
-  }, [debouncedSearchTerm, fetchAllPeople, allPeople]);
+  }, [searchTerm]);
 
-  // Optimized search function
+  // Optimized search function with proper ranking
   const searchPeople = useCallback((peopleList, searchValue, field = 'name') => {
     const rawQ = (searchValue || "").trim();
+    if (!rawQ) return peopleList;
+    
     const q = rawQ.toLowerCase();
-    if (!q) return peopleList;
 
-    // phone: digits-only match
+    // Phone: digits-only match
     if (field === 'phone') {
       const digits = rawQ.replace(/\D/g, "");
       if (!digits) return peopleList;
+      return peopleList.filter(p => {
+        const personDigits = (p.phone || "").replace(/\D/g, "");
+        return personDigits.includes(digits);
+      });
     }
 
-    // leaders: match against precomputed leadersCombinedLower
+    // Leaders: match against precomputed leadersCombinedLower
     if (field === 'leaders') {
-      return peopleList.filter(p => (p.leadersCombinedLower || "").includes(q));
+      const matches = peopleList.filter(p => (p.leadersCombinedLower || "").includes(q));
+      // Rank by how early the match appears
+      return matches.sort((a, b) => {
+        const aIdx = (a.leadersCombinedLower || "").indexOf(q);
+        const bIdx = (b.leadersCombinedLower || "").indexOf(q);
+        return aIdx - bIdx;
+      });
     }
 
-    // email: match emailLower
+    // Email: match emailLower
     if (field === 'email') {
-      return peopleList.filter(p => (p.emailLower || "").includes(q));
+      const matches = peopleList.filter(p => (p.emailLower || "").includes(q));
+      return matches.sort((a, b) => {
+        const aIdx = (a.emailLower || "").indexOf(q);
+        const bIdx = (b.emailLower || "").indexOf(q);
+        return aIdx - bIdx;
+      });
     }
 
-    // location: match location string (use searchText fallback but prefer location)
+    // Location: match addressLower
     if (field === 'location') {
-      return peopleList.filter(p => (p.location || "").toLowerCase().includes(q));
+      const matches = peopleList.filter(p => (p.addressLower || "").includes(q));
+      return matches.sort((a, b) => {
+        const aIdx = (a.addressLower || "").indexOf(q);
+        const bIdx = (b.addressLower || "").indexOf(q);
+        return aIdx - bIdx;
+      });
     }
 
-    // stage: exact-ish match
+    // Stage: exact-ish match
     if (field === 'stage') {
       return peopleList.filter(p => (p.Stage || "").toLowerCase().includes(q));
     }
 
-    // NAME search: match tokens and rank results so exact/full-name matches surface first
-    // split query into tokens
+    // NAME search with intelligent ranking
     const tokens = q.split(/\s+/).filter(Boolean);
+    
     const matches = peopleList.filter(p => {
-      const full = p.fullNameLower || `${(p.name||'')} ${(p.surname||'')}`.toLowerCase();
+      const full = p.fullNameLower || '';
+      // All tokens must be present
       return tokens.every(tok => full.includes(tok));
     });
 
-    // scoring: exact full match -> startsWith -> includes
+    // Scoring: prioritize exact matches, then starts-with, then contains
     const scoreFor = (p) => {
       const full = p.fullNameLower || '';
+      const name = (p.name || '').toLowerCase();
+      const surname = (p.surname || '').toLowerCase();
+      
+      // Exact full name match = highest priority
       if (full === q) return 0;
+      
+      // Full name starts with query
       if (full.startsWith(q)) return 1;
-      // count tokens at front matches higher
-      const tokenMatchCount = tokens.reduce((c, t) => c + (full.indexOf(t) === 0 ? 1 : 0), 0);
-      if (tokenMatchCount === tokens.length) return 2;
-      return 3;
+      
+      // First name exact match
+      if (name === q) return 2;
+      
+      // Surname exact match
+      if (surname === q) return 3;
+      
+      // First name starts with query
+      if (name.startsWith(q)) return 4;
+      
+      // Surname starts with query
+      if (surname.startsWith(q)) return 5;
+      
+      // All tokens match from start of either name
+      const allTokensStartMatch = tokens.every(tok => 
+        name.startsWith(tok) || surname.startsWith(tok)
+      );
+      if (allTokensStartMatch) return 6;
+      
+      // Check if query matches beginning of full name with tokens
+      const firstTokenIdx = full.indexOf(tokens[0]);
+      if (firstTokenIdx === 0) return 7;
+      
+      // Contains all tokens
+      return 10;
     };
 
-    matches.sort((a,b) => scoreFor(a) - scoreFor(b));
+    matches.sort((a, b) => {
+      const scoreA = scoreFor(a);
+      const scoreB = scoreFor(b);
+      
+      if (scoreA !== scoreB) return scoreA - scoreB;
+      
+      // If same score, sort alphabetically
+      return (a.fullNameLower || '').localeCompare(b.fullNameLower || '');
+    });
+    
     return matches;
   }, []);
 
@@ -519,18 +573,29 @@ useEffect(() => {
     });
   }, [currentUserName]);
 
-  // Use debounced search term
+  // Use debounced search term with optimized filtering
   const filteredPeople = useMemo(() => {
     let result = allPeople;
 
+    // Apply "My People" filter first
     if (viewFilter === 'myPeople') {
       result = filterMyPeople(result);
     }
 
-    result = searchPeople(result, debouncedSearchTerm, searchField);
+    // Apply stage filter
+    if (stageFilter !== 'all') {
+      result = result.filter(p => 
+        (p.Stage || '').trim().toLowerCase() === stageFilter.toLowerCase()
+      );
+    }
+
+    // Apply search filter
+    if (debouncedSearchTerm.trim()) {
+      result = searchPeople(result, debouncedSearchTerm, searchField);
+    }
 
     return result;
-  }, [allPeople, debouncedSearchTerm, searchField, viewFilter, searchPeople, filterMyPeople]);
+  }, [allPeople, debouncedSearchTerm, searchField, viewFilter, stageFilter, searchPeople, filterMyPeople]);
 
   const paginatedPeople = useMemo(() => {
     if (viewMode === 'list' || debouncedSearchTerm.trim()) {
@@ -547,17 +612,37 @@ useEffect(() => {
     return Math.ceil(filteredPeople.length / ITEMS_PER_PAGE);
   }, [filteredPeople.length, viewMode, debouncedSearchTerm]);
 
+  // Calculate stage counts (memoized for performance)
+  const stageCounts = useMemo(() => {
+    let baseList = allPeople;
+    
+    // Apply "My People" filter to counts if active
+    if (viewFilter === 'myPeople') {
+      baseList = filterMyPeople(baseList);
+    }
+    
+    return {
+      Win: baseList.filter(p => (p.Stage || '').trim().toLowerCase() === 'win').length,
+      Consolidate: baseList.filter(p => (p.Stage || '').trim().toLowerCase() === 'consolidate').length,
+      Disciple: baseList.filter(p => (p.Stage || '').trim().toLowerCase() === 'disciple').length,
+      Send: baseList.filter(p => (p.Stage || '').trim().toLowerCase() === 'send').length,
+      total: baseList.length
+    };
+  }, [allPeople, viewFilter, filterMyPeople]);
+
+  // Initial load - use cache first, then refresh in background
   useEffect(() => {
-    if (globalPeopleCache && allPeople.length === 0) {
-      setAllPeople(globalPeopleCache);
+    if (window.globalPeopleCache && allPeople.length === 0) {
+      setAllPeople(window.globalPeopleCache);
     }
 
+    // Always fetch in background to keep data fresh
     fetchAllPeople(false);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     setGridPage(1);
-  }, [debouncedSearchTerm, searchField, viewFilter]);
+  }, [debouncedSearchTerm, searchField, viewFilter, stageFilter]);
 
   const handleRefresh = () => {
     fetchAllPeople(true);
@@ -577,13 +662,14 @@ useEffect(() => {
         merged.fullName = `${(merged.name || '')} ${(merged.surname || '')}`.trim();
         merged.fullNameLower = (merged.fullName || '').toLowerCase();
         merged.emailLower = (merged.email || '').toLowerCase();
+        merged.phoneLower = (merged.phone || '').toLowerCase();
+        merged.addressLower = (merged.location || '').toLowerCase();
         merged.leadersCombinedLower = `${merged.leaders?.leader1 || ''} ${merged.leaders?.leader12 || ''} ${merged.leaders?.leader144 || ''} ${merged.leaders?.leader1728 || ''}`.toLowerCase();
-        merged.searchText = `${merged.fullNameLower} ${merged.emailLower} ${(merged.phone||'')} ${(merged.location||'').toLowerCase()} ${merged.leadersCombinedLower}`;
         return merged;
       });
-       globalPeopleCache = updated;
-       return updated;
-     });
+      window.globalPeopleCache = updated;
+      return updated;
+    });
   }, []);
  
   const addPersonToCache = useCallback((newPerson) => {
@@ -592,18 +678,19 @@ useEffect(() => {
       p.fullName = `${(p.name || '')} ${(p.surname || '')}`.trim();
       p.fullNameLower = (p.fullName || '').toLowerCase();
       p.emailLower = (p.email || '').toLowerCase();
+      p.phoneLower = (p.phone || '').toLowerCase();
+      p.addressLower = (p.location || '').toLowerCase();
       p.leadersCombinedLower = `${p.leaders?.leader1 || ''} ${p.leaders?.leader12 || ''} ${p.leaders?.leader144 || ''} ${p.leaders?.leader1728 || ''}`.toLowerCase();
-      p.searchText = `${p.fullNameLower} ${p.emailLower} ${(p.phone||'')} ${(p.location||'').toLowerCase()} ${p.leadersCombinedLower}`;
       const updated = [...prev, p];
-       globalPeopleCache = updated;
-       return updated;
+      window.globalPeopleCache = updated;
+      return updated;
     });
   }, []);
 
   const removePersonFromCache = useCallback((personId) => {
     setAllPeople(prev => {
       const updated = prev.filter(person => String(person._id) !== String(personId));
-      globalPeopleCache = updated;
+      window.globalPeopleCache = updated;
       return updated;
     });
   }, []);
@@ -686,17 +773,80 @@ useEffect(() => {
     });
   };
 
-  const isSearching = debouncedSearchTerm.trim().length > 0;
+  const isSearchingNow = debouncedSearchTerm.trim().length > 0;
+
+  // Responsive helper function
+  const getResponsiveValue = (xs, sm, md, lg, xl) => {
+    if (theme.breakpoints.values.xl && window.innerWidth >= theme.breakpoints.values.xl) return xl;
+    if (theme.breakpoints.values.lg && window.innerWidth >= theme.breakpoints.values.lg) return lg;
+    if (theme.breakpoints.values.md && window.innerWidth >= theme.breakpoints.values.md) return md;
+    if (theme.breakpoints.values.sm && window.innerWidth >= theme.breakpoints.values.sm) return sm;
+    return xs;
+  };
+
+  const containerPadding = getResponsiveValue(1, 2, 3, 3, 3);
+  const cardSpacing = getResponsiveValue(1.5, 2, 2.5, 3, 3);
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
       {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999 }} />}
 
+      {/* Stage Filter Cards */}
+      <Box sx={{ maxWidth: '1400px', margin: '0 auto', width: '100%', mb: 3 }}>
+        <Grid container spacing={cardSpacing}>
+          {[
+            { id: 'all', label: 'Total People', value: stageCounts.total, icon: <PeopleIcon />, color: '#2196f3' },
+            { id: 'Win', label: 'Win', value: stageCounts.Win, icon: <WinIcon />, color: '#4caf50' },
+            { id: 'Consolidate', label: 'Consolidate', value: stageCounts.Consolidate, icon: <ConsolidateIcon />, color: '#ff9800' },
+            { id: 'Disciple', label: 'Disciple', value: stageCounts.Disciple, icon: <DiscipleIcon />, color: '#9c27b0' },
+            { id: 'Send', label: 'Send', value: stageCounts.Send, icon: <SendIcon />, color: '#f44336' }
+          ].map((stat) => (
+            <Grid item xs={6} sm={4} md={2.4} key={stat.id}>
+              <Card 
+                sx={{ 
+                  cursor: 'pointer',
+                  transition: 'all 0.3s ease',
+                  border: stageFilter === stat.id ? `3px solid ${stat.color}` : '1px solid',
+                  borderColor: stageFilter === stat.id ? stat.color : 'divider',
+                  transform: stageFilter === stat.id ? 'scale(1.05)' : 'scale(1)',
+                  boxShadow: stageFilter === stat.id ? 4 : 1,
+                  '&:hover': {
+                    transform: 'scale(1.05)',
+                    boxShadow: 4
+                  }
+                }}
+                onClick={() => setStageFilter(stat.id)}
+              >
+                <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+                  <Avatar sx={{ 
+                    bgcolor: stat.color, 
+                    width: getResponsiveValue(40, 48, 56, 64, 64), 
+                    height: getResponsiveValue(40, 48, 56, 64, 64), 
+                    mb: 2, 
+                    mx: 'auto', 
+                    boxShadow: 2 
+                  }}>
+                    {stat.icon}
+                  </Avatar>
+                  <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight="bold" color="text.primary">
+                    {stat.value}
+                  </Typography>
+                  <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary" sx={{ mt: 1 }}>
+                    {stat.label}
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          ))}
+        </Grid>
+      </Box>
+
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, mb: 1 }}>
         <Typography variant="h6">
           {viewFilter === 'myPeople' ? 'My People' : 'All People'}
-          {isSearching && ` (${filteredPeople.length} results)`}
-          {loading && <CircularProgress size={16} sx={{ ml: 2 }} />}
+          {stageFilter !== 'all' && ` - ${stageFilter}`}
+          {isSearchingNow && ` (${filteredPeople.length} results)`}
+          {isSearching && <CircularProgress size={16} sx={{ ml: 1 }} />}
         </Typography>
         <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           <ToggleButtonGroup
@@ -757,7 +907,7 @@ useEffect(() => {
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
-                <SearchIcon />
+                {isSearching ? <CircularProgress size={20} /> : <SearchIcon />}
               </InputAdornment>
             ),
           }}
@@ -777,24 +927,6 @@ useEffect(() => {
           <MenuItem value="leaders">Leaders</MenuItem>
         </TextField>
       </Box>
-            {/* small refinement indicator shown while background fetch completes */}
-      {isRefining && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, mb: 2 }}>
-          <CircularProgress size={14} />
-          <Typography variant="caption" color="text.secondary">Results are being refined…</Typography>
-        </Box>
-      )}
-
-      {stageFilter !== 'all' && (
-        <Box sx={{ px: 1, mb: 2 }}>
-          <Chip 
-            label={`Filtered by: ${stageFilter.charAt(0).toUpperCase() + stageFilter.slice(1)}`}
-            onDelete={() => setStageFilter('all')}
-            color="primary"
-            variant="outlined"
-          />
-        </Box>
-      )}
 
       <Box sx={{ position: 'relative' }}>
         {viewMode === 'grid' ? (
@@ -812,7 +944,7 @@ useEffect(() => {
                         newAll[idx] = updatedPerson;
                       }
                     });
-                    globalPeopleCache = newAll;
+                    window.globalPeopleCache = newAll;
                     return newAll;
                   });
                 }
@@ -827,7 +959,7 @@ useEffect(() => {
               setAllPeople={setAllPeople}
             />
 
-            {!isSearching && totalPages > 1 && (
+            {!isSearchingNow && totalPages > 1 && (
               <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
                 <Pagination
                   count={totalPages}

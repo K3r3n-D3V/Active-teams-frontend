@@ -1,7 +1,5 @@
-
-
-import React, { useContext, useEffect, useState } from "react";
-import { Phone, UserPlus, Plus } from "lucide-react";
+import React, { useContext, useEffect, useState,useCallback,useRef } from "react";
+import { Phone, UserPlus, Plus, Loader2 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -64,6 +62,11 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 }
 
 export default function DailyTasks() {
+  // shared cache across pages - use window to avoid ReferenceError when other files expect it
+  if (!window.globalPeopleCache) window.globalPeopleCache = [];
+  if (!window.globalCacheTimestamp) window.globalCacheTimestamp = 0;
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
@@ -80,6 +83,8 @@ export default function DailyTasks() {
   const [filterType, setFilterType] = useState("all");
   const [newTaskTypeName, setNewTaskTypeName] = useState("");
   const [addingTaskType, setAddingTaskType] = useState(false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingPeople, setIsLoadingPeople] = useState(false);
 
   const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -104,9 +109,10 @@ export default function DailyTasks() {
   const [searchResults, setSearchResults] = useState([]);
   const [assignedResults, setAssignedResults] = useState([]);
   const [submitting, setSubmitting] = useState(false);
-  const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
+  const [allPeople, setAllPeople] = useState(window.globalPeopleCache || []);
   const isFetchingRef = useRef(false);
   const peopleFetchPromiseRef = useRef(null);
+  const fetchPeopleDebounceRef = useRef(null);
 
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
@@ -201,117 +207,122 @@ export default function DailyTasks() {
       setAddingTaskType(false);
     }
   };
-const fetchUserTasks = async () => {
-  if (!user?.email) return;
-  
-  // Add an abort controller to cancel the request if component unmounts
-  const controller = new AbortController();
-  const signal = controller.signal;
-  
-  try {
-    setLoading(true);
-    const res = await authFetch(`${API_URL}/tasks?user_email=${user.email}`, {
-      signal // Add signal to the request
-    });
-    
-    if (!res.ok) throw new Error("Failed to fetch tasks");
-    const data = await res.json();
 
-    const tasksArray = Array.isArray(data) ? data : data.tasks || [];
+  const fetchUserTasks = async () => {
+    if (!user?.email) return;
     
-
-    // Debug logging
-    console.log("=== DEBUG: Tasks from API ===");
-    tasksArray.forEach((task, index) => {
-      console.log(`Task ${index + 1}:`, {
-        id: task._id,
-        taskType: task.taskType,
-        is_consolidation_task: task.is_consolidation_task,
-        leader_name: task.leader_name,
-        leader_assigned: task.leader_assigned,
-        assignedfor: task.assignedfor,
-        name: task.name,
-        assigned_to: task.assigned_to,
-        source_display: task.source_display,
-        consolidation_source: task.consolidation_source
+    // Add an abort controller to cancel the request if component unmounts
+    const controller = new AbortController();
+    const signal = controller.signal;
+    
+    try {
+      setLoading(true);
+      const res = await authFetch(`${API_URL}/tasks?user_email=${user.email}`, {
+        signal // Add signal to the request
       });
-    });
-    console.log("=== END DEBUG ===");
+      
+      if (!res.ok) throw new Error("Failed to fetch tasks");
+      const data = await res.json();
 
-    const normalizedTasks = tasksArray.map((task) => {
-      const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
+      const tasksArray = Array.isArray(data) ? data : data.tasks || [];
+      
 
-      // Determine what to show as assignedTo
-      let assignedTo = "";
+      // Debug logging
+      console.log("=== DEBUG: Tasks from API ===");
+      tasksArray.forEach((task, index) => {
+        console.log(`Task ${index + 1}:`, {
+          id: task._id,
+          taskType: task.taskType,
+          is_consolidation_task: task.is_consolidation_task,
+          leader_name: task.leader_name,
+          leader_assigned: task.leader_assigned,
+          assignedfor: task.assignedfor,
+          name: task.name,
+          assigned_to: task.assigned_to,
+          source_display: task.source_display,
+          consolidation_source: task.consolidation_source
+        });
+      });
+      console.log("=== END DEBUG ===");
 
-      if (isConsolidation) {
-        // For consolidation tasks: use leader name, NOT email
-        // Check all possible leader name fields
-        assignedTo = task.leader_name ||
-          task.leader_assigned ||
-          task.assigned_to ||
-          `${user.name || ""} ${user.surname || ""}`.trim();
+      const normalizedTasks = tasksArray.map((task) => {
+        const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
 
-        // Debug logging for consolidation tasks
+        // Determine what to show as assignedTo
+        let assignedTo = "";
+
         if (isConsolidation) {
-          console.log(`Consolidation task ${task._id}:`, {
-            leader_name: task.leader_name,
-            leader_assigned: task.leader_assigned,
-            assigned_to: task.assigned_to,
-            assignedfor: task.assignedfor,
-            final_assignedTo: assignedTo
-          });
+          // For consolidation tasks: use leader name, NOT email
+          // Check all possible leader name fields
+          assignedTo = task.leader_name ||
+            task.leader_assigned ||
+            task.assigned_to ||
+            `${user.name || ""} ${user.surname || ""}`.trim();
+
+          // Debug logging for consolidation tasks
+          if (isConsolidation) {
+            console.log(`Consolidation task ${task._id}:`, {
+              leader_name: task.leader_name,
+              leader_assigned: task.leader_assigned,
+              assigned_to: task.assigned_to,
+              assignedfor: task.assignedfor,
+              final_assignedTo: assignedTo
+            });
+          }
+
+          // If we still have an email (not a name), show placeholder
+          if (assignedTo.includes('@')) {
+            assignedTo = "Consolidation Leader";
+          }
+        } else {
+          // For regular tasks
+          assignedTo = task.name || task.assignedfor || "";
         }
 
-        // If we still have an email (not a name), show placeholder
-        if (assignedTo.includes('@')) {
-          assignedTo = "Consolidation Leader";
-        }
-      } else {
-        // For regular tasks
-        assignedTo = task.name || task.assignedfor || "";
+        return {
+          ...task,
+          assignedTo: assignedTo,
+          date: task.date || task.followup_date,
+          status: (task.status || "Open").toLowerCase(),
+          taskName: task.name || task.taskName,
+          type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
+          // Ensure all consolidation fields are preserved
+          leader_name: task.leader_name || task.leader_assigned,
+          leader_assigned: task.leader_assigned,
+          consolidation_name: task.consolidation_name ||
+            (isConsolidation
+              ? `${task.person_name || ''} ${task.person_surname || ''} - ${task.decision_display_name || 'Consolidation'}`
+              : task.name),
+          decision_display_name: task.decision_display_name,
+          is_consolidation_task: isConsolidation,
+        };
+      });
+
+      setTasks(normalizedTasks);
+    } catch (err) {
+      // Only update state if it's not an abort error
+      if (err.name !== 'AbortError') {
+        console.error("Error fetching user tasks:", err.message);
+        toast.error(err.message);
       }
-
-      return {
-        ...task,
-        assignedTo: assignedTo,
-        date: task.date || task.followup_date,
-        status: (task.status || "Open").toLowerCase(),
-        taskName: task.name || task.taskName,
-        type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
-        // Ensure all consolidation fields are preserved
-        leader_name: task.leader_name || task.leader_assigned,
-        leader_assigned: task.leader_assigned,
-        consolidation_name: task.consolidation_name ||
-          (isConsolidation
-            ? `${task.person_name || ''} ${task.person_surname || ''} - ${task.decision_display_name || 'Consolidation'}`
-            : task.name),
-        decision_display_name: task.decision_display_name,
-        is_consolidation_task: isConsolidation,
-      };
-    });
-
-    setTasks(normalizedTasks);
-  } catch (err) {
-    // Only update state if it's not an abort error
-    if (err.name !== 'AbortError') {
-      console.error("Error fetching user tasks:", err.message);
-      toast.error(err.message);
+    } finally {
+      // Only update loading state if not aborted
+      if (!signal.aborted) {
+        setLoading(false);
+      }
     }
-  } finally {
-    // Only update loading state if not aborted
-    if (!signal.aborted) {
-      setLoading(false);
-    }
+    
+    // Return the cleanup function
+    return () => controller.abort();
   };
 
   // Fetch all people with caching and in-flight promise handling
   const fetchAllPeople = useCallback(async (forceRefresh = false) => {
     const now = Date.now();
-    if (!forceRefresh && globalPeopleCache && globalCacheTimestamp && (now - globalCacheTimestamp < CACHE_DURATION)) {
+    if (!forceRefresh && window.globalPeopleCache && window.globalCacheTimestamp && (now - window.globalCacheTimestamp < CACHE_DURATION)) {
       // ensure state is in sync
-      setAllPeople(globalPeopleCache);
-      return globalPeopleCache;
+      setAllPeople(window.globalPeopleCache);
+      return window.globalPeopleCache;
     }
 
     // If a fetch is already in progress, await the same promise
@@ -319,15 +330,16 @@ const fetchUserTasks = async () => {
       if (peopleFetchPromiseRef.current) {
         try {
           const result = await peopleFetchPromiseRef.current;
-          return result || globalPeopleCache || [];
+          return result || window.globalPeopleCache || [];
         } catch (e) {
-          return globalPeopleCache || [];
+          return window.globalPeopleCache || [];
         }
       }
-      return globalPeopleCache || [];
+      return window.globalPeopleCache || [];
     }
 
     isFetchingRef.current = true;
+    setIsLoadingPeople(true);
     peopleFetchPromiseRef.current = (async () => {
       try {
         const response = await authFetch(`${API_URL}/people?perPage=0`);
@@ -341,17 +353,18 @@ const fetchUserTasks = async () => {
           email: (raw.Email || raw.email || "").toString().trim(),
           phone: (raw.Phone || raw.phone || raw.Number || "").toString().trim(),
         }));
-        globalPeopleCache = mapped;
-        globalCacheTimestamp = Date.now();
+        window.globalPeopleCache = mapped;
+        window.globalCacheTimestamp = Date.now();
         setAllPeople(mapped);
         return mapped;
       } catch (err) {
         console.error('Fetch people error:', err);
         toast.error(`Failed to load people: ${err?.message}`);
-        return globalPeopleCache || [];
+        return window.globalPeopleCache || [];
       } finally {
         isFetchingRef.current = false;
         peopleFetchPromiseRef.current = null;
+        setIsLoadingPeople(false);
       }
     })();
 
@@ -381,24 +394,31 @@ const fetchUserTasks = async () => {
     });
   }, []);
 
-  // Fetch people with instant local search
+  // Fetch people with instant local search then background refinement
   const fetchPeople = useCallback(async (q) => {
     if (!q || !q.trim()) {
       setSearchResults([]);
+      setIsSearching(false);
       return;
     }
 
     const query = q.trim();
-<<<<<<< HEAD
+    setIsSearching(true);
 
     // 1) Quick local pass: use whatever is already available (state or global cache)
-    const localSource = (allPeople && allPeople.length > 0) ? allPeople : (globalPeopleCache || []);
+    const localSource = (allPeople && allPeople.length > 0) ? allPeople : (window.globalPeopleCache || []);
     if (localSource && localSource.length > 0) {
-      const quick = searchPeople(localSource, query, 'name');
-      // immediate feedback (first 50)
-      setSearchResults(quick.slice(0, 50));
+      try {
+        const quick = searchPeople(localSource, query, 'name');
+        setSearchResults(quick.slice(0, 50));
+      } catch (e) {
+        console.error("Quick local search failed:", e);
+        setSearchResults([]);
+      }
     } else {
-      // optionally set a small loading indicator here if you have one
+      // no local data yet — show empty while fetch proceeds
+      setSearchResults([]);
+    }
 
     // 2) Ensure fresh data: wait for fetch (if in-flight this will await it)
     try {
@@ -409,20 +429,81 @@ const fetchUserTasks = async () => {
     } catch (err) {
       console.error("Error searching people:", err);
       // keep quick results if any
+    } finally {
+      setIsSearching(false);
     }
-   }, [allPeople, searchPeople, fetchAllPeople, API_URL, authFetch]);
-=======
-    // We keep original casing for display, but lowercase for comparison
-    const queryLower = query.toLowerCase();
+  }, [allPeople, searchPeople, fetchAllPeople]);
 
-    try {
-      // Send the full typed string to the backend
-      // (most APIs can handle searching across both name + surname fields)
-      const res = await authFetch(
-        `${API_URL}/people?name=${encodeURIComponent(query)}`
-      );
+  // Fetch assigned people (for "Assigned To" field)
+  const fetchAssigned = useCallback(async (q) => {
+    if (!q || !q.trim()) {
+      setAssignedResults([]);
+      return;
     }
-  };
+
+    const query = q.trim();
+
+    // Quick local pass
+    const localSource = (allPeople && allPeople.length > 0) ? allPeople : (window.globalPeopleCache || []);
+    if (localSource && localSource.length > 0) {
+      try {
+        const quick = searchPeople(localSource, query, 'name');
+        setAssignedResults(quick.slice(0, 50));
+      } catch (e) {
+        console.error("Quick local search failed:", e);
+        setAssignedResults([]);
+      }
+    } else {
+      setAssignedResults([]);
+    }
+
+    // Ensure fresh data
+    try {
+      const people = await fetchAllPeople(false);
+      const finalResults = searchPeople(people || [], query, 'name');
+      setAssignedResults(finalResults.slice(0, 50));
+    } catch (err) {
+      console.error("Error searching assigned people:", err);
+    }
+  }, [allPeople, searchPeople, fetchAllPeople]);
+
+  // debounced handler used by the Recipient input so typing feels immediate but heavy work is throttled
+  const handleRecipientInput = useCallback((value) => {
+    // update input state immediately - clear recipient object when typing
+    setTaskData(prev => ({ 
+      ...prev, 
+      recipientDisplay: value, 
+      recipient: null // Clear recipient until selection is made
+    }));
+
+    // QUICK local feedback from whatever cache we already have (very fast)
+    const localSource = (allPeople && allPeople.length > 0) ? allPeople : (window.globalPeopleCache || []);
+    if (localSource && localSource.length > 0) {
+      try {
+        const quick = searchPeople(localSource, value, 'name');
+        setSearchResults(quick.slice(0, 50));
+      } catch (e) {
+        console.error("Quick local search failed:", e);
+        setSearchResults([]);
+      }
+    } else {
+      setSearchResults([]);
+    }
+
+    // debounce the heavier background refinement/fetch to avoid spamming the network / CPU
+    if (fetchPeopleDebounceRef.current) clearTimeout(fetchPeopleDebounceRef.current);
+    fetchPeopleDebounceRef.current = setTimeout(() => {
+      // call the existing fetchPeople which will do background fetch/refinement
+      fetchPeople(value);
+    }, 250);
+  }, [allPeople, searchPeople, fetchPeople]);
+
+  // cleanup debounce on unmount
+  useEffect(() => {
+    return () => {
+      if (fetchPeopleDebounceRef.current) clearTimeout(fetchPeopleDebounceRef.current);
+    };
+  }, []);
 
   const createTask = async (taskPayload) => {
     try {
@@ -454,7 +535,7 @@ const fetchUserTasks = async () => {
   };
 
   useEffect(() => {
-     if (user && !loading) {
+    if (user && !loading) {
       fetchUserTasks();
       fetchTaskTypes();
     }
@@ -533,11 +614,15 @@ const fetchUserTasks = async () => {
     setFormType(task.type);
     setIsModalOpen(true);
 
+    const nameParts = (task.contacted_person?.name || "").split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
+    
     setTaskData({
       taskType: task.taskType || "",
       recipient: {
-        Name: task.contacted_person?.name?.split(" ")[0] || "",
-        Surname: task.contacted_person?.name?.split(" ")[1] || "",
+        Name: firstName,
+        Surname: lastName,
         Phone: task.contacted_person?.phone || task.contacted_person?.Number || "",
         Email: task.contacted_person?.email || "",
       },
@@ -556,7 +641,11 @@ const fetchUserTasks = async () => {
       if (!user?.id) throw new Error("Logged-in user ID not found");
 
       const person = taskData.recipient;
+      console.log("Recipient data:", person);
+      console.log("Full taskData:", taskData);
+      
       if (!person || !person.Name) {
+        console.error("Invalid recipient:", person);
         throw new Error("Person details not found. Please select a valid recipient.");
       }
 
@@ -799,68 +888,51 @@ const fetchUserTasks = async () => {
 
     setTotalCount(count);
   }, [filteredTasks]);
-  // Add this useEffect hook in your DailyTasks component, after the other useEffects:
 
-  // Add this AFTER the existing useEffect on line 246:
-// Replace this useEffect (around line 246):
-useEffect(() => {
   // Listen for task update events
-  const handleTaskUpdated = () => {
-    console.log("Task updated event received, refreshing tasks...");
-    fetchUserTasks();
-  };
+  useEffect(() => {
+    if (!user) return;
+    
+    const handleTaskUpdated = (event) => {
+      console.log("Task updated event received:", event.detail);
+      // Force immediate refresh
+      fetchUserTasks();
+      
+      // Optional: Show a toast notification for specific actions
+      if (event.detail?.action === 'tasksDeleted') {
+        toast.info(`${event.detail.count} task(s) removed`);
+      } else if (event.detail?.action === 'consolidationCreated') {
+        toast.info("New consolidation task added");
+      }
+    };
 
-  window.addEventListener('taskUpdated', handleTaskUpdated);
+    // Add the event listener
+    window.addEventListener('taskUpdated', handleTaskUpdated);
+    
+    // Cleanup function to remove the event listener
+    return () => {
+      window.removeEventListener('taskUpdated', handleTaskUpdated);
+    };
+  }, [user]);
 
-  return () => {
-    window.removeEventListener('taskUpdated', handleTaskUpdated);
-  };
-}, [user]);
-
-// With this improved version:
-// Update this useEffect in DailyTasks:
-useEffect(() => {
-  if (!user) return;
-  
-  const handleTaskUpdated = (event) => {
-    console.log("Task updated event received:", event.detail);
-    // Force immediate refresh
+  // Auto-refresh tasks every 30 seconds
+  useEffect(() => {
+    if (!user) return;
+    
+    // Initial fetch
     fetchUserTasks();
     
-    // Optional: Show a toast notification for specific actions
-    if (event.detail?.action === 'tasksDeleted') {
-      toast.info(`${event.detail.count} task(s) removed`);
-    } else if (event.detail?.action === 'consolidationCreated') {
-      toast.info("New consolidation task added");
-    }
-  };
+    // Set up interval to refresh every 30 seconds
+    const intervalId = setInterval(() => {
+      console.log("Auto-refreshing tasks...");
+      fetchUserTasks();
+    }, 30000); // 30 seconds
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [user]);
 
-  // Add the event listener
-  window.addEventListener('taskUpdated', handleTaskUpdated);
-  
-  // Cleanup function to remove the event listener
-  return () => {
-    window.removeEventListener('taskUpdated', handleTaskUpdated);
-  };
-}, [user]); // Only depend on user
-
-// Add this useEffect in DailyTasks, after the event listener one:
-useEffect(() => {
-  if (!user) return;
-  
-  // Initial fetch
-  fetchUserTasks();
-  
-  // Set up interval to refresh every 30 seconds
-  const intervalId = setInterval(() => {
-    console.log("Auto-refreshing tasks...");
-    fetchUserTasks();
-  }, 30000); // 30 seconds
-  
-  return () => {
-    clearInterval(intervalId);
-  };
-}, [user]);
   return (
     <div style={{
       height: '100vh',
@@ -1337,7 +1409,7 @@ useEffect(() => {
                   color: isDarkMode ? '#fff' : "#1a1a24",
                   fontWeight: "600",
                   borderRadius: "10px",
-                  border: `1px solid ${isDarkMode ? '#444' : 'transparent'}`,
+                  border: "none",
                   cursor: "pointer",
                   fontSize: "14px",
                   flex: 1
@@ -1350,187 +1422,95 @@ useEffect(() => {
         </div>
       )}
 
-      <Modal isOpen={isModalOpen} onClose={handleClose} isDarkMode={isDarkMode}>
-        <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleSubmit}>
-          <h3 style={{
-            fontSize: '20px',
-            fontWeight: 'bold',
-            color: isDarkMode ? '#fff' : '#1a1a24',
-            margin: 0,
-            textAlign: 'center'
-          }}>
-            {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
-              ? "Consolidation Task"
-              : formType === "call" ? "Call Task" : "Visit Task"
-            }
-          </h3>
-
-          <div>
-            <label style={{
-              display: 'block',
-              fontSize: '13px',
-              fontWeight: '600',
-              color: isDarkMode ? '#fff' : '#1a1a24',
-              marginBottom: '6px'
-            }}>
-              Task Type
-            </label>
-            <select
-              name="taskType"
-              value={taskData.taskType}
-              onChange={handleChange}
-              required
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '10px',
-                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+      {isModalOpen && (
+        <Modal isOpen={isModalOpen} onClose={handleClose} isDarkMode={isDarkMode}>
+          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <label style={{
                 fontSize: '14px',
-                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                fontWeight: '600',
                 color: isDarkMode ? '#fff' : '#1a1a24',
-                outline: 'none',
-              }}
-            >
-              <option value="">Select a task type</option>
-              {taskTypes.map((opt, idx) => (
-                <option key={idx} value={opt.name || opt}>
-                  {opt.name || opt}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div style={{ position: 'relative' }}>
-            <label style={{
-              display: 'block',
-              fontSize: '13px',
-              fontWeight: '600',
-              color: isDarkMode ? '#fff' : '#1a1a24',
-              marginBottom: '6px'
-            }}>
-              Recipient
-            </label>
-            <input
-              type="text"
-              name="recipientDisplay"
-              value={
-                typeof taskData.recipient === "object" && taskData.recipient?.Name
-                  ? `${taskData.recipient.Name} ${taskData.recipient.Surname || ""}`.trim()
-                  : taskData.recipientDisplay || ""
-              }
-              onChange={(e) => {
-                const value = e.target.value;
-                setTaskData({ ...taskData, recipientDisplay: value, recipient: null });
-                fetchPeople(value);
-              }}
-              autoComplete="off"
-              required
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '10px',
-                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                fontSize: '14px',
-                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                color: isDarkMode ? '#fff' : '#1a1a24',
-                outline: 'none',
-              }}
-              placeholder="Enter recipient name"
-            />
-            {searchResults.length > 0 && (
-              <ul style={{
-                position: 'absolute',
-                zIndex: 10,
-                width: '100%',
-                backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                borderRadius: '10px',
-                marginTop: '4px',
-                maxHeight: '200px',
-                overflowY: 'auto',
-                listStyle: 'none',
-                padding: 0,
-                margin: '4px 0 0 0',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                marginBottom: '4px'
               }}>
-                {searchResults.map((person) => (
-                  <li
-                    key={person._id}
-                    style={{
-                      padding: '10px 12px',
-                      cursor: 'pointer',
-                      borderBottom: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                      color: isDarkMode ? '#fff' : '#1a1a24',
-                    }}
-                    onClick={() => {
-                      setTaskData({
-                        ...taskData,
-                        recipient: person,
-                        recipientDisplay: `${person.Name} ${person.Surname}`,
-                        contacted_person: {
-                          name: `${person.Name} ${person.Surname}`,
-                          phone: person.Phone || "",
-                          email: person.Email || "",
-                        },
-                      });
-                      setSearchResults([]);
-                    }}
-                    onMouseEnter={(e) => e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6'}
-                    onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                  >
-                    {person.Name} {person.Surname} {person.Location ? `(${person.Location})` : ""}
-                  </li>
+                Task Type
+              </label>
+              <select
+                name="taskType"
+                value={taskData.taskType}
+                onChange={handleChange}
+                required
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                  fontSize: '14px',
+                  backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                  color: isDarkMode ? '#fff' : '#1a1a24',
+                  outline: 'none',
+                }}
+              >
+                <option value="">Select a task type</option>
+                {taskTypes.map((opt, idx) => (
+                  <option key={idx} value={opt.name || opt}>
+                    {opt.name || opt}
+                  </option>
                 ))}
-              </ul>
-            )}
-          </div>
+              </select>
+            </div>
 
-          <div style={{ position: 'relative' }}>
-            <label
-              style={{
+            <div style={{ position: 'relative' }}>
+              <label style={{
                 display: 'block',
                 fontSize: '13px',
                 fontWeight: '600',
                 color: isDarkMode ? '#fff' : '#1a1a24',
-                marginBottom: '6px',
-              }}
-            >
-              {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
-                ? "Leader Assigned"
-                : "Assigned To"
-              }
-            </label>
-            <input
-              type="text"
-              name="assignedTo"
-              value={taskData.assignedTo}
-              onChange={(e) => {
-                const value = e.target.value;
-                setTaskData({ ...taskData, assignedTo: value });
-                fetchAssigned(value);
-              }}
-              autoComplete="off"
-              disabled={selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task}
-              required
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '10px',
-                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                fontSize: '14px',
-                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                color: isDarkMode ? '#fff' : '#1a1a24',
-                outline: 'none',
-              }}
-              placeholder={
-                selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
-                  ? "Leader name (read-only)"
-                  : "Enter name to assign task"
-              }
-            />
-            {assignedResults.length > 0 && !(selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task) && (
-              <ul
-                style={{
+                marginBottom: '6px'
+              }}>
+                Recipient
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  name="recipientDisplay"
+                  value={taskData.recipientDisplay || ""}
+                  onChange={(e) => handleRecipientInput(e.target.value)}
+                  autoComplete="off"
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '10px 12px',
+                    paddingRight: isSearching || isLoadingPeople ? '36px' : '12px',
+                    borderRadius: '10px',
+                    border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                    fontSize: '14px',
+                    backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                    color: isDarkMode ? '#fff' : '#1a1a24',
+                    outline: 'none',
+                  }}
+                  placeholder="Enter recipient name"
+                />
+                {(isSearching || isLoadingPeople) && (
+                  <div style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    display: 'flex',
+                    alignItems: 'center'
+                  }}>
+                    <Loader2 
+                      size={16} 
+                      style={{ 
+                        animation: 'spin 1s linear infinite',
+                        color: isDarkMode ? '#aaa' : '#6b7280'
+                      }} 
+                    />
+                  </div>
+                )}
+              </div>
+              {searchResults.length > 0 && (
+                <ul style={{
                   position: 'absolute',
                   zIndex: 10,
                   width: '100%',
@@ -1544,137 +1524,237 @@ useEffect(() => {
                   padding: 0,
                   margin: '4px 0 0 0',
                   boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                }}>
+                  {searchResults.map((person) => (
+                    <li
+                      key={person._id}
+                      style={{
+                        padding: '10px 12px',
+                        cursor: 'pointer',
+                        borderBottom: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                        color: isDarkMode ? '#fff' : '#1a1a24',
+                      }}
+                      onClick={() => {
+                        setTaskData({
+                          ...taskData,
+                          recipient: {
+                            Name: person.name,
+                            Surname: person.surname,
+                            Phone: person.phone || "",
+                            Email: person.email || "",
+                          },
+                          recipientDisplay: `${person.name} ${person.surname}`,
+                          contacted_person: {
+                            name: `${person.name} ${person.surname}`,
+                            phone: person.phone || "",
+                            email: person.email || "",
+                          },
+                        });
+                        setSearchResults([]);
+                        setIsSearching(false);
+                      }}
+                      onMouseEnter={(e) => e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6'}
+                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    >
+                      {person.name} {person.surname}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            <div style={{ position: 'relative' }}>
+              <label
+                style={{
+                  display: 'block',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  color: isDarkMode ? '#fff' : '#1a1a24',
+                  marginBottom: '6px',
                 }}
               >
-                {assignedResults.map((person) => (
-                  <li
-                    key={person._id}
-                    style={{
-                      padding: '10px 12px',
-                      cursor: 'pointer',
-                      borderBottom: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                      color: isDarkMode ? '#fff' : '#1a1a24',
-                    }}
-                    onClick={() => {
-                      setTaskData({
-                        ...taskData,
-                        assignedTo: `${person.Name} ${person.Surname}`,
-                        assignedEmail: person.Email || "",
-                      });
-                      setAssignedResults([]);
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6')
-                    }
-                    onMouseLeave={(e) => (e.target.style.backgroundColor = 'transparent')}
-                  >
-                    {person.Name} {person.Surname}{' '}
-                    {person.Location ? `(${person.Location})` : ''}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
+                {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
+                  ? "Leader Assigned"
+                  : "Assigned To"
+              }
+              </label>
+              <input
+                type="text"
+                name="assignedTo"
+                value={taskData.assignedTo}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setTaskData({ ...taskData, assignedTo: value });
+                  fetchAssigned(value);
+                }}
+                autoComplete="off"
+                disabled={true}
+                required
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                  fontSize: '14px',
+                  backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                  color: isDarkMode ? '#aaa' : '#6b7280',
+                  outline: 'none',
+                  cursor: 'not-allowed',
+                }}
+                placeholder={
+                  selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
+                    ? "Leader name (read-only)"
+                    : "Assigned to current user"
+                }
+              />
+              {assignedResults.length > 0 && !(selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task) && (
+                <ul
+                  style={{
+                    position: 'absolute',
+                    zIndex: 10,
+                    width: '100%',
+                    backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
+                    border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                    borderRadius: '10px',
+                    marginTop: '4px',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    listStyle: 'none',
+                    padding: 0,
+                    margin: '4px 0 0 0',
+                    boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                  }}
+                >
+                  {assignedResults.map((person) => (
+                    <li
+                      key={person._id}
+                      style={{
+                        padding: '10px 12px',
+                        cursor: 'pointer',
+                        borderBottom: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                        color: isDarkMode ? '#fff' : '#1a1a24',
+                      }}
+                      onClick={() => {
+                        setTaskData({
+                          ...taskData,
+                          assignedTo: `${person.name} ${person.surname}`,
+                          assignedEmail: person.email || "",
+                        });
+                        setAssignedResults([]);
+                      }}
+                      onMouseEnter={(e) =>
+                        (e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6')
+                      }
+                      onMouseLeave={(e) => (e.target.style.backgroundColor = 'transparent')}
+                    >
+                      {person.name} {person.surname}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
 
-          <div>
-            <label style={{
-              display: 'block',
-              fontSize: '13px',
-              fontWeight: '600',
-              color: isDarkMode ? '#fff' : '#1a1a24',
-              marginBottom: '6px'
-            }}>
-              Due Date & Time
-            </label>
-            <input
-              type="datetime-local"
-              name="dueDate"
-              value={taskData.dueDate}
-              onChange={handleChange}
-              disabled
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '10px',
-                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                fontSize: '14px',
-                color: isDarkMode ? '#aaa' : '#6b7280',
-                outline: 'none',
-              }}
-            />
-          </div>
-
-          <div>
-            <label style={{
-              display: 'block',
-              fontSize: '13px',
-              fontWeight: '600',
-              color: isDarkMode ? '#fff' : '#1a1a24',
-              marginBottom: '6px'
-            }}>
-              Task Stage
-            </label>
-            <select
-              name="taskStage"
-              value={taskData.taskStage}
-              onChange={handleChange}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: '10px',
-                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                fontSize: '14px',
-                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                color: isDarkMode ? '#fff' : '#1a1a24',
-                outline: 'none',
-              }}
-            >
-              <option value="Open">Open</option>
-              <option value="Awaiting task">Awaiting task</option>
-              <option value="Completed">Completed</option>
-            </select>
-          </div>
-
-          <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', paddingTop: '12px' }}>
-            <button
-              type="button"
-              style={{
-                padding: '10px 20px',
-                borderRadius: '10px',
-                backgroundColor: isDarkMode ? '#2d2d2d' : '#e5e5e5',
-                color: isDarkMode ? '#fff' : '#1a1a24',
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '13px',
                 fontWeight: '600',
-                border: `1px solid ${isDarkMode ? '#444' : 'transparent'}`,
-                cursor: 'pointer',
-                fontSize: '14px',
-                flex: 1
-              }}
-              onClick={handleClose}
-              disabled={submitting}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              style={{
-                padding: '10px 20px',
-                borderRadius: '10px',
-                backgroundColor: submitting ? '#666' : (isDarkMode ? '#fff' : '#000'),
-                color: submitting ? '#fff' : (isDarkMode ? '#000' : '#fff'),
+                color: isDarkMode ? '#fff' : '#1a1a24',
+                marginBottom: '6px'
+              }}>
+                Due Date & Time
+              </label>
+              <input
+                type="datetime-local"
+                name="dueDate"
+                value={taskData.dueDate}
+                onChange={handleChange}
+                disabled
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                  backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                  fontSize: '14px',
+                  color: isDarkMode ? '#aaa' : '#6b7280',
+                  outline: 'none',
+                }}
+              />
+            </div>
+
+            <div>
+              <label style={{
+                display: 'block',
+                fontSize: '13px',
                 fontWeight: '600',
-                border: 'none',
-                cursor: submitting ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                flex: 1
-              }}
-              disabled={submitting}
-            >
-              {submitting ? "Saving..." : "Save Task"}
-            </button>
-          </div>
-        </form>
-      </Modal>
+                color: isDarkMode ? '#fff' : '#1a1a24',
+                marginBottom: '6px'
+              }}>
+                Task Stage
+              </label>
+              <select
+                name="taskStage"
+                value={taskData.taskStage}
+                onChange={handleChange}
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  borderRadius: '10px',
+                  border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+                  fontSize: '14px',
+                  backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+                  color: isDarkMode ? '#fff' : '#1a1a24',
+                  outline: 'none',
+                }}
+              >
+                <option value="Open">Open</option>
+                <option value="Awaiting task">Awaiting task</option>
+                <option value="Completed">Completed</option>
+              </select>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', paddingTop: '12px' }}>
+              <button
+                type="button"
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  backgroundColor: isDarkMode ? '#2d2d2d' : '#e5e5e5',
+                  color: isDarkMode ? '#fff' : '#1a1a24',
+                  fontWeight: '600',
+                  border: `1px solid ${isDarkMode ? '#444' : 'transparent'}`,
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  flex: 1
+                }}
+                onClick={handleClose}
+                disabled={submitting}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '10px',
+                  backgroundColor: submitting ? '#666' : (isDarkMode ? '#fff' : '#000'),
+                  color: submitting ? '#fff' : (isDarkMode ? '#000' : '#fff'),
+                  fontWeight: '600',
+                  border: 'none',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  fontSize: '14px',
+                  flex: 1
+                }}
+                disabled={submitting}
+              >
+                {submitting ? "Saving..." : "Save Task"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+
       <ToastContainer
         position="top-right"
         autoClose={3000}
@@ -1684,6 +1764,17 @@ useEffect(() => {
         pauseOnHover
         theme={isDarkMode ? "dark" : "light"}
       />
+      
+      <style>{`
+        @keyframes spin {
+          from {
+            transform: rotate(0deg);
+          }
+          to {
+            transform: rotate(360deg);
+          }
+        }
+      `}</style>
     </div>
   );
 }
