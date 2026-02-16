@@ -2265,7 +2265,7 @@ ${xmlCols}
   const fetchAllCurrentEvents = useCallback(async () => {
     console.log("clicked! ");
     try {
-      if (isSearching) return; // Prevent multiple simultaneous fetches
+      // if (isSearching) return; // Prevent multiple simultaneous fetches
       let shouldApplyPersonalFilter = undefined;
       if (userRole === "admin" || userRole === "leader at 12") {
         shouldApplyPersonalFilter =
@@ -2302,7 +2302,7 @@ ${xmlCols}
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = await response.json();
-      console.log("filtered Received events:", data.events?.length || 0);
+      console.log("filtered Received events:", data.events);
       const allEvents = data.events || [];
       setAllCurrentEvents(allEvents);
     } catch (e) {
@@ -2317,6 +2317,13 @@ ${xmlCols}
     selectedEventTypeFilter,
     DEFAULT_API_START_DATE,
   ]);
+
+  useEffect(()=>{
+    if (!isSearching) return
+    console.log("FETCHED AGAIN!")
+    fetchAllCurrentEvents()
+  },[selectedStatus, selectedEventTypeFilter, viewFilter, userRole])
+
   const handleSearchSubmit = (searchText) => {
     if (!searchText.trim()) return;
     const trimmedSearch = searchText.trim();
@@ -2376,8 +2383,9 @@ ${xmlCols}
   const filteredEvents = useMemo(() => {
     if (isSearching === null) return events;
     if (!debouncedSearchTerm.trim()) return events;
+    console.log("NEW FILTERS!")
     return handleSearchSubmit(debouncedSearchTerm) || [];
-  }, [allCurrentEvents, debouncedSearchTerm]);
+  }, [allCurrentEvents, debouncedSearchTerm,selectedStatus]);
   console.log(
     "issearching",
     isSearching,
