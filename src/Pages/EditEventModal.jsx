@@ -223,7 +223,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
       console.log("Calling endpoint with:", params.toString());
 
-      const response = await fetch(`${BACKEND_URL}/cells/deactivate?${params.toString()}`, {
+      const response = await fetch(`${BACKEND_URL}/events/deactivate?${params.toString()}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${userToken}`
