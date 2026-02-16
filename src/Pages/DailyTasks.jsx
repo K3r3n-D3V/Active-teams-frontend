@@ -110,6 +110,7 @@ export default function DailyTasks() {
   const [submitting, setSubmitting] = useState(false);
   const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
   const isFetchingRef = useRef(false);
+  const peopleFetchPromiseRef = useRef(null);
 
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
@@ -331,47 +332,57 @@ const markTaskComplete = async (taskId) => {
     }
   };
 
-  // Fetch all people with caching
+  // Fetch all people with caching and in-flight promise handling
   const fetchAllPeople = useCallback(async (forceRefresh = false) => {
     const now = Date.now();
     if (!forceRefresh && globalPeopleCache && globalCacheTimestamp && (now - globalCacheTimestamp < CACHE_DURATION)) {
-      console.log('Using cached people data');
-      return;
+      // ensure state is in sync
+      setAllPeople(globalPeopleCache);
+      return globalPeopleCache;
     }
 
+    // If a fetch is already in progress, await the same promise
     if (isFetchingRef.current) {
-      console.log('People fetch already in progress');
-      return;
+      if (peopleFetchPromiseRef.current) {
+        try {
+          const result = await peopleFetchPromiseRef.current;
+          return result || globalPeopleCache || [];
+        } catch (e) {
+          return globalPeopleCache || [];
+        }
+      }
+      return globalPeopleCache || [];
     }
 
     isFetchingRef.current = true;
-
-    try {
-      const response = await authFetch(`${API_URL}/people?perPage=0`);
-      const data = await response.json();
-      const rawPeople = data?.results || [];
-      console.log("Raw people" , rawPeople)
-      const mapped = rawPeople.map(raw => ({
-        _id: (raw._id || raw.id || "").toString(),
-        name: (raw.Name || raw.name || "").toString().trim(),
-        surname: (raw.Surname || raw.surname || "").toString().trim(),
-        email:(raw.Email || raw.email || "").toString().trim(),
-        phone:(raw.Phone || raw.phone || raw.Number || "").toString().trim(),
-      }));
-      console.log("Mapped",mapped.name,mapped.surname)
-      globalPeopleCache = mapped;
-      globalCacheTimestamp = Date.now();
-      setAllPeople(mapped);
-
-    } catch (err) {
-      console.error('Fetch people error:', err);
-      toast.error(`Failed to load people: ${err?.message}`);
-      if (!globalPeopleCache) {
-        setAllPeople([]);
+    peopleFetchPromiseRef.current = (async () => {
+      try {
+        const response = await authFetch(`${API_URL}/people?perPage=0`);
+        if (!response || !response.ok) throw new Error("Failed to fetch people");
+        const data = await response.json();
+        const rawPeople = data?.results || [];
+        const mapped = rawPeople.map(raw => ({
+          _id: (raw._id || raw.id || "").toString(),
+          name: (raw.Name || raw.name || "").toString().trim(),
+          surname: (raw.Surname || raw.surname || "").toString().trim(),
+          email: (raw.Email || raw.email || "").toString().trim(),
+          phone: (raw.Phone || raw.phone || raw.Number || "").toString().trim(),
+        }));
+        globalPeopleCache = mapped;
+        globalCacheTimestamp = Date.now();
+        setAllPeople(mapped);
+        return mapped;
+      } catch (err) {
+        console.error('Fetch people error:', err);
+        toast.error(`Failed to load people: ${err?.message}`);
+        return globalPeopleCache || [];
+      } finally {
+        isFetchingRef.current = false;
+        peopleFetchPromiseRef.current = null;
       }
-    } finally {
-      isFetchingRef.current = false;
-    }
+    })();
+
+    return await peopleFetchPromiseRef.current;
   }, [API_URL, authFetch]);
 
   // Optimized search function for multiple fields
@@ -399,21 +410,34 @@ const markTaskComplete = async (taskId) => {
 
   // Fetch people with instant local search
   const fetchPeople = useCallback(async (q) => {
-    if (!q.trim()) {
+    if (!q || !q.trim()) {
       setSearchResults([]);
       return;
     }
 
-    // First, ensure we have cached data
-    if (!globalPeopleCache || globalPeopleCache.length === 0) {
-      await fetchAllPeople(false);
+    const query = q.trim();
+
+    // 1) Quick local pass: use whatever is already available (state or global cache)
+    const localSource = (allPeople && allPeople.length > 0) ? allPeople : (globalPeopleCache || []);
+    if (localSource && localSource.length > 0) {
+      const quick = searchPeople(localSource, query, 'name');
+      // immediate feedback (first 50)
+      setSearchResults(quick.slice(0, 50));
+    } else {
+      // optionally set a small loading indicator here if you have one
     }
 
-    // Perform instant search on cached data
-    const results = searchPeople(allPeople, q, 'name');
-    setSearchResults(results);
-    console.log(`Search results for "${q}":`, results);
-  }, [allPeople, searchPeople, fetchAllPeople, API_URL, authFetch]);
+    // 2) Ensure fresh data: wait for fetch (if in-flight this will await it)
+    try {
+      const people = await fetchAllPeople(false);
+      const finalResults = searchPeople(people || [], query, 'name');
+      setSearchResults(finalResults.slice(0, 50));
+      console.log(`Search results for "${q}":`, finalResults);
+    } catch (err) {
+      console.error("Error searching people:", err);
+      // keep quick results if any
+    }
+   }, [allPeople, searchPeople, fetchAllPeople, API_URL, authFetch]);
 
   const fetchAssigned = async (q) => {
     if (!q.trim()) return setAssignedResults([]);

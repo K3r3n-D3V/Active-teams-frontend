@@ -304,8 +304,13 @@ export const PeopleSection = () => {
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const { user, authFetch } = useContext(AuthContext);
   const { userProfile } = useContext(UserContext);
+  // ensure currentUserName is defined (fixes ReferenceError)
+  const currentUserName = (user?.name && user?.surname)
+    ? `${(user.name || '').trim()} ${(user.surname || '').trim()}`.toLowerCase()
+    : (userProfile?.name ? userProfile.name.toLowerCase() : '').trim();
   const [allPeople, setAllPeople] = useState(globalPeopleCache || []);
   const [loading, setLoading] = useState(false);
+  const [isRefining, setIsRefining] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('name');
@@ -324,141 +329,169 @@ export const PeopleSection = () => {
   const ITEMS_PER_PAGE = 100;
   const isFetchingRef = useRef(false);
   const searchDebounceRef = useRef(null);
-
+  
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-  // Debounce search input
-  useEffect(() => {
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-    }
-
-    searchDebounceRef.current = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
-    }, 300);
-
-    return () => {
-      if (searchDebounceRef.current) {
-        clearTimeout(searchDebounceRef.current);
-      }
-    };
-  }, [searchTerm]);
-
-  // Get current user's full name from context
-  const currentUserName = useMemo(() => {
-    if (userProfile?.name && userProfile?.surname) {
-      return `${userProfile.name} ${userProfile.surname}`.trim();
-    }
-    if (user?.email) {
-      return user.email;
-    }
-    return '';
-  }, [userProfile, user]);
-
+  // Fetch all people with caching and in-flight guard
   const fetchAllPeople = useCallback(async (forceRefresh = false) => {
     const now = Date.now();
     if (!forceRefresh && globalPeopleCache && globalCacheTimestamp && (now - globalCacheTimestamp < CACHE_DURATION)) {
-      console.log('Using cached data');
-      return;
+      setAllPeople(globalPeopleCache);
+      return globalPeopleCache;
     }
 
     if (isFetchingRef.current) {
-      console.log('Fetch already in progress');
-      return;
+      return globalPeopleCache || [];
     }
 
     isFetchingRef.current = true;
     setLoading(true);
-
     try {
       const response = await authFetch(`${BACKEND_URL}/people?perPage=0`);
+      if (!response || !response.ok) throw new Error('Failed to fetch people');
       const data = await response.json();
       const rawPeople = data?.results || [];
+      const mapped = rawPeople.map(raw => {
+        const name = (raw.Name || raw.name || "").toString().trim();
+        const surname = (raw.Surname || raw.surname || "").toString().trim();
+        const email = (raw.Email || raw.email || "").toString().trim();
+        const phone = (raw.Number || raw.Phone || "").toString().trim();
+        const address = (raw.Address || raw.address || "").toString().trim();
+        const leader1 = (raw["Leader @1"] || "").toString().trim();
+        const leader12 = (raw["Leader @12"] || "").toString().trim();
+        const leader144 = (raw["Leader @144"] || "").toString().trim();
+        const leader1728 = (raw["Leader @1728"] || "").toString().trim();
 
-      const mapped = rawPeople.map(raw => ({
-        _id: (raw._id || raw.id || "").toString(),
-        name: (raw.Name || raw.name || "").toString().trim(),
-        surname: (raw.Surname || raw.surname || "").toString().trim(),
-        gender: (raw.Gender || raw.gender || "").toString().trim(),
-        dob: raw.Birthday || raw.DateOfBirth || "",
-        location: (raw.Address || raw.address || "").toString().trim(),
-        email: (raw.Email || raw.email || "").toString().trim(),
-        phone: (raw.Number || raw.Phone || "").toString().trim(),
-        Stage: (raw.Stage || "Win").toString().trim(),
-        lastUpdated: raw.UpdatedAt || null,
-        invitedBy: (raw.InvitedBy || "").toString().trim(),
-        leaders: {
-          leader1: (raw["Leader @1"] || "").toString().trim(),
-          leader12: (raw["Leader @12"] || "").toString().trim(),
-          leader144: (raw["Leader @144"] || "").toString().trim(),
-          leader1728: (raw["Leader @1728"] || "").toString().trim(),
-        }
-      }));
+        const fullName = `${name} ${surname}`.trim();
+        const fullNameLower = fullName.toLowerCase();
+        const emailLower = email.toLowerCase();
+        const leadersCombinedLower = `${leader1} ${leader12} ${leader144} ${leader1728}`.toLowerCase();
+        const searchText = `${fullNameLower} ${emailLower} ${phone} ${address.toLowerCase()} ${leadersCombinedLower}`;
+
+        return {
+          _id: (raw._id || raw.id || "").toString(),
+          name,
+          surname,
+          fullName,
+          fullNameLower,
+          emailLower,
+          gender: (raw.Gender || raw.gender || "").toString().trim(),
+          dob: raw.Birthday || raw.DateOfBirth || "",
+          location: address,
+          email,
+          phone,
+          Stage: (raw.Stage || "Win").toString().trim(),
+          lastUpdated: raw.UpdatedAt || null,
+          invitedBy: (raw.InvitedBy || "").toString().trim(),
+          leaders: { leader1, leader12, leader144, leader1728 },
+          searchText,
+          leadersCombinedLower
+        };
+      });
 
       globalPeopleCache = mapped;
       globalCacheTimestamp = Date.now();
       setAllPeople(mapped);
-
-      console.log(`Data fetched and cached successfully: ${mapped.length} people`);
+      return mapped;
     } catch (err) {
       console.error('Fetch error:', err);
       setSnackbar({ open: true, message: `Failed to load people: ${err?.message}`, severity: 'error' });
-      if (!globalPeopleCache) {
-        setAllPeople([]);
-      }
+      return globalPeopleCache || [];
     } finally {
       setLoading(false);
       isFetchingRef.current = false;
     }
   }, [BACKEND_URL, authFetch]);
 
-  // Optimized search function
-  const searchPeople = useCallback((peopleList, searchValue, field) => {
-    if (!searchValue.trim()) return peopleList;
+useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    // slightly longer debounce to avoid excessive work on very large datasets
+    searchDebounceRef.current = setTimeout(() => setDebouncedSearchTerm(searchTerm), 500);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [searchTerm]);
+  useEffect(() => {
+    let cancelled = false;
+    const REFINEMENT_THRESHOLD = 2 * 60 * 1000; // 2 minutes
 
-    const searchLower = searchValue.toLowerCase().trim();
+    const refineIfNeeded = async () => {
+      if (!debouncedSearchTerm || !debouncedSearchTerm.trim()) return;
 
-    return peopleList.filter(person => {
-      switch (field) {
-        case 'name': {
-          const nameLower = person.name.toLowerCase();
-          const surnameLower = person.surname.toLowerCase();
-          const fullName = `${nameLower} ${surnameLower}`;
-          
-          return nameLower.includes(searchLower) ||
-            surnameLower.includes(searchLower) ||
-            fullName.includes(searchLower);
-        }
-        case 'email':
-          return person.email.toLowerCase().includes(searchLower);
-        case 'phone':
-          return person.phone.includes(searchValue.trim());
-        case 'location':
-          return person.location.toLowerCase().includes(searchLower);
-        case 'stage':
-          return person.Stage.toLowerCase().includes(searchLower);
-        case 'leaders': {
-          const leader1Lower = person.leaders.leader1.toLowerCase();
-          const leader12Lower = person.leaders.leader12.toLowerCase();
-          const leader144Lower = person.leaders.leader144.toLowerCase();
-          const leader1728Lower = person.leaders.leader1728.toLowerCase();
+      const now = Date.now();
+      const cacheAge = globalCacheTimestamp ? (now - globalCacheTimestamp) : Infinity;
 
-          const matchesLeader = (leaderName) => {
-            if (!leaderName) return false;
-            const parts = leaderName.split(' ');
-            return leaderName === searchLower ||
-              parts.some(part => part === searchLower);
-          };
-
-          return matchesLeader(leader1Lower) ||
-            matchesLeader(leader12Lower) ||
-            matchesLeader(leader144Lower) ||
-            matchesLeader(leader1728Lower);
-        }
-        default:
-          return true;
+      // If we already have relatively fresh data and some local people, skip refinement
+      if (globalPeopleCache && allPeople && allPeople.length > 0 && cacheAge < REFINEMENT_THRESHOLD) {
+        return;
       }
+      // Otherwise run a background refresh (fetchAllPeople already guards concurrent fetches)
+      try {
+        setIsRefining(true);
+        await fetchAllPeople(false);
+      } catch (e) {
+        // ignore - keep whatever results the local quick-search produced
+        console.error("Refinement failed:", e);
+      } finally {
+        if (!cancelled) setIsRefining(false);
+      }
+    };
+    refineIfNeeded();
+    return () => { cancelled = true; };
+  }, [debouncedSearchTerm, fetchAllPeople, allPeople]);
+
+  // Optimized search function
+  const searchPeople = useCallback((peopleList, searchValue, field = 'name') => {
+    const rawQ = (searchValue || "").trim();
+    const q = rawQ.toLowerCase();
+    if (!q) return peopleList;
+
+    // phone: digits-only match
+    if (field === 'phone') {
+      const digits = rawQ.replace(/\D/g, "");
+      if (!digits) return peopleList;
+      return peopleList.filter(p => (p.phone || "").replace(/\D/g, "").includes(digits));
+    }
+
+    // leaders: match against precomputed leadersCombinedLower
+    if (field === 'leaders') {
+      return peopleList.filter(p => (p.leadersCombinedLower || "").includes(q));
+    }
+
+    // email: match emailLower
+    if (field === 'email') {
+      return peopleList.filter(p => (p.emailLower || "").includes(q));
+    }
+
+    // location: match location string (use searchText fallback but prefer location)
+    if (field === 'location') {
+      return peopleList.filter(p => (p.location || "").toLowerCase().includes(q));
+    }
+
+    // stage: exact-ish match
+    if (field === 'stage') {
+      return peopleList.filter(p => (p.Stage || "").toLowerCase().includes(q));
+    }
+
+    // NAME search: match tokens and rank results so exact/full-name matches surface first
+    // split query into tokens
+    const tokens = q.split(/\s+/).filter(Boolean);
+    const matches = peopleList.filter(p => {
+      const full = p.fullNameLower || `${(p.name||'')} ${(p.surname||'')}`.toLowerCase();
+      return tokens.every(tok => full.includes(tok));
     });
+
+    // scoring: exact full match -> startsWith -> includes
+    const scoreFor = (p) => {
+      const full = p.fullNameLower || '';
+      if (full === q) return 0;
+      if (full.startsWith(q)) return 1;
+      // count tokens at front matches higher
+      const tokenMatchCount = tokens.reduce((c, t) => c + (full.indexOf(t) === 0 ? 1 : 0), 0);
+      if (tokenMatchCount === tokens.length) return 2;
+      return 3;
+    };
+
+    matches.sort((a,b) => scoreFor(a) - scoreFor(b));
+    return matches;
   }, []);
 
   const filterMyPeople = useCallback((peopleList) => {
@@ -546,21 +579,32 @@ export const PeopleSection = () => {
 
   const updatePersonInCache = useCallback((personId, updates) => {
     setAllPeople(prev => {
-      const updated = prev.map(person =>
-        String(person._id) === String(personId)
-          ? { ...person, ...updates }
-          : person
-      );
-      globalPeopleCache = updated;
-      return updated;
-    });
+      const updated = prev.map(person => {
+        if (String(person._id) !== String(personId)) return person;
+        const merged = { ...person, ...updates };
+        merged.fullName = `${(merged.name || '')} ${(merged.surname || '')}`.trim();
+        merged.fullNameLower = (merged.fullName || '').toLowerCase();
+        merged.emailLower = (merged.email || '').toLowerCase();
+        merged.leadersCombinedLower = `${merged.leaders?.leader1 || ''} ${merged.leaders?.leader12 || ''} ${merged.leaders?.leader144 || ''} ${merged.leaders?.leader1728 || ''}`.toLowerCase();
+        merged.searchText = `${merged.fullNameLower} ${merged.emailLower} ${(merged.phone||'')} ${(merged.location||'').toLowerCase()} ${merged.leadersCombinedLower}`;
+        return merged;
+      });
+       globalPeopleCache = updated;
+       return updated;
+     });
   }, []);
-
+ 
   const addPersonToCache = useCallback((newPerson) => {
     setAllPeople(prev => {
-      const updated = [...prev, newPerson];
-      globalPeopleCache = updated;
-      return updated;
+      const p = { ...newPerson };
+      p.fullName = `${(p.name || '')} ${(p.surname || '')}`.trim();
+      p.fullNameLower = (p.fullName || '').toLowerCase();
+      p.emailLower = (p.email || '').toLowerCase();
+      p.leadersCombinedLower = `${p.leaders?.leader1 || ''} ${p.leaders?.leader12 || ''} ${p.leaders?.leader144 || ''} ${p.leaders?.leader1728 || ''}`.toLowerCase();
+      p.searchText = `${p.fullNameLower} ${p.emailLower} ${(p.phone||'')} ${(p.location||'').toLowerCase()} ${p.leadersCombinedLower}`;
+      const updated = [...prev, p];
+       globalPeopleCache = updated;
+       return updated;
     });
   }, []);
 
@@ -779,10 +823,16 @@ export const PeopleSection = () => {
           <MenuItem value="email">Email</MenuItem>
           <MenuItem value="phone">Phone</MenuItem>
           <MenuItem value="location">Location</MenuItem>
-          <MenuItem value="stage">Stage</MenuItem>
           <MenuItem value="leaders">Leaders</MenuItem>
         </TextField>
       </Box>
+            {/* small refinement indicator shown while background fetch completes */}
+      {isRefining && (
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, mb: 2 }}>
+          <CircularProgress size={14} />
+          <Typography variant="caption" color="text.secondary">Results are being refined…</Typography>
+        </Box>
+      )}
 
       {stageFilter !== 'all' && (
         <Box sx={{ px: 1, mb: 2 }}>
