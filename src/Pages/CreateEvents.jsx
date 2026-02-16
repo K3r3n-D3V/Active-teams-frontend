@@ -84,16 +84,18 @@ const CreateEvents = ({
   const [eventTypeFlags, setEventTypeFlags] = useState({
     isGlobal: false,
     isTicketed: false,
-    isTraining: false,
+    hasPersonSteps: false,
   });
 
-  const { isTicketed: isTicketedEvent, isTraining } = eventTypeFlags;
+  const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent, hasPersonSteps } = eventTypeFlags;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
-  const [loadingPeople] = useState(false);
+  const [loadingPeople, setLoadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
   const [allPeopleCache, setAllPeopleCache] = useState([]);
+  const isAdmin = user?.role === "admin";
+  console.log("view role", isAdmin);
 
   const [formData, setFormData] = useState({
     eventType: selectedEventTypeObj?.name || selectedEventType || "",
@@ -105,10 +107,24 @@ const CreateEvents = ({
     recurringDays: [],
     location: "",
     eventLeader: "",
+    eventLeaderEmail: "",
     description: "",
     leader1: "",
     leader12: "",
   });
+
+  const [isRecurring, setIsRecurring] = useState(false);
+  const handleIsRecurringChange = (e) => {
+    const checked = e.target.checked;
+    setIsRecurring(checked);
+
+    if (!checked) {
+      setFormData((prev) => ({
+        ...prev,
+        recurringDays: [],
+      }));
+    }
+  };
 
   const [errors, setErrors] = useState({});
   const formAlert = useRef();
@@ -220,6 +236,7 @@ const CreateEvents = ({
       clearTimeout(timer);
     };
   }, [formData.location, biasLonLat]);
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
   // -----------------------------
   // EXISTING LOGIC
@@ -245,19 +262,69 @@ const CreateEvents = ({
   };
 
   useEffect(() => {
-    const determineEventType = () => {
-      const defaultFlags = {
-        isGlobal: false,
-        isTicketed: false,
-        isTraining: false,
-      };
+    console.log('CreateEvents - Props received:',{
+      selectedEventTypeObj,
+      selectedEventType,
+      eventTypes: eventTypes.map(et => ({
+        name: et.name,
+        isGlobal: et.isGlobal,
+        isTicketed: et.isTicketed,
+        hasPersonSteps: et.hasPersonSteps,
+      })),
+    });
 
-      if (selectedEventTypeObj) {
+    const determineEventType = () => {
+      //If we have a selectedEventTypeObj, use it properties
+      if(selectedEventTypeObj) {
+        console.log('Using selectedEventTypeObj:', selectedEventTypeObj);
+        return  {
+          eventType: selectedEventTypeObj.name || selectedEventTypeObj.displayName || "",
+          isGlobal: !!selectedEventTypeObj.isGlobal,
+          isTicketed: !!selectedEventTypeObj.isTicketed,
+          hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps,
+        };
+      }
+
+        //If we have a selectedEventType string, find the matching object
+        if(selectedEventType) {
+          console.log('Looking for event type:', selectedEventType);
+
+        // Handle "all" and convert to "CELLS" - FIXED: Always set hasPersonSteps to true for CELLS
+        if (selectedEventType === "all" ||
+            selectedEventType.toLowerCase() === "ALL CELLS") {
+              console.log('Detected ALL CELLS - converting to CELLS with personal steps');
+          return {
+            eventType: "CELLS",
+            isGlobal: false,
+            isTicketed: false,
+            hasPersonSteps: true,
+          };
+        }
+
+        const foundEventType = eventTypes.find((et) => {
+          const etName = et.name || et.displayName || et.eventTypeName || "";
+          const searchName = selectedEventType;
+
+          return (
+            etName === searchName ||
+            etName.toLowerCase() === searchName.toLowerCase() ||
+            (et._id && et._id === searchName)
+          );
+        });
+
+        if (!foundEventType) {
+          console.warn("Could not find event type:", selectedEventType);
+          return {
+            eventType: selectedEventType || "",
+            ...defaultFlags,
+          };
+        }
+
         const eventTypeName =
-          selectedEventTypeObj.name ||
-          selectedEventTypeObj.displayName ||
-          selectedEventTypeObj.eventTypeName ||
-          "";
+          foundEventType.name ||
+          foundEventType.displayName ||
+          foundEventType.eventTypeName ||
+          selectedEventType;
 
         return {
           eventType: eventTypeName,
@@ -290,6 +357,7 @@ const CreateEvents = ({
             (et._id && et._id === searchName)
           );
         });
+        const {eventType, isGlobal, isTicketed, hasPersonSteps} = determineEventType();
 
         if (foundEventType) {
           const eventTypeName =
@@ -306,6 +374,12 @@ const CreateEvents = ({
           };
         }
       }
+    console.log('Final event type settings:', {
+    eventType,
+    isGlobal,
+    isTicketed,
+    hasPersonSteps
+  });
 
       return {
         eventType: selectedEventType || "",
@@ -454,6 +528,17 @@ const CreateEvents = ({
     });
   };
 
+  const handleLeaderSelect = (person) => {
+     console.log("Selected person:", person);
+    setFormData((prev) => ({
+      ...prev,
+      eventLeader: person.fullName,
+      eventLeaderEmail: person.email,
+      leader1: person.leader1,
+      leader12: person.leader12,
+    }));
+  };
+
   const handleRemovePriceTier = (index) => {
     setPriceTiers((prev) => prev.filter((_, i) => i !== index));
   };
@@ -462,7 +547,6 @@ const CreateEvents = ({
     setFormData({
       eventType: selectedEventTypeObj?.name || selectedEventType || "",
       eventName: "",
-      email: "",
       date: "",
       time: "",
       timePeriod: "AM",
@@ -495,6 +579,12 @@ const CreateEvents = ({
       if (!formData.leader12) newErrors.leader12 = "Leader @12 is required";
     }
 
+    if(!isGlobalEvent) {
+      if(hasPersonSteps && formData.recurringDays.length === 0) {
+        newErrors.recurringDays = "Select at least one recurring day";
+      }
+    }
+
     if (isTicketedEvent) {
       if (priceTiers.length === 0) {
         newErrors.priceTiers = "Add at least one price tier for ticketed events";
@@ -508,7 +598,36 @@ const CreateEvents = ({
           if (!tier.memberType) newErrors[`tier_${index}_memberType`] = "Member type is required";
           if (!tier.paymentMethod) newErrors[`tier_${index}_paymentMethod`] = "Payment method is required";
         });
+        if(hasPersonSteps){
+          if(!formData.date) newErrors.date = "Date is required for events with personal steps";
+          if(!formData.time) newErrors.time = "Time is required for events with personal steps";
+        }
+
+        if(isTicketedEvent && !isGlobalEvent) {
+          if(priceTiers.length === 0) {
+            newErrors.priceTiers = "At least one price tier is required for ticketed events";
+          }
+        } else{
+          priceTiers.forEach((tier, index) => {
+            if (!tier.name) newErrors[`tier_${index}_name`] = "Price name is required";
+            if (tier.price === "" || isNaN(Number(tier.price)) || Number(tier.price) < 0) {
+              newErrors[`tier_${index}_price`] = "Valid price is required";
+            if (!tier.ageGroup) newErrors[`tier_${index}_ageGroup`] = "Age group is required";
+            if (!tier.memberType) newErrors[`tier_${index}_memberType`] = "Member type is required";
+            if (!tier.paymentMethod) newErrors[`tier_${index}_paymentMethod`] = "Payment method is required";
+            }
+          });
+        }
       }
+    }
+
+    if (hasPersonSteps) {
+      if (!formData.leader1) newErrors.leader1 = "Leader @1 is required for events with personal steps";
+      if (!formData.leader12) newErrors.leader12 = "Leader @12 is required for events with personal steps";
+    }
+    else {
+      if (!formData.date) newErrors.date   = "Date is required for events without personal steps";
+      if (!formData.time) newErrors.time = "Time is required for events without personal steps";
     }
 
     setErrors(newErrors);
@@ -518,8 +637,8 @@ const CreateEvents = ({
   const getDayFromDate = (dateString) => {
     if (!dateString) return "";
     const date = new Date(dateString);
-    const daysArr = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-    return daysArr[date.getDay()];
+    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    return days[date.getDay()];
   };
 
   useEffect(() => {
@@ -579,9 +698,9 @@ const CreateEvents = ({
         location: formData.location,
         eventLeader: formData.eventLeader,
         eventLeaderName: formData.eventLeader,
-        eventLeaderEmail: formData.email || "",
+        eventLeaderEmail: formData.eventLeaderEmail || "",
         description: formData.description,
-        userEmail: formData.email || "",
+        userEmail: formData.eventLeaderEmail || "",
         recurring_day: formData.recurringDays,
         day:
           formData.recurringDays.length === 0
@@ -594,6 +713,8 @@ const CreateEvents = ({
         status: "open",
         leader1: isCellsEventType(eventTypeToSend) ? formData.leader1 || "" : "",
         leader12: isCellsEventType(eventTypeToSend) ? formData.leader12 || "" : "",
+        isRecurrig: isRecurring,
+        recurringDays: isRecurring ? formData.recurringDays : [],
       };
 
       if (formData.date && formData.time) {
@@ -950,8 +1071,30 @@ const CreateEvents = ({
             </Box>
 
             <Box mb={3}>
-              <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
-                Recurring Days
+{/* event------------ */}
+              <Typography
+                fontWeight="bold"
+                mb={1}
+                sx={darkModeStyles.sectionTitle}
+              > 
+                Is Recurring? {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
+              </Typography>    
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={isRecurring}
+                    onChange={handleIsRecurringChange}
+                  />
+                }
+                label="Yes"
+              />
+              {/* event------------ */}
+              <Typography
+                fontWeight="bold"
+                mb={1}
+                sx={darkModeStyles.sectionTitle}
+              >
+                Recurring Days {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
               </Typography>
               <Box display="flex" flexWrap="wrap" gap={2} sx={darkModeStyles.daysContainer}>
                 {days.map((day) => (
@@ -961,6 +1104,7 @@ const CreateEvents = ({
                       <Checkbox
                         checked={formData.recurringDays.includes(day)}
                         onChange={() => handleDayChange(day)}
+                        disabled={!isRecurring}
                       />
                     }
                     label={day}
@@ -1178,7 +1322,7 @@ const CreateEvents = ({
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
               {isCellsEvent && <Chip label="CELL" color="primary" size="small" />}
               {shouldShowPriceTiers && <Chip label="Ticketed Event" color="warning" size="small" />}
-              {isTraining && <Chip label="Training Event" color="info" size="small" />}
+              
             </Box>
 
             <TextField
