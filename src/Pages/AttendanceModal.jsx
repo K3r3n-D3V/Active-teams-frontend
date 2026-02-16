@@ -11,6 +11,7 @@ import {
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
 
+
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
@@ -73,7 +74,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
   }, []);
 
   useEffect(() => {
-    if (!isOpen) return; 
+    if (!isOpen) return;
 
     if (!GEOAPIFY_API_KEY) {
       setAddressError(
@@ -153,7 +154,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     };
   }, [isOpen, formData.address, biasLonLat]);
 
-    const handleAddressInputChange = (value) => {
+  const handleAddressInputChange = (value) => {
     setFormData((prev) => ({ ...prev, address: value }));
     setSelectedAddress(null);
     setShowAddressDropdown(true);
@@ -404,9 +405,8 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
       invitedBy: formData.invitedBy?.trim()
     };
 
-    const missingFields = Object.entries(requiredFields)
-      .filter(([key, value]) => !value)
-      .map(([key]) => key);
+    const missingFields = Object.keys(requiredFields)
+      .filter(key => !requiredFields[key]);
 
     if (missingFields.length > 0) {
       toast.error(`Please fill in all required fields: ${missingFields.join(', ')}`);
@@ -893,8 +893,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
           </form>
         </div>
       </div>
-
-      {/* LeaderSelectionModal - Keep as is */}
       {showLeaderModal && (
         <LeaderSelectionModal
           isOpen={showLeaderModal}
@@ -1037,18 +1035,7 @@ const LeaderSelectionModal = ({ isOpen, onBack, onSubmit, preloadedPeople = [], 
     setLeaderSearches(prev => ({ ...prev, [field]: person.fullName }));
     setShowDropdowns(prev => ({ ...prev, [field]: false }));
   };
-
-  const handleSearchChange = (e, field) => {
-    const value = e.target.value;
-    setLeaderSearches(prev => ({ ...prev, [field]: value }));
-    setShowDropdowns(prev => ({ ...prev, [field]: true }));
-  };
-
-  const handleClearField = (field) => {
-    setLeaderData(prev => ({ ...prev, [field]: "" }));
-    setLeaderSearches(prev => ({ ...prev, [field]: "" }));
-  };
-
+  console.log("leadership set", handleLeaderSelect)
   const handleSubmitLeaders = () => {
     const finalLeaderInfo = {
       leader1: leaderData.leader1 || "",
@@ -1326,327 +1313,202 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-const loadEventStatistics = async () => {
-  if (!event) return;
+  const loadEventStatistics = async () => {
+    if (!event) return;
 
-  try {
-    const eventDate = event.date;
-    console.log("Loading stats for:", eventDate);
-    console.log("Event data received:", event);
-
-    // For non-cell events, the statistics might be directly on the event object
-    // or in the attendance_data/attendance object
-    
-    let weekAttendance = {};
-    let firstTimeCount = 0;
-    let recommitmentCount = 0;
-    let attendeesCount = 0;
-    let headcount = 0;
-    let totalAssociated = 0;
-
-    // CASE 1: Check if event has direct statistics from events/eventsdata endpoint
-    if (event.checked_in_count !== undefined || event.total_headcounts !== undefined) {
-      console.log("Found direct statistics on event object");
-      
-      attendeesCount = event.checked_in_count || 0;
-      headcount = event.total_headcounts || 0;
-      totalAssociated = event.total_associated || persistentCommonAttendees.length || 0;
-      
-      // Get decisions if available
-      if (event.decisions) {
-        firstTimeCount = event.decisions.first_time || 0;
-        recommitmentCount = event.decisions.recommitment || 0;
-      }
-      
-      // Also get attendees if available
-      if (event.attendees && Array.isArray(event.attendees)) {
-        weekAttendance.attendees = event.attendees;
-        
-        // Count decisions from attendees
-        event.attendees.forEach(att => {
-          const decision = (att.decision || "").toLowerCase();
-          if (decision.includes("first")) {
-            firstTimeCount++;
-          } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
-            recommitmentCount++;
-          }
-        });
-      }
-      
-      weekAttendance = {
-        status: "complete",
-        attendees: event.attendees || [],
-        total_headcounts: headcount,
-        checked_in_count: attendeesCount,
-        statistics: {
-          total_associated: totalAssociated,
-          weekly_attendance: attendeesCount,
-          total_headcounts: headcount,
-          decisions: {
-            first_time: firstTimeCount,
-            recommitment: recommitmentCount,
-            total: firstTimeCount + recommitmentCount
-          }
-        }
-      };
-    }
-    // CASE 2: Check if event has attendance_data object
-    else if (event.attendance_data) {
-      console.log("Found attendance_data on event object");
-      weekAttendance = event.attendance_data;
-      
-      if (weekAttendance.statistics) {
-        attendeesCount = weekAttendance.statistics.weekly_attendance || 0;
-        headcount = weekAttendance.statistics.total_headcounts || 0;
-        firstTimeCount = weekAttendance.statistics.decisions?.first_time || 0;
-        recommitmentCount = weekAttendance.statistics.decisions?.recommitment || 0;
-        totalAssociated = weekAttendance.statistics.total_associated || persistentCommonAttendees.length;
-      } else {
-        attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
-        headcount = weekAttendance.total_headcounts || 0;
-        totalAssociated = persistentCommonAttendees.length;
-        
-        // Count decisions from attendees
-        if (weekAttendance.attendees) {
-          weekAttendance.attendees.forEach(att => {
-            const decision = (att.decision || "").toLowerCase();
-            if (decision.includes("first")) {
-              firstTimeCount++;
-            } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
-              recommitmentCount++;
-            }
-          });
-        }
-      }
-    }
-    // CASE 3: Check standard attendance object by date
-    else {
-      const attendanceData = event.attendance || {};
-      
-      // Try to find attendance for this date
-      if (attendanceData.status === "complete") {
-        weekAttendance = attendanceData;
-        console.log("Found completed data directly in attendance object");
-      } else {
-        // Try all possible date formats
-        const possibleKeys = Object.keys(attendanceData).filter(key =>
-          typeof attendanceData[key] === 'object' && attendanceData[key] !== null
-        );
-
-        console.log("Possible date keys:", possibleKeys);
-
-        // Try to match the date in any format
-        for (const key of possibleKeys) {
-          const data = attendanceData[key];
-          
-          // Check if this matches our event date
-          if (data && (data.status === "complete" || data.attendees || data.total_headcounts)) {
-            const entryDate = data.event_date_iso || data.event_date_exact;
-            
-            if (entryDate === eventDate || key === eventDate || eventDate.includes(key) || key.includes(eventDate)) {
-              weekAttendance = data;
-              console.log(`Using completed week from key: "${key}"`);
-              break;
-            }
-          }
-        }
-      }
-      
-      // Extract statistics from weekAttendance
-      if (weekAttendance.status === "complete") {
-        const stats = weekAttendance.statistics || {};
-        attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
-        headcount = weekAttendance.total_headcounts || 0;
-        firstTimeCount = stats.decisions?.first_time || 0;
-        recommitmentCount = stats.decisions?.recommitment || 0;
-        totalAssociated = stats.total_associated || persistentCommonAttendees.length;
-        
-        // If statistics not available, count from attendees
-        if (firstTimeCount === 0 && recommitmentCount === 0 && weekAttendance.attendees) {
-          weekAttendance.attendees.forEach(att => {
-            const decision = (att.decision || "").toLowerCase();
-            if (decision.includes("first")) {
-              firstTimeCount++;
-            } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
-              recommitmentCount++;
-            }
-          });
-        }
-      } else {
-        // No completed data found
-        totalAssociated = persistentCommonAttendees.length;
-      }
-    }
-
-    console.log("Final statistics:", {
-      attendeesCount,
-      headcount,
-      firstTimeCount,
-      recommitmentCount,
-      totalAssociated
-    });
-
-    // Update event statistics state
-    setEventStatistics({
-      totalAssociated: totalAssociated,
-      lastAttendanceCount: attendeesCount,
-      lastHeadcount: headcount,
-      lastDecisionsCount: firstTimeCount + recommitmentCount,
-      lastAttendanceBreakdown: {
-        first_time: firstTimeCount,
-        recommitment: recommitmentCount
-      }
-    });
-
-    // Update manual headcount
-    if (headcount > 0) {
-      setManualHeadcount(headcount.toString());
-    } else {
-      setManualHeadcount("0");
-    }
-
-    // Also store the weekAttendance data for potential other uses
-    window.__lastLoadedAttendance = weekAttendance;
-
-  } catch (error) {
-    console.error("Error loading event statistics:", error);
-  }
-};
-
-  const formatDateToISO = (dateString) => {
     try {
-      const parts = dateString.match(/\d+/g);
-      if (parts && parts.length === 3) {
-        const day = parts[0].padStart(2, '0');
-        const month = parts[1].padStart(2, '0');
-        const year = parts[2];
-        return `${year}-${month}-${day}`;
+      const eventDate = event.date;
+      console.log("Loading stats for:", eventDate);
+
+      let weekAttendance = {};
+      let firstTimeCount = 0;
+      let recommitmentCount = 0;
+      let attendeesCount = 0;
+      let headcount = 0;
+      let totalAssociated = 0;
+
+      if (event.checked_in_count !== undefined || event.total_headcounts !== undefined) {
+        attendeesCount = event.checked_in_count || 0;
+        headcount = event.total_headcounts || 0;
+        totalAssociated = event.total_associated || persistentCommonAttendees.length || 0;
+
+        // Get decisions if available
+        if (event.decisions) {
+          firstTimeCount = event.decisions.first_time || 0;
+          recommitmentCount = event.decisions.recommitment || 0;
+        }
+
+        if (event.attendees && Array.isArray(event.attendees)) {
+          weekAttendance.attendees = event.attendees;
+
+          // Count decisions from attendees
+          event.attendees.forEach(att => {
+            const decision = (att.decision || "").toLowerCase();
+            if (decision.includes("first")) {
+              firstTimeCount++;
+            } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+              recommitmentCount++;
+            }
+          });
+        }
+
+        weekAttendance = {
+          status: "complete",
+          attendees: event.attendees || [],
+          total_headcounts: headcount,
+          checked_in_count: attendeesCount,
+          statistics: {
+            total_associated: totalAssociated,
+            weekly_attendance: attendeesCount,
+            total_headcounts: headcount,
+            decisions: {
+              first_time: firstTimeCount,
+              recommitment: recommitmentCount,
+              total: firstTimeCount + recommitmentCount
+            }
+          }
+        };
       }
-      return dateString;
+      else if (event.attendance_data) {
+        weekAttendance = event.attendance_data;
+
+        if (weekAttendance.statistics) {
+          attendeesCount = weekAttendance.statistics.weekly_attendance || 0;
+          headcount = weekAttendance.statistics.total_headcounts || 0;
+          firstTimeCount = weekAttendance.statistics.decisions?.first_time || 0;
+          recommitmentCount = weekAttendance.statistics.decisions?.recommitment || 0;
+          totalAssociated = weekAttendance.statistics.total_associated || persistentCommonAttendees.length;
+        } else {
+          attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
+          headcount = weekAttendance.total_headcounts || 0;
+          totalAssociated = persistentCommonAttendees.length;
+
+          // Count decisions from attendees
+          if (weekAttendance.attendees) {
+            weekAttendance.attendees.forEach(att => {
+              const decision = (att.decision || "").toLowerCase();
+              if (decision.includes("first")) {
+                firstTimeCount++;
+              } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+                recommitmentCount++;
+              }
+            });
+          }
+        }
+      }
+      else {
+        const attendanceData = event.attendance || {};
+
+        if (attendanceData.status === "complete") {
+          weekAttendance = attendanceData;
+        } else {
+          const possibleKeys = Object.keys(attendanceData).filter(key =>
+            typeof attendanceData[key] === 'object' && attendanceData[key] !== null
+          );
+
+          console.log("Possible date keys:", possibleKeys);
+
+          for (const key of possibleKeys) {
+            const data = attendanceData[key];
+
+            if (data && (data.status === "complete" || data.attendees || data.total_headcounts)) {
+              const entryDate = data.event_date_iso || data.event_date_exact;
+
+              if (entryDate === eventDate || key === eventDate || eventDate.includes(key) || key.includes(eventDate)) {
+                weekAttendance = data;
+                console.log(`Using completed week from key: "${key}"`);
+                break;
+              }
+            }
+          }
+        }
+
+        // Extract statistics from weekAttendance
+        if (weekAttendance.status === "complete") {
+          const stats = weekAttendance.statistics || {};
+          attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
+          headcount = weekAttendance.total_headcounts || 0;
+          firstTimeCount = stats.decisions?.first_time || 0;
+          recommitmentCount = stats.decisions?.recommitment || 0;
+          totalAssociated = stats.total_associated || persistentCommonAttendees.length;
+
+          // If statistics not available, count from attendees
+          if (firstTimeCount === 0 && recommitmentCount === 0 && weekAttendance.attendees) {
+            weekAttendance.attendees.forEach(att => {
+              const decision = (att.decision || "").toLowerCase();
+              if (decision.includes("first")) {
+                firstTimeCount++;
+              } else if (decision.includes("re-commitment") || decision.includes("recommitment")) {
+                recommitmentCount++;
+              }
+            });
+          }
+        } else {
+          // No completed data found
+          totalAssociated = persistentCommonAttendees.length;
+        }
+      }
+
+      console.log("Final statistics:", {
+        attendeesCount,
+        headcount,
+        firstTimeCount,
+        recommitmentCount,
+        totalAssociated
+      });
+
+      // Update event statistics state
+      setEventStatistics({
+        totalAssociated: totalAssociated,
+        lastAttendanceCount: attendeesCount,
+        lastHeadcount: headcount,
+        lastDecisionsCount: firstTimeCount + recommitmentCount,
+        lastAttendanceBreakdown: {
+          first_time: firstTimeCount,
+          recommitment: recommitmentCount
+        }
+      });
+
+      // Update manual headcount
+      if (headcount > 0) {
+        setManualHeadcount(headcount.toString());
+      } else {
+        setManualHeadcount("0");
+      }
+
+      window.__lastLoadedAttendance = weekAttendance;
+
     } catch (error) {
-      return dateString, error;
+      console.error("Error loading event statistics:", error);
     }
   };
 
-const loadWeeklyCheckins = () => {
-  if (!event) {
+  const loadWeeklyCheckins = () => {
+    if (!event) {
+      setCheckedIn({});
+      setManualHeadcount("0");
+      setDidNotMeet(false);
+      return;
+    }
+
+    // Reset all states
     setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
     setManualHeadcount("0");
     setDidNotMeet(false);
-    return;
-  }
 
-  // Reset all states
-  setCheckedIn({});
-  setDecisions({});
-  setDecisionTypes({});
-  setPriceTiers({});
-  setPaymentMethods({});
-  setPaidAmounts({});
-  setManualHeadcount("0");
-  setDidNotMeet(false);
+    if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
+      console.log("Loading checkins from direct event.attendees:", event.attendees.length);
 
-  if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
-    console.log("Loading checkins from direct event.attendees:", event.attendees.length);
-    
-    const newCheckedIn = {};
-    const newDecisions = {};
-    const newDecisionTypes = {};
-
-    event.attendees.forEach(att => {
-      if (att.id) {
-        newCheckedIn[att.id] = true;
-        
-        if (att.decision) {
-          newDecisions[att.id] = true;
-          newDecisionTypes[att.id] = att.decision;
-        }
-      }
-    });
-
-    setCheckedIn(newCheckedIn);
-    setDecisions(newDecisions);
-    setDecisionTypes(newDecisionTypes);
-    
-    if (event.total_headcounts) {
-      setManualHeadcount(event.total_headcounts.toString());
-    }
-    
-    return;
-  }
-
-  // CASE 2: Check if event has attendance_data
-  if (event.attendance_data && event.attendance_data.attendees) {
-    console.log("Loading checkins from event.attendance_data");
-    
-    const newCheckedIn = {};
-    const newDecisions = {};
-    const newDecisionTypes = {};
-
-    event.attendance_data.attendees.forEach(att => {
-      if (att.id) {
-        newCheckedIn[att.id] = true;
-        
-        if (att.decision) {
-          newDecisions[att.id] = true;
-          newDecisionTypes[att.id] = att.decision;
-        }
-      }
-    });
-
-    setCheckedIn(newCheckedIn);
-    setDecisions(newDecisions);
-    setDecisionTypes(newDecisionTypes);
-    
-    if (event.attendance_data.total_headcounts) {
-      setManualHeadcount(event.attendance_data.total_headcounts.toString());
-    }
-    
-    return;
-  }
-
-  // CASE 3: Original logic - try to find from attendance object
-  const attendanceData = event.attendance || {};
-  console.log("Loading checkins from attendance:", attendanceData);
-
-  // Find completed week data
-  let weekAttendance = {};
-
-  if (attendanceData.status === "complete") {
-    weekAttendance = attendanceData;
-    console.log("Found checkin data directly");
-  } else {
-    // Look for completed week in object keys
-    const possibleKeys = Object.keys(attendanceData).filter(key =>
-      typeof attendanceData[key] === 'object'
-    );
-
-    for (const key of possibleKeys) {
-      const data = attendanceData[key];
-      if (data && data.status === "complete") {
-        weekAttendance = data;
-        console.log(`Found checkins in key: "${key}"`);
-        break;
-      }
-    }
-  }
-
-  const isCompleted = weekAttendance?.status === "complete";
-
-  if (isCompleted) {
-    console.log("Loading completed week checkins");
-
-    const attendees = weekAttendance.attendees || [];
-
-    if (attendees.length > 0) {
       const newCheckedIn = {};
       const newDecisions = {};
       const newDecisionTypes = {};
-      const newPriceTiers = {};
-      const newPaymentMethods = {};
-      const newPaidAmounts = {};
 
-      attendees.forEach(att => {
+      event.attendees.forEach(att => {
         if (att.id) {
           newCheckedIn[att.id] = true;
 
@@ -1654,42 +1516,130 @@ const loadWeeklyCheckins = () => {
             newDecisions[att.id] = true;
             newDecisionTypes[att.id] = att.decision;
           }
+        }
+      });
 
-          if (isTicketedEvent) {
-            if (att.priceTier || att.price) {
-              newPriceTiers[att.id] = {
-                name: att.priceTier || "",
-                price: att.price || 0,
-                ageGroup: att.ageGroup || "",
-                memberType: att.memberType || ""
-              };
-            }
-            if (att.paymentMethod) {
-              newPaymentMethods[att.id] = att.paymentMethod;
-            }
-            if (att.paid !== undefined) {
-              newPaidAmounts[att.id] = att.paid;
-            }
+      setCheckedIn(newCheckedIn);
+      setDecisions(newDecisions);
+      setDecisionTypes(newDecisionTypes);
+
+      if (event.total_headcounts) {
+        setManualHeadcount(event.total_headcounts.toString());
+      }
+
+      return;
+    }
+
+    if (event.attendance_data && event.attendance_data.attendees) {
+
+      const newCheckedIn = {};
+      const newDecisions = {};
+      const newDecisionTypes = {};
+
+      event.attendance_data.attendees.forEach(att => {
+        if (att.id) {
+          newCheckedIn[att.id] = true;
+
+          if (att.decision) {
+            newDecisions[att.id] = true;
+            newDecisionTypes[att.id] = att.decision;
           }
         }
       });
 
-      console.log("👥 Setting", attendees.length, "checkins");
       setCheckedIn(newCheckedIn);
       setDecisions(newDecisions);
       setDecisionTypes(newDecisionTypes);
-      setPriceTiers(newPriceTiers);
-      setPaymentMethods(newPaymentMethods);
-      setPaidAmounts(newPaidAmounts);
+
+      if (event.attendance_data.total_headcounts) {
+        setManualHeadcount(event.attendance_data.total_headcounts.toString());
+      }
+
+      return;
     }
 
-    const headcount = weekAttendance.total_headcounts || 0;
-    setManualHeadcount(headcount.toString());
+    const attendanceData = event.attendance || {};
+    console.log("Loading checkins from attendance:", attendanceData);
 
-  } else {
-    console.log("No checkins to load");
-  }
-};
+    let weekAttendance = {};
+
+    if (attendanceData.status === "complete") {
+      weekAttendance = attendanceData;
+      console.log("Found checkin data directly");
+    } else {
+      const possibleKeys = Object.keys(attendanceData).filter(key =>
+        typeof attendanceData[key] === 'object'
+      );
+
+      for (const key of possibleKeys) {
+        const data = attendanceData[key];
+        if (data && data.status === "complete") {
+          weekAttendance = data;
+          console.log(`Found checkins in key: "${key}"`);
+          break;
+        }
+      }
+    }
+
+    const isCompleted = weekAttendance?.status === "complete";
+
+    if (isCompleted) {
+      console.log("Loading completed week checkins");
+
+      const attendees = weekAttendance.attendees || [];
+
+      if (attendees.length > 0) {
+        const newCheckedIn = {};
+        const newDecisions = {};
+        const newDecisionTypes = {};
+        const newPriceTiers = {};
+        const newPaymentMethods = {};
+        const newPaidAmounts = {};
+
+        attendees.forEach(att => {
+          if (att.id) {
+            newCheckedIn[att.id] = true;
+
+            if (att.decision) {
+              newDecisions[att.id] = true;
+              newDecisionTypes[att.id] = att.decision;
+            }
+
+            if (isTicketedEvent) {
+              if (att.priceTier || att.price) {
+                newPriceTiers[att.id] = {
+                  name: att.priceTier || "",
+                  price: att.price || 0,
+                  ageGroup: att.ageGroup || "",
+                  memberType: att.memberType || ""
+                };
+              }
+              if (att.paymentMethod) {
+                newPaymentMethods[att.id] = att.paymentMethod;
+              }
+              if (att.paid !== undefined) {
+                newPaidAmounts[att.id] = att.paid;
+              }
+            }
+          }
+        });
+
+        console.log("👥 Setting", attendees.length, "checkins");
+        setCheckedIn(newCheckedIn);
+        setDecisions(newDecisions);
+        setDecisionTypes(newDecisionTypes);
+        setPriceTiers(newPriceTiers);
+        setPaymentMethods(newPaymentMethods);
+        setPaidAmounts(newPaidAmounts);
+      }
+
+      const headcount = weekAttendance.total_headcounts || 0;
+      setManualHeadcount(headcount.toString());
+
+    } else {
+      console.log("No checkins to load");
+    }
+  };
   const loadPersistentAttendees = async (eventId) => {
     try {
       const token = localStorage.getItem("token");
@@ -1729,7 +1679,6 @@ const loadWeeklyCheckins = () => {
     }
 
     try {
-      console.log(forceRefresh ? "Force-refreshing people cache" : "Fetching fresh people for AttendanceModal cache");
       const token = localStorage.getItem("token");
       const headers = { Authorization: `Bearer ${token}` };
 
@@ -1822,7 +1771,6 @@ const loadWeeklyCheckins = () => {
   const fetchPeople = async (q) => {
     if (!q.trim()) {
       if (preloadedPeople.length > 0) {
-        console.log(" Showing preloaded people list");
         setPeople(preloadedPeople.slice(0, 50));
       } else {
         setPeople([]);
@@ -1834,25 +1782,107 @@ const loadWeeklyCheckins = () => {
     const queryLower = query.toLowerCase();
 
     try {
-      const res = await authFetch(
-        `${BACKEND_URL}/people?name=${encodeURIComponent(query)}`
-      );
+      if (preloadedPeople.length > 0) {
+        const cachedResults = preloadedPeople.filter(person => {
+          const fullNameLower = person.fullName.toLowerCase();
+          const emailLower = person.email.toLowerCase();
+          const searchWordsArray = queryLower.split(/\s+/).filter(word => word.length > 0);
+          const nameParts = fullNameLower.split(/\s+/);
+          if (emailLower.includes(queryLower)) return true;
+          const allWordsMatch = searchWordsArray.every(searchWord =>
+            nameParts.some(namePart => namePart.includes(searchWord))
+          );
 
-      if (!res.ok) throw new Error("Failed to fetch people");
+          if (allWordsMatch) return true;
+          return nameParts.some(namePart => namePart.startsWith(queryLower));
+        });
 
-      const data = await res.json();
-      const results = data?.results || [];
-      const filtered = results.filter((p) => {
-        const fullNameLower =
-          `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
+        if (cachedResults.length > 0) {
+          console.log(`Found ${cachedResults.length} results in cache`);
+          setPeople(cachedResults);
+          return;
+        }
+      }
+      console.log("Searching API for:", query);
 
-        if (fullNameLower.includes(queryLower)) return true;
+      const searchTerms = query.split(/\s+/).filter(word => word.length > 0);
+      let results = [];
 
-        const queryWords = queryLower.split(/\s+/).filter(Boolean);
-        return queryWords.every((word) => fullNameLower.includes(word));
-      });
+      if (searchTerms.length === 1) {
+        const singleWord = searchTerms[0];
 
-      const formatted = filtered.map((p) => ({
+        let res = await authFetch(
+          `${BACKEND_URL}/people?name=${encodeURIComponent(singleWord)}`
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          results = data?.results || data?.people || [];
+        }
+
+        if (results.length === 0) {
+          res = await authFetch(`${BACKEND_URL}/people?perPage=100`);
+          if (res.ok) {
+            const data = await res.json();
+            const allResults = data?.results || data?.people || [];
+            results = allResults.filter(p => {
+              const name = (p.Name || "").toLowerCase();
+              const surname = (p.Surname || "").toLowerCase();
+              return name.includes(singleWord.toLowerCase()) ||
+                surname.includes(singleWord.toLowerCase());
+            });
+          }
+        }
+      } else {
+        let res = await authFetch(
+          `${BACKEND_URL}/people?name=${encodeURIComponent(query)}`
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          results = data?.results || data?.people || [];
+        }
+        if (results.length === 0 && searchTerms.length > 0) {
+          const firstName = searchTerms[0];
+          res = await authFetch(
+            `${BACKEND_URL}/people?name=${encodeURIComponent(firstName)}`
+          );
+
+          if (res.ok) {
+            const data = await res.json();
+            const nameResults = data?.results || data?.people || [];
+            if (nameResults.length > 0 && searchTerms.length > 1) {
+              const surnameSearch = searchTerms.slice(1).join(" ").toLowerCase();
+              results = nameResults.filter(p =>
+                (p.Surname || "").toLowerCase().includes(surnameSearch)
+              );
+            } else {
+              results = nameResults;
+            }
+          }
+        }
+
+        if (results.length === 0) {
+          res = await authFetch(`${BACKEND_URL}/people?perPage=100`);
+          if (res.ok) {
+            const data = await res.json();
+            const allResults = data?.results || data?.people || [];
+
+            const searchTermsLower = searchTerms.map(term => term.toLowerCase());
+            results = allResults.filter(p => {
+              const fullName = `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
+
+              return searchTermsLower.every(term =>
+                fullName.includes(term)
+              );
+            });
+          }
+        }
+      }
+
+      console.log(`API returned ${results.length} results`);
+
+      const formatted = results.map((p) => ({
         id: p._id,
         fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
         email: p.Email || p.email || "",
@@ -1860,14 +1890,36 @@ const loadWeeklyCheckins = () => {
         leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
         leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
         phone: p.Number || p.Phone || p.phone || "",
+        searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
       }));
 
-      setPeople(formatted);
+      const searchTermsLower = queryLower.split(/\s+/).filter(word => word.length > 0);
+      const finalFiltered = formatted.filter(person => {
+        const fullNameLower = person.fullName.toLowerCase();
+
+        return searchTermsLower.every(term => fullNameLower.includes(term));
+      });
+
+      console.log(`Formatted ${finalFiltered.length} results after filtering`);
+
+      if (finalFiltered.length === 0) {
+        console.log("No results found for query:", query);
+      }
+
+      setPeople(finalFiltered);
+
     } catch (err) {
       console.error("Error fetching people:", err);
       toast.error(err.message);
+
       if (preloadedPeople.length > 0) {
-        setPeople(preloadedPeople.slice(0, 50));
+        const searchTermsLower = queryLower.split(/\s+/).filter(word => word.length > 0);
+        const fallbackResults = preloadedPeople.filter(person => {
+          const fullNameLower = person.fullName.toLowerCase();
+          return searchTermsLower.every(term => fullNameLower.includes(term));
+        });
+
+        setPeople(fallbackResults);
       } else {
         setPeople([]);
       }
@@ -1899,64 +1951,6 @@ const loadWeeklyCheckins = () => {
       setCommonAttendees(formatted);
     } catch (err) {
       console.error("Failed to fetch common attendees:", err);
-    }
-  };
-
-  const savePersistentCommonAttendeesToDB = async (attendees) => {
-    if (!event) return false;
-
-    let eventId = event._id || event.id;
-
-    if (eventId && eventId.includes("_")) {
-      const parts = eventId.split("_");
-      eventId = parts[0];
-      console.log(`Cleaned event ID: ${eventId} (removed date suffix)`);
-    }
-
-    if (!eventId) {
-      toast.error("No event ID found");
-      return false;
-    }
-
-    try {
-      const token = localStorage.getItem("token");
-      const headers = {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      };
-
-      const formattedAttendees = attendees.map(p => ({
-        id: p.id || p._id || "",
-        name: p.fullName || p.name || "",
-        fullName: p.fullName || p.name || "",
-        email: p.email || "",
-        leader12: p.leader12 || "",
-        leader144: p.leader144 || "",
-        phone: p.phone || ""
-      })).filter(p => p.id);
-
-      console.log(`Saving ${formattedAttendees.length} attendees for event: ${eventId}`);
-
-      const response = await authFetch(`${BACKEND_URL}/events/${eventId}/persistent-attendees`, {
-        method: "PUT",
-        headers: headers,
-        body: JSON.stringify({
-          persistent_attendees: formattedAttendees
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Failed to save: ${response.status} - ${errorText}`);
-      }
-
-      console.log(" Attendees saved to database");
-      return true;
-
-    } catch (error) {
-      console.error("Error saving:", error);
-      toast.error("Failed to save attendees");
-      return false;
     }
   };
 
@@ -2185,78 +2179,80 @@ const loadWeeklyCheckins = () => {
     }
   };
 
-const getAllCommonAttendees = () => {
-  const persistent = [...(persistentCommonAttendees || [])];
-  let savedAttendees = [];
+  const getAllCommonAttendees = () => {
+    const persistent = [...(persistentCommonAttendees || [])];
+    let savedAttendees = [];
 
-  // Try multiple sources for saved attendees
-  if (event?.attendance?.attendees?.length > 0) {
-    savedAttendees = event.attendance.attendees;
-  }
-  else if (event?.attendance_data?.attendees?.length > 0) {
-    savedAttendees = event.attendance_data.attendees;
-  }
-  else if (event?.attendees?.length > 0) {
-    savedAttendees = event.attendees;
-  }
-
-  const combinedMap = new Map();
-
-  persistent.forEach(att => {
-    if (att && att.id) {
-      const attendeeId = att.id || att._id || "";
-      if (attendeeId) {
-        combinedMap.set(attendeeId, {
-          ...att,
-          id: attendeeId,
-          fullName: att.fullName || att.name || "Unknown Person",
-          email: att.email || "",
-          leader12: att.leader12 || "",
-          leader144: att.leader144 || "",
-          phone: att.phone || "",
-          isPersistent: true
-        });
-      }
+    if (event?.attendance?.attendees?.length > 0) {
+      savedAttendees = event.attendance.attendees;
     }
-  });
-
-  savedAttendees.forEach(savedAtt => {
-    if (savedAtt && savedAtt.id) {
-      const attendeeId = savedAtt.id || savedAtt._id || "";
-      if (attendeeId) {
-        const existing = combinedMap.get(attendeeId) || {};
-        combinedMap.set(attendeeId, {
-          ...existing,
-          ...savedAtt,
-          id: attendeeId,
-          fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
-          email: savedAtt.email || existing.email || "",
-          leader12: savedAtt.leader12 || existing.leader12 || "",
-          leader144: savedAtt.leader144 || existing.leader144 || "",
-          phone: savedAtt.phone || existing.phone || "",
-          checked_in: savedAtt.checked_in !== false,
-          decision: savedAtt.decision || existing.decision || "",
-          isPersistent: existing.isPersistent || false
-        });
-      }
+    else if (event?.attendance_data?.attendees?.length > 0) {
+      savedAttendees = event.attendance_data.attendees;
     }
-  });
+    else if (event?.attendees?.length > 0) {
+      savedAttendees = event.attendees;
+    }
 
-  return Array.from(combinedMap.values());
-};
+    const combinedMap = new Map();
+
+    persistent.forEach(att => {
+      if (att && att.id) {
+        const attendeeId = att.id || att._id || "";
+        if (attendeeId) {
+          combinedMap.set(attendeeId, {
+            ...att,
+            id: attendeeId,
+            fullName: att.fullName || att.name || "Unknown Person",
+            email: att.email || "",
+            leader12: att.leader12 || "",
+            leader144: att.leader144 || "",
+            phone: att.phone || "",
+            isPersistent: true
+          });
+        }
+      }
+    });
+
+    savedAttendees.forEach(savedAtt => {
+      if (savedAtt && savedAtt.id) {
+        const attendeeId = savedAtt.id || savedAtt._id || "";
+        if (attendeeId) {
+          const existing = combinedMap.get(attendeeId) || {};
+          combinedMap.set(attendeeId, {
+            ...existing,
+            ...savedAtt,
+            id: attendeeId,
+            fullName: savedAtt.fullName || savedAtt.name || existing.fullName || "Unknown Person",
+            email: savedAtt.email || existing.email || "",
+            leader12: savedAtt.leader12 || existing.leader12 || "",
+            leader144: savedAtt.leader144 || existing.leader144 || "",
+            phone: savedAtt.phone || existing.phone || "",
+            checked_in: savedAtt.checked_in !== false,
+            decision: savedAtt.decision || existing.decision || "",
+            isPersistent: existing.isPersistent || false
+          });
+        }
+      }
+    });
+
+    return Array.from(combinedMap.values());
+  };
 
   const attendeesCount = Object.keys(checkedIn).filter(
     (id) => checkedIn[id]
   ).length;
+  console.log("Attendees checked in:", attendeesCount);
   const decisionsCount = Object.keys(decisions).filter(
     (id) => decisions[id]
   ).length;
   const firstTimeCount = Object.values(decisionTypes).filter(
     (type) => type === "first-time"
   ).length;
+  console.log("First-time decisions count:", firstTimeCount);
   const reCommitmentCount = Object.values(decisionTypes).filter(
     (type) => type === "re-commitment"
   ).length;
+  console.log("Re-commitment decisions count:", reCommitmentCount);
   const totalPaid = Object.values(paidAmounts).reduce(
     (sum, amount) => sum + amount,
     0
@@ -2335,7 +2331,6 @@ const getAllCommonAttendees = () => {
 
       console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
 
-      // Only mark as "Did Not Meet" if NO attendees AND NO headcount
       const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
 
       console.log(" Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
@@ -2415,15 +2410,210 @@ const getAllCommonAttendees = () => {
     }
   };
 
+  const downloadAttendanceData = () => {
+    try {
+      const allPeople = getAllCommonAttendees();
+      const checkedInAttendees = Object.keys(checkedIn)
+        .filter(id => checkedIn[id])
+        .map(id => {
+          const person = allPeople.find(p => p && p.id === id);
+          if (!person) return null;
+
+          return {
+            'Event Name': event?.eventName || 'N/A',
+            'Event Date': event?.date || 'N/A',
+            'Name': person.fullName || 'N/A',
+            'Email': person.email || 'N/A',
+            'Leader @12': person.leader12 || 'N/A',
+            'Leader @144': person.leader144 || 'N/A',
+            'Phone': person.phone || 'N/A',
+            'Decision': decisionTypes[id] || 'N/A',
+            'Status': didNotMeet ? 'Did Not Meet' : 'Complete',
+            ...(isTicketedEvent && {
+              'Price Tier': priceTiers[id]?.name || 'N/A',
+              'Price': priceTiers[id]?.price ? `R${priceTiers[id].price.toFixed(2)}` : 'N/A',
+              'Payment Method': paymentMethods[id] || 'N/A',
+              'Paid': paidAmounts[id] ? `R${paidAmounts[id].toFixed(2)}` : 'N/A',
+              'Owing': calculateOwing(id) ? `R${calculateOwing(id).toFixed(2)}` : 'N/A'
+            })
+          };
+        })
+        .filter(att => att !== null);
+
+      // If no attendees checked in but event is marked as "Did Not Meet"
+      if (checkedInAttendees.length === 0 && didNotMeet) {
+        const emptyRow = [{
+          'Event Name': event?.eventName || 'N/A',
+          'Event Date': event?.date || 'N/A',
+          'Name': 'No attendees - Event Did Not Meet',
+          'Email': '',
+          'Leader @12': '',
+          'Leader @144': '',
+          'Phone': '',
+          'Decision': '',
+          'Status': 'Did Not Meet',
+          ...(isTicketedEvent && {
+            'Price Tier': 'N/A',
+            'Price': 'N/A',
+            'Payment Method': 'N/A',
+            'Paid': 'N/A',
+            'Owing': 'N/A'
+          })
+        }];
+
+        // Add headcount if any
+        if (manualHeadcount && parseInt(manualHeadcount) > 0) {
+          emptyRow.push({
+            'Event Name': event?.eventName || 'N/A',
+            'Event Date': event?.date || 'N/A',
+            'Name': `Manual Headcount: ${manualHeadcount}`,
+            'Email': '',
+            'Leader @12': '',
+            'Leader @144': '',
+            'Phone': '',
+            'Decision': '',
+            'Status': 'Did Not Meet',
+            ...(isTicketedEvent && {
+              'Price Tier': 'N/A',
+              'Price': 'N/A',
+              'Payment Method': 'N/A',
+              'Paid': 'N/A',
+              'Owing': 'N/A'
+            })
+          });
+        }
+
+        buildXlsFromRows(emptyRow, `attendance_${(event?.eventName || 'event').replace(/\s/g, '_')}_${didNotMeet ? 'did_not_meet' : 'complete'}`);
+        return;
+      }
+
+      // Add headcount info if manual headcount > checked-in count
+      if (manualHeadcount && parseInt(manualHeadcount) > checkedInAttendees.length) {
+        checkedInAttendees.push({
+          'Event Name': event?.eventName || 'N/A',
+          'Event Date': event?.date || 'N/A',
+          'Name': `Additional Headcount (not checked in): ${parseInt(manualHeadcount) - checkedInAttendees.length}`,
+          'Email': '',
+          'Leader @12': '',
+          'Leader @144': '',
+          'Phone': '',
+          'Decision': '',
+          'Status': didNotMeet ? 'Did Not Meet' : 'Complete',
+          ...(isTicketedEvent && {
+            'Price Tier': 'N/A',
+            'Price': 'N/A',
+            'Payment Method': 'N/A',
+            'Paid': 'N/A',
+            'Owing': 'N/A'
+          })
+        });
+      }
+
+      if (checkedInAttendees.length === 0) {
+        toast.info("No attendance data to download");
+        return;
+      }
+
+      // Build and download the XLS file
+      buildXlsFromRows(
+        checkedInAttendees,
+        `attendance_${(event?.eventName || 'event').replace(/\s/g, '_')}_${didNotMeet ? 'did_not_meet' : 'complete'}`
+      );
+
+      toast.success(`Downloaded ${checkedInAttendees.length} attendance records`);
+
+    } catch (err) {
+      console.error("Download failed:", err);
+      toast.error("Failed to download attendance data");
+    }
+  };
+
+  // Add this helper function after downloadAttendanceData
+  const buildXlsFromRows = (rows, fileBaseName = "export") => {
+    if (!rows || rows.length === 0) {
+      toast.info("No data to export");
+      return;
+    }
+
+    const escapeHtml = (s) =>
+      String(s || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+    const headers = Object.keys(rows[0]);
+
+    let html = `
+    <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+      <head>
+        <meta charset="utf-8">
+        <!--[if gte mso 9]>
+        <xml>
+          <x:ExcelWorkbook>
+            <x:ExcelWorksheets>
+              <x:ExcelWorksheet>
+                <x:Name>${escapeHtml(fileBaseName)}</x:Name>
+                <x:WorksheetOptions>
+                  <x:DisplayGridlines/>
+                </x:WorksheetOptions>
+              </x:ExcelWorksheet>
+            </x:ExcelWorksheets>
+          </x:ExcelWorkbook>
+        </xml>
+        <![endif]-->
+        <style>
+          table { border-collapse: collapse; width: 100%; font-family: Calibri, Arial, sans-serif; }
+          th { background-color: #a3aca3ff; color: white; font-weight: bold; padding: 12px 8px; text-align: center; border: 1px solid #ddd; font-size: 11pt; white-space: nowrap; }
+          td { padding: 8px; border: 1px solid #ddd; font-size: 10pt; text-align: left; }
+          tr:nth-child(even) { background-color: #f2f2f2; }
+        </style>
+      </head>
+      <body>
+        <table border="1">
+          <thead><tr>
+  `;
+
+    headers.forEach((h) => {
+      html += `                <th>${escapeHtml(h)}</th>\n`;
+    });
+    html += `              </tr></thead><tbody>\n`;
+
+    rows.forEach((row) => {
+      html += `              <tr>\n`;
+      headers.forEach((h) => {
+        html += `                <td>${escapeHtml(row[h] || "")}</td>\n`;
+      });
+      html += `              </tr>\n`;
+    });
+
+    html += `            </tbody></table></body></html>`;
+
+    const blob = new Blob([html], {
+      type: "application/vnd.ms-excel;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const fileName = `${fileBaseName}_${new Date().toISOString().split("T")[0]}.xls`;
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    setTimeout(() => {
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    }, 100);
+  };
+
   const handleSubmitAttendance = (attendanceData) => {
 
     if (onSubmit) {
       return onSubmit(attendanceData);
     } else {
-      console.error("No onSubmit prop provided to AttendanceModal");
       return Promise.resolve({ success: false, message: "No submit handler" });
     }
+
   };
+  console.log("Submitting attendance data:", handleSubmitAttendance);
   const handleDidNotMeet = () => {
     setShowDidNotMeetConfirm(true);
   };
@@ -2527,6 +2717,7 @@ const getAllCommonAttendees = () => {
     const isPersistent = persistentCommonAttendees.some(
       (p) => p.id === person.id
     );
+    console.log("persistance", isPersistent);
     const isCheckedIn = checkedIn[person.id];
 
     return (
@@ -3445,6 +3636,7 @@ const getAllCommonAttendees = () => {
                           const isPersistent = persistentCommonAttendees.some(
                             (p) => p.id === person.id
                           );
+                          console.log("ispersistent", isPersistent);
 
                           return (
                             <tr key={person.id}>
@@ -3820,6 +4012,35 @@ const getAllCommonAttendees = () => {
             <button style={styles.closeBtn} onClick={onClose}>
 
               CLOSE
+            </button>
+
+            {/* Add this new download button */}
+            <button
+              onClick={() => downloadAttendanceData()}
+              style={{
+                background: theme.palette.info.main,
+                color: theme.palette.info.contrastText || "#fff",
+                border: "none",
+                padding: "12px 20px",
+                borderRadius: 6,
+                cursor: "pointer",
+                fontSize: 16,
+                fontWeight: 500,
+                flex: isMobile ? "1 1 100%" : "none",
+                minWidth: 120,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px"
+              }}
+              title="Download attendance data"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              DOWNLOAD DATA
             </button>
             <div
               style={{

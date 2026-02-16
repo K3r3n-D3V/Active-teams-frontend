@@ -1,12 +1,11 @@
-import React, { useContext, useEffect, useState, useCallback, useRef } from "react";
+
+
+import React, { useContext, useEffect, useState } from "react";
 import { Phone, UserPlus, Plus } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
-let globalPeopleCache = null;
-let globalCacheTimestamp = null;
-const CACHE_DURATION = 60 * 60 * 12 * 1000; // 5 minutes
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
@@ -65,7 +64,6 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 }
 
 export default function DailyTasks() {
-
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
 
@@ -82,8 +80,6 @@ export default function DailyTasks() {
   const [filterType, setFilterType] = useState("all");
   const [newTaskTypeName, setNewTaskTypeName] = useState("");
   const [addingTaskType, setAddingTaskType] = useState(false);
- 
-  
 
   const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
@@ -169,42 +165,6 @@ export default function DailyTasks() {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
-  // Add this function in DailyTasks component
-const markTaskComplete = async (taskId) => {
-  try {
-    const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        status: "completed",
-        taskStage: "Completed" 
-      }),
-    });
-    
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed to update task");
-    
-    // Update local state
-    setTasks((prev) =>
-      prev.map((t) =>
-        t._id === taskId ? { 
-          ...t, 
-          status: "completed",
-          ...data.updatedTask 
-        } : t
-      )
-    );
-    
-    toast.success("Task marked as completed!");
-     notifyTaskUpdate()
-    // Trigger a re-fetch for stats (optional)
-    fetchUserTasks(); // This will update the local tasks list
-    
-  } catch (err) {
-    console.error("Error completing task:", err.message);
-    toast.error("Failed to update task: " + err.message);
-  }
-};
   const fetchTaskTypes = async () => {
     try {
       const res = await authFetch(`${API_URL}/tasktypes`);
@@ -241,93 +201,106 @@ const markTaskComplete = async (taskId) => {
       setAddingTaskType(false);
     }
   };
+const fetchUserTasks = async () => {
+  if (!user?.email) return;
+  
+  // Add an abort controller to cancel the request if component unmounts
+  const controller = new AbortController();
+  const signal = controller.signal;
+  
+  try {
+    setLoading(true);
+    const res = await authFetch(`${API_URL}/tasks?user_email=${user.email}`, {
+      signal // Add signal to the request
+    });
+    
+    if (!res.ok) throw new Error("Failed to fetch tasks");
+    const data = await res.json();
 
-  const fetchUserTasks = async () => {
-    if (!user?.email) return;
-    try {
-      setLoading(true);
-      const res = await authFetch(`${API_URL}/tasks?user_email=${user.email}`);
-      if (!res.ok) throw new Error("Failed to fetch tasks");
-      const data = await res.json();
+    const tasksArray = Array.isArray(data) ? data : data.tasks || [];
+    
 
-      const tasksArray = Array.isArray(data) ? data : data.tasks || [];
-
-      // Debug logging
-      console.log("=== DEBUG: Tasks from API ===");
-      tasksArray.forEach((task, index) => {
-        console.log(`Task ${index + 1}:`, {
-          id: task._id,
-          taskType: task.taskType,
-          is_consolidation_task: task.is_consolidation_task,
-          leader_name: task.leader_name,
-          leader_assigned: task.leader_assigned,
-          assignedfor: task.assignedfor,
-          name: task.name,
-          assigned_to: task.assigned_to,
-          source_display: task.source_display,
+    // Debug logging
+    console.log("=== DEBUG: Tasks from API ===");
+    tasksArray.forEach((task, index) => {
+      console.log(`Task ${index + 1}:`, {
+        id: task._id,
+        taskType: task.taskType,
+        is_consolidation_task: task.is_consolidation_task,
+        leader_name: task.leader_name,
+        leader_assigned: task.leader_assigned,
+        assignedfor: task.assignedfor,
+        name: task.name,
+        assigned_to: task.assigned_to,
+        source_display: task.source_display,
         consolidation_source: task.consolidation_source
-        });
       });
-      console.log("=== END DEBUG ===");
+    });
+    console.log("=== END DEBUG ===");
 
-      const normalizedTasks = tasksArray.map((task) => {
-        const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
+    const normalizedTasks = tasksArray.map((task) => {
+      const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
 
-        // Determine what to show as assignedTo
-        let assignedTo = "";
+      // Determine what to show as assignedTo
+      let assignedTo = "";
 
+      if (isConsolidation) {
+        // For consolidation tasks: use leader name, NOT email
+        // Check all possible leader name fields
+        assignedTo = task.leader_name ||
+          task.leader_assigned ||
+          task.assigned_to ||
+          `${user.name || ""} ${user.surname || ""}`.trim();
+
+        // Debug logging for consolidation tasks
         if (isConsolidation) {
-          // For consolidation tasks: use leader name, NOT email
-          // Check all possible leader name fields
-          assignedTo = task.leader_name ||
-            task.leader_assigned ||
-            task.assigned_to ||
-            `${user.name || ""} ${user.surname || ""}`.trim() ;
-
-          // Debug logging for consolidation tasks
-          if (isConsolidation) {
-            console.log(`Consolidation task ${task._id}:`, {
-              leader_name: task.leader_name,
-              leader_assigned: task.leader_assigned,
-              assigned_to: task.assigned_to,
-              assignedfor: task.assignedfor,
-              final_assignedTo: assignedTo
-            });
-          }
-
-          // If we still have an email (not a name), show placeholder
-          if (assignedTo.includes('@')) {
-            assignedTo = "Consolidation Leader";
-          }
-        } else {
-          // For regular tasks
-          assignedTo = task.name || task.assignedfor || "";
+          console.log(`Consolidation task ${task._id}:`, {
+            leader_name: task.leader_name,
+            leader_assigned: task.leader_assigned,
+            assigned_to: task.assigned_to,
+            assignedfor: task.assignedfor,
+            final_assignedTo: assignedTo
+          });
         }
 
-        return {
-          ...task,
-          assignedTo: assignedTo,
-          date: task.date || task.followup_date,
-          status: (task.status || "Open").toLowerCase(),
-          taskName: task.name || task.taskName,
-          type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
-          // Ensure all consolidation fields are preserved
-          leader_name: task.leader_name || task.leader_assigned,
-          leader_assigned: task.leader_assigned,
-          consolidation_name: task.consolidation_name ||
-            (isConsolidation
-              ? `${task.person_name || ''} ${task.person_surname || ''} - ${task.decision_display_name || 'Consolidation'}`
-              : task.name),
-          decision_display_name: task.decision_display_name,
-          is_consolidation_task: isConsolidation,
-        };
-      });
+        // If we still have an email (not a name), show placeholder
+        if (assignedTo.includes('@')) {
+          assignedTo = "Consolidation Leader";
+        }
+      } else {
+        // For regular tasks
+        assignedTo = task.name || task.assignedfor || "";
+      }
 
-      setTasks(normalizedTasks);
-    } catch (err) {
+      return {
+        ...task,
+        assignedTo: assignedTo,
+        date: task.date || task.followup_date,
+        status: (task.status || "Open").toLowerCase(),
+        taskName: task.name || task.taskName,
+        type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
+        // Ensure all consolidation fields are preserved
+        leader_name: task.leader_name || task.leader_assigned,
+        leader_assigned: task.leader_assigned,
+        consolidation_name: task.consolidation_name ||
+          (isConsolidation
+            ? `${task.person_name || ''} ${task.person_surname || ''} - ${task.decision_display_name || 'Consolidation'}`
+            : task.name),
+        decision_display_name: task.decision_display_name,
+        is_consolidation_task: isConsolidation,
+      };
+    });
+
+    setTasks(normalizedTasks);
+  } catch (err) {
+    // Only update state if it's not an abort error
+    if (err.name !== 'AbortError') {
       console.error("Error fetching user tasks:", err.message);
       toast.error(err.message);
-    } finally {
+    }
+  } finally {
+    // Only update loading state if not aborted
+    if (!signal.aborted) {
       setLoading(false);
     }
   };
@@ -416,6 +389,7 @@ const markTaskComplete = async (taskId) => {
     }
 
     const query = q.trim();
+<<<<<<< HEAD
 
     // 1) Quick local pass: use whatever is already available (state or global cache)
     const localSource = (allPeople && allPeople.length > 0) ? allPeople : (globalPeopleCache || []);
@@ -425,7 +399,6 @@ const markTaskComplete = async (taskId) => {
       setSearchResults(quick.slice(0, 50));
     } else {
       // optionally set a small loading indicator here if you have one
-    }
 
     // 2) Ensure fresh data: wait for fetch (if in-flight this will await it)
     try {
@@ -438,16 +411,16 @@ const markTaskComplete = async (taskId) => {
       // keep quick results if any
     }
    }, [allPeople, searchPeople, fetchAllPeople, API_URL, authFetch]);
+=======
+    // We keep original casing for display, but lowercase for comparison
+    const queryLower = query.toLowerCase();
 
-  const fetchAssigned = async (q) => {
-    if (!q.trim()) return setAssignedResults([]);
     try {
-      const res = await authFetch(`${API_URL}/assigned?name=${encodeURIComponent(q.trim())}`);
-      const data = await res.json();
-      setAssignedResults(data.results || []);
-    } catch (err) {
-      console.error("Error fetching assigned people:", err);
-      toast.error(err.message);
+      // Send the full typed string to the backend
+      // (most APIs can handle searching across both name + surname fields)
+      const res = await authFetch(
+        `${API_URL}/people?name=${encodeURIComponent(query)}`
+      );
     }
   };
 
@@ -481,12 +454,11 @@ const markTaskComplete = async (taskId) => {
   };
 
   useEffect(() => {
-    if (user) {
+     if (user && !loading) {
       fetchUserTasks();
       fetchTaskTypes();
-      fetchAllPeople(false); // Load all people for caching
     }
-  }, [user, fetchAllPeople]);
+  }, [user]);
 
   const handleOpen = (type) => {
     setFormType(type);
@@ -511,43 +483,45 @@ const markTaskComplete = async (taskId) => {
     setTaskData({ ...taskData, [name]: value });
   };
 
- const updateTask = async (taskId, updatedData) => {
-  try {
-    // Ensure status and taskStage are synchronized
-    const payload = {
-      ...updatedData,
-      status: updatedData.taskStage || updatedData.status,
-    };
-    
-    const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed to update task");
-    
-    // Update with both status fields
-    setTasks((prev) =>
-      prev.map((t) =>
-        t._id === taskId ? { 
-          ...t, 
-          ...data.updatedTask,
-          status: data.updatedTask.status || data.updatedTask.taskStage,
-          date: data.updatedTask.followup_date 
-        } : t
-      )
-    );
-    
-    handleClose();
-    fetchUserTasks(); // Refresh the task list
-      notifyTaskUpdate();
-  } catch (err) {
-    console.error("Error updating task:", err.message);
-    toast.error("Failed to update task: " + err.message);
-  }
-};
+  const updateTask = async (taskId, updatedData) => {
+    try {
+      const isConsolidationTask = selectedTask?.taskType === 'consolidation' ||
+        selectedTask?.is_consolidation_task;
+
+      if (isConsolidationTask) {
+        // Preserve the original leader assignment
+        updatedData.name = selectedTask.leader_name || selectedTask.name;
+        updatedData.leader_name = selectedTask.leader_name;
+        updatedData.leader_assigned = selectedTask.leader_assigned;
+      }
+
+      const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedData),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update task");
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t._id === taskId ? {
+            ...t,
+            ...data.updatedTask,
+            date: data.updatedTask.followup_date,
+            ...(isConsolidationTask && {
+              leader_name: selectedTask.leader_name,
+              leader_assigned: selectedTask.leader_assigned
+            })
+          } : t
+        )
+      );
+      handleClose();
+    } catch (err) {
+      console.error("Error updating task:", err.message);
+      toast.error("Failed to update task: " + err.message);
+    }
+  };
 
   const handleEdit = (task) => {
     if (task.status?.toLowerCase() === "completed") {
@@ -563,7 +537,9 @@ const markTaskComplete = async (taskId) => {
       taskType: task.taskType || "",
       recipient: {
         Name: task.contacted_person?.name?.split(" ")[0] || "",
-        Surname: task.contacted_person?.name?.split(" ")[1] || ""
+        Surname: task.contacted_person?.name?.split(" ")[1] || "",
+        Phone: task.contacted_person?.phone || task.contacted_person?.Number || "",
+        Email: task.contacted_person?.email || "",
       },
       recipientDisplay: task.contacted_person?.name || "",
       assignedTo: task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
@@ -573,56 +549,16 @@ const markTaskComplete = async (taskId) => {
     });
   };
 
- 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setSubmitting(true);
     try {
       if (!user?.id) throw new Error("Logged-in user ID not found");
 
-      // Try to resolve recipient object (accept either server shape or local mapped shape)
-      let person = taskData.recipient;
-
-      const normalize = (s) => (s || "").toString().trim().toLowerCase();
-
-      // If recipient not set or missing expected fields, try to resolve from allPeople using recipientDisplay
-      if (!person || !(person.Name || person.name)) {
-        const display = (taskData.recipientDisplay || "").trim();
-        if (display && allPeople && allPeople.length > 0) {
-          const displayNorm = normalize(display);
-
-          // exact full-match first
-          let match = allPeople.find((p) => {
-            const full = `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim();
-            return normalize(full) === displayNorm;
-          });
-
-          // token-match fallback (all tokens present in full name)
-          if (!match) {
-            const tokens = displayNorm.split(/\s+/).filter(Boolean);
-            match = allPeople.find((p) => {
-              const full = `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.toLowerCase();
-              return tokens.every((t) => full.includes(t));
-            });
-          }
-
-          if (match) {
-            person = match;
-            // persist resolved recipient into state so UI/submit remain consistent
-            setTaskData((prev) => ({ ...prev, recipient: match, recipientDisplay: display }));
-          }
-        }
-      }
-
-      if (!person || !(person.Name || person.name)) {
+      const person = taskData.recipient;
+      if (!person || !person.Name) {
         throw new Error("Person details not found. Please select a valid recipient.");
       }
-
-      // Normalize person fields for payload (handle both shapes)
-      const personName = person.Name || person.name || "";
-      const personSurname = person.Surname || person.surname || "";
-      const personPhone = person.Phone || person.Number || person.phone || "";
-      const personEmail = person.Email || person.email || "";
 
       const isConsolidationTask = selectedTask?.taskType === 'consolidation' ||
         selectedTask?.is_consolidation_task;
@@ -637,14 +573,14 @@ const markTaskComplete = async (taskId) => {
             ? "consolidation"
             : formType === "call" ? "Call Task" : "Visit Task"),
         contacted_person: {
-          name: `${personName} ${personSurname}`.trim(),
-          phone: personPhone,
-          email: personEmail,
+          name: `${person.Name} ${person.Surname || ""}`.trim(),
+          phone: person.Phone || person.Number || "",
+          email: person.Email || "",
         },
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
         type: formType || "call",
-        assignedfor:  (user ? `${user.name} ${user.surname}` : ""),
+        assignedfor: user.email,
       };
 
       if (isConsolidationTask) {
@@ -655,10 +591,10 @@ const markTaskComplete = async (taskId) => {
 
       if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
-        toast.info(`Task for ${personName} ${personSurname} updated successfully!`);
+        toast.info(`Task for ${person.Name} ${person.Surname} updated successfully!`);
       } else {
         await createTask(taskPayload);
-        toast.success(`You have successfully captured ${personName} ${personSurname}`);
+        toast.success(`You have successfully captured ${person.Name} ${person.Surname}`);
       }
       handleClose();
     } catch (err) {
@@ -737,21 +673,16 @@ const markTaskComplete = async (taskId) => {
 
       const headers = Object.keys(formattedTasks[0]);
 
-    // Calculate column widths based on content
-const columnWidths = headers.map(header => {
-  // Start with header length
-  let maxLength = header.length;
-  
-  // Check all values in this column
-  formattedTasks.forEach(task => {
-    const value = String(task[header] || "");
-    if (value.length > maxLength) {
-      maxLength = value.length;  
-    }
-  });
-  
-  return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
-});
+      const columnWidths = headers.map(header => {
+        let maxLength = header.length;
+        formattedTasks.forEach(task => {
+          const value = String(task[header] || "");
+          if (value.length > maxLength) {
+            maxLength = value.length;
+          }
+        });
+        return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
+      });
 
       let colWidthsXml = columnWidths.map(width =>
         `<x:Width>${width}</x:Width>`
@@ -859,14 +790,77 @@ const columnWidths = headers.map(header => {
 
   const [totalCount, setTotalCount] = useState(0);
 
-// Update the useEffect for totalCount
-useEffect(() => {
-  const count = filteredTasks.filter(
-    (t) => (t.status || "").toLowerCase() === "completed"
-  ).length;
-  setTotalCount(count);
-}, [filteredTasks]); // Remove updateTask from dependencies
+  useEffect(() => {
+    const count = filteredTasks.filter(
+      (t) =>
+        (t.status || "").toLowerCase() === "completed" ||
+        (t.status || "").toLowerCase() === "awaiting task"
+    ).length;
 
+    setTotalCount(count);
+  }, [filteredTasks]);
+  // Add this useEffect hook in your DailyTasks component, after the other useEffects:
+
+  // Add this AFTER the existing useEffect on line 246:
+// Replace this useEffect (around line 246):
+useEffect(() => {
+  // Listen for task update events
+  const handleTaskUpdated = () => {
+    console.log("Task updated event received, refreshing tasks...");
+    fetchUserTasks();
+  };
+
+  window.addEventListener('taskUpdated', handleTaskUpdated);
+
+  return () => {
+    window.removeEventListener('taskUpdated', handleTaskUpdated);
+  };
+}, [user]);
+
+// With this improved version:
+// Update this useEffect in DailyTasks:
+useEffect(() => {
+  if (!user) return;
+  
+  const handleTaskUpdated = (event) => {
+    console.log("Task updated event received:", event.detail);
+    // Force immediate refresh
+    fetchUserTasks();
+    
+    // Optional: Show a toast notification for specific actions
+    if (event.detail?.action === 'tasksDeleted') {
+      toast.info(`${event.detail.count} task(s) removed`);
+    } else if (event.detail?.action === 'consolidationCreated') {
+      toast.info("New consolidation task added");
+    }
+  };
+
+  // Add the event listener
+  window.addEventListener('taskUpdated', handleTaskUpdated);
+  
+  // Cleanup function to remove the event listener
+  return () => {
+    window.removeEventListener('taskUpdated', handleTaskUpdated);
+  };
+}, [user]); // Only depend on user
+
+// Add this useEffect in DailyTasks, after the event listener one:
+useEffect(() => {
+  if (!user) return;
+  
+  // Initial fetch
+  fetchUserTasks();
+  
+  // Set up interval to refresh every 30 seconds
+  const intervalId = setInterval(() => {
+    console.log("Auto-refreshing tasks...");
+    fetchUserTasks();
+  }, 30000); // 30 seconds
+  
+  return () => {
+    clearInterval(intervalId);
+  };
+}, [user]);
   return (
     <div style={{
       height: '100vh',
@@ -914,12 +908,12 @@ useEffect(() => {
             Tasks Complete
           </p>
 
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'center', 
-            gap: '12px', 
-            marginTop: '24px', 
-            flexWrap: 'wrap' 
+          <div style={{
+            display: 'flex',
+            justifyContent: 'center',
+            gap: '12px',
+            marginTop: '24px',
+            flexWrap: 'wrap'
           }}>
             <button
               style={{
@@ -930,8 +924,8 @@ useEffect(() => {
                 backgroundColor: isDarkMode ? '#fff' : '#000',
                 color: isDarkMode ? '#000' : '#fff',
                 fontWeight: '600',
-                padding: '12px 20px', 
-                borderRadius: '10px', 
+                padding: '12px 20px',
+                borderRadius: '10px',
                 border: 'none',
                 cursor: 'pointer',
                 fontSize: '14px',
@@ -995,7 +989,7 @@ useEffect(() => {
           <div style={{ marginTop: '20px' }}>
             <select
               style={{
-                padding: '10px 16px', 
+                padding: '10px 16px',
                 borderRadius: '10px',
                 border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
@@ -1047,20 +1041,20 @@ useEffect(() => {
           </div>
         </div>
 
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'center', 
-          gap: '8px', 
-          marginTop: '20px', 
+        <div style={{
+          display: 'flex',
+          justifyContent: 'center',
+          gap: '8px',
+          marginTop: '20px',
           flexWrap: 'wrap',
-          overflowX: 'auto', 
+          overflowX: 'auto',
           paddingBottom: '8px'
         }}>
           {["all", "call", "visit", "consolidation"].map((type) => (
             <button
               key={type}
               style={{
-                padding: '8px 16px', 
+                padding: '8px 16px',
                 borderRadius: '20px',
                 border: filterType === type ? 'none' : `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
                 fontWeight: '600',
@@ -1069,8 +1063,8 @@ useEffect(() => {
                 color: filterType === type ? (isDarkMode ? '#000' : '#fff') : (isDarkMode ? '#fff' : '#1a1a24'),
                 fontSize: '13px',
                 boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
-                whiteSpace: 'nowrap', 
-                flexShrink: 0 
+                whiteSpace: 'nowrap',
+                flexShrink: 0
               }}
               onClick={() => setFilterType(type)}
             >
@@ -1080,23 +1074,23 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* Task list container - this is the scrollable area */}
-      <div style={{ 
-        flex: 1, 
+      {/* Task list container */}
+      <div style={{
+        flex: 1,
         overflowY: 'auto',
-        maxWidth: '1200px', 
-        margin: '0 auto', 
-        padding: '0 16px 16px 16px', 
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '0 16px 16px 16px',
         width: '100%',
         boxSizing: 'border-box'
       }}>
         <div style={{ marginTop: '16px' }}>
           {loading ? (
-            <p style={{ 
-              textAlign: 'center', 
-              color: isDarkMode ? '#aaa' : '#6b7280', 
-              fontStyle: 'italic', 
-              padding: '20px' 
+            <p style={{
+              textAlign: 'center',
+              color: isDarkMode ? '#aaa' : '#6b7280',
+              fontStyle: 'italic',
+              padding: '20px'
             }}>
               Loading tasks...
             </p>
@@ -1243,14 +1237,7 @@ useEffect(() => {
                           ? (isDarkMode ? '#fff' : '#000')
                           : (isDarkMode ? '#444' : '#6b7280'),
                     }}
-                    onClick={(e) => {
-    e.stopPropagation(); // Prevent event bubbling
-    if (task.status === "open") {
-      markTaskComplete(task._id);
-    } else {
-      handleEdit(task);
-    }
-  }}
+                    onClick={() => handleEdit(task)}
                   >
                     {task.status}
                   </span>
@@ -1466,7 +1453,7 @@ useEffect(() => {
                 margin: '4px 0 0 0',
                 boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
               }}>
-            {searchResults.map((person) => (
+                {searchResults.map((person) => (
                   <li
                     key={person._id}
                     style={{
@@ -1476,19 +1463,22 @@ useEffect(() => {
                       color: isDarkMode ? '#fff' : '#1a1a24',
                     }}
                     onClick={() => {
-                      const fullName = `${person.name} ${person.surname}`.trim();
                       setTaskData({
                         ...taskData,
                         recipient: person,
-                        recipientDisplay: fullName,
-                          name: fullName
+                        recipientDisplay: `${person.Name} ${person.Surname}`,
+                        contacted_person: {
+                          name: `${person.Name} ${person.Surname}`,
+                          phone: person.Phone || "",
+                          email: person.Email || "",
+                        },
                       });
                       setSearchResults([]);
                     }}
                     onMouseEnter={(e) => e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6'}
                     onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
                   >
-                    {person.name} {person.surname}
+                    {person.Name} {person.Surname} {person.Location ? `(${person.Location})` : ""}
                   </li>
                 ))}
               </ul>

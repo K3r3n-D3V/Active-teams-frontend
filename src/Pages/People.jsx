@@ -6,15 +6,14 @@ import {
   Box, Paper, Typography, Badge, useTheme, useMediaQuery, Card, CardContent,
   IconButton, Chip, Avatar, Menu, MenuItem, ListItemIcon, ListItemText,
   TextField, InputAdornment, Button, Snackbar, Alert, Skeleton, ToggleButton,
-  ToggleButtonGroup, Tooltip, Pagination, CircularProgress, LinearProgress, Grid
+  ToggleButtonGroup, Tooltip, Pagination, CircularProgress, LinearProgress
 } from '@mui/material';
 import {
   Search as SearchIcon, Add as AddIcon, MoreVert as MoreVertIcon,
   Edit as EditIcon, Delete as DeleteIcon, Email as EmailIcon,
   Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon,
   ViewModule as ViewModuleIcon, ViewList as ViewListIcon, People as PeopleIcon,
-  PersonOutline as PersonOutlineIcon, EmojiEvents as WinIcon,
-  Handshake as ConsolidateIcon, School as DiscipleIcon, Send as SendIcon
+  PersonOutline as PersonOutlineIcon
 } from '@mui/icons-material';
 import AddPersonDialog from '../components/AddPersonDialog';
 import PeopleListView from '../components/PeopleListView';
@@ -22,7 +21,7 @@ import PeopleListView from '../components/PeopleListView';
 // Global cache outside component to persist across remounts
 let globalPeopleCache = null;
 let globalCacheTimestamp = null;
-const CACHE_DURATION = 60 * 60 * 3 * 1000; 
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 // ---------------- Stages ----------------
 const stages = [
@@ -301,7 +300,6 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
 // ---------------- PeopleSection ----------------
 export const PeopleSection = () => {
   const theme = useTheme();
-  const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const { user, authFetch } = useContext(AuthContext);
   const { userProfile } = useContext(UserContext);
   // ensure currentUserName is defined (fixes ReferenceError)
@@ -314,7 +312,6 @@ export const PeopleSection = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('name');
-  const [stageFilter, setStageFilter] = useState('all');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
   const [formData, setFormData] = useState({
@@ -324,7 +321,7 @@ export const PeopleSection = () => {
   });
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'success' });
   const [viewMode, setViewMode] = useState('grid');
-  const [viewFilter, setViewFilter] = useState('myPeople');
+  const [viewFilter, setViewFilter] = useState('myPeople'); // 'all' or 'myPeople'
   const [gridPage, setGridPage] = useState(1);
   const ITEMS_PER_PAGE = 100;
   const isFetchingRef = useRef(false);
@@ -416,16 +413,32 @@ useEffect(() => {
     const refineIfNeeded = async () => {
       if (!debouncedSearchTerm || !debouncedSearchTerm.trim()) return;
 
-      const now = Date.now();
-      const cacheAge = globalCacheTimestamp ? (now - globalCacheTimestamp) : Infinity;
+    return peopleList.filter(person => {
+      switch (field) {
+        case 'name': {
+          const nameLower = person.name.toLowerCase();
+          const surnameLower = person.surname.toLowerCase();
+          const fullName = `${nameLower} ${surnameLower}`;
+          
+          return nameLower.includes(searchLower) ||
+            surnameLower.includes(searchLower) ||
+            fullName.includes(searchLower);
+        }
+        case 'email':
+          return person.email.toLowerCase().includes(searchLower);
+        case 'phone':
+          return person.phone.includes(searchValue.trim());
+        case 'location':
+          return person.location.toLowerCase().includes(searchLower);
+        case 'leaders': {
+          const leader1Lower = person.leaders.leader1.toLowerCase();
+          const leader12Lower = person.leaders.leader12.toLowerCase();
+          const leader144Lower = person.leaders.leader144.toLowerCase();
+          const leader1728Lower = person.leaders.leader1728.toLowerCase();
 
       // If we already have relatively fresh data and some local people, skip refinement
       if (globalPeopleCache && allPeople && allPeople.length > 0 && cacheAge < REFINEMENT_THRESHOLD) {
         return;
-      }
-      // Otherwise run a background refresh (fetchAllPeople already guards concurrent fetches)
-      try {
-        setIsRefining(true);
         await fetchAllPeople(false);
       } catch (e) {
         // ignore - keep whatever results the local quick-search produced
@@ -448,7 +461,6 @@ useEffect(() => {
     if (field === 'phone') {
       const digits = rawQ.replace(/\D/g, "");
       if (!digits) return peopleList;
-      return peopleList.filter(p => (p.phone || "").replace(/\D/g, "").includes(digits));
     }
 
     // leaders: match against precomputed leadersCombinedLower
@@ -507,12 +519,6 @@ useEffect(() => {
     });
   }, [currentUserName]);
 
-  // Filter by stage
-  const filterByStage = useCallback((peopleList, stage) => {
-    if (stage === 'all') return peopleList;
-    return peopleList.filter(person => person.Stage.toLowerCase() === stage.toLowerCase());
-  }, []);
-
   // Use debounced search term
   const filteredPeople = useMemo(() => {
     let result = allPeople;
@@ -522,38 +528,24 @@ useEffect(() => {
     }
 
     result = searchPeople(result, debouncedSearchTerm, searchField);
-    result = filterByStage(result, stageFilter);
 
     return result;
-  }, [allPeople, debouncedSearchTerm, searchField, viewFilter, stageFilter, searchPeople, filterMyPeople, filterByStage]);
+  }, [allPeople, debouncedSearchTerm, searchField, viewFilter, searchPeople, filterMyPeople]);
 
-  // Calculate statistics for each stage
-  const stats = useMemo(() => {
-    const baseData = viewFilter === 'myPeople' ? filterMyPeople(allPeople) : allPeople;
-    
-    return {
-      win: baseData.filter(p => p.Stage?.toLowerCase() === 'win').length,
-      consolidate: baseData.filter(p => p.Stage?.toLowerCase() === 'consolidate').length,
-      disciple: baseData.filter(p => p.Stage?.toLowerCase() === 'disciple').length,
-      send: baseData.filter(p => p.Stage?.toLowerCase() === 'send').length,
-    };
-  }, [allPeople, viewFilter, filterMyPeople]);
-
-  // Simplified pagination - just slice the filtered results
   const paginatedPeople = useMemo(() => {
-    if (viewMode === 'list' || debouncedSearchTerm.trim() || stageFilter !== 'all') {
+    if (viewMode === 'list' || debouncedSearchTerm.trim()) {
       return filteredPeople;
     }
 
     const startIndex = (gridPage - 1) * ITEMS_PER_PAGE;
     const endIndex = startIndex + ITEMS_PER_PAGE;
     return filteredPeople.slice(startIndex, endIndex);
-  }, [filteredPeople, gridPage, viewMode, debouncedSearchTerm, stageFilter]);
+  }, [filteredPeople, gridPage, viewMode, debouncedSearchTerm]);
 
   const totalPages = useMemo(() => {
-    if (viewMode === 'list' || debouncedSearchTerm.trim() || stageFilter !== 'all') return 1;
+    if (viewMode === 'list' || debouncedSearchTerm.trim()) return 1;
     return Math.ceil(filteredPeople.length / ITEMS_PER_PAGE);
-  }, [filteredPeople.length, viewMode, debouncedSearchTerm, stageFilter]);
+  }, [filteredPeople.length, viewMode, debouncedSearchTerm]);
 
   useEffect(() => {
     if (globalPeopleCache && allPeople.length === 0) {
@@ -565,7 +557,7 @@ useEffect(() => {
 
   useEffect(() => {
     setGridPage(1);
-  }, [debouncedSearchTerm, searchField, viewFilter, stageFilter]);
+  }, [debouncedSearchTerm, searchField, viewFilter]);
 
   const handleRefresh = () => {
     fetchAllPeople(true);
@@ -694,52 +686,11 @@ useEffect(() => {
     });
   };
 
-  const isSearching = debouncedSearchTerm.trim().length > 0 || stageFilter !== 'all';
+  const isSearching = debouncedSearchTerm.trim().length > 0;
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
       {loading && <LinearProgress sx={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 9999 }} />}
-      
-      {/* Stage Statistics Cards */}
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        {[
-          { label: 'Win', value: stats.win, icon: <WinIcon />, color: '#4caf50' },
-          { label: 'Consolidate', value: stats.consolidate, icon: <ConsolidateIcon />, color: '#2196f3' },
-          { label: 'Disciple', value: stats.disciple, icon: <DiscipleIcon />, color: '#ff9800' },
-          { label: 'Send', value: stats.send, icon: <SendIcon />, color: '#f44336' },
-        ].map((stat, index) => (
-          <Grid item xs={6} sm={3} key={index}>
-            <Card 
-              sx={{ 
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-                '&:hover': { transform: 'translateY(-4px)', boxShadow: 4 },
-                border: stageFilter === stat.label.toLowerCase() ? `2px solid ${stat.color}` : 'none'
-              }}
-              onClick={() => setStageFilter(stageFilter === stat.label.toLowerCase() ? 'all' : stat.label.toLowerCase())}
-            >
-              <CardContent sx={{ textAlign: 'center', p: isSmall ? 1.5 : 2 }}>
-                <Avatar sx={{ 
-                  bgcolor: stat.color, 
-                  width: isSmall ? 40 : 56, 
-                  height: isSmall ? 40 : 56, 
-                  mb: 1, 
-                  mx: 'auto', 
-                  boxShadow: 2 
-                }}>
-                  {stat.icon}
-                </Avatar>
-                <Typography variant={isSmall ? "h6" : "h4"} fontWeight="bold" color="text.primary">
-                  {stat.value}
-                </Typography>
-                <Typography variant={isSmall ? "caption" : "body2"} color="text.secondary" sx={{ mt: 0.5 }}>
-                  {stat.label}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 1, mb: 1 }}>
         <Typography variant="h6">
@@ -747,7 +698,7 @@ useEffect(() => {
           {isSearching && ` (${filteredPeople.length} results)`}
           {loading && <CircularProgress size={16} sx={{ ml: 2 }} />}
         </Typography>
-        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', flexWrap: 'wrap' }}>
+        <Box sx={{ display: 'flex', gap: 2, alignItems: 'center' }}>
           <ToggleButtonGroup
             value={viewFilter}
             exclusive
@@ -757,13 +708,13 @@ useEffect(() => {
             <Tooltip title="View All People" arrow>
               <ToggleButton value="all" aria-label="all people">
                 <PeopleIcon fontSize="small" sx={{ mr: 0.5 }} />
-                {!isSmall && 'All'}
+                All
               </ToggleButton>
             </Tooltip>
             <Tooltip title="View My People Only" arrow>
               <ToggleButton value="myPeople" aria-label="my people">
                 <PersonOutlineIcon fontSize="small" sx={{ mr: 0.5 }} />
-                {!isSmall && 'Mine'}
+                Mine
               </ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
@@ -797,7 +748,7 @@ useEffect(() => {
         </Box>
       </Box>
 
-      <Box sx={{ display: 'flex', gap: 2, mb: 2, px: 1, flexWrap: isSmall ? 'wrap' : 'nowrap' }}>
+      <Box sx={{ display: 'flex', gap: 2, mb: 2, px: 1 }}>
         <TextField
           size="small"
           placeholder="Search..."
@@ -810,7 +761,7 @@ useEffect(() => {
               </InputAdornment>
             ),
           }}
-          sx={{ flex: 1, minWidth: isSmall ? '100%' : 200 }}
+          sx={{ flex: 1 }}
         />
         <TextField
           size="small"
