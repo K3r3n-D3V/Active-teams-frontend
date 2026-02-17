@@ -49,7 +49,7 @@ const formatRecurringDays = (recurringDays) => {
   }
 
   if (recurringDays.length === 1) {
-    return `Every ${recurringDays[0]}`;
+    return `${recurringDays[0]}`;
   }
 
   const dayOrder = {
@@ -65,11 +65,11 @@ const formatRecurringDays = (recurringDays) => {
   const sorted = [...recurringDays].sort((a, b) => dayOrder[a] - dayOrder[b]);
 
   if (sorted.length === 2) {
-    return `Every ${sorted[0]} & ${sorted[1]}`;
+    return `${sorted[0]} & ${sorted[1]}`;
   }
 
   const last = sorted.pop();
-  return `Every ${sorted.join(", ")} & ${last}`;
+  return `${sorted.join(", ")} & ${last}`;
 };
 
 const styles = {
@@ -483,83 +483,18 @@ const formatDate = (date) => {
 const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
   if (!events || events.length === 0) return [];
 
-  const sampleEvent = events[0];
-  const filteredFields = Object.keys(sampleEvent).filter((key) => {
-    const keyLower = key.toLowerCase();
+  // Define the exact columns we want to show in the specified order
+  const desiredColumns = [
+    { field: 'eventName', headerName: 'Event Name' },
+    { field: 'eventLeaderName', headerName: 'Event Leader Name' },
+    { field: 'eventLeaderEmail', headerName: 'Event Leader Email' },
+    { field: 'day', headerName: 'Day' },
+    { field: 'date', headerName: 'Date' },
+  ];
 
-    const excludedFields = [
-      "persistent_attendees",
-      "uuid",
-      "did_not_meet",
-      "status",
-      "week_identifier",
-      "attendees",
-      "_id",
-      "isoverdue",
-      "attendance",
-      "location",
-      "eventtype",
-      "event_type",
-      "eventtypes",
-      "status",
-      "displaydate",
-      "originatedid",
-      "leader12",
-      "leader@12",
-      "leader at 12",
-      "original_event_id",
-      "_is_overdue",
-      "haspersonsteps",
-      "haspersonsteps",
-      "has_person_steps",
-      "is_recurring",
-      "isrecurring",
-      "recurring",
-      "recurring_days",
-      "is_active",
-      "Is_active",
-      "Is active",
-      "time",
-      "Time",
-    ];
-
-    const exactMatch = excludedFields.includes(key);
-    const caseInsensitiveMatch = excludedFields.some(
-      (excluded) => excluded.toLowerCase() === keyLower,
-    );
-
-    const containsOverdue = keyLower.includes("overdue");
-    const containsDisplayDate =
-      keyLower.includes("display") && keyLower.includes("date");
-    const containsOriginated = keyLower.includes("originated");
-    const containsLeader12 =
-      keyLower.includes("leader") && keyLower.includes("12");
-    const containsLeader1 =
-      keyLower.includes("leader1") ||
-      keyLower.includes("leader@1") ||
-      keyLower.includes("leader at 1");
-    const shouldExcludeLeader1 =
-      containsLeader1 &&
-      selectedEventTypeFilter !== "all" &&
-      selectedEventTypeFilter !== "CELLS" &&
-      selectedEventTypeFilter !== "Cells";
-
-    const containsPersonSteps =
-      keyLower.includes("person") && keyLower.includes("steps");
-    const shouldExclude =
-      exactMatch ||
-      caseInsensitiveMatch ||
-      containsOverdue ||
-      containsDisplayDate ||
-      containsOriginated ||
-      containsLeader12 ||
-      shouldExcludeLeader1 ||
-      containsPersonSteps;
-
-    return !shouldExclude;
-  });
   const columns = [];
 
+  // Add Status column
   columns.push({
     field: "overdue",
     headerName: "Status",
@@ -611,6 +546,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     },
   });
 
+  // Add Recurring column
   columns.push({
     field: "recurring_info",
     headerName: "Recurring",
@@ -644,18 +580,21 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     },
   });
 
-  columns.push(
-    ...filteredFields.map((key) => ({
-      field: key,
-      headerName: key
-        .replace(/_/g, " ")
-        .replace(/([A-Z])/g, " $1")
-        .replace(/^./, (str) => str.toUpperCase()),
+  // Add the desired columns
+  desiredColumns.forEach(({ field, headerName }) => {
+    columns.push({
+      field: field,
+      headerName: headerName,
       flex: 1,
       minWidth: 150,
       renderCell: (params) => {
         const value = params.value;
-        if (key.toLowerCase().includes("date")) return formatDate(value);
+        
+        // Special handling for date field
+        if (field === 'date') {
+          return formatDate(value);
+        }
+        
         if (!value) return "-";
 
         return (
@@ -672,8 +611,45 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
           </Box>
         );
       },
-    })),
-  );
+    });
+  });
+
+  // Add Recurring Days column (show recurring pattern)
+  columns.push({
+    field: "recurring_days",
+    headerName: "Recurring days",
+    flex: 1,
+    minWidth: 180,
+    renderCell: (params) => {
+      if (!params || !params.row) {
+        return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
+      }
+
+      const row = params.row;
+      const recurringDays = row.recurring_days;
+      
+      if (!recurringDays || !Array.isArray(recurringDays) || recurringDays.length === 0) {
+        return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
+      }
+
+      const formattedDays = formatRecurringDays(recurringDays);
+
+      return (
+        <Box
+          sx={{
+            color: "#2196f3",
+            fontSize: "0.95rem",
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+          title={formattedDays}
+        >
+          {formattedDays}
+        </Box>
+      );
+    },
+  });
 
   return columns;
 };
