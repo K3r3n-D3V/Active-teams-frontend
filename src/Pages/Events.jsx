@@ -516,6 +516,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       "is_recurring",
       "isrecurring",
       "recurring",
+      "recurring_days",
       "is_active",
       "Is_active",
       "Is active",
