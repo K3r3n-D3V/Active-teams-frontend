@@ -97,15 +97,9 @@ export default function AdminDashboard() {
   );
 
   const SkeletonStatsCard = () => (
-    <Card
-    sx={{
-    height: "100%",
-    display: "flex",
-    flexDirection: "column"
-    }}
-   >
+    <Card sx={cardStyles}>
 
-      <CardContent sx={{ textAlign: 'center', p: 1 }}>
+      <CardContent sx={{ textAlign: 'center', flexGrow: 1, p: 1 }}>
         <Skeleton variant="circular" width={getResponsiveValue(40, 48, 56, 64, 64)} height={getResponsiveValue(40, 48, 56, 64, 64)} sx={{ mx: 'auto', mb: 1 }} />
         <Skeleton variant="text" width="60%" height={getResponsiveValue(32, 40, 48, 48, 56)} sx={{ mx: 'auto' }} />
         <Skeleton variant="text" width="80%" height={20} sx={{ mx: 'auto' }} />
@@ -436,15 +430,23 @@ const paginatedUsers = useMemo(() => {
   }), [users]);
 
   const cardStyles = {
-    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-    transition: 'all 0.3s cubic-bezier(.25,.8,.25,1)',
-    '&:hover': {
-      boxShadow: '0 8px 24px rgba(0,0,0,0.15)'
+    width: {
+      xs: '27vw',
+      sm: '27vw',
+      md: '27vw',
+      lg: '12vw',
+      xl: '12vw'
     },
     height: '100%',
+    minHeight: 140,
     display: 'flex',
     flexDirection: 'column',
-    borderRadius: 2
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    transition: 'all 0.3s cubic-bezier(.25,.8,.25,1)',
+    borderRadius: 2,
+    '&:hover': {
+      boxShadow: '0 8px 24px rgba(0,0,0,0.15)'
+    }
   };
 
   const UserCard = ({ user }) => (
@@ -525,7 +527,7 @@ const paginatedUsers = useMemo(() => {
 
         <Grid container spacing={cardSpacing} mb={cardSpacing}>
           {Array.from({ length: 6 }).map((_, index) => (
-            <Grid item xs={6} sm={4} md={2} key={index}>
+            <Grid item xs={6} sm={4} md={2} key={index} sx={{ display: 'flex' }}>
               <SkeletonStatsCard />
             </Grid>
           ))}
@@ -566,13 +568,7 @@ const paginatedUsers = useMemo(() => {
     );
   }
 
-  const equalCardSizing = {
-  flex: 1,
-  width: "100%",
-  minHeight: 140,
-  display: "flex",
-  flexDirection: "column"
-};
+
 
 
   return (
@@ -602,8 +598,8 @@ const paginatedUsers = useMemo(() => {
           { label: 'Registrants', value: stats.registrants, icon: <RegistrantIcon />, color: '#ff9800' },
           { label: 'Regular Users', value: stats.regularUsers, icon: <PersonIcon />, color: '#607d8b' }
         ].map((stat, index) => (
-          <Grid item xs={6} sm={4} md={2} key={index}>
-            <Card sx={equalCardSizing}>
+          <Grid item xs={6} sm={4} md={2} key={index} sx={{ display: 'flex' }}>
+            <Card sx={cardStyles}>
               <CardContent sx={{ textAlign: 'center', flexGrow: 1, p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
                 <Avatar sx={{ 
                   bgcolor: stat.color, 
@@ -845,7 +841,7 @@ const paginatedUsers = useMemo(() => {
             
             <Grid container spacing={2}>
               {roles.map((role, idx) => (
-                <Grid item xs={12} sm={6} md={3} key={idx}>
+                <Grid item xs={12} sm={6} md={3} key={idx} sx={{ display: 'flex' }}>
                   <Card sx={cardStyles}>
                     <CardContent sx={{ p: getResponsiveValue(2, 2, 3, 3, 3) }}>
                       <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
