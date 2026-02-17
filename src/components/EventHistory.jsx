@@ -428,7 +428,7 @@ const EventHistory = React.memo(function EventHistory({
 
 
   React.useEffect(() => {
-    console.log('📊 EventHistory component data:', {
+    console.log(' EventHistory component data:', {
       eventsCount: events?.length || 0,
       filteredEventsCount: filteredEvents.length,
       screenSize: {
