@@ -160,7 +160,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     setShowAddressDropdown(true);
 
     if (attemptedSubmit && value.trim() !== "") {
-      // no-op, but you can clear error UI if needed
     }
   };
 
@@ -173,14 +172,12 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
-  // Fetch people data when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchAllPeople();
     }
   }, [isOpen]);
 
-  // Function to fetch people 
   const fetchAllPeople = async () => {
     setIsLoadingPeople(true);
     try {
@@ -217,7 +214,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     }
   };
 
-  // Create people options
   const peopleOptions = useMemo(() => {
     return peopleList.map(person => {
       const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
@@ -234,7 +230,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
       };
     });
   }, [peopleList]);
-  // Filter function
+
   const filterPeopleOptions = (inputValue) => {
     if (!inputValue) {
       return peopleOptions.slice(0, 30);
@@ -635,7 +631,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
               <div style={{ fontWeight: '600', color: theme.palette.text.secondary }}>LEADER INFO</div>
             </div>
 
-            {/* Invited By Field - FIXED to match AddPersonDialog */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Invited By
@@ -707,7 +702,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
               )}
             </div>
 
-            {/* ALL OTHER FIELDS PRESERVED */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Name
@@ -805,7 +799,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
               />
             </div>
 
-            {/*Home Address (Geoapify autocomplete) */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Home Address {showError("address") && <span style={styles.required}>Required</span>}
@@ -1260,11 +1253,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [decisions, setDecisions] = useState({});
   const [decisionTypes, setDecisionTypes] = useState({});
   const [openDecisionDropdown, setOpenDecisionDropdown] = useState(null);
-  const [priceTiers, setPriceTiers] = useState({});
-  const [paymentMethods, setPaymentMethods] = useState({});
-  const [paidAmounts, setPaidAmounts] = useState({});
+  const [attendeeTicketInfo, setAttendeeTicketInfo] = useState({});
   const [openPriceTierDropdown, setOpenPriceTierDropdown] = useState(null);
-  const [openPaymentDropdown, setOpenPaymentDropdown] = useState(null);
   const [people, setPeople] = useState([]);
   const [, setCommonAttendees] = useState([]);
   const [associateSearch, setAssociateSearch] = useState("");
@@ -1277,10 +1267,12 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [showDidNotMeetConfirm, setShowDidNotMeetConfirm] = useState(false);
   const [persistentCommonAttendees, setPersistentCommonAttendees] = useState([]);
   const [preloadedPeople, setPreloadedPeople] = useState([]);
+  const [showTicketSelectionModal, setShowTicketSelectionModal] = useState(false);
+  const [selectedPersonForTicket, setSelectedPersonForTicket] = useState(null);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
-  const isTicketedEvent = event?.isTicketed || false;
+  const isTicketedEvent = event?.isTicketed || true;
   const eventPriceTiers = event?.priceTiers || [];
   const theme = useTheme();
 
@@ -1299,8 +1291,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       recommitment: 0
     }
   });
-
-  const availablePaymentMethods = [...new Set(eventPriceTiers.map(t => t.paymentMethod))];
 
   const clearGlobalPeopleCache = () => {
     try {
@@ -1332,7 +1322,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         headcount = event.total_headcounts || 0;
         totalAssociated = event.total_associated || persistentCommonAttendees.length || 0;
 
-        // Get decisions if available
         if (event.decisions) {
           firstTimeCount = event.decisions.first_time || 0;
           recommitmentCount = event.decisions.recommitment || 0;
@@ -1341,7 +1330,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         if (event.attendees && Array.isArray(event.attendees)) {
           weekAttendance.attendees = event.attendees;
 
-          // Count decisions from attendees
           event.attendees.forEach(att => {
             const decision = (att.decision || "").toLowerCase();
             if (decision.includes("first")) {
@@ -1383,7 +1371,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           headcount = weekAttendance.total_headcounts || 0;
           totalAssociated = persistentCommonAttendees.length;
 
-          // Count decisions from attendees
           if (weekAttendance.attendees) {
             weekAttendance.attendees.forEach(att => {
               const decision = (att.decision || "").toLowerCase();
@@ -1423,7 +1410,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           }
         }
 
-        // Extract statistics from weekAttendance
         if (weekAttendance.status === "complete") {
           const stats = weekAttendance.statistics || {};
           attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
@@ -1432,7 +1418,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           recommitmentCount = stats.decisions?.recommitment || 0;
           totalAssociated = stats.total_associated || persistentCommonAttendees.length;
 
-          // If statistics not available, count from attendees
           if (firstTimeCount === 0 && recommitmentCount === 0 && weekAttendance.attendees) {
             weekAttendance.attendees.forEach(att => {
               const decision = (att.decision || "").toLowerCase();
@@ -1444,7 +1429,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
             });
           }
         } else {
-          // No completed data found
           totalAssociated = persistentCommonAttendees.length;
         }
       }
@@ -1457,7 +1441,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         totalAssociated
       });
 
-      // Update event statistics state
       setEventStatistics({
         totalAssociated: totalAssociated,
         lastAttendanceCount: attendeesCount,
@@ -1469,7 +1452,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         }
       });
 
-      // Update manual headcount
       if (headcount > 0) {
         setManualHeadcount(headcount.toString());
       } else {
@@ -1491,13 +1473,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       return;
     }
 
-    // Reset all states
     setCheckedIn({});
     setDecisions({});
     setDecisionTypes({});
-    setPriceTiers({});
-    setPaymentMethods({});
-    setPaidAmounts({});
+    setAttendeeTicketInfo({});
     setManualHeadcount("0");
     setDidNotMeet(false);
 
@@ -1507,6 +1486,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       const newCheckedIn = {};
       const newDecisions = {};
       const newDecisionTypes = {};
+      const newTicketInfo = {};
 
       event.attendees.forEach(att => {
         if (att.id) {
@@ -1516,12 +1496,22 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
             newDecisions[att.id] = true;
             newDecisionTypes[att.id] = att.decision;
           }
+
+          if (isTicketedEvent && att.priceName) {
+            newTicketInfo[att.id] = {
+              priceName: att.priceName || "",
+              price: att.price || 0,
+              ageGroup: att.ageGroup || "",
+              paymentMethod: att.paymentMethod || ""
+            };
+          }
         }
       });
 
       setCheckedIn(newCheckedIn);
       setDecisions(newDecisions);
       setDecisionTypes(newDecisionTypes);
+      setAttendeeTicketInfo(newTicketInfo);
 
       if (event.total_headcounts) {
         setManualHeadcount(event.total_headcounts.toString());
@@ -1535,6 +1525,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       const newCheckedIn = {};
       const newDecisions = {};
       const newDecisionTypes = {};
+      const newTicketInfo = {};
 
       event.attendance_data.attendees.forEach(att => {
         if (att.id) {
@@ -1544,12 +1535,22 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
             newDecisions[att.id] = true;
             newDecisionTypes[att.id] = att.decision;
           }
+
+          if (isTicketedEvent && att.priceName) {
+            newTicketInfo[att.id] = {
+              priceName: att.priceName || "",
+              price: att.price || 0,
+              ageGroup: att.ageGroup || "",
+              paymentMethod: att.paymentMethod || ""
+            };
+          }
         }
       });
 
       setCheckedIn(newCheckedIn);
       setDecisions(newDecisions);
       setDecisionTypes(newDecisionTypes);
+      setAttendeeTicketInfo(newTicketInfo);
 
       if (event.attendance_data.total_headcounts) {
         setManualHeadcount(event.attendance_data.total_headcounts.toString());
@@ -1592,9 +1593,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         const newCheckedIn = {};
         const newDecisions = {};
         const newDecisionTypes = {};
-        const newPriceTiers = {};
-        const newPaymentMethods = {};
-        const newPaidAmounts = {};
+        const newTicketInfo = {};
 
         attendees.forEach(att => {
           if (att.id) {
@@ -1605,21 +1604,13 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
               newDecisionTypes[att.id] = att.decision;
             }
 
-            if (isTicketedEvent) {
-              if (att.priceTier || att.price) {
-                newPriceTiers[att.id] = {
-                  name: att.priceTier || "",
-                  price: att.price || 0,
-                  ageGroup: att.ageGroup || "",
-                  memberType: att.memberType || ""
-                };
-              }
-              if (att.paymentMethod) {
-                newPaymentMethods[att.id] = att.paymentMethod;
-              }
-              if (att.paid !== undefined) {
-                newPaidAmounts[att.id] = att.paid;
-              }
+            if (isTicketedEvent && att.priceName) {
+              newTicketInfo[att.id] = {
+                priceName: att.priceName || "",
+                price: att.price || 0,
+                ageGroup: att.ageGroup || "",
+                paymentMethod: att.paymentMethod || ""
+              };
             }
           }
         });
@@ -1628,9 +1619,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         setCheckedIn(newCheckedIn);
         setDecisions(newDecisions);
         setDecisionTypes(newDecisionTypes);
-        setPriceTiers(newPriceTiers);
-        setPaymentMethods(newPaymentMethods);
-        setPaidAmounts(newPaidAmounts);
+        setAttendeeTicketInfo(newTicketInfo);
       }
 
       const headcount = weekAttendance.total_headcounts || 0;
@@ -1730,36 +1719,29 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       }
       console.log(" Opening modal for event:", eventId, "Date:", event.date);
 
-      // Reset all form states
       setSearchName("");
       setAssociateSearch("");
       setActiveTab(0);
       setCheckedIn({});
       setDecisions({});
       setDecisionTypes({});
-      setPriceTiers({});
-      setPaymentMethods({});
-      setPaidAmounts({});
+      setAttendeeTicketInfo({});
       setManualHeadcount("0");
       setDidNotMeet(false);
 
       const loadAllData = async () => {
         console.log(" Loading all data...");
 
-        // Load persistent attendees first
         await loadPersistentAttendees(eventId);
 
-        // Then load statistics
         await loadEventStatistics();
 
-        // Finally load check-ins
         loadWeeklyCheckins();
       };
 
       loadAllData();
       fetchPeople();
 
-      // Set "did not meet" status only if this week is marked as such
       const attendanceData = event.attendance || {};
       const eventDate = event.date;
       const weekAttendance = attendanceData[eventDate] || {};
@@ -2030,43 +2012,22 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     setOpenDecisionDropdown(null);
   };
 
-  const handlePriceTierSelect = (id, tierIndex) => {
-    const selectedTier = eventPriceTiers[tierIndex];
-    setPriceTiers((prev) => ({
+  const handlePriceTierSelect = (personId, tier) => {
+    setAttendeeTicketInfo(prev => ({
       ...prev,
-      [id]: {
-        name: selectedTier.name,
-        price: parseFloat(selectedTier.price),
-        ageGroup: selectedTier.ageGroup,
-        memberType: selectedTier.memberType,
-      },
+      [personId]: {
+        priceName: tier.name,
+        price: tier.price,
+        ageGroup: tier.ageGroup,
+        paymentMethod: tier.paymentMethod
+      }
     }));
     setOpenPriceTierDropdown(null);
-  };
-  const handlePaymentMethodSelect = (id, method) => {
-    setPaymentMethods((prev) => ({
-      ...prev,
-      [id]: method,
-    }));
-    setOpenPaymentDropdown(null);
-  };
-  const handlePaidAmountChange = (id, value) => {
-    const numValue = parseFloat(value) || 0;
-    setPaidAmounts((prev) => ({
-      ...prev,
-      [id]: numValue,
-    }));
-  };
-  const calculateOwing = (id) => {
-    const price = priceTiers[id]?.price || 0;
-    const paid = paidAmounts[id] || 0;
-    return price - paid;
   };
 
   const saveAllAttendeesToDatabase = async (attendees) => {
     if (!event) return false;
 
-    // Get clean event ID
     let eventId = event._id || event.id;
     if (eventId && eventId.includes("_")) {
       eventId = eventId.split("_")[0];
@@ -2101,21 +2062,50 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       return false;
     }
   };
+
   const handleAssociatePerson = async (person) => {
     const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
 
     if (isAlreadyAdded) {
-      // In associate tab, we don't remove - just show a message
       toast.info(`${person.fullName} is already in attendees list`);
       return;
+    }
+
+    if (isTicketedEvent) {
+      setSelectedPersonForTicket(person);
+      setShowTicketSelectionModal(true);
     } else {
       const updated = [...persistentCommonAttendees, person];
       setPersistentCommonAttendees(updated);
-
       await saveAllAttendeesToDatabase(updated);
-
       toast.success(`${person.fullName} added to attendees list`);
     }
+  };
+
+  const addPersonWithTicket = async (person, ticketTier) => {
+    const personWithTicket = {
+      ...person,
+      priceName: ticketTier.name,
+      price: ticketTier.price,
+      ageGroup: ticketTier.ageGroup,
+      paymentMethod: ticketTier.paymentMethod
+    };
+
+    const updated = [...persistentCommonAttendees, personWithTicket];
+    setPersistentCommonAttendees(updated);
+    await saveAllAttendeesToDatabase(updated);
+    
+    setAttendeeTicketInfo(prev => ({
+      ...prev,
+      [person.id]: {
+        priceName: ticketTier.name,
+        price: ticketTier.price,
+        ageGroup: ticketTier.ageGroup,
+        paymentMethod: ticketTier.paymentMethod
+      }
+    }));
+
+    toast.success(`${person.fullName} added with ${ticketTier.name} ticket`);
   };
 
   const handleRemoveAttendee = async (personId, personName) => {
@@ -2128,7 +2118,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         return newState;
       });
 
-      // Remove from decisions if exists
       setDecisions(prev => {
         const newState = { ...prev };
         delete newState[personId];
@@ -2141,31 +2130,16 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         return newState;
       });
 
-      // Remove from ticketed event states if exists
       if (isTicketedEvent) {
-        setPriceTiers(prev => {
-          const newState = { ...prev };
-          delete newState[personId];
-          return newState;
-        });
-
-        setPaymentMethods(prev => {
-          const newState = { ...prev };
-          delete newState[personId];
-          return newState;
-        });
-
-        setPaidAmounts(prev => {
+        setAttendeeTicketInfo(prev => {
           const newState = { ...prev };
           delete newState[personId];
           return newState;
         });
       }
 
-      // Update state
       setPersistentCommonAttendees(updatedAttendees);
 
-      // Save to database
       const success = await saveAllAttendeesToDatabase(updatedAttendees);
 
       if (success) {
@@ -2207,6 +2181,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
             leader12: att.leader12 || "",
             leader144: att.leader144 || "",
             phone: att.phone || "",
+            priceName: att.priceName || "",
+            price: att.price || 0,
+            ageGroup: att.ageGroup || "",
+            paymentMethod: att.paymentMethod || "",
             isPersistent: true
           });
         }
@@ -2227,6 +2205,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
             leader12: savedAtt.leader12 || existing.leader12 || "",
             leader144: savedAtt.leader144 || existing.leader144 || "",
             phone: savedAtt.phone || existing.phone || "",
+            priceName: savedAtt.priceName || existing.priceName || "",
+            price: savedAtt.price || existing.price || 0,
+            ageGroup: savedAtt.ageGroup || existing.ageGroup || "",
+            paymentMethod: savedAtt.paymentMethod || existing.paymentMethod || "",
             checked_in: savedAtt.checked_in !== false,
             decision: savedAtt.decision || existing.decision || "",
             isPersistent: existing.isPersistent || false
@@ -2253,13 +2235,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     (type) => type === "re-commitment"
   ).length;
   console.log("Re-commitment decisions count:", reCommitmentCount);
-  const totalPaid = Object.values(paidAmounts).reduce(
-    (sum, amount) => sum + amount,
-    0
-  );
-  const totalOwing = Object.keys(checkedIn)
-    .filter((id) => checkedIn[id])
-    .reduce((sum, id) => sum + calculateOwing(id), 0);
+
   const filteredCommonAttendees = getAllCommonAttendees().filter(person =>
     person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
     person.email.toLowerCase().includes(searchName.toLowerCase())
@@ -2273,7 +2249,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const handleSave = async () => {
     const allPeople = getAllCommonAttendees();
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    // Get manual headcount from input
     const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
     console.log("Did not meet state:", didNotMeet);
@@ -2281,7 +2256,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     console.log(" Manual headcount:", finalHeadcount);
     console.log(" Decisions count:", decisionsCount);
 
-    // Get clean event ID
     let eventId = event?.id || event?._id;
     if (eventId && eventId.includes("_")) {
       const parts = eventId.split("_");
@@ -2317,13 +2291,11 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         };
 
         if (isTicketedEvent) {
-          attendee.priceTier = priceTiers[id]?.name || "";
-          attendee.price = priceTiers[id]?.price || 0;
-          attendee.ageGroup = priceTiers[id]?.ageGroup || "";
-          attendee.memberType = priceTiers[id]?.memberType || "";
-          attendee.paymentMethod = paymentMethods[id] || "";
-          attendee.paid = paidAmounts[id] || 0;
-          attendee.owing = calculateOwing(id);
+          const ticketInfo = attendeeTicketInfo[id] || person;
+          attendee.priceName = ticketInfo.priceName || "";
+          attendee.price = ticketInfo.price || 0;
+          attendee.ageGroup = ticketInfo.ageGroup || "";
+          attendee.paymentMethod = ticketInfo.paymentMethod || "";
         }
 
         return attendee;
@@ -2345,7 +2317,13 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           email: p.email,
           leader12: p.leader12,
           leader144: p.leader144,
-          phone: p.phone
+          phone: p.phone,
+          ...(isTicketedEvent && {
+            priceName: p.priceName || "",
+            price: p.price || 0,
+            ageGroup: p.ageGroup || "",
+            paymentMethod: p.paymentMethod || ""
+          })
         })),
         leaderEmail: currentUser?.email || "",
         leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
@@ -2430,17 +2408,15 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
             'Decision': decisionTypes[id] || 'N/A',
             'Status': didNotMeet ? 'Did Not Meet' : 'Complete',
             ...(isTicketedEvent && {
-              'Price Tier': priceTiers[id]?.name || 'N/A',
-              'Price': priceTiers[id]?.price ? `R${priceTiers[id].price.toFixed(2)}` : 'N/A',
-              'Payment Method': paymentMethods[id] || 'N/A',
-              'Paid': paidAmounts[id] ? `R${paidAmounts[id].toFixed(2)}` : 'N/A',
-              'Owing': calculateOwing(id) ? `R${calculateOwing(id).toFixed(2)}` : 'N/A'
+              'Price Name': attendeeTicketInfo[id]?.priceName || person.priceName || 'N/A',
+              'Price': attendeeTicketInfo[id]?.price || person.price ? `R${(attendeeTicketInfo[id]?.price || person.price).toFixed(2)}` : 'N/A',
+              'Age Group': attendeeTicketInfo[id]?.ageGroup || person.ageGroup || 'N/A',
+              'Payment Method': attendeeTicketInfo[id]?.paymentMethod || person.paymentMethod || 'N/A'
             })
           };
         })
         .filter(att => att !== null);
 
-      // If no attendees checked in but event is marked as "Did Not Meet"
       if (checkedInAttendees.length === 0 && didNotMeet) {
         const emptyRow = [{
           'Event Name': event?.eventName || 'N/A',
@@ -2453,15 +2429,13 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           'Decision': '',
           'Status': 'Did Not Meet',
           ...(isTicketedEvent && {
-            'Price Tier': 'N/A',
+            'Price Name': 'N/A',
             'Price': 'N/A',
-            'Payment Method': 'N/A',
-            'Paid': 'N/A',
-            'Owing': 'N/A'
+            'Age Group': 'N/A',
+            'Payment Method': 'N/A'
           })
         }];
 
-        // Add headcount if any
         if (manualHeadcount && parseInt(manualHeadcount) > 0) {
           emptyRow.push({
             'Event Name': event?.eventName || 'N/A',
@@ -2474,11 +2448,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
             'Decision': '',
             'Status': 'Did Not Meet',
             ...(isTicketedEvent && {
-              'Price Tier': 'N/A',
+              'Price Name': 'N/A',
               'Price': 'N/A',
-              'Payment Method': 'N/A',
-              'Paid': 'N/A',
-              'Owing': 'N/A'
+              'Age Group': 'N/A',
+              'Payment Method': 'N/A'
             })
           });
         }
@@ -2487,7 +2460,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         return;
       }
 
-      // Add headcount info if manual headcount > checked-in count
       if (manualHeadcount && parseInt(manualHeadcount) > checkedInAttendees.length) {
         checkedInAttendees.push({
           'Event Name': event?.eventName || 'N/A',
@@ -2500,11 +2472,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           'Decision': '',
           'Status': didNotMeet ? 'Did Not Meet' : 'Complete',
           ...(isTicketedEvent && {
-            'Price Tier': 'N/A',
+            'Price Name': 'N/A',
             'Price': 'N/A',
-            'Payment Method': 'N/A',
-            'Paid': 'N/A',
-            'Owing': 'N/A'
+            'Age Group': 'N/A',
+            'Payment Method': 'N/A'
           })
         });
       }
@@ -2514,7 +2485,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         return;
       }
 
-      // Build and download the XLS file
       buildXlsFromRows(
         checkedInAttendees,
         `attendance_${(event?.eventName || 'event').replace(/\s/g, '_')}_${didNotMeet ? 'did_not_meet' : 'complete'}`
@@ -2528,7 +2498,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  // Add this helper function after downloadAttendanceData
   const buildXlsFromRows = (rows, fileBaseName = "export") => {
     if (!rows || rows.length === 0) {
       toast.info("No data to export");
@@ -2624,9 +2593,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     setCheckedIn({});
     setDecisions({});
     setManualHeadcount("");
-    setPriceTiers({});
-    setPaymentMethods({});
-    setPaidAmounts({});
+    setAttendeeTicketInfo({});
 
     try {
       const eventId = event?.id || event?._id;
@@ -2644,7 +2611,13 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           email: p.email,
           leader12: p.leader12,
           leader144: p.leader144,
-          phone: p.phone
+          phone: p.phone,
+          ...(isTicketedEvent && {
+            priceName: p.priceName || "",
+            price: p.price || 0,
+            ageGroup: p.ageGroup || "",
+            paymentMethod: p.paymentMethod || ""
+          })
         })),
         leaderEmail: currentUser?.email || "",
         leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
@@ -2700,7 +2673,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const handlePersonAdded = (newPerson) => {
     console.log(" New person added:", newPerson);
 
-    // Clear caches and reload fresh people from DB
     clearGlobalPeopleCache();
     loadPreloadedPeople(true);
     fetchPeople();
@@ -2712,6 +2684,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     toast.success(`${newPerson.Name} ${newPerson.Surname} added successfully!`);
   };
 
+  console.log("Event object:", event);
+console.log("Price tiers:", event?.priceTiers);
+console.log("Full event keys:", Object.keys(event || {}));
 
   const renderMobileAttendeeCard = (person) => {
     const isPersistent = persistentCommonAttendees.some(
@@ -2757,6 +2732,14 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                 </div>
               </>
             )}
+            {isTicketedEvent && (
+              <div style={{ fontSize: "12px", color: theme.palette.text.secondary, marginTop: "4px" }}>
+                {attendeeTicketInfo[person.id]?.priceName || person.priceName || "No ticket selected"}
+                {(attendeeTicketInfo[person.id]?.price || person.price) && 
+                  ` - R${(attendeeTicketInfo[person.id]?.price || person.price).toFixed(2)}`
+                }
+              </div>
+            )}
           </div>
           <button
             style={{
@@ -2768,156 +2751,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
             {isCheckedIn && <span style={styles.radioButtonInner}>✓</span>}
           </button>
         </div>
-
-        {isCheckedIn && isTicketedEvent && (
-          <div
-            style={{
-              marginTop: "12px",
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-          >
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Price Tier</label>
-              <div style={styles.decisionDropdown}>
-                <button
-                  style={styles.priceTierButton}
-                  onClick={() =>
-                    setOpenPriceTierDropdown(
-                      openPriceTierDropdown === person.id ? null : person.id
-                    )
-                  }
-                >
-                  <span>
-                    {priceTiers[person.id]
-                      ? `${priceTiers[person.id].name} (R${priceTiers[
-                        person.id
-                      ].price.toFixed(2)})`
-                      : "Select Price Tier"}
-                  </span>
-                  <ChevronDown size={16} />
-                </button>
-                {openPriceTierDropdown === person.id && (
-                  <div style={styles.decisionMenu}>
-                    {eventPriceTiers && eventPriceTiers.length > 0 ? (
-                      eventPriceTiers.map((tier, index) => (
-                        <div
-                          key={index}
-                          style={styles.decisionMenuItem}
-                          onClick={() =>
-                            handlePriceTierSelect(person.id, index)
-                          }
-                          onMouseEnter={(e) =>
-                            (e.target.style.background = theme.palette.action.hover)
-                          }
-                          onMouseLeave={(e) =>
-                            (e.target.style.background = "transparent")
-                          }
-                        >
-                          {tier.name} - R{parseFloat(tier.price).toFixed(2)}
-                          <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
-                            {tier.ageGroup} • {tier.memberType}
-                          </div>
-                        </div>
-                      ))
-                    ) : (
-                      <div
-                        style={{
-                          padding: "12px",
-                          textAlign: "center",
-                          color: theme.palette.text.disabled,
-                        }}
-                      >
-                        No price tiers available
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div style={styles.inputGroup}>
-              <label style={styles.label}>Payment Method</label>
-              <div style={styles.decisionDropdown}>
-                <button
-                  style={styles.paymentButton}
-                  onClick={() =>
-                    setOpenPaymentDropdown(
-                      openPaymentDropdown === person.id ? null : person.id
-                    )
-                  }
-                >
-                  <span>{paymentMethods[person.id] || "Select Payment"}</span>
-                  <ChevronDown size={16} />
-                </button>
-                {openPaymentDropdown === person.id && (
-                  <div style={styles.decisionMenu}>
-                    {availablePaymentMethods.map((method, index) => (
-                      <div
-                        key={index}
-                        style={styles.decisionMenuItem}
-                        onClick={() =>
-                          handlePaymentMethodSelect(person.id, method)
-                        }
-                        onMouseEnter={(e) =>
-                          (e.target.style.background = theme.palette.action.hover)
-                        }
-                        onMouseLeave={(e) =>
-                          (e.target.style.background = "transparent")
-                        }
-                      >
-                        {method}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                justifyContent: "space-between",
-              }}
-            >
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Price</label>
-                <span style={styles.priceInput}>
-                  R{priceTiers[person.id]?.price.toFixed(2) || "0.00"}
-                </span>
-              </div>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Paid</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={paidAmounts[person.id] || ""}
-                  onChange={(e) =>
-                    handlePaidAmountChange(person.id, e.target.value)
-                  }
-                  placeholder="0.00"
-                  style={styles.paidInput}
-                />
-              </div>
-              <div style={styles.inputGroup}>
-                <label style={styles.label}>Owing</label>
-                <span
-                  style={{
-                    ...styles.owingText,
-                    ...(calculateOwing(person.id) === 0
-                      ? styles.owingPositive
-                      : styles.owingNegative),
-                  }}
-                >
-                  R{calculateOwing(person.id).toFixed(2)}
-                </span>
-              </div>
-            </div>
-          </div>
-        )}
 
         {isCheckedIn && !isTicketedEvent && (
           <div style={{ marginTop: "12px" }}>
@@ -3091,7 +2924,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       width: "100%",
     },
     tableContainer: {
-      // overflowX: "auto",
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
       paddingBottom: 8,
@@ -3177,66 +3009,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       color: theme.palette.text.primary,
       transition: "background 0.15s",
     },
-
-
-    priceTierButton: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      padding: "8px 12px",
-      background: theme.palette.warning.light,
-      border: `1px solid ${theme.palette.warning.main}`,
-      borderRadius: 6,
-      cursor: "pointer",
-      fontSize: 14,
-      color: theme.palette.warning.dark,
-      minWidth: isMobile ? 160 : 200,
-      justifyContent: "space-between",
-      fontWeight: 500,
-    },
-    paymentButton: {
-      display: "flex",
-      alignItems: "center",
-      gap: 8,
-      padding: "8px 12px",
-      background: theme.palette.info.light,
-      border: `1px solid ${theme.palette.info.main}`,
-      borderRadius: 6,
-      cursor: "pointer",
-      fontSize: 14,
-      color: theme.palette.info.dark,
-      minWidth: isMobile ? 120 : 150,
-      justifyContent: "space-between",
-      fontWeight: 500,
-    },
-    priceInput: {
-      padding: "8px 12px",
-      fontSize: 14,
-      borderRadius: 6,
-      border: `1px solid ${theme.palette.divider}`,
-      backgroundColor: theme.palette.background.default,
-      color: theme.palette.text.secondary,
-      width: isMobile ? 80 : 100,
-      textAlign: "right",
-    },
-    paidInput: {
-      padding: "8px 12px",
-      fontSize: 14,
-      borderRadius: 6,
-      border: `1px solid ${theme.palette.success.main}`,
-      backgroundColor: theme.palette.background.paper,
-      color: theme.palette.text.primary,
-      width: isMobile ? 80 : 100,
-      textAlign: "right",
-    },
-    owingText: {
-      padding: "8px 12px",
-      fontSize: 14,
-      fontWeight: 600,
-      textAlign: "right",
-    },
-    owingPositive: { color: theme.palette.success.main },
-    owingNegative: { color: theme.palette.error.main },
     statsContainer: {
       display: "flex",
       gap: 12,
@@ -3489,6 +3261,62 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         color: theme.palette.error.contrastText,
       }
     },
+    ticketModalOverlay: {
+      position: "fixed",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: isDarkMode ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.5)",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 10001,
+      padding: 20,
+    },
+    ticketModal: {
+      background: theme.palette.background.paper,
+      borderRadius: 12,
+      padding: 24,
+      maxWidth: 500,
+      width: "100%",
+      maxHeight: "80vh",
+      overflowY: "auto",
+      border: `1px solid ${theme.palette.divider}`,
+    },
+    ticketModalTitle: {
+      fontSize: 20,
+      fontWeight: 600,
+      marginBottom: 8,
+      color: theme.palette.text.primary,
+    },
+    ticketModalSubtitle: {
+      fontSize: 14,
+      color: theme.palette.text.secondary,
+      marginBottom: 20,
+    },
+    ticketOption: {
+      padding: 16,
+      marginBottom: 12,
+      border: `2px solid ${theme.palette.divider}`,
+      borderRadius: 8,
+      cursor: "pointer",
+      transition: "all 0.2s",
+      background: theme.palette.background.paper,
+    },
+    ticketOptionName: {
+      fontWeight: 600,
+      fontSize: 16,
+      color: theme.palette.text.primary,
+      marginBottom: 8,
+    },
+    ticketOptionDetails: {
+      fontSize: 14,
+      color: theme.palette.text.secondary,
+      display: "flex",
+      flexWrap: "wrap",
+      gap: "12px",
+    },
   };
   if (!isOpen) return null;
 
@@ -3558,326 +3386,412 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                       width: "100%",
                       padding: "14px 14px 14px 45px",
                       fontSize: 16,
-                      borderRadius: 8,
-                      border: `1px solid ${isDarkMode ? '#555' : '#ccc'}`,
-                      backgroundColor: isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper,
-                      color: isDarkMode ? theme.palette.text.primary : '#000',
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.action.hover :
-                        theme.palette.background.default;
-                      e.target.style.borderColor = isDarkMode ? '#777' : '#999';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper;
-                      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
-                    }}
-                  />
-                </div>
-                {isMobile ? (
-                  <div>
-                    {loading && (
-                      <div style={{ textAlign: "center", padding: "20px" }}>
-                        Loading...
-                      </div>
-                    )}
-                    {filteredCommonAttendees.map(renderMobileAttendeeCard)}
+                  borderRadius: 8,
+                  border: `1px solid ${isDarkMode ? '#555' : '#ccc'}`,
+                  backgroundColor: isDarkMode ?
+                    theme.palette.background.default :
+                    theme.palette.background.paper,
+                  color: isDarkMode ? theme.palette.text.primary : '#000',
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => {
+                  e.target.style.backgroundColor = isDarkMode ?
+                    theme.palette.action.hover :
+                    theme.palette.background.default;
+                  e.target.style.borderColor = isDarkMode ? '#777' : '#999';
+                }}
+                onBlur={(e) => {
+                  e.target.style.backgroundColor = isDarkMode ?
+                    theme.palette.background.default :
+                    theme.palette.background.paper;
+                  e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
+                }}
+              />
+            </div>
+            {isMobile ? (
+              <div>
+                {loading && (
+                  <div style={{ textAlign: "center", padding: "20px" }}>
+                    Loading...
                   </div>
-                ) : (
-                  <div style={styles.tableContainer}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr>
-                          <th style={styles.th}>Attendees Name</th>
-                          <th style={styles.th}>Attendees Email</th>
-                          <th style={styles.th}>Attendees Leader @12</th>
-                          <th style={styles.th}>Attendees Leader @144</th>
-                          <th style={styles.th}>Attendees Number</th>
-                          <th style={{ ...styles.th, textAlign: "center" }}>
-                            Check In
-                          </th>
-                          <th style={{ ...styles.th, textAlign: "center" }}>
-                            Decision
-                          </th>
-                          <th style={{ ...styles.th, textAlign: "center", width: "50px" }}>
-                            Remove
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loading && (
-                          <tr>
-                            <td
-                              colSpan="8"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              Loading...
-                            </td>
-                          </tr>
-                        )}
-                        {!loading && filteredCommonAttendees.length === 0 && (
-                          <tr>
-                            <td
-                              colSpan="8"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              No attendees found.
-                            </td>
-                          </tr>
-                        )}
-                        {filteredCommonAttendees.map((person) => {
-                          const isPersistent = persistentCommonAttendees.some(
-                            (p) => p.id === person.id
-                          );
-                          console.log("ispersistent", isPersistent);
+                )}
+                {filteredCommonAttendees.map(renderMobileAttendeeCard)}
+              </div>
+            ) : (
+              <div style={styles.tableContainer}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Attendees Name</th>
+                      <th style={styles.th}>Attendees Email</th>
+                      <th style={styles.th}>Attendees Leader @12</th>
+                      <th style={styles.th}>Attendees Leader @144</th>
+                      <th style={styles.th}>Attendees Number</th>
+                      {isTicketedEvent && (
+                        <>
+                          <th style={styles.th}>Price Name</th>
+                          <th style={styles.th}>Price (R)</th>
+                          <th style={styles.th}>Age Group</th>
+                          <th style={styles.th}>Payment Method</th>
+                        </>
+                      )}
+                      <th style={{ ...styles.th, textAlign: "center" }}>
+                        Check In
+                      </th>
+                      {!isTicketedEvent && (
+                        <th style={{ ...styles.th, textAlign: "center" }}>
+                          Decision
+                        </th>
+                      )}
+                      <th style={{ ...styles.th, textAlign: "center", width: "50px" }}>
+                        Remove
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading && (
+                      <tr>
+                        <td
+                          colSpan={isTicketedEvent ? "10" : "8"}
+                          style={{ ...styles.td, textAlign: "center" }}
+                        >
+                          Loading...
+                        </td>
+                      </tr>
+                    )}
+                    {!loading && filteredCommonAttendees.length === 0 && (
+                      <tr>
+                        <td
+                          colSpan={isTicketedEvent ? "10" : "8"}
+                          style={{ ...styles.td, textAlign: "center" }}
+                        >
+                          No attendees found.
+                        </td>
+                      </tr>
+                    )}
+                    {filteredCommonAttendees.map((person) => {
+                      const isPersistent = persistentCommonAttendees.some(
+                        (p) => p.id === person.id
+                      );
+                      console.log("ispersistent", isPersistent);
 
-                          return (
-                            <tr key={person.id}>
+                      return (
+                        <tr key={person.id}>
+                          <td style={styles.td}>
+                            {person.fullName || "Unknown Name"}
+                          </td>
+
+                          <td style={styles.td}>{person.email || "No email"}</td>
+
+                          <td style={styles.td}>{person.leader12 || ""}</td>
+
+                          <td style={styles.td}>{person.leader144 || ""}</td>
+
+                          <td style={styles.td}>{person.phone || ""}</td>
+
+                          {isTicketedEvent && (
+                            <>
                               <td style={styles.td}>
-                                {person.fullName || "Unknown Name"}
+                                {attendeeTicketInfo[person.id]?.priceName || person.priceName || "-"}
                               </td>
+                              <td style={styles.td}>
+                                {attendeeTicketInfo[person.id]?.price || person.price 
+                                  ? `R${(attendeeTicketInfo[person.id]?.price || person.price).toFixed(2)}` 
+                                  : "-"}
+                              </td>
+                              <td style={styles.td}>
+                                {attendeeTicketInfo[person.id]?.ageGroup || person.ageGroup || "-"}
+                              </td>
+                              <td style={styles.td}>
+                                {attendeeTicketInfo[person.id]?.paymentMethod || person.paymentMethod || "-"}
+                              </td>
+                            </>
+                          )}
 
-                              <td style={styles.td}>{person.email || "No email"}</td>
+                          <td style={{ ...styles.td, ...styles.radioCell }}>
+                            <button
+                              style={{
+                                ...styles.radioButton,
+                                ...(checkedIn[person.id]
+                                  ? styles.radioButtonChecked
+                                  : {}),
+                              }}
+                              onClick={() =>
+                                handleCheckIn(person.id, person.fullName || "Unknown")
+                              }
+                            >
+                              {checkedIn[person.id] && (
+                                <span style={styles.radioButtonInner}>
+                                  ✓
+                                </span>
+                              )}
+                            </button>
+                          </td>
 
-                              <td style={styles.td}>{person.leader12 || ""}</td>
-
-                              <td style={styles.td}>{person.leader144 || ""}</td>
-
-                              <td style={styles.td}>{person.phone || ""}</td>
-
-                              <td style={{ ...styles.td, ...styles.radioCell }}>
+                          {!isTicketedEvent && (
+                            <td style={{ ...styles.td, ...styles.radioCell }}>
+                              {checkedIn[person.id] ? (
+                                <div style={styles.decisionDropdown}>
+                                  <button
+                                    style={styles.decisionButton}
+                                    onClick={() =>
+                                      setOpenDecisionDropdown(
+                                        openDecisionDropdown === person.id
+                                          ? null
+                                          : person.id
+                                      )
+                                    }
+                                  >
+                                    <span>
+                                      {decisionTypes[person.id]
+                                        ? decisionOptions.find(
+                                          (opt) => opt.value === decisionTypes[person.id]
+                                        )?.label
+                                        : "Select Decision"}
+                                    </span>
+                                    <ChevronDown size={16} />
+                                  </button>
+                                  {openDecisionDropdown === person.id && (
+                                    <div style={styles.decisionMenu}>
+                                      {decisionOptions.map((option) => (
+                                        <div
+                                          key={option.value}
+                                          style={styles.decisionMenuItem}
+                                          onClick={() =>
+                                            handleDecisionTypeSelect(person.id, option.value)
+                                          }
+                                          onMouseEnter={(e) =>
+                                            (e.currentTarget.style.background = theme.palette.action.hover)
+                                          }
+                                          onMouseLeave={(e) =>
+                                            (e.target.style.background = "transparent")
+                                          }
+                                        >
+                                          {option.label}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
+                              ) : (
                                 <button
                                   style={{
                                     ...styles.radioButton,
-                                    ...(checkedIn[person.id]
-                                      ? styles.radioButtonChecked
-                                      : {}),
+                                    opacity: 0.3,
+                                    cursor: "not-allowed",
                                   }}
-                                  onClick={() =>
-                                    handleCheckIn(person.id, person.fullName || "Unknown")
-                                  }
-                                >
-                                  {checkedIn[person.id] && (
-                                    <span style={styles.radioButtonInner}>
-                                      ✓
-                                    </span>
-                                  )}
-                                </button>
-                              </td>
+                                  disabled
+                                />
+                              )}
+                            </td>
+                          )}
 
-                              {/* Column 7: Decision */}
-                              <td style={{ ...styles.td, ...styles.radioCell }}>
-                                {checkedIn[person.id] ? (
-                                  <div style={styles.decisionDropdown}>
-                                    <button
-                                      style={styles.decisionButton}
-                                      onClick={() =>
-                                        setOpenDecisionDropdown(
-                                          openDecisionDropdown === person.id
-                                            ? null
-                                            : person.id
-                                        )
-                                      }
-                                    >
-                                      <span>
-                                        {decisionTypes[person.id]
-                                          ? decisionOptions.find(
-                                            (opt) => opt.value === decisionTypes[person.id]
-                                          )?.label
-                                          : "Select Decision"}
-                                      </span>
-                                      <ChevronDown size={16} />
-                                    </button>
-                                    {openDecisionDropdown === person.id && (
-                                      <div style={styles.decisionMenu}>
-                                        {decisionOptions.map((option) => (
-                                          <div
-                                            key={option.value}
-                                            style={styles.decisionMenuItem}
-                                            onClick={() =>
-                                              handleDecisionTypeSelect(person.id, option.value)
-                                            }
-                                            onMouseEnter={(e) =>
-                                              (e.currentTarget.style.background = theme.palette.action.hover)
-                                            }
-                                            onMouseLeave={(e) =>
-                                              (e.target.style.background = "transparent")
-                                            }
-                                          >
-                                            {option.label}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <button
-                                    style={{
-                                      ...styles.radioButton,
-                                      opacity: 0.3,
-                                      cursor: "not-allowed",
-                                    }}
-                                    disabled
-                                  />
-                                )}
-                              </td>
+                          <td style={{ ...styles.td, textAlign: "center" }}>
+                            <button
+                              onClick={() => handleRemoveAttendee(person.id, person.fullName || "Unknown")}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                cursor: "pointer",
+                                padding: "4px",
+                                borderRadius: "4px",
+                                color: theme.palette.error.main,
+                                display: "flex",
+                                alignItems: "center",
+                                justifyContent: "center",
+                                margin: "0 auto",
+                              }}
+                              title="Remove from attendees"
+                            >
+                              <X size={18} />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <div style={styles.statsContainer}>
+              <div style={styles.statBox}>
+                <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
+                  {persistentCommonAttendees.length}
+                </div>
+                <div style={styles.statLabel}>Associated People</div>
+              </div>
 
-                              <td style={{ ...styles.td, textAlign: "center" }}>
-                                <button
-                                  onClick={() => handleRemoveAttendee(person.id, person.fullName || "Unknown")}
-                                  style={{
-                                    background: "none",
-                                    border: "none",
-                                    cursor: "pointer",
-                                    padding: "4px",
-                                    borderRadius: "4px",
-                                    color: theme.palette.error.main,
-                                    display: "flex",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    margin: "0 auto",
-                                  }}
-                                  title="Remove from attendees"
-                                >
-                                  <X size={18} />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
+              <div style={styles.statBox}>
+                <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
+                  {Object.keys(checkedIn).filter(id => checkedIn[id]).length}
+                </div>
+                <div style={styles.statLabel}>Attendees</div>
+              </div>
+
+              <div style={styles.statBoxInput}>
+                <input
+                  type="number"
+                  value={manualHeadcount}
+                  onChange={(e) => setManualHeadcount(e.target.value)}
+                  placeholder="0"
+                  style={styles.headcountInput}
+                  min="0"
+                />
+                <div style={styles.statLabel}>Total Headcounts</div>
+              </div>
+
+              {!isTicketedEvent && (
+                <div style={styles.statBox}>
+                  <div style={{ ...styles.statNumber, color: "#ffc107" }}>
+                    {Object.keys(decisions).filter(id => decisions[id]).length}
+                  </div>
+                  <div style={styles.statLabel}>Decisions</div>
+                  {Object.keys(decisions).filter(id => decisions[id]).length > 0 && (
+                    <div style={styles.decisionBreakdown}>
+                      <span>First-time: {Object.values(decisionTypes).filter(type => type === "first-time").length}</span>
+                      <span>Re-commitment: {Object.values(decisionTypes).filter(type => type === "re-commitment").length}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {activeTab === 1 && (
+          <>
+            <div style={styles.searchBox}>
+              <Search size={20} style={styles.searchIcon} />
+              <input
+                type="text"
+                placeholder="Search to add person to common attendees..."
+                value={associateSearch}
+                onChange={(e) => setAssociateSearch(e.target.value)}
+                style={{
+                  width: "100%",
+                  padding: "14px 14px 14px 45px",
+                  fontSize: 16,
+                  borderRadius: 8,
+                  border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
+                  backgroundColor: isDarkMode ?
+                    theme.palette.background.default :
+                    theme.palette.background.paper,
+                  color: isDarkMode ? theme.palette.text.primary : '#000',
+                  outline: "none",
+                  boxSizing: "border-box",
+                }}
+                onFocus={(e) => {
+                  e.target.style.backgroundColor = isDarkMode ?
+                    theme.palette.action.hover :
+                    theme.palette.background.default;
+                  e.target.style.borderColor = isDarkMode ? '#777' : '#999';
+                }}
+                onBlur={(e) => {
+                  e.target.style.backgroundColor = isDarkMode ?
+                    theme.palette.background.default :
+                    theme.palette.background.paper;
+                  e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
+                }}
+              />
+            </div>
+            {isMobile ? (
+              <div>
+                {loading && (
+                  <div style={{ textAlign: "center", padding: "20px" }}>
+                    Loading...
                   </div>
                 )}
-                <div style={styles.statsContainer}>
-                  <div style={styles.statBox}>
-                    <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
-                      {persistentCommonAttendees.length}
-                    </div>
-                    <div style={styles.statLabel}>Associated People</div>
-                  </div>
-
-                  <div style={styles.statBox}>
-                    <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
-                      {/* Show current week's checked-in count only */}
-                      {Object.keys(checkedIn).filter(id => checkedIn[id]).length}
-                    </div>
-                    <div style={styles.statLabel}>Attendees</div>
-                  </div>
-
-                  <div style={styles.statBoxInput}>
-                    <input
-                      type="number"
-                      value={manualHeadcount}
-                      onChange={(e) => setManualHeadcount(e.target.value)}
-                      placeholder="0"
-                      style={styles.headcountInput}
-                      min="0"
-                    />
-                    <div style={styles.statLabel}>Total Headcounts</div>
-                  </div>
-
-                  {!isTicketedEvent && (
-                    <div style={styles.statBox}>
-                      <div style={{ ...styles.statNumber, color: "#ffc107" }}>
-                        {/* Show current week's decisions*/}
-                        {Object.keys(decisions).filter(id => decisions[id]).length}
-                      </div>
-                      <div style={styles.statLabel}>Decisions</div>
-                      {Object.keys(decisions).filter(id => decisions[id]).length > 0 && (
-                        <div style={styles.decisionBreakdown}>
-                          <span>First-time: {Object.values(decisionTypes).filter(type => type === "first-time").length}</span>
-                          <span>Re-commitment: {Object.values(decisionTypes).filter(type => type === "re-commitment").length}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {isTicketedEvent && (
-                    <>
-                      <div style={styles.statBox}>
-                        <div style={{ ...styles.statNumber, color: "#28a745" }}>
-                          R{totalPaid.toFixed(2)}
-                        </div>
-                        <div style={styles.statLabel}>Total Paid</div>
-                      </div>
-                      <div style={styles.statBox}>
-                        <div
-                          style={{
-                            ...styles.statNumber,
-                            color: totalOwing === 0 ? "#28a745" : "#dc3545",
-                          }}
-                        >
-                          R{totalOwing.toFixed(2)}
-                        </div>
-                        <div style={styles.statLabel}>Total Owing</div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>
-            )}
-
-            {activeTab === 1 && (
-              <>
-                <div style={styles.searchBox}>
-                  <Search size={20} style={styles.searchIcon} />
-                  <input
-                    type="text"
-                    placeholder="Search to add person to common attendees..."
-                    value={associateSearch}
-                    onChange={(e) => setAssociateSearch(e.target.value)}
+                {!loading && filteredPeople.length === 0 && (
+                  <div
                     style={{
-                      width: "100%",
-                      padding: "14px 14px 14px 45px",
-                      fontSize: 16,
-                      borderRadius: 8,
-                      border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
-                      backgroundColor: isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper,
-                      color: isDarkMode ? theme.palette.text.primary : '#000',
-                      outline: "none",
-                      boxSizing: "border-box",
+                      textAlign: "center",
+                      padding: "20px",
+                      color: "#666",
                     }}
-                    onFocus={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.action.hover :
-                        theme.palette.background.default;
-                      e.target.style.borderColor = isDarkMode ? '#777' : '#999';
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.backgroundColor = isDarkMode ?
-                        theme.palette.background.default :
-                        theme.palette.background.paper;
-                      e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
-                    }}
-                  />
-                </div>
-                {isMobile ? (
-                  <div>
-                    {loading && (
-                      <div style={{ textAlign: "center", padding: "20px" }}>
-                        Loading...
+                  >
+                    No people found.
+                  </div>
+                )}
+                {filteredPeople.map((person) => {
+                  const isAlreadyAdded = persistentCommonAttendees.some(
+                    (p) => p.id === person.id
+                  );
+
+                  return (
+                    <div key={person.id} style={styles.mobileAttendeeCard}>
+                      <div style={styles.mobileCardRow}>
+                        <div style={styles.mobileCardInfo}>
+                          <div style={styles.mobileCardName}>
+                            {person.fullName}
+                          </div>
+                          <div style={styles.mobileCardEmail}>
+                            {person.email}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#666" }}>
+                            Leader @12: {person.leader12}
+                          </div>
+                          <div style={{ fontSize: "12px", color: "#666" }}>
+                            Phone: {person.phone}
+                          </div>
+                        </div>
+                        <button
+                          style={{
+                            ...styles.iconButton,
+                            color: isAlreadyAdded ? "#dc3545" : "#6366f1",
+                            cursor: isAlreadyAdded ? "not-allowed" : "pointer",
+                            opacity: isAlreadyAdded ? 0.3 : 1,
+                          }}
+                          onClick={() => handleAssociatePerson(person)}
+                          disabled={isAlreadyAdded}
+                          title={
+                            isAlreadyAdded
+                              ? "Already added"
+                              : "Add to common attendees"
+                          }
+                        >
+                          <UserPlus size={20} />
+                        </button>
                       </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div style={styles.tableContainer}>
+                <table style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Name</th>
+                      <th style={styles.th}>Email</th>
+                      <th style={styles.th}>Leader @12</th>
+                      <th style={styles.th}>Leader @144</th>
+                      <th style={styles.th}>Phone</th>
+                      <th style={{ ...styles.th, textAlign: "center" }}>
+                        Add
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {loading && (
+                      <tr>
+                        <td
+                          colSpan="6"
+                          style={{ ...styles.td, textAlign: "center" }}
+                        >
+                          Loading...
+                        </td>
+                      </tr>
                     )}
                     {!loading && filteredPeople.length === 0 && (
-                      <div
-                        style={{
-                          textAlign: "center",
-                          padding: "20px",
-                          color: "#666",
-                        }}
-                      >
-                        No people found.
-                      </div>
+                      <tr>
+                        <td
+                          colSpan="6"
+                          style={{ ...styles.td, textAlign: "center" }}
+                        >
+                          No people found.
+                        </td>
+                      </tr>
                     )}
                     {filteredPeople.map((person) => {
                       const isAlreadyAdded = persistentCommonAttendees.some(
@@ -3885,22 +3799,20 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                       );
 
                       return (
-                        <div key={person.id} style={styles.mobileAttendeeCard}>
-                          <div style={styles.mobileCardRow}>
-                            <div style={styles.mobileCardInfo}>
-                              <div style={styles.mobileCardName}>
-                                {person.fullName}
-                              </div>
-                              <div style={styles.mobileCardEmail}>
-                                {person.email}
-                              </div>
-                              <div style={{ fontSize: "12px", color: "#666" }}>
-                                Leader @12: {person.leader12}
-                              </div>
-                              <div style={{ fontSize: "12px", color: "#666" }}>
-                                Phone: {person.phone}
-                              </div>
-                            </div>
+                        <tr key={person.id}>
+                          <td style={styles.td}>
+                            {person.fullName}
+                            {isAlreadyAdded && (
+                              <span style={styles.persistentBadge}>
+                                ADDED
+                              </span>
+                            )}
+                          </td>
+                          <td style={styles.td}>{person.email}</td>
+                          <td style={styles.td}>{person.leader12}</td>
+                          <td style={styles.td}>{person.leader144}</td>
+                          <td style={styles.td}>{person.phone}</td>
+                          <td style={{ ...styles.td, textAlign: "center" }}>
                             <button
                               style={{
                                 ...styles.iconButton,
@@ -3918,206 +3830,188 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                             >
                               <UserPlus size={20} />
                             </button>
-                          </div>
-                        </div>
+                          </td>
+                        </tr>
                       );
                     })}
-                  </div>
-                ) : (
-                  <div style={styles.tableContainer}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr>
-                          <th style={styles.th}>Name</th>
-                          <th style={styles.th}>Email</th>
-                          <th style={styles.th}>Leader @12</th>
-                          <th style={styles.th}>Leader @144</th>
-                          <th style={styles.th}>Phone</th>
-                          <th style={{ ...styles.th, textAlign: "center" }}>
-                            Add
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loading && (
-                          <tr>
-                            <td
-                              colSpan="6"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              Loading...
-                            </td>
-                          </tr>
-                        )}
-                        {!loading && filteredPeople.length === 0 && (
-                          <tr>
-                            <td
-                              colSpan="6"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              No people found.
-                            </td>
-                          </tr>
-                        )}
-                        {filteredPeople.map((person) => {
-                          const isAlreadyAdded = persistentCommonAttendees.some(
-                            (p) => p.id === person.id
-                          );
-
-                          return (
-                            <tr key={person.id}>
-                              <td style={styles.td}>
-                                {person.fullName}
-                                {isAlreadyAdded && (
-                                  <span style={styles.persistentBadge}>
-                                    ADDED
-                                  </span>
-                                )}
-                              </td>
-                              <td style={styles.td}>{person.email}</td>
-                              <td style={styles.td}>{person.leader12}</td>
-                              <td style={styles.td}>{person.leader144}</td>
-                              <td style={styles.td}>{person.phone}</td>
-                              <td style={{ ...styles.td, textAlign: "center" }}>
-                                <button
-                                  style={{
-                                    ...styles.iconButton,
-                                    color: isAlreadyAdded ? "#dc3545" : "#6366f1",
-                                    cursor: isAlreadyAdded ? "not-allowed" : "pointer",
-                                    opacity: isAlreadyAdded ? 0.3 : 1,
-                                  }}
-                                  onClick={() => handleAssociatePerson(person)}
-                                  disabled={isAlreadyAdded}
-                                  title={
-                                    isAlreadyAdded
-                                      ? "Already added"
-                                      : "Add to common attendees"
-                                  }
-                                >
-                                  <UserPlus size={20} />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
+                  </tbody>
+                </table>
+              </div>
             )}
-          </div>
-
-          <div style={styles.footer}>
-            <button style={styles.closeBtn} onClick={onClose}>
-
-              CLOSE
-            </button>
-
-            {/* Add this new download button */}
-            <button
-              onClick={() => downloadAttendanceData()}
-              style={{
-                background: theme.palette.info.main,
-                color: theme.palette.info.contrastText || "#fff",
-                border: "none",
-                padding: "12px 20px",
-                borderRadius: 6,
-                cursor: "pointer",
-                fontSize: 16,
-                fontWeight: 500,
-                flex: isMobile ? "1 1 100%" : "none",
-                minWidth: 120,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                gap: "8px"
-              }}
-              title="Download attendance data"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              DOWNLOAD DATA
-            </button>
-            <div
-              style={{
-                display: "flex",
-                gap: "12px",
-                flex: isMobile ? "1 1 100%" : "none",
-                flexWrap: isMobile ? "wrap" : "nowrap",
-              }}
-            >
-              <button style={styles.didNotMeetBtn} onClick={handleDidNotMeet}>
-                DID NOT MEET
-              </button>
-              <button style={styles.saveBtn} onClick={handleSave}>
-                SAVE
-              </button>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
 
-      {showDidNotMeetConfirm && (
-        <div style={styles.confirmOverlay}>
-          <div style={styles.confirmModal}>
-            <div style={styles.confirmHeader}>
-              <h3 style={styles.confirmTitle}>Confirm Event Status</h3>
-            </div>
-            <div style={styles.confirmBody}>
-              <p style={styles.confirmMessage}>
-                Are you sure you want to mark this event as{" "}
-                <strong>'Did Not Meet'</strong>?
-              </p>
-              <p style={styles.confirmSubMessage}>
-                This will clear all current attendance data and cannot be
-                undone.
-              </p>
-            </div>
-            <div style={styles.confirmFooter}>
-              <button
-                style={styles.confirmCancelBtn}
-                onClick={cancelDidNotMeet}
-              >
-                Cancel
-              </button>
-              <button
-                style={styles.confirmProceedBtn}
-                onClick={confirmDidNotMeet}
-              >
-                Mark as Did Not Meet
-              </button>
-            </div>
-          </div>
+      <div style={styles.footer}>
+        <button style={styles.closeBtn} onClick={onClose}>
+          CLOSE
+        </button>
+
+        <button
+          onClick={() => downloadAttendanceData()}
+          style={{
+            background: theme.palette.info.main,
+            color: theme.palette.info.contrastText || "#fff",
+            border: "none",
+            padding: "12px 20px",
+            borderRadius: 6,
+            cursor: "pointer",
+            fontSize: 16,
+            fontWeight: 500,
+            flex: isMobile ? "1 1 100%" : "none",
+            minWidth: 120,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: "8px"
+          }}
+          title="Download attendance data"
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="7 10 12 15 17 10" />
+            <line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          DOWNLOAD DATA
+        </button>
+        <div
+          style={{
+            display: "flex",
+            gap: "12px",
+            flex: isMobile ? "1 1 100%" : "none",
+            flexWrap: isMobile ? "wrap" : "nowrap",
+          }}
+        >
+          <button style={styles.didNotMeetBtn} onClick={handleDidNotMeet}>
+            DID NOT MEET
+          </button>
+          <button style={styles.saveBtn} onClick={handleSave}>
+            SAVE
+          </button>
         </div>
-      )}
-      <AddPersonToEvents
-        isOpen={showAddPersonModal}
-        onClose={() => setShowAddPersonModal(false)}
-        onPersonAdded={handlePersonAdded}
-        event={event}
-      />
+      </div>
+    </div>
+  </div>
 
-      <style>
-        {`
-  input[type="text"]:focus,
-  input[type="text"]:active,
-  input[type="text"]:-webkit-autofill,
-  input[type="text"]:-webkit-autofill:hover,
-  input[type="text"]:-webkit-autofill:focus,
-  input[type="text"]:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
-    box-shadow: 0 0 0 1000px transparent inset !important;
-    background-color: transparent !important;
-    background: transparent !important;
-  }
+  {showDidNotMeetConfirm && (
+    <div style={styles.confirmOverlay}>
+      <div style={styles.confirmModal}>
+        <div style={styles.confirmHeader}>
+          <h3 style={styles.confirmTitle}>Confirm Event Status</h3>
+        </div>
+        <div style={styles.confirmBody}>
+          <p style={styles.confirmMessage}>
+            Are you sure you want to mark this event as{" "}
+            <strong>'Did Not Meet'</strong>?
+          </p>
+          <p style={styles.confirmSubMessage}>
+            This will clear all current attendance data and cannot be
+            undone.
+          </p>
+        </div>
+        <div style={styles.confirmFooter}>
+          <button
+            style={styles.confirmCancelBtn}
+            onClick={cancelDidNotMeet}
+          >
+            Cancel
+          </button>
+          <button
+            style={styles.confirmProceedBtn}
+            onClick={confirmDidNotMeet}
+          >
+            Mark as Did Not Meet
+          </button>
+        </div>
+      </div>
+    </div>
+  )}
+
+  {showTicketSelectionModal && selectedPersonForTicket && (
+    <div style={styles.ticketModalOverlay}>
+      <div style={styles.ticketModal}>
+        <h3 style={styles.ticketModalTitle}>Select Ticket Tier</h3>
+        <p style={styles.ticketModalSubtitle}>
+          Choose a ticket for {selectedPersonForTicket.fullName}
+        </p>
+        
+        <div>
+          {eventPriceTiers && eventPriceTiers.length > 0 ? (
+            eventPriceTiers.map((tier, index) => (
+              <div
+                key={index}
+                onClick={() => {
+                  addPersonWithTicket(selectedPersonForTicket, tier);
+                  setShowTicketSelectionModal(false);
+                  setSelectedPersonForTicket(null);
+                }}
+                style={styles.ticketOption}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = theme.palette.primary.main;
+                  e.currentTarget.style.backgroundColor = theme.palette.action.hover;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = theme.palette.divider;
+                  e.currentTarget.style.backgroundColor = theme.palette.background.paper;
+                }}
+              >
+                <div style={styles.ticketOptionName}>{tier.name}</div>
+                <div style={styles.ticketOptionDetails}>
+                  <span>Price: R{parseFloat(tier.price).toFixed(2)}</span>
+                  <span>•</span>
+                  <span>Age: {tier.ageGroup}</span>
+                  <span>•</span>
+                  <span>Payment: {tier.paymentMethod}</span>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div style={{ textAlign: "center", padding: "20px", color: theme.palette.text.secondary }}>
+              No price tiers available for this event
+            </div>
+          )}
+        </div>
+        
+        <button
+          onClick={() => {
+            setShowTicketSelectionModal(false);
+            setSelectedPersonForTicket(null);
+          }}
+          style={{
+            ...styles.confirmCancelBtn,
+            width: "100%",
+            marginTop: "20px"
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  )}
+
+  <AddPersonToEvents
+    isOpen={showAddPersonModal}
+    onClose={() => setShowAddPersonModal(false)}
+    onPersonAdded={handlePersonAdded}
+    event={event}
+  />
+
+  <style>
+    {`
+    input[type="text"]:focus,
+input[type="text"]:active,
+input[type="text"]:-webkit-autofill,
+input[type="text"]:-webkit-autofill:hover,
+input[type="text"]:-webkit-autofill:focus,
+input[type="text"]:-webkit-autofill:active {
+-webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+box-shadow: 0 0 0 1000px transparent inset !important;
+background-color: transparent !important;
+background: transparent !important;
+}
 `}
-      </style>
-    </>
-  );
-
+</style>
+</>
+);
 };
 export default AttendanceModal;

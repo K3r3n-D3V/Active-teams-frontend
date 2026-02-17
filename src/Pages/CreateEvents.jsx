@@ -17,7 +17,11 @@ import {
   CircularProgress,
   Paper,
   Popper,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails
 } from "@mui/material";
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import PersonIcon from "@mui/icons-material/Person";
 import DescriptionIcon from "@mui/icons-material/Person";
@@ -37,17 +41,11 @@ function generateUUID() {
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-// Geoapify
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
 ).toLowerCase();
 
-/**
- * Popper that forces the dropdown (autocomplete suggestions) to:
- * - match the input width exactly
- * - have a high z-index (so it shows over modals)
- */
 const SameWidthPopper = (props) => {
   const { anchorEl } = props;
 
@@ -62,7 +60,7 @@ const SameWidthPopper = (props) => {
       placement="bottom-start"
       style={{
         zIndex: 20000,
-        width, //match input width
+        width,
       }}
     />
   );
@@ -91,8 +89,6 @@ const CreateEvents = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
-  const [loadingPeople] = useState(false);
-  const [priceTiers, setPriceTiers] = useState([]);
   const [allPeopleCache, setAllPeopleCache] = useState([]);
 
   const [formData, setFormData] = useState({
@@ -108,20 +104,17 @@ const CreateEvents = ({
     description: "",
     leader1: "",
     leader12: "",
+    priceTiers: [],
   });
 
   const [errors, setErrors] = useState({});
   const formAlert = useRef();
 
-  // -----------------------------
-  // GEOAPIFY LOCATION AUTOCOMPLETE (with geolocation bias)
-  // -----------------------------
   const [locationOptions, setLocationOptions] = useState([]);
   const [locationLoading, setLocationLoading] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [selectedLocation, setSelectedLocation] = useState(null);
 
-  // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
 
   useEffect(() => {
@@ -141,7 +134,6 @@ const CreateEvents = ({
     );
   }, []);
 
-  // Geoapify Autocomplete (debounced, country filtered, bias proximity)
   useEffect(() => {
     if (!GEOAPIFY_API_KEY) {
       setLocationError(
@@ -221,9 +213,6 @@ const CreateEvents = ({
     };
   }, [formData.location, biasLonLat]);
 
-  // -----------------------------
-  // EXISTING LOGIC
-  // -----------------------------
   const days = [
     "Monday",
     "Tuesday",
@@ -330,10 +319,11 @@ const CreateEvents = ({
   }, [selectedEventTypeObj, selectedEventType, eventTypes]);
 
   useEffect(() => {
-    if (isTicketedEvent && priceTiers.length === 0) {
-      setPriceTiers([
-        { name: "", price: "", ageGroup: "", memberType: "", paymentMethod: "" },
-      ]);
+    if (isTicketedEvent && formData.priceTiers.length === 0) {
+      setFormData((prev) => ({
+        ...prev,
+        priceTiers: [{ name: "", price: "", ageGroup: "", memberType: "", paymentMethod: "" }],
+      }));
     }
   }, [isTicketedEvent]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -383,33 +373,25 @@ const CreateEvents = ({
           isTraining: !!data.isTraining,
         }));
 
+        let tiers = [];
         if (data.isTicketed) {
-          if (Array.isArray(data.priceTiers) && data.priceTiers.length > 0) {
-            setPriceTiers(
-              data.priceTiers.map((tier) => ({
-                name: tier.name || "",
-                price: tier.price || "",
-                ageGroup: tier.ageGroup || "",
-                memberType: tier.memberType || "",
-                paymentMethod: tier.paymentMethod || "",
-              }))
-            );
-          } else {
-            setPriceTiers([
-              {
-                name: "",
-                price: "",
-                ageGroup: "",
-                memberType: "",
-                paymentMethod: "",
-              },
-            ]);
-          }
-        } else {
-          setPriceTiers([]);
+          tiers =
+            Array.isArray(data.priceTiers) && data.priceTiers.length > 0
+              ? data.priceTiers.map((tier) => ({
+                  name: tier.name || "",
+                  price: tier.price || "",
+                  ageGroup: tier.ageGroup || "",
+                  memberType: tier.memberType || "",
+                  paymentMethod: tier.paymentMethod || "",
+                }))
+              : [{ name: "", price: "", ageGroup: "", memberType: "", paymentMethod: "" }];
         }
 
-        setFormData((prev) => ({ ...prev, ...data }));
+        setFormData((prev) => ({
+          ...prev,
+          ...data,
+          priceTiers: tiers,
+        }));
 
         if (data.location) {
           setSelectedLocation({ label: data.location, formatted: data.location });
@@ -440,22 +422,28 @@ const CreateEvents = ({
   };
 
   const handleAddPriceTier = () => {
-    setPriceTiers((prev) => [
+    setFormData((prev) => ({
       ...prev,
-      { name: "", price: "", ageGroup: "", memberType: "", paymentMethod: "" },
-    ]);
+      priceTiers: [
+        ...prev.priceTiers,
+        { name: "", price: "", ageGroup: "", memberType: "", paymentMethod: "" },
+      ],
+    }));
   };
 
   const handlePriceTierChange = (index, field, value) => {
-    setPriceTiers((prev) => {
-      const updated = [...prev];
+    setFormData((prev) => {
+      const updated = [...prev.priceTiers];
       updated[index] = { ...updated[index], [field]: value };
-      return updated;
+      return { ...prev, priceTiers: updated };
     });
   };
 
   const handleRemovePriceTier = (index) => {
-    setPriceTiers((prev) => prev.filter((_, i) => i !== index));
+    setFormData((prev) => ({
+      ...prev,
+      priceTiers: prev.priceTiers.filter((_, i) => i !== index),
+    }));
   };
 
   const resetForm = () => {
@@ -472,8 +460,8 @@ const CreateEvents = ({
       description: "",
       leader1: "",
       leader12: "",
+      priceTiers: [],
     });
-    setPriceTiers([]);
     setErrors({});
     setSelectedLocation(null);
     setLocationOptions([]);
@@ -496,10 +484,10 @@ const CreateEvents = ({
     }
 
     if (isTicketedEvent) {
-      if (priceTiers.length === 0) {
+      if (formData.priceTiers.length === 0) {
         newErrors.priceTiers = "Add at least one price tier for ticketed events";
       } else {
-        priceTiers.forEach((tier, index) => {
+        formData.priceTiers.forEach((tier, index) => {
           if (!tier.name) newErrors[`tier_${index}_name`] = "Price name is required";
           if (tier.price === "" || isNaN(Number(tier.price)) || Number(tier.price) < 0) {
             newErrors[`tier_${index}_price`] = "Valid price is required";
@@ -613,7 +601,7 @@ const CreateEvents = ({
       }
 
       payload.priceTiers = isTicketed
-        ? priceTiers.map((tier) => ({
+        ? formData.priceTiers.map((tier) => ({
             name: tier.name || "",
             price: parseFloat(tier.price) || 0,
             ageGroup: tier.ageGroup || "",
@@ -844,80 +832,109 @@ const CreateEvents = ({
                   </Typography>
                 )}
 
-                {priceTiers.map((tier, index) => (
-                  <Card key={index} sx={{ mb: 2, p: 2, ...darkModeStyles.card }}>
-                    <Box sx={{ display: "flex", justifyContent: "space-between", mb: 2 }}>
+                {formData.priceTiers.map((tier, index) => (
+                  <Accordion
+                    key={index}
+                    sx={{
+                      mb: 2,
+                      ...darkModeStyles.card,
+                      "&:before": {
+                        display: "none",
+                      },
+                    }}
+                  >
+                    <AccordionSummary
+                      expandIcon={<ExpandMoreIcon />}
+                      sx={{
+                        "& .MuiAccordionSummary-content": {
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                          width: "100%",
+                        },
+                      }}
+                    >
                       <Typography
                         variant="subtitle2"
                         fontWeight="bold"
                         sx={{ color: isDarkMode ? "#ffffff" : "#000000" }}
                       >
-                        Price Tier {index + 1}
+                        Price Tier {index + 1} {tier.name && `- ${tier.name}`}
                       </Typography>
-                      {priceTiers.length > 1 && (
-                        <IconButton size="small" onClick={() => handleRemovePriceTier(index)} color="error">
+                      {formData.priceTiers.length > 1 && (
+                        <IconButton
+                          size="small"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemovePriceTier(index);
+                          }}
+                          color="error"
+                          sx={{ ml: 1 }}
+                        >
                           <DeleteIcon fontSize="small" />
                         </IconButton>
                       )}
-                    </Box>
+                    </AccordionSummary>
 
-                    <TextField
-                      label="Price Name *"
-                      value={tier.name}
-                      onChange={(e) => handlePriceTierChange(index, "name", e.target.value)}
-                      fullWidth
-                      size="small"
-                      sx={{ mb: 2, ...darkModeStyles.textField }}
-                      error={!!errors[`tier_${index}_name`]}
-                      helperText={errors[`tier_${index}_name`]}
-                    />
+                    <AccordionDetails sx={{ pt: 2 }}>
+                      <TextField
+                        label="Price Name *"
+                        value={tier.name}
+                        onChange={(e) => handlePriceTierChange(index, "name", e.target.value)}
+                        fullWidth
+                        size="small"
+                        sx={{ mb: 2, ...darkModeStyles.textField }}
+                        error={!!errors[`tier_${index}_name`]}
+                        helperText={errors[`tier_${index}_name`]}
+                      />
 
-                    <TextField
-                      label="Price (R) *"
-                      type="number"
-                      value={tier.price}
-                      onChange={(e) => handlePriceTierChange(index, "price", e.target.value)}
-                      fullWidth
-                      size="small"
-                      inputProps={{ min: 0, step: "0.01" }}
-                      sx={{ mb: 2, ...darkModeStyles.textField }}
-                      error={!!errors[`tier_${index}_price`]}
-                      helperText={errors[`tier_${index}_price`]}
-                    />
+                      <TextField
+                        label="Price (R) *"
+                        type="number"
+                        value={tier.price}
+                        onChange={(e) => handlePriceTierChange(index, "price", e.target.value)}
+                        fullWidth
+                        size="small"
+                        inputProps={{ min: 0, step: "0.01" }}
+                        sx={{ mb: 2, ...darkModeStyles.textField }}
+                        error={!!errors[`tier_${index}_price`]}
+                        helperText={errors[`tier_${index}_price`]}
+                      />
 
-                    <TextField
-                      label="Age Group *"
-                      value={tier.ageGroup}
-                      onChange={(e) => handlePriceTierChange(index, "ageGroup", e.target.value)}
-                      fullWidth
-                      size="small"
-                      sx={{ mb: 2, ...darkModeStyles.textField }}
-                      error={!!errors[`tier_${index}_ageGroup`]}
-                      helperText={errors[`tier_${index}_ageGroup`]}
-                    />
+                      <TextField
+                        label="Age Group *"
+                        value={tier.ageGroup}
+                        onChange={(e) => handlePriceTierChange(index, "ageGroup", e.target.value)}
+                        fullWidth
+                        size="small"
+                        sx={{ mb: 2, ...darkModeStyles.textField }}
+                        error={!!errors[`tier_${index}_ageGroup`]}
+                        helperText={errors[`tier_${index}_ageGroup`]}
+                      />
 
-                    <TextField
-                      label="Member Type *"
-                      value={tier.memberType}
-                      onChange={(e) => handlePriceTierChange(index, "memberType", e.target.value)}
-                      fullWidth
-                      size="small"
-                      sx={{ mb: 2, ...darkModeStyles.textField }}
-                      error={!!errors[`tier_${index}_memberType`]}
-                      helperText={errors[`tier_${index}_memberType`]}
-                    />
+                      <TextField
+                        label="Member Type *"
+                        value={tier.memberType}
+                        onChange={(e) => handlePriceTierChange(index, "memberType", e.target.value)}
+                        fullWidth
+                        size="small"
+                        sx={{ mb: 2, ...darkModeStyles.textField }}
+                        error={!!errors[`tier_${index}_memberType`]}
+                        helperText={errors[`tier_${index}_memberType`]}
+                      />
 
-                    <TextField
-                      label="Payment Method *"
-                      value={tier.paymentMethod}
-                      onChange={(e) => handlePriceTierChange(index, "paymentMethod", e.target.value)}
-                      fullWidth
-                      size="small"
-                      sx={{ ...darkModeStyles.textField }}
-                      error={!!errors[`tier_${index}_paymentMethod`]}
-                      helperText={errors[`tier_${index}_paymentMethod`]}
-                    />
-                  </Card>
+                      <TextField
+                        label="Payment Method *"
+                        value={tier.paymentMethod}
+                        onChange={(e) => handlePriceTierChange(index, "paymentMethod", e.target.value)}
+                        fullWidth
+                        size="small"
+                        sx={{ ...darkModeStyles.textField }}
+                        error={!!errors[`tier_${index}_paymentMethod`]}
+                        helperText={errors[`tier_${index}_paymentMethod`]}
+                      />
+                    </AccordionDetails>
+                  </Accordion>
                 ))}
               </Box>
             )}
@@ -969,7 +986,6 @@ const CreateEvents = ({
               </Box>
             </Box>
 
-            {/*LOCATION (Geoapify + same-width dropdown) */}
             <Autocomplete
               freeSolo
               fullWidth
@@ -991,12 +1007,12 @@ const CreateEvents = ({
               getOptionLabel={(option) => (typeof option === "string" ? option : option.label || "")}
               filterOptions={(x) => x}
               loading={locationLoading}
-              PopperComponent={SameWidthPopper} // this makes dropdown same width
+              PopperComponent={SameWidthPopper}
               ListboxProps={{ sx: darkModeStyles.autocompleteListbox }}
               PaperComponent={({ children }) => (
                 <Paper
                   sx={{
-                    width: "100%", //keeps the paper inside popper at same width
+                    width: "100%",
                     bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
                     border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
                   }}
@@ -1047,7 +1063,6 @@ const CreateEvents = ({
               )}
             />
 
-            {/* Event Leader (kept as your manual dropdown) */}
             <Box sx={{ mb: 3, position: "relative" }}>
               <TextField
                 label="Event Leader *"
