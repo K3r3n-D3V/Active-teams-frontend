@@ -637,7 +637,6 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       return (
         <Box
           sx={{
-            color: "#2196f3",
             fontSize: "0.95rem",
             whiteSpace: "nowrap",
             overflow: "hidden",
