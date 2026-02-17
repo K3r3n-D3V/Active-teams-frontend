@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState,useCallback,useRef } from "react";
-import { Phone, UserPlus, Plus, Loader2 } from "lucide-react";
+import { Phone, UserPlus, Plus } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -112,7 +112,8 @@ export default function DailyTasks() {
   const isFetchingRef = useRef(false);
   const peopleFetchPromiseRef = useRef(null);
   const fetchPeopleDebounceRef = useRef(null);
-
+  const RECIPIENT_DEBOUNCE = 100;
+   const PEOPLE_TOAST_ID = "loading-people";
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
     const date = new Date(dateStr);
@@ -309,7 +310,7 @@ export default function DailyTasks() {
       setAllPeople(window.globalPeopleCache);
       return window.globalPeopleCache;
     }
-
+ 
     if (isFetchingRef.current) {
       if (peopleFetchPromiseRef.current) {
         try {
@@ -321,7 +322,7 @@ export default function DailyTasks() {
       }
       return window.globalPeopleCache || [];
     }
-
+ 
     isFetchingRef.current = true;
     setIsLoadingPeople(true);
     peopleFetchPromiseRef.current = (async () => {
@@ -330,30 +331,42 @@ export default function DailyTasks() {
         if (!response || !response.ok) throw new Error("Failed to fetch people");
         const data = await response.json();
         const rawPeople = data?.results || [];
+        // minimal mapping required for dropdown + fast search
         const mapped = rawPeople.map(raw => ({
-          _id: (raw._id || raw.id || "").toString(),
-          name: (raw.Name || raw.name || "").toString().trim(),
-          surname: (raw.Surname || raw.surname || "").toString().trim(),
-          email: (raw.Email || raw.email || "").toString().trim(),
-          phone: (raw.Phone || raw.phone || raw.Number || "").toString().trim(),
-        }));
-        window.globalPeopleCache = mapped;
-        window.globalCacheTimestamp = Date.now();
-        setAllPeople(mapped);
-        return mapped;
-      } catch (err) {
-        console.error('Fetch people error:', err);
-        toast.error(`Failed to load people: ${err?.message}`);
-        return window.globalPeopleCache || [];
-      } finally {
-        isFetchingRef.current = false;
-        peopleFetchPromiseRef.current = null;
-        setIsLoadingPeople(false);
-      }
-    })();
-
-    return await peopleFetchPromiseRef.current;
-  }, [API_URL, authFetch]);
+           _id: (raw._id || raw.id || "").toString(),
+           name: (raw.Name || raw.name || "").toString().trim(),
+           surname: (raw.Surname || raw.surname || "").toString().trim(),
+           email: (raw.Email || raw.email || "").toString().trim(),
+           phone: (raw.Phone || raw.phone || raw.Number || "").toString().trim(),
+           // precompute lowercase fullName for instant matching
+           fullNameLower: `${(raw.Name || raw.name || "").toString().trim()} ${(raw.Surname || raw.surname || "").toString().trim()}`.toLowerCase()
+         }));
+         window.globalPeopleCache = mapped;
+         window.globalCacheTimestamp = Date.now();
+         setAllPeople(mapped);
+         return mapped;
+       } catch (err) {
+         console.error('Fetch people error:', err);
+         toast.error(`Failed to load people: ${err?.message}`);
+         return window.globalPeopleCache || [];
+       } finally {
+         isFetchingRef.current = false;
+         peopleFetchPromiseRef.current = null;
+         setIsLoadingPeople(false);
+       }
+     })();
+ 
+     return await peopleFetchPromiseRef.current;
+   }, [API_URL, authFetch]);
+ 
+  // prefetch people in background as soon as user is available
+  useEffect(() => {
+    if (!user) return;
+    if ((!window.globalPeopleCache || window.globalPeopleCache.length === 0) && !isFetchingRef.current) {
+      // background prefetch (no toast here; will show toast when user opens modal)
+      fetchAllPeople(false).catch(() => {});
+    }
+  }, [user, fetchAllPeople]);
 
   const searchPeople = useCallback((peopleList, searchValue, field = 'name') => {
     if (!searchValue.trim()) return peopleList;
@@ -444,32 +457,29 @@ export default function DailyTasks() {
 
  
   const handleRecipientInput = useCallback((value) => {
-   
-    setTaskData(prev => ({ 
-      ...prev, 
-      recipientDisplay: value, 
-      recipient: null 
-    }));
-
+    // immediate UI update
+    setTaskData(prev => ({ ...prev, recipientDisplay: value, recipient: null }));
+ 
+    // QUICK local feedback from whatever cache we already have (very fast)
     const localSource = (allPeople && allPeople.length > 0) ? allPeople : (window.globalPeopleCache || []);
     if (localSource && localSource.length > 0) {
       try {
         const quick = searchPeople(localSource, value, 'name');
         setSearchResults(quick.slice(0, 50));
       } catch (e) {
-        console.error("Quick local search failed:", e);
         setSearchResults([]);
       }
     } else {
       setSearchResults([]);
     }
-
+ 
+    // debounce background refinement/fetch
     if (fetchPeopleDebounceRef.current) clearTimeout(fetchPeopleDebounceRef.current);
     fetchPeopleDebounceRef.current = setTimeout(() => {
       fetchPeople(value);
-    }, 250);
+    }, RECIPIENT_DEBOUNCE);
   }, [allPeople, searchPeople, fetchPeople]);
-
+ 
   useEffect(() => {
     return () => {
       if (fetchPeopleDebounceRef.current) clearTimeout(fetchPeopleDebounceRef.current);
@@ -519,6 +529,12 @@ export default function DailyTasks() {
     setSearchResults([]);
     setAssignedResults([]);
     setSelectedTask({});
+    if ((!window.globalPeopleCache || window.globalPeopleCache.length === 0) && !isFetchingRef.current) {
+      toast.info("Loading people…", { toastId: PEOPLE_TOAST_ID, autoClose: false });
+      fetchAllPeople(false)
+        .then(() => toast.dismiss(PEOPLE_TOAST_ID))
+        .catch(() => toast.dismiss(PEOPLE_TOAST_ID));
+    }
   };
 
   const handleClose = () => {
@@ -880,20 +896,6 @@ export default function DailyTasks() {
     };
   }, [user]);
 
-  useEffect(() => {
-    if (!user) return;
-    
-    fetchUserTasks();
-    
-    const intervalId = setInterval(() => {
-      console.log("Auto-refreshing tasks...");
-      fetchUserTasks();
-    }, 30000); 
-    
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [user]);
 
   return (
     <div style={{
@@ -1456,15 +1458,14 @@ export default function DailyTasks() {
                     display: 'flex',
                     alignItems: 'center'
                   }}>
-                    <Loader2 
-                      size={16} 
-                      style={{ 
-                        animation: 'spin 1s linear infinite',
-                        color: isDarkMode ? '#aaa' : '#6b7280'
-                      }} 
-                    />
                   </div>
                 )}
+              {/* inline info when background fetch is in progress */}
+              {isLoadingPeople && (
+                <div style={{ marginTop: 6, fontSize: 12, color: isDarkMode ? '#aaa' : '#6b7280' }}>
+                  Loading people… results may be refined shortly.
+                </div>
+              )}
               </div>
               {searchResults.length > 0 && (
                 <ul style={{
