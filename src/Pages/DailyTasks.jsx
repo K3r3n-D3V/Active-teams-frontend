@@ -10,6 +10,7 @@ const CACHE_DURATION = 60 * 60 * 12 * 1000; // 5 minutes
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
+
   return (
     <div
       style={{
@@ -27,15 +28,18 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
         style={{
           backgroundColor: isDarkMode ? '#1e1e1e' : "white",
           color: isDarkMode ? '#fff' : '#1a1a24',
-          padding: "28px",
+          padding: "clamp(25px, 4vw, 32px)",           // responsive padding
           borderRadius: "16px",
-          maxWidth: "500px",
-          width: "90%",
+          width: "90%",                                 // base = mobile friendly
+          maxWidth: "clamp(200px, 85vw, 400px)",       // grows nicely up to ~960px
           maxHeight: "90vh",
           overflowY: "auto",
           position: "relative",
-          boxShadow: isDarkMode ? "0 8px 24px rgba(255,255,255,0.1)" : "0 8px 24px rgba(0,0,0,0.4)",
+          boxShadow: isDarkMode 
+            ? "0 12px 40px rgba(255,255,255,0.12)" 
+            : "0 12px 40px rgba(0,0,0,0.35)",
           border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+          marginLeft: "27px",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -46,7 +50,7 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
             right: "16px",
             background: "none",
             border: "none",
-            fontSize: "22px",
+            fontSize: "clamp(20px, 4vw, 28px)",
             cursor: "pointer",
             color: isDarkMode ? '#aaa' : '#6b7280',
             fontWeight: "bold",
@@ -56,7 +60,8 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
         >
           ×
         </button>
-        <div style={{ marginTop: "8px" }}>
+
+        <div style={{ marginTop: "clamp(8px, 2vw, 16px)" }}>
           {children}
         </div>
       </div>
@@ -1487,19 +1492,21 @@ useEffect(() => {
               isOpen={isModalOpen}
               onClose={handleClose}
               isDarkMode={isDarkMode}
-              contentStyle={{
-                width: "100%",
-                maxWidth: "900px",
-                padding: "20px",
-                borderRadius: "16px",
-                maxHeight: "85vh",
-                overflowY: "auto",
-                margin: "auto",
-                border: "1px solid red",
-              }}
+        contentStyle={{
+  width: "90%",
+  maxWidth: "900px",
+  maxHeight: "85vh",
+  overflowY: "auto",
+  padding: "20px",
+  borderRadius: "16px",
+  backgroundColor: isDarkMode ? "#1a1a1e" : "#ffffff",
+}}
+
+
+
             >
 
-        <form style={{ display: 'flex', flexDirection: 'column', gap: '16px',border: "1px solid red", }} onSubmit={handleSubmit}>
+        <form style={{ display: 'flex', flexDirection: 'column', gap: '16px', }} onSubmit={handleSubmit}>
           <h3 style={{
             fontSize: '20px',
             fontWeight: 'bold',
