@@ -2931,6 +2931,25 @@ useEffect(() => {
                   '& .MuiDataGrid-scrollbar--vertical': {
                     width: '8px !important',
                   },
+                  '& .MuiTablePagination-root .MuiTablePagination-selectLabel': {
+                    display: 'block !important',  
+                  },
+                  '& .MuiTablePagination-root .MuiTablePagination-select': {
+                    display: 'inline-flex !important',
+                  },
+
+                  //make the whole pagination more mobile-friendly
+                  '& .MuiTablePagination-root': {
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',     
+                    padding: '8px 4px',
+                    fontSize: '0.75rem',
+                  },
+
+                  '& .MuiTablePagination-select': {
+                    minWidth: 'auto !important',
+                    paddingRight: '20px !important', 
+                  },
                   ...(isSmDown && {
                     '& .MuiDataGrid-columnHeader': {
                       padding: '4px 2px',
