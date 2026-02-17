@@ -19,7 +19,6 @@ import {
   LinearProgress,
   TextField,
   InputAdornment,
-  debounce,
 } from "@mui/material";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import SearchIcon from "@mui/icons-material/Search";
@@ -1451,6 +1450,7 @@ ${xmlCols}
 
     const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
     const userEmail = currentUser?.email || "";
+    console.log("Current user email:", userEmail);
     const userName = currentUser?.name || "";
     const userFirstName =
       currentUser?.firstName || userName?.split(" ")[0] || "";
@@ -1493,7 +1493,6 @@ ${xmlCols}
       }
     } else {
       endpoint = `${BACKEND_URL}/events/eventsdata`;
-      // Remove cells-specific parameters
       delete params.personal;
       delete params.leader_at_12_view;
       delete params.include_subordinate_cells;
@@ -1508,8 +1507,8 @@ ${xmlCols}
   };
   const fetchEvents = useCallback(
     async (filters = {}, showLoader = true, isSearching = false) => {
-      console.log("🔍 fetchEvents called with filters:", filters);
-
+      console.log(" fetchEvents called with filters:", filters);
+      console.log("isSearching:", isSearching);
       if (showLoader) {
         setLoading(true);
         setIsLoading(true);
@@ -1541,9 +1540,6 @@ ${xmlCols}
         console.log("Received events:", data.events?.length || 0);
 
         const allEvents = data.events || [];
-
-        // IMPORTANT: For /events/other endpoint, let backend handle filtering
-        // The backend will return appropriate events based on role
         const filtered = allEvents;
 
         console.log("Final events to display:", filtered.length);
@@ -1552,7 +1548,7 @@ ${xmlCols}
         setTotalEvents(data.total_events || 0);
         setTotalPages(data.total_pages || 1);
       } catch (error) {
-        console.error("❌ Fetch error:", error);
+        console.error(" Fetch error:", error);
         setEvents([]);
         if (!error.message.includes("401")) {
           toast.error("Failed to load events");
@@ -1962,6 +1958,16 @@ ${xmlCols}
     const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
     const [searchQuery, setSearchQuery] = useState("");
 
+const filteredEventTypes = eventTypes.filter((type) => {
+  const typeName =
+    typeof type === "string" ? type : type.name || "";
+
+  return typeName
+    .toLowerCase()
+    .includes(searchQuery.toLowerCase());
+});
+
+
     const getEventTypeColor = (typeName) => {
       const colors = {
         "Global Events": "#007bff",
@@ -2068,11 +2074,6 @@ ${xmlCols}
         color: isDarkMode ? theme.palette.text.secondary : "#666",
       },
     };
-
-    // const filteredEventTypes = eventTypes.filter((type) => {
-    //   const typeName = typeof type === "string" ? type : type.name || type;
-    //   return typeName.toLowerCase().includes(searchQuery.toLowerCase());
-    // });
 
     return (
       <Box sx={styles.container}>
@@ -2281,7 +2282,7 @@ ${xmlCols}
 
     searchDebounceRef.current = setTimeout(() => {
       setDebouncedSearchTerm(searchQuery);
-    }, 300); // 300ms debounce
+    }, 300); 
 
     return () => {
       if (searchDebounceRef.current) {
@@ -3078,13 +3079,6 @@ ${xmlCols}
     ],
   );
 
-  // const handleSearchChange = useCallback((e) => {
-  //   const value = e.target.value;
-  //   setSearchQuery(value);
-  //   setIsSearching(true)
-  //   handleSearchSubmit(value)
-  // }, []);
-
   useEffect(() => {
     const checkAccess = async () => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -3321,18 +3315,16 @@ ${xmlCols}
   }, [customEventTypes]);
 
   useEffect(() => {
-    // Don't fetch if we haven't selected a type yet
     if (!selectedEventTypeFilter) {
       return;
     }
 
-    // Don't fetch if we're not in events view
     if (!showingEvents) {
-      console.log("🚫 Not showing events, skipping fetch");
+      console.log(" Not showing events, skipping fetch");
       return;
     }
 
-    console.log("📡 FETCHING EVENTS FOR:", selectedEventTypeFilter);
+    console.log(" FETCHING EVENTS FOR:", selectedEventTypeFilter);
 
     const fetchParams = {
       page: currentPage,
@@ -3393,7 +3385,6 @@ ${xmlCols}
     currentPage,
     rowsPerPage,
     selectedStatus,
-    // searchQuery,
     viewFilter,
     isAdmin,
     isRegistrant,
@@ -3775,10 +3766,6 @@ ${xmlCols}
     setCurrentPage,
     setSearchQuery,
     setShowingEvents,
-    rowsPerPage,
-    searchQuery,
-    viewFilter,
-    DEFAULT_API_START_DATE,
     setEditingEventType,
     setEventTypesModalOpen,
     setToDeleteType,
@@ -4635,7 +4622,7 @@ ${xmlCols}
                         isDarkMode ? theme.palette.divider : "#e9ecef"
                       }`,
                       px: 2,
-                      py: 1.5, // slightly more breathing room on mobile
+                      py: 1.5, 
                       flexDirection: isMobileView ? "column" : "row",
                       alignItems: isMobileView ? "stretch" : "center",
                       gap: isMobileView ? 1.5 : 2,
@@ -4702,7 +4689,7 @@ ${xmlCols}
                           ? theme.palette.text.secondary
                           : "#6c757d",
                         width: isMobileView ? "100%" : "auto",
-                        order: isMobileView ? -1 : "unset", // move to top on mobile
+                        order: isMobileView ? -1 : "unset", 
                         mb: isMobileView ? 0.5 : 0,
                       }}
                     >
@@ -4723,7 +4710,7 @@ ${xmlCols}
                     >
                       <Button
                         variant="outlined"
-                        size="medium" // bigger on mobile
+                        size="medium" 
                         onClick={handlePreviousPage}
                         disabled={currentPage === 1 || loading}
                         sx={{
