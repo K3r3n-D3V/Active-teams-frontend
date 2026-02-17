@@ -46,7 +46,6 @@ export default function AdminDashboard() {
   
   const [users, setUsers] = useState(globalUsersData || []);
   const [activityLog, setActivityLog] = useState([]);
-  const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -98,7 +97,14 @@ export default function AdminDashboard() {
   );
 
   const SkeletonStatsCard = () => (
-    <Card sx={{ height: '100%', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+    <Card
+    sx={{
+    height: "100%",
+    display: "flex",
+    flexDirection: "column"
+    }}
+   >
+
       <CardContent sx={{ textAlign: 'center', p: 1 }}>
         <Skeleton variant="circular" width={getResponsiveValue(40, 48, 56, 64, 64)} height={getResponsiveValue(40, 48, 56, 64, 64)} sx={{ mx: 'auto', mb: 1 }} />
         <Skeleton variant="text" width="60%" height={getResponsiveValue(32, 40, 48, 48, 56)} sx={{ mx: 'auto' }} />
@@ -246,7 +252,6 @@ export default function AdminDashboard() {
 
       if (response.ok) {
         addActivityLog('USER_CREATED', `Created new user: ${userData.name} ${userData.surname} (${userData.role})`);
-        setShowAddUserModal(false);
         
         globalDataLoaded = false;
         await fetchAllData(true);
@@ -500,14 +505,23 @@ const paginatedUsers = useMemo(() => {
   const shouldShowLoading = loading || (isRefreshingToken && !globalDataLoaded);
 
   if (shouldShowLoading) {
-    return (
-      <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-        <Skeleton 
-          variant="text" 
-          width="40%" 
-          height={getResponsiveValue(32, 40, 48, 56, 56)} 
-          sx={{ mx: 'auto', mb: cardSpacing }} 
-        />
+  return (
+    <Box
+      p={containerPadding}
+      sx={{
+        maxWidth: "1400px",
+        margin: "0 auto",
+
+        // real responsive top spacing
+        mt: {
+          xs: 10,
+          sm: 8,
+          md: 6
+        },
+
+        minHeight: "100vh"
+      }}
+    >
 
         <Grid container spacing={cardSpacing} mb={cardSpacing}>
           {Array.from({ length: 6 }).map((_, index) => (
@@ -552,8 +566,33 @@ const paginatedUsers = useMemo(() => {
     );
   }
 
+  const equalCardSizing = {
+  flex: 1,
+  width: "100%",
+  minHeight: 140,
+  display: "flex",
+  flexDirection: "column"
+};
+
+
   return (
-    <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
+  <Box
+    p={containerPadding}
+    sx={{
+      maxWidth: "1400px",
+      margin: "0 auto",
+
+      // real responsive spacing
+      mt: {
+        xs: 10,
+        sm: 8,
+        md: 6
+      },
+
+      minHeight: "100vh"
+    }}
+  >
+
       <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
         {[
           { label: 'Total Users', value: stats.totalUsers, icon: <People />, color: '#2196f3' },
@@ -564,7 +603,7 @@ const paginatedUsers = useMemo(() => {
           { label: 'Regular Users', value: stats.regularUsers, icon: <PersonIcon />, color: '#607d8b' }
         ].map((stat, index) => (
           <Grid item xs={6} sm={4} md={2} key={index}>
-            <Card sx={cardStyles}>
+            <Card sx={equalCardSizing}>
               <CardContent sx={{ textAlign: 'center', flexGrow: 1, p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
                 <Avatar sx={{ 
                   bgcolor: stat.color, 
@@ -804,7 +843,7 @@ const paginatedUsers = useMemo(() => {
               Admin → Leader → Leader at 12 → User → Registrant
             </Alert>
             
-            <Grid container spacing={cardSpacing}>
+            <Grid container spacing={2}>
               {roles.map((role, idx) => (
                 <Grid item xs={12} sm={6} md={3} key={idx}>
                   <Card sx={cardStyles}>
@@ -892,12 +931,6 @@ const paginatedUsers = useMemo(() => {
         )}
       </Paper>
 
-      <NewUserModal
-        open={showAddUserModal}
-        onClose={() => setShowAddUserModal(false)}
-        onUserCreated={handleCreateUser}
-        loading={creatingUser}
-      />
 
       <Dialog 
         open={showRoleModal} 
@@ -1023,23 +1056,7 @@ const paginatedUsers = useMemo(() => {
         </DialogActions>
       </Dialog>
 
-      <Fab
-        color="primary"
-        aria-label="add user"
-        onClick={() => setShowAddUserModal(true)}
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          boxShadow: 3,
-          '&:hover': {
-            boxShadow: 6
-          }
-        }}
-        size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-      >
-        <AddIcon />
-      </Fab>
+      
     </Box>
   );
 }
