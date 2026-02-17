@@ -46,7 +46,6 @@ export default function AdminDashboard() {
   
   const [users, setUsers] = useState(globalUsersData || []);
   const [activityLog, setActivityLog] = useState([]);
-  const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
@@ -98,8 +97,9 @@ export default function AdminDashboard() {
   );
 
   const SkeletonStatsCard = () => (
-    <Card sx={{ height: '100%', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-      <CardContent sx={{ textAlign: 'center', p: 1 }}>
+    <Card sx={cardStyles}>
+
+      <CardContent sx={{ textAlign: 'center', flexGrow: 1, p: 1 }}>
         <Skeleton variant="circular" width={getResponsiveValue(40, 48, 56, 64, 64)} height={getResponsiveValue(40, 48, 56, 64, 64)} sx={{ mx: 'auto', mb: 1 }} />
         <Skeleton variant="text" width="60%" height={getResponsiveValue(32, 40, 48, 48, 56)} sx={{ mx: 'auto' }} />
         <Skeleton variant="text" width="80%" height={20} sx={{ mx: 'auto' }} />
@@ -246,7 +246,6 @@ export default function AdminDashboard() {
 
       if (response.ok) {
         addActivityLog('USER_CREATED', `Created new user: ${userData.name} ${userData.surname} (${userData.role})`);
-        setShowAddUserModal(false);
         
         globalDataLoaded = false;
         await fetchAllData(true);
@@ -431,15 +430,23 @@ const paginatedUsers = useMemo(() => {
   }), [users]);
 
   const cardStyles = {
-    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-    transition: 'all 0.3s cubic-bezier(.25,.8,.25,1)',
-    '&:hover': {
-      boxShadow: '0 8px 24px rgba(0,0,0,0.15)'
+    width: {
+      xs: '27vw',
+      sm: '27vw',
+      md: '27vw',
+      lg: '12vw',
+      xl: '12vw'
     },
     height: '100%',
+    minHeight: 140,
     display: 'flex',
     flexDirection: 'column',
-    borderRadius: 2
+    boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+    transition: 'all 0.3s cubic-bezier(.25,.8,.25,1)',
+    borderRadius: 2,
+    '&:hover': {
+      boxShadow: '0 8px 24px rgba(0,0,0,0.15)'
+    }
   };
 
   const UserCard = ({ user }) => (
@@ -500,18 +507,27 @@ const paginatedUsers = useMemo(() => {
   const shouldShowLoading = loading || (isRefreshingToken && !globalDataLoaded);
 
   if (shouldShowLoading) {
-    return (
-      <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-        <Skeleton 
-          variant="text" 
-          width="40%" 
-          height={getResponsiveValue(32, 40, 48, 56, 56)} 
-          sx={{ mx: 'auto', mb: cardSpacing }} 
-        />
+  return (
+    <Box
+      p={containerPadding}
+      sx={{
+        maxWidth: "1400px",
+        margin: "0 auto",
+
+        // real responsive top spacing
+        mt: {
+          xs: 10,
+          sm: 8,
+          md: 6
+        },
+
+        minHeight: "100vh"
+      }}
+    >
 
         <Grid container spacing={cardSpacing} mb={cardSpacing}>
           {Array.from({ length: 6 }).map((_, index) => (
-            <Grid item xs={6} sm={4} md={2} key={index}>
+            <Grid item xs={6} sm={4} md={2} key={index} sx={{ display: 'flex' }}>
               <SkeletonStatsCard />
             </Grid>
           ))}
@@ -552,8 +568,27 @@ const paginatedUsers = useMemo(() => {
     );
   }
 
+
+
+
   return (
-    <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
+  <Box
+    p={containerPadding}
+    sx={{
+      maxWidth: "1400px",
+      margin: "0 auto",
+
+      // real responsive spacing
+      mt: {
+        xs: 10,
+        sm: 8,
+        md: 6
+      },
+
+      minHeight: "100vh"
+    }}
+  >
+
       <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
         {[
           { label: 'Total Users', value: stats.totalUsers, icon: <People />, color: '#2196f3' },
@@ -563,7 +598,7 @@ const paginatedUsers = useMemo(() => {
           { label: 'Registrants', value: stats.registrants, icon: <RegistrantIcon />, color: '#ff9800' },
           { label: 'Regular Users', value: stats.regularUsers, icon: <PersonIcon />, color: '#607d8b' }
         ].map((stat, index) => (
-          <Grid item xs={6} sm={4} md={2} key={index}>
+          <Grid item xs={6} sm={4} md={2} key={index} sx={{ display: 'flex' }}>
             <Card sx={cardStyles}>
               <CardContent sx={{ textAlign: 'center', flexGrow: 1, p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
                 <Avatar sx={{ 
@@ -804,9 +839,9 @@ const paginatedUsers = useMemo(() => {
               Admin → Leader → Leader at 12 → User → Registrant
             </Alert>
             
-            <Grid container spacing={cardSpacing}>
+            <Grid container spacing={2}>
               {roles.map((role, idx) => (
-                <Grid item xs={12} sm={6} md={3} key={idx}>
+                <Grid item xs={12} sm={6} md={3} key={idx} sx={{ display: 'flex' }}>
                   <Card sx={cardStyles}>
                     <CardContent sx={{ p: getResponsiveValue(2, 2, 3, 3, 3) }}>
                       <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
@@ -892,12 +927,6 @@ const paginatedUsers = useMemo(() => {
         )}
       </Paper>
 
-      <NewUserModal
-        open={showAddUserModal}
-        onClose={() => setShowAddUserModal(false)}
-        onUserCreated={handleCreateUser}
-        loading={creatingUser}
-      />
 
       <Dialog 
         open={showRoleModal} 
@@ -1023,23 +1052,7 @@ const paginatedUsers = useMemo(() => {
         </DialogActions>
       </Dialog>
 
-      <Fab
-        color="primary"
-        aria-label="add user"
-        onClick={() => setShowAddUserModal(true)}
-        sx={{
-          position: 'fixed',
-          bottom: 24,
-          right: 24,
-          boxShadow: 3,
-          '&:hover': {
-            boxShadow: 6
-          }
-        }}
-        size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-      >
-        <AddIcon />
-      </Fab>
+      
     </Box>
   );
 }
