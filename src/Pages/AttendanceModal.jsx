@@ -160,7 +160,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     setShowAddressDropdown(true);
 
     if (attemptedSubmit && value.trim() !== "") {
-      // no-op, but you can clear error UI if needed
     }
   };
 
@@ -173,14 +172,12 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
-  // Fetch people data when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchAllPeople();
     }
   }, [isOpen]);
 
-  // Function to fetch people 
   const fetchAllPeople = async () => {
     setIsLoadingPeople(true);
     try {
@@ -217,7 +214,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     }
   };
 
-  // Create people options
   const peopleOptions = useMemo(() => {
     return peopleList.map(person => {
       const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
@@ -635,7 +631,6 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
               <div style={{ fontWeight: '600', color: theme.palette.text.secondary }}>LEADER INFO</div>
             </div>
 
-            {/* Invited By Field - FIXED to match AddPersonDialog */}
             <div style={styles.inputGroup}>
               <label style={styles.label}>
                 Invited By
@@ -1270,7 +1265,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading,] = useState(false);
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
-  const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
@@ -1292,7 +1286,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [, setEventStatistics] = useState({
     totalAssociated: 0,
     lastAttendanceCount: 0,
-    lastHeadcount: 0,
     lastDecisionsCount: 0,
     lastAttendanceBreakdown: {
       first_time: 0,
@@ -1324,15 +1317,12 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       let firstTimeCount = 0;
       let recommitmentCount = 0;
       let attendeesCount = 0;
-      let headcount = 0;
       let totalAssociated = 0;
 
-      if (event.checked_in_count !== undefined || event.total_headcounts !== undefined) {
+      if (event.checked_in_count !== undefined) {
         attendeesCount = event.checked_in_count || 0;
-        headcount = event.total_headcounts || 0;
         totalAssociated = event.total_associated || persistentCommonAttendees.length || 0;
 
-        // Get decisions if available
         if (event.decisions) {
           firstTimeCount = event.decisions.first_time || 0;
           recommitmentCount = event.decisions.recommitment || 0;
@@ -1341,7 +1331,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         if (event.attendees && Array.isArray(event.attendees)) {
           weekAttendance.attendees = event.attendees;
 
-          // Count decisions from attendees
           event.attendees.forEach(att => {
             const decision = (att.decision || "").toLowerCase();
             if (decision.includes("first")) {
@@ -1355,12 +1344,10 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         weekAttendance = {
           status: "complete",
           attendees: event.attendees || [],
-          total_headcounts: headcount,
           checked_in_count: attendeesCount,
           statistics: {
             total_associated: totalAssociated,
             weekly_attendance: attendeesCount,
-            total_headcounts: headcount,
             decisions: {
               first_time: firstTimeCount,
               recommitment: recommitmentCount,
@@ -1374,16 +1361,13 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
         if (weekAttendance.statistics) {
           attendeesCount = weekAttendance.statistics.weekly_attendance || 0;
-          headcount = weekAttendance.statistics.total_headcounts || 0;
           firstTimeCount = weekAttendance.statistics.decisions?.first_time || 0;
           recommitmentCount = weekAttendance.statistics.decisions?.recommitment || 0;
           totalAssociated = weekAttendance.statistics.total_associated || persistentCommonAttendees.length;
         } else {
           attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
-          headcount = weekAttendance.total_headcounts || 0;
           totalAssociated = persistentCommonAttendees.length;
 
-          // Count decisions from attendees
           if (weekAttendance.attendees) {
             weekAttendance.attendees.forEach(att => {
               const decision = (att.decision || "").toLowerCase();
@@ -1411,7 +1395,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           for (const key of possibleKeys) {
             const data = attendanceData[key];
 
-            if (data && (data.status === "complete" || data.attendees || data.total_headcounts)) {
+            if (data && (data.status === "complete" || data.attendees)) {
               const entryDate = data.event_date_iso || data.event_date_exact;
 
               if (entryDate === eventDate || key === eventDate || eventDate.includes(key) || key.includes(eventDate)) {
@@ -1423,16 +1407,13 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           }
         }
 
-        // Extract statistics from weekAttendance
         if (weekAttendance.status === "complete") {
           const stats = weekAttendance.statistics || {};
           attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
-          headcount = weekAttendance.total_headcounts || 0;
           firstTimeCount = stats.decisions?.first_time || 0;
           recommitmentCount = stats.decisions?.recommitment || 0;
           totalAssociated = stats.total_associated || persistentCommonAttendees.length;
 
-          // If statistics not available, count from attendees
           if (firstTimeCount === 0 && recommitmentCount === 0 && weekAttendance.attendees) {
             weekAttendance.attendees.forEach(att => {
               const decision = (att.decision || "").toLowerCase();
@@ -1444,37 +1425,27 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
             });
           }
         } else {
-          // No completed data found
+
           totalAssociated = persistentCommonAttendees.length;
         }
       }
 
       console.log("Final statistics:", {
         attendeesCount,
-        headcount,
         firstTimeCount,
         recommitmentCount,
         totalAssociated
       });
 
-      // Update event statistics state
       setEventStatistics({
         totalAssociated: totalAssociated,
         lastAttendanceCount: attendeesCount,
-        lastHeadcount: headcount,
         lastDecisionsCount: firstTimeCount + recommitmentCount,
         lastAttendanceBreakdown: {
           first_time: firstTimeCount,
           recommitment: recommitmentCount
         }
       });
-
-      // Update manual headcount
-      if (headcount > 0) {
-        setManualHeadcount(headcount.toString());
-      } else {
-        setManualHeadcount("0");
-      }
 
       window.__lastLoadedAttendance = weekAttendance;
 
@@ -1486,19 +1457,16 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const loadWeeklyCheckins = () => {
     if (!event) {
       setCheckedIn({});
-      setManualHeadcount("0");
       setDidNotMeet(false);
       return;
     }
 
-    // Reset all states
     setCheckedIn({});
     setDecisions({});
     setDecisionTypes({});
     setPriceTiers({});
     setPaymentMethods({});
     setPaidAmounts({});
-    setManualHeadcount("0");
     setDidNotMeet(false);
 
     if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
@@ -1523,10 +1491,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       setDecisions(newDecisions);
       setDecisionTypes(newDecisionTypes);
 
-      if (event.total_headcounts) {
-        setManualHeadcount(event.total_headcounts.toString());
-      }
-
       return;
     }
 
@@ -1550,10 +1514,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       setCheckedIn(newCheckedIn);
       setDecisions(newDecisions);
       setDecisionTypes(newDecisionTypes);
-
-      if (event.attendance_data.total_headcounts) {
-        setManualHeadcount(event.attendance_data.total_headcounts.toString());
-      }
 
       return;
     }
@@ -1624,7 +1584,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           }
         });
 
-        console.log("👥 Setting", attendees.length, "checkins");
+        console.log( attendees.length, "checkins");
         setCheckedIn(newCheckedIn);
         setDecisions(newDecisions);
         setDecisionTypes(newDecisionTypes);
@@ -1633,11 +1593,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         setPaidAmounts(newPaidAmounts);
       }
 
-      const headcount = weekAttendance.total_headcounts || 0;
-      setManualHeadcount(headcount.toString());
-
     } else {
-      console.log("No checkins to load");
+      console.log("No Check-ins to load");
     }
   };
   const loadPersistentAttendees = async (eventId) => {
@@ -1730,7 +1687,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       }
       console.log(" Opening modal for event:", eventId, "Date:", event.date);
 
-      // Reset all form states
       setSearchName("");
       setAssociateSearch("");
       setActiveTab(0);
@@ -1740,26 +1696,21 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       setPriceTiers({});
       setPaymentMethods({});
       setPaidAmounts({});
-      setManualHeadcount("0");
       setDidNotMeet(false);
 
       const loadAllData = async () => {
         console.log(" Loading all data...");
 
-        // Load persistent attendees first
         await loadPersistentAttendees(eventId);
 
-        // Then load statistics
         await loadEventStatistics();
 
-        // Finally load check-ins
         loadWeeklyCheckins();
       };
 
       loadAllData();
       fetchPeople();
 
-      // Set "did not meet" status only if this week is marked as such
       const attendanceData = event.attendance || {};
       const eventDate = event.date;
       const weekAttendance = attendanceData[eventDate] || {};
@@ -2066,7 +2017,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const saveAllAttendeesToDatabase = async (attendees) => {
     if (!event) return false;
 
-    // Get clean event ID
     let eventId = event._id || event.id;
     if (eventId && eventId.includes("_")) {
       eventId = eventId.split("_")[0];
@@ -2105,7 +2055,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
 
     if (isAlreadyAdded) {
-      // In associate tab, we don't remove - just show a message
       toast.info(`${person.fullName} is already in attendees list`);
       return;
     } else {
@@ -2128,7 +2077,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         return newState;
       });
 
-      // Remove from decisions if exists
       setDecisions(prev => {
         const newState = { ...prev };
         delete newState[personId];
@@ -2141,7 +2089,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         return newState;
       });
 
-      // Remove from ticketed event states if exists
       if (isTicketedEvent) {
         setPriceTiers(prev => {
           const newState = { ...prev };
@@ -2162,10 +2109,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         });
       }
 
-      // Update state
       setPersistentCommonAttendees(updatedAttendees);
 
-      // Save to database
       const success = await saveAllAttendeesToDatabase(updatedAttendees);
 
       if (success) {
@@ -2273,15 +2218,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const handleSave = async () => {
     const allPeople = getAllCommonAttendees();
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    // Get manual headcount from input
-    const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
-    console.log("Did not meet state:", didNotMeet);
-    console.log(" Attendees checked in:", attendeesList.length);
-    console.log(" Manual headcount:", finalHeadcount);
-    console.log(" Decisions count:", decisionsCount);
-
-    // Get clean event ID
     let eventId = event?.id || event?._id;
     if (eventId && eventId.includes("_")) {
       const parts = eventId.split("_");
@@ -2331,7 +2268,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
       console.log("[SAVE] Final selected attendees:", selectedAttendees.length, selectedAttendees);
 
-      const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
+      const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0;
 
       console.log(" Should mark as 'Did Not Meet'?", shouldMarkAsDidNotMeet);
       console.log("Reason - didNotMeet:", didNotMeet);
@@ -2352,7 +2289,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         did_not_meet: shouldMarkAsDidNotMeet,
         isTicketed: isTicketedEvent,
         week: get_current_week_identifier(),
-        headcount: finalHeadcount
+        
       };
 
       let result;
@@ -2440,7 +2377,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         })
         .filter(att => att !== null);
 
-      // If no attendees checked in but event is marked as "Did Not Meet"
       if (checkedInAttendees.length === 0 && didNotMeet) {
         const emptyRow = [{
           'Event Name': event?.eventName || 'N/A',
@@ -2461,52 +2397,8 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
           })
         }];
 
-        // Add headcount if any
-        if (manualHeadcount && parseInt(manualHeadcount) > 0) {
-          emptyRow.push({
-            'Event Name': event?.eventName || 'N/A',
-            'Event Date': event?.date || 'N/A',
-            'Name': `Manual Headcount: ${manualHeadcount}`,
-            'Email': '',
-            'Leader @12': '',
-            'Leader @144': '',
-            'Phone': '',
-            'Decision': '',
-            'Status': 'Did Not Meet',
-            ...(isTicketedEvent && {
-              'Price Tier': 'N/A',
-              'Price': 'N/A',
-              'Payment Method': 'N/A',
-              'Paid': 'N/A',
-              'Owing': 'N/A'
-            })
-          });
-        }
-
         buildXlsFromRows(emptyRow, `attendance_${(event?.eventName || 'event').replace(/\s/g, '_')}_${didNotMeet ? 'did_not_meet' : 'complete'}`);
         return;
-      }
-
-      // Add headcount info if manual headcount > checked-in count
-      if (manualHeadcount && parseInt(manualHeadcount) > checkedInAttendees.length) {
-        checkedInAttendees.push({
-          'Event Name': event?.eventName || 'N/A',
-          'Event Date': event?.date || 'N/A',
-          'Name': `Additional Headcount (not checked in): ${parseInt(manualHeadcount) - checkedInAttendees.length}`,
-          'Email': '',
-          'Leader @12': '',
-          'Leader @144': '',
-          'Phone': '',
-          'Decision': '',
-          'Status': didNotMeet ? 'Did Not Meet' : 'Complete',
-          ...(isTicketedEvent && {
-            'Price Tier': 'N/A',
-            'Price': 'N/A',
-            'Payment Method': 'N/A',
-            'Paid': 'N/A',
-            'Owing': 'N/A'
-          })
-        });
       }
 
       if (checkedInAttendees.length === 0) {
@@ -2514,7 +2406,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
         return;
       }
 
-      // Build and download the XLS file
       buildXlsFromRows(
         checkedInAttendees,
         `attendance_${(event?.eventName || 'event').replace(/\s/g, '_')}_${didNotMeet ? 'did_not_meet' : 'complete'}`
@@ -2528,7 +2419,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     }
   };
 
-  // Add this helper function after downloadAttendanceData
   const buildXlsFromRows = (rows, fileBaseName = "export") => {
     if (!rows || rows.length === 0) {
       toast.info("No data to export");
@@ -2623,7 +2513,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
     setDidNotMeet(true);
     setCheckedIn({});
     setDecisions({});
-    setManualHeadcount("");
     setPriceTiers({});
     setPaymentMethods({});
     setPaidAmounts({});
@@ -2700,7 +2589,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const handlePersonAdded = (newPerson) => {
     console.log(" New person added:", newPerson);
 
-    // Clear caches and reload fresh people from DB
     clearGlobalPeopleCache();
     loadPreloadedPeople(true);
     fetchPeople();
@@ -3091,7 +2979,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       width: "100%",
     },
     tableContainer: {
-      // overflowX: "auto",
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
       paddingBottom: 8,
@@ -3264,19 +3151,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       alignItems: "center",
       justifyContent: "center",
       minWidth: 120,
-    },
-    headcountInput: {
-      fontSize: "clamp(20px, 3.5vw, 32px)",
-      fontWeight: 700,
-      color: theme.palette.info.main,
-      marginBottom: 8,
-      border: "none",
-      borderRadius: 8,
-      padding: "4px 12px",
-      width: 100,
-      textAlign: "center",
-      background: "transparent",
-      outline: "none",
     },
     statNumber: {
       fontSize: "clamp(20px, 3.5vw, 32px)",
@@ -3766,28 +3640,14 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
                   <div style={styles.statBox}>
                     <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
-                      {/* Show current week's checked-in count only */}
                       {Object.keys(checkedIn).filter(id => checkedIn[id]).length}
                     </div>
                     <div style={styles.statLabel}>Attendees</div>
                   </div>
 
-                  <div style={styles.statBoxInput}>
-                    <input
-                      type="number"
-                      value={manualHeadcount}
-                      onChange={(e) => setManualHeadcount(e.target.value)}
-                      placeholder="0"
-                      style={styles.headcountInput}
-                      min="0"
-                    />
-                    <div style={styles.statLabel}>Total Headcounts</div>
-                  </div>
-
                   {!isTicketedEvent && (
                     <div style={styles.statBox}>
                       <div style={{ ...styles.statNumber, color: "#ffc107" }}>
-                        {/* Show current week's decisions*/}
                         {Object.keys(decisions).filter(id => decisions[id]).length}
                       </div>
                       <div style={styles.statLabel}>Decisions</div>

@@ -485,7 +485,6 @@ export const PeopleSection = () => {
       });
     }
 
-    // Location: match addressLower
     if (field === 'location') {
       const matches = peopleList.filter(p => (p.addressLower || "").includes(q));
       return matches.sort((a, b) => {
@@ -494,56 +493,41 @@ export const PeopleSection = () => {
         return aIdx - bIdx;
       });
     }
-
-    // Stage: exact-ish match
     if (field === 'stage') {
       return peopleList.filter(p => (p.Stage || "").toLowerCase().includes(q));
     }
-
-    // NAME search with intelligent ranking
     const tokens = q.split(/\s+/).filter(Boolean);
     
     const matches = peopleList.filter(p => {
       const full = p.fullNameLower || '';
-      // All tokens must be present
       return tokens.every(tok => full.includes(tok));
     });
 
-    // Scoring: prioritize exact matches, then starts-with, then contains
     const scoreFor = (p) => {
       const full = p.fullNameLower || '';
       const name = (p.name || '').toLowerCase();
       const surname = (p.surname || '').toLowerCase();
       
-      // Exact full name match = highest priority
       if (full === q) return 0;
       
-      // Full name starts with query
       if (full.startsWith(q)) return 1;
       
-      // First name exact match
       if (name === q) return 2;
       
-      // Surname exact match
       if (surname === q) return 3;
       
-      // First name starts with query
       if (name.startsWith(q)) return 4;
       
-      // Surname starts with query
       if (surname.startsWith(q)) return 5;
       
-      // All tokens match from start of either name
       const allTokensStartMatch = tokens.every(tok => 
         name.startsWith(tok) || surname.startsWith(tok)
       );
       if (allTokensStartMatch) return 6;
       
-      // Check if query matches beginning of full name with tokens
       const firstTokenIdx = full.indexOf(tokens[0]);
       if (firstTokenIdx === 0) return 7;
       
-      // Contains all tokens
       return 10;
     };
 
@@ -553,7 +537,6 @@ export const PeopleSection = () => {
       
       if (scoreA !== scoreB) return scoreA - scoreB;
       
-      // If same score, sort alphabetically
       return (a.fullNameLower || '').localeCompare(b.fullNameLower || '');
     });
     
@@ -573,27 +556,21 @@ export const PeopleSection = () => {
     });
   }, [currentUserName]);
 
-  // Use debounced search term with optimized filtering
+
   const filteredPeople = useMemo(() => {
     let result = allPeople;
 
-    // Apply "My People" filter first
     if (viewFilter === 'myPeople') {
       result = filterMyPeople(result);
     }
-
-    // Apply stage filter
     if (stageFilter !== 'all') {
       result = result.filter(p => 
         (p.Stage || '').trim().toLowerCase() === stageFilter.toLowerCase()
       );
     }
-
-    // Apply search filter
     if (debouncedSearchTerm.trim()) {
       result = searchPeople(result, debouncedSearchTerm, searchField);
     }
-
     return result;
   }, [allPeople, debouncedSearchTerm, searchField, viewFilter, stageFilter, searchPeople, filterMyPeople]);
 
@@ -612,11 +589,9 @@ export const PeopleSection = () => {
     return Math.ceil(filteredPeople.length / ITEMS_PER_PAGE);
   }, [filteredPeople.length, viewMode, debouncedSearchTerm]);
 
-  // Calculate stage counts (memoized for performance)
   const stageCounts = useMemo(() => {
     let baseList = allPeople;
     
-    // Apply "My People" filter to counts if active
     if (viewFilter === 'myPeople') {
       baseList = filterMyPeople(baseList);
     }
@@ -630,15 +605,13 @@ export const PeopleSection = () => {
     };
   }, [allPeople, viewFilter, filterMyPeople]);
 
-  // Initial load - use cache first, then refresh in background
   useEffect(() => {
     if (window.globalPeopleCache && allPeople.length === 0) {
       setAllPeople(window.globalPeopleCache);
     }
 
-    // Always fetch in background to keep data fresh
     fetchAllPeople(false);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); 
 
   useEffect(() => {
     setGridPage(1);
@@ -775,7 +748,6 @@ export const PeopleSection = () => {
 
   const isSearchingNow = debouncedSearchTerm.trim().length > 0;
 
-  // Responsive helper function
   const getResponsiveValue = (xs, sm, md, lg, xl) => {
     if (theme.breakpoints.values.xl && window.innerWidth >= theme.breakpoints.values.xl) return xl;
     if (theme.breakpoints.values.lg && window.innerWidth >= theme.breakpoints.values.lg) return lg;
@@ -784,7 +756,6 @@ export const PeopleSection = () => {
     return xs;
   };
 
-  const containerPadding = getResponsiveValue(1, 2, 3, 3, 3);
   const cardSpacing = getResponsiveValue(1.5, 2, 2.5, 3, 3);
 
   return (
@@ -801,37 +772,45 @@ export const PeopleSection = () => {
             { id: 'Disciple', label: 'Disciple', value: stageCounts.Disciple, icon: <DiscipleIcon />, color: '#9c27b0' },
             { id: 'Send', label: 'Send', value: stageCounts.Send, icon: <SendIcon />, color: '#f44336' }
           ].map((stat) => (
-            <Grid item xs={6} sm={4} md={2.4} key={stat.id}>
+            <Grid item xss={6} sm={4} md={2.4} key={stat.id}>
               <Card 
                 sx={{ 
+                  width: '100%',
+                  height: 200,                    
+                  display: 'flex',
+                  flexDirection: 'column',
+                  justifyContent: 'center',
+                  alignItems: 'center',
                   cursor: 'pointer',
-                  transition: 'all 0.3s ease',
+                  transition: 'transform 0.25s ease, box-shadow 0.25s ease',
                   border: stageFilter === stat.id ? `3px solid ${stat.color}` : '1px solid',
                   borderColor: stageFilter === stat.id ? stat.color : 'divider',
-                  transform: stageFilter === stat.id ? 'scale(1.05)' : 'scale(1)',
-                  boxShadow: stageFilter === stat.id ? 4 : 1,
+                  transform: stageFilter === stat.id ? 'scale(1.03)' : 'scale(1)',
+                  boxShadow: stageFilter === stat.id ? 6 : 2,
                   '&:hover': {
-                    transform: 'scale(1.05)',
-                    boxShadow: 4
+                    transform: 'scale(1.03)',
+                    boxShadow: 6
                   }
                 }}
                 onClick={() => setStageFilter(stat.id)}
               >
-                <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+                <CardContent sx={{ textAlign: 'center', p: 2, width: '100%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
                   <Avatar sx={{ 
                     bgcolor: stat.color, 
-                    width: getResponsiveValue(40, 48, 56, 64, 64), 
-                    height: getResponsiveValue(40, 48, 56, 64, 64), 
-                    mb: 2, 
-                    mx: 'auto', 
-                    boxShadow: 2 
+                    width: 56, 
+                    height: 56, 
+                    mb: 1, 
+                    boxShadow: 2,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
                   }}>
                     {stat.icon}
                   </Avatar>
-                  <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight="bold" color="text.primary">
+                  <Typography variant="h5" fontWeight={700} color="blue" sx={{ lineHeight: 1 }}>
                     {stat.value}
                   </Typography>
-                  <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color="text.secondary" sx={{ mt: 1 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 0 }}>
                     {stat.label}
                   </Typography>
                 </CardContent>
