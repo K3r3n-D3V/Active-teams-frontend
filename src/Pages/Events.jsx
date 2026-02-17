@@ -1521,74 +1521,6 @@ ${xmlCols}
           window.location.href = "/login";
           return;
         }
-
-        // const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
-        // const userEmail = currentUser?.email || "";
-        // const userName = currentUser?.name || "";
-        // const userFirstName = currentUser?.firstName || userName?.split(' ')[0] || "";
-        // const userSurname = currentUser?.surname || userName?.split(' ').slice(1).join(' ') || "";
-
-        // const intialParams = {
-        //   page: filters.page || currentPage,
-        //   limit: filters.limit || rowsPerPage,
-        //   start_date: filters.start_date || DEFAULT_API_START_DATE,
-        //   status: filters.status || selectedStatus || "incomplete",
-        // };
-
-        // if (filters.search) intialParams.search = filters.search;
-        // if (filters.event_type) {
-        //   intialParams.event_type = filters.event_type;
-        // }
-
-        // let endpoint = `${BACKEND_URL}/events`;
-
-        // const eventType = filters.event_type || selectedEventTypeFilter;
-        // const isCellType =
-        //   !eventType ||
-        //   eventType === "CELLS" ||
-        //   eventType === "all" ||
-        //   eventType.toLowerCase() === "cells" ||
-        //   (eventType && eventType.toLowerCase().includes("cell"));
-
-        // if (isCellType) {
-        //   endpoint = `${BACKEND_URL}/events/cells`;
-
-        //   // CRITICAL: Always send name parameters for leader at 12
-        //   params.firstName = userFirstName;
-        //   params.userSurname = userSurname;
-
-        //   if (isLeaderAt12) {
-        //     params.leader_at_12_view = true;
-        //     params.isLeaderAt12 = true;
-
-        //     if (viewFilter === "personal") {
-        //       params.personal = true;
-        //       params.show_personal_cells = true;
-        //     } else {
-        //       // For "DISCIPLES" view
-        //       params.include_subordinate_cells = true;
-        //       params.show_all_authorized = true;
-        //     }
-        //   } else if (isAdmin) {
-        //     if (viewFilter === "personal") params.personal = true;
-        //   } else {
-        //     // For regular users, registrants, leaders - show personal cells only
-        //     params.personal = true;
-        //   }
-        // } else {
-        //   endpoint = `${BACKEND_URL}/events/other`;
-        //   // Remove cells-specific parameters
-        //   delete params.personal;
-        //   delete params.leader_at_12_view;
-        //   delete params.include_subordinate_cells;
-        //   delete params.show_personal_cells;
-        //   delete params.show_all_authorized;
-        //   delete params.leader_at_1_identifier;
-        //   delete params.isLeaderAt12;
-        //   delete params.firstName;
-        //   delete params.userSurname;
-        // }
-
         const [params, endpoint] = fetchEventsFilters(filters);
 
         const queryString = new URLSearchParams(params).toString();
@@ -2234,38 +2166,15 @@ ${xmlCols}
     setSearchQuery("");
     setIsSearching(false);
     setTotalEvents(events.length||0)
-    // setFilterOptions({
-    //   leader: "",
-    //   day: "all",
-    //   eventType: "all",
-    // });
-    // setActiveFilters({});
-    // setSelectedEventTypeFilter("all");
-    // setSelectedStatus("incomplete");
-    // setCurrentPage(1);
-
-    // const shouldApplyPersonalFilter =
-    //   viewFilter === "personal" &&
-    //   (userRole === "admin" || userRole === "leader at 12");
-
-    // fetchEvents(
-    //   {
-    //     page: 1,
-    //     limit: rowsPerPage,
-    //     personal: shouldApplyPersonalFilter,
-    //     start_date: DEFAULT_API_START_DATE,
-    //   },
-    //   true,
-    // );
+ 
   }, [viewFilter, userRole, fetchEvents, rowsPerPage, DEFAULT_API_START_DATE]);
 
-  const [allCurrentEvents, setAllCurrentEvents] = useState([]); //all events fetched for current filters, used for searching
+  const [allCurrentEvents, setAllCurrentEvents] = useState([]); 
   const [isSearching, setIsSearching] = useState(null);
 
   const fetchAllCurrentEvents = useCallback(async () => {
     console.log("clicked! ");
     try {
-      // if (isSearching) return; // Prevent multiple simultaneous fetches
       let shouldApplyPersonalFilter = undefined;
       if (userRole === "admin" || userRole === "leader at 12") {
         shouldApplyPersonalFilter =
