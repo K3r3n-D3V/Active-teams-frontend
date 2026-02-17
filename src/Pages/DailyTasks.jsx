@@ -31,7 +31,7 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
           padding: "clamp(25px, 4vw, 32px)",           // responsive padding
           borderRadius: "16px",
           width: "90%",                                 // base = mobile friendly
-          maxWidth: "clamp(200px, 85vw, 400px)",       // grows nicely up to ~960px
+          maxWidth: "clamp(200px, 85vw, 500px)",       // grows nicely up to ~960px
           maxHeight: "90vh",
           overflowY: "auto",
           position: "relative",
@@ -39,7 +39,7 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
             ? "0 12px 40px rgba(255,255,255,0.12)" 
             : "0 12px 40px rgba(0,0,0,0.35)",
           border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-          marginLeft: "27px",
+          marginLeft: "200px",
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -1621,7 +1621,7 @@ console.log("All available taskTypes:", taskTypes.map(t => ({
     lineHeight: "1",
   }}
 >
-  ;
+  :
 </button>
 
         {/* Popup menu */}
