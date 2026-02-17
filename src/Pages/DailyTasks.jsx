@@ -983,7 +983,8 @@ useEffect(() => {
             justifyContent: 'center', 
             gap: '12px', 
             marginTop: '24px', 
-            flexWrap: 'wrap' 
+            flexWrap: 'wrap', 
+          
           }}>
             <button
               style={{
@@ -999,7 +1000,7 @@ useEffect(() => {
                 border: 'none',
                 cursor: 'pointer',
                 fontSize: '14px',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                boxShadow: isDarkMode ? '0 2px 8px rgba(18, 163, 37, 0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
                 width: '140px',
                 minHeight: '44px'
               }}
@@ -1444,17 +1445,30 @@ useEffect(() => {
 )}
 
 
+            <Modal
+              isOpen={isModalOpen}
+              onClose={handleClose}
+              isDarkMode={isDarkMode}
+              contentStyle={{
+                width: "100%",
+                maxWidth: "900px",
+                padding: "20px",
+                borderRadius: "16px",
+                maxHeight: "85vh",
+                overflowY: "auto",
+                margin: "auto",
+                border: "1px solid red",
+              }}
+            >
 
-    
-
-      <Modal isOpen={isModalOpen} onClose={handleClose} isDarkMode={isDarkMode}>
-        <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={handleSubmit}>
+        <form style={{ display: 'flex', flexDirection: 'column', gap: '16px',border: "1px solid red", }} onSubmit={handleSubmit}>
           <h3 style={{
             fontSize: '20px',
             fontWeight: 'bold',
             color: isDarkMode ? '#fff' : '#1a1a24',
             margin: 0,
-            textAlign: 'center'
+            textAlign: 'center',
+            
           }}>
             {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
               ? "Consolidation Task"
@@ -1463,42 +1477,42 @@ useEffect(() => {
           </h3>
 
          <div>
-  <label style={{
-    display: 'block',
-    fontSize: '13px',
-    fontWeight: '600',
-    color: isDarkMode ? '#fff' : '#1a1a24',
-    marginBottom: '6px'
-  }}>
-    Task Type
-  </label>
-  
-<div style={{ color: "orange", fontSize: "13px", margin: "8px 0" }}>
-  
-</div>
+        <label style={{
+          display: 'block',
+          fontSize: '13px',
+          fontWeight: '600',
+          color: isDarkMode ? '#fff' : '#1a1a24',
+          marginBottom: '6px'
+        }}>
+          Task Type
+        </label>
+        
+      <div style={{ color: "orange", fontSize: "13px", margin: "8px 0" }}>
+        
+      </div>
 
-  <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-    <select
-      name="taskType"
-      value={taskData.taskType}
-      onChange={handleChange}
-      required
-      style={{
-        flex: 1,
-        padding: '10px 12px',
-        borderRadius: '10px',
-        border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-        fontSize: '14px',
-        backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-        color: isDarkMode ? '#fff' : '#1a1a24',
-        outline: 'none',
-      }}
-    >
-      <option value="">Select a task type</option>
-      {taskTypes.map((opt) => (
-        <option key={opt._id || opt.id} value={opt._id || opt.id}>
-  {opt.name}
-</option>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <select
+            name="taskType"
+            value={taskData.taskType}
+            onChange={handleChange}
+            required
+            style={{
+              flex: 1,
+              padding: '10px 12px',
+              borderRadius: '10px',
+              border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+              fontSize: '14px',
+              backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
+              color: isDarkMode ? '#fff' : '#1a1a24',
+              outline: 'none',
+            }}
+          >
+            <option value="">Select a task type</option>
+            {taskTypes.map((opt) => (
+              <option key={opt._id || opt.id} value={opt._id || opt.id}>
+        {opt.name}
+      </option>
 
       ))}
     </select>
@@ -1925,6 +1939,7 @@ console.log("All available taskTypes:", taskTypes.map(t => ({
             </button>
           </div>
         </form>
+        
       </Modal>
 
 {isAddTypeModalOpen && (
@@ -2028,5 +2043,8 @@ console.log("All available taskTypes:", taskTypes.map(t => ({
         theme={isDarkMode ? "dark" : "light"}
       />
     </div>
+  
+ 
+   
   );
 }
