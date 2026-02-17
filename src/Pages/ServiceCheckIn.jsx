@@ -347,6 +347,7 @@ const [contextMenu, setContextMenu] = useState({
               surname: p.Surname || "",
               email: p.Email || "",
               phone: p.Number || "",
+              number: p.Number || "", 
               leader1: p["Leader @1"] || "",
               leader12: p["Leader @12"] || "",
               leader144: p["Leader @144"] || "",
@@ -1041,6 +1042,7 @@ const handleCloseContextMenu = () => {
           }),
         }
       );
+      // a comment just
 
       if (response.ok) {
         const data = await response.json();
@@ -1167,7 +1169,7 @@ const handleFinishConsolidation = async (task) => {
 
     setIsClosingEvent(true);
     try {
-      const response = await authFetch(`${BASE_URL}/events/${currentEventId}/close`, {
+      const response = await authFetch(`${BASE_URL}/events/${currentEventId}/toggle-status`, {
         method: "PATCH",
       });
 
@@ -1225,6 +1227,41 @@ const handleFinishConsolidation = async (task) => {
       setIsClosingEvent(false);
     }
   };
+
+const handleUnsaveEvent = async (event) => {
+  try {
+    console.log("Calling API to unsave event:", event.eventName);
+    
+    const response = await authFetch(
+      `${BASE_URL}/events/${event.id || event._id}/toggle-status`,
+      { method: "PATCH" }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (result.success) {
+      toast.success(`Event "${event.eventName}" has been reopened!`);
+      
+      // Update events list
+      setEvents(prev => prev.map(ev =>
+        (ev.id === event.id || ev._id === event._id)
+          ? { ...ev, status: "incomplete" }
+          : ev
+      ));
+
+      // Refresh events
+      setTimeout(() => fetchEvents(true), 500);
+    }
+  } catch (error) {
+    console.error("Error:", error);
+    toast.error(error.message || "Failed to reopen event");
+  }
+};
 
   const handleConsolidationClick = () => {
     if (!currentEventId) {
@@ -2894,6 +2931,25 @@ useEffect(() => {
                   '& .MuiDataGrid-scrollbar--vertical': {
                     width: '8px !important',
                   },
+                  '& .MuiTablePagination-root .MuiTablePagination-selectLabel': {
+                    display: 'block !important',  
+                  },
+                  '& .MuiTablePagination-root .MuiTablePagination-select': {
+                    display: 'inline-flex !important',
+                  },
+
+                  //make the whole pagination more mobile-friendly
+                  '& .MuiTablePagination-root': {
+                    flexWrap: 'wrap',
+                    justifyContent: 'center',     
+                    padding: '8px 4px',
+                    fontSize: '0.75rem',
+                  },
+
+                  '& .MuiTablePagination-select': {
+                    minWidth: 'auto !important',
+                    paddingRight: '20px !important', 
+                  },
                   ...(isSmDown && {
                     '& .MuiDataGrid-columnHeader': {
                       padding: '4px 2px',
@@ -2926,6 +2982,7 @@ useEffect(() => {
               onViewDetails={handleViewEventDetails}
               onViewNewPeople={handleViewNewPeople}
               onViewConverts={handleViewConsolidated}
+              onUnsaveEvent={handleUnsaveEvent}
               events={getFilteredClosedEvents()}
               searchTerm={eventSearch}
               isLoading={isLoadingEvents}
@@ -3030,8 +3087,8 @@ useEffect(() => {
                         ...a,
                         name: a.name || fullPersonData.name || 'Unknown',
                         surname: a.surname || fullPersonData.surname || '',
-
-                        phone: a.phone || fullPersonData.phone || '',
+                        phone: a.phone || a.number || fullPersonData.phone || fullPersonData.number || '',
+                        number: a.phone || a.number || fullPersonData.phone || fullPersonData.number || '',
                         email: a.email || fullPersonData.email || '',
 
                         leader1: a.leader1 || fullPersonData.leader1 || '',
