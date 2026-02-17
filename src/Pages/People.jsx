@@ -807,7 +807,7 @@ export const PeopleSection = () => {
                   }}>
                     {stat.icon}
                   </Avatar>
-                  <Typography variant="h5" fontWeight={700} color="blue" sx={{ lineHeight: 1 }}>
+                  <Typography variant="h5" fontWeight={700} color="text.primary" sx={{ lineHeight: 1 }}>
                     {stat.value}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 0 }}>
