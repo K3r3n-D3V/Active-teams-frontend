@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useState,useCallback,useRef } from "react";
+import { useContext, useEffect, useState,useCallback,useRef } from "react";
 import { Phone, UserPlus, Plus, Loader2 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
@@ -62,10 +62,9 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 }
 
 export default function DailyTasks() {
-  // shared cache across pages - use window to avoid ReferenceError when other files expect it
   if (!window.globalPeopleCache) window.globalPeopleCache = [];
   if (!window.globalCacheTimestamp) window.globalCacheTimestamp = 0;
-  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+  const CACHE_DURATION = 30 * 60 * 1000; 
 
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
@@ -211,14 +210,13 @@ export default function DailyTasks() {
   const fetchUserTasks = async () => {
     if (!user?.email) return;
     
-    // Add an abort controller to cancel the request if component unmounts
     const controller = new AbortController();
     const signal = controller.signal;
     
     try {
       setLoading(true);
       const res = await authFetch(`${API_URL}/tasks?user_email=${user.email}`, {
-        signal // Add signal to the request
+        signal
       });
       
       if (!res.ok) throw new Error("Failed to fetch tasks");
@@ -227,7 +225,6 @@ export default function DailyTasks() {
       const tasksArray = Array.isArray(data) ? data : data.tasks || [];
       
 
-      // Debug logging
       console.log("=== DEBUG: Tasks from API ===");
       tasksArray.forEach((task, index) => {
         console.log(`Task ${index + 1}:`, {
@@ -248,18 +245,14 @@ export default function DailyTasks() {
       const normalizedTasks = tasksArray.map((task) => {
         const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
 
-        // Determine what to show as assignedTo
         let assignedTo = "";
 
         if (isConsolidation) {
-          // For consolidation tasks: use leader name, NOT email
-          // Check all possible leader name fields
           assignedTo = task.leader_name ||
             task.leader_assigned ||
             task.assigned_to ||
             `${user.name || ""} ${user.surname || ""}`.trim();
 
-          // Debug logging for consolidation tasks
           if (isConsolidation) {
             console.log(`Consolidation task ${task._id}:`, {
               leader_name: task.leader_name,
@@ -270,12 +263,10 @@ export default function DailyTasks() {
             });
           }
 
-          // If we still have an email (not a name), show placeholder
           if (assignedTo.includes('@')) {
             assignedTo = "Consolidation Leader";
           }
         } else {
-          // For regular tasks
           assignedTo = task.name || task.assignedfor || "";
         }
 
@@ -286,7 +277,6 @@ export default function DailyTasks() {
           status: (task.status || "Open").toLowerCase(),
           taskName: task.name || task.taskName,
           type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
-          // Ensure all consolidation fields are preserved
           leader_name: task.leader_name || task.leader_assigned,
           leader_assigned: task.leader_assigned,
           consolidation_name: task.consolidation_name ||
@@ -300,32 +290,26 @@ export default function DailyTasks() {
 
       setTasks(normalizedTasks);
     } catch (err) {
-      // Only update state if it's not an abort error
       if (err.name !== 'AbortError') {
         console.error("Error fetching user tasks:", err.message);
         toast.error(err.message);
       }
     } finally {
-      // Only update loading state if not aborted
       if (!signal.aborted) {
         setLoading(false);
       }
     }
     
-    // Return the cleanup function
     return () => controller.abort();
   };
 
-  // Fetch all people with caching and in-flight promise handling
   const fetchAllPeople = useCallback(async (forceRefresh = false) => {
     const now = Date.now();
     if (!forceRefresh && window.globalPeopleCache && window.globalCacheTimestamp && (now - window.globalCacheTimestamp < CACHE_DURATION)) {
-      // ensure state is in sync
       setAllPeople(window.globalPeopleCache);
       return window.globalPeopleCache;
     }
 
-    // If a fetch is already in progress, await the same promise
     if (isFetchingRef.current) {
       if (peopleFetchPromiseRef.current) {
         try {
@@ -371,7 +355,6 @@ export default function DailyTasks() {
     return await peopleFetchPromiseRef.current;
   }, [API_URL, authFetch]);
 
-  // Optimized search function for multiple fields
   const searchPeople = useCallback((peopleList, searchValue, field = 'name') => {
     if (!searchValue.trim()) return peopleList;
 
@@ -394,7 +377,6 @@ export default function DailyTasks() {
     });
   }, []);
 
-  // Fetch people with instant local search then background refinement
   const fetchPeople = useCallback(async (q) => {
     if (!q || !q.trim()) {
       setSearchResults([]);
@@ -405,7 +387,6 @@ export default function DailyTasks() {
     const query = q.trim();
     setIsSearching(true);
 
-    // 1) Quick local pass: use whatever is already available (state or global cache)
     const localSource = (allPeople && allPeople.length > 0) ? allPeople : (window.globalPeopleCache || []);
     if (localSource && localSource.length > 0) {
       try {
@@ -416,11 +397,9 @@ export default function DailyTasks() {
         setSearchResults([]);
       }
     } else {
-      // no local data yet — show empty while fetch proceeds
       setSearchResults([]);
     }
 
-    // 2) Ensure fresh data: wait for fetch (if in-flight this will await it)
     try {
       const people = await fetchAllPeople(false);
       const finalResults = searchPeople(people || [], query, 'name');
@@ -428,13 +407,11 @@ export default function DailyTasks() {
       console.log(`Search results for "${q}":`, finalResults);
     } catch (err) {
       console.error("Error searching people:", err);
-      // keep quick results if any
     } finally {
       setIsSearching(false);
     }
   }, [allPeople, searchPeople, fetchAllPeople]);
 
-  // Fetch assigned people (for "Assigned To" field)
   const fetchAssigned = useCallback(async (q) => {
     if (!q || !q.trim()) {
       setAssignedResults([]);
@@ -443,7 +420,6 @@ export default function DailyTasks() {
 
     const query = q.trim();
 
-    // Quick local pass
     const localSource = (allPeople && allPeople.length > 0) ? allPeople : (window.globalPeopleCache || []);
     if (localSource && localSource.length > 0) {
       try {
@@ -457,7 +433,6 @@ export default function DailyTasks() {
       setAssignedResults([]);
     }
 
-    // Ensure fresh data
     try {
       const people = await fetchAllPeople(false);
       const finalResults = searchPeople(people || [], query, 'name');
@@ -467,16 +442,15 @@ export default function DailyTasks() {
     }
   }, [allPeople, searchPeople, fetchAllPeople]);
 
-  // debounced handler used by the Recipient input so typing feels immediate but heavy work is throttled
+ 
   const handleRecipientInput = useCallback((value) => {
-    // update input state immediately - clear recipient object when typing
+   
     setTaskData(prev => ({ 
       ...prev, 
       recipientDisplay: value, 
-      recipient: null // Clear recipient until selection is made
+      recipient: null 
     }));
 
-    // QUICK local feedback from whatever cache we already have (very fast)
     const localSource = (allPeople && allPeople.length > 0) ? allPeople : (window.globalPeopleCache || []);
     if (localSource && localSource.length > 0) {
       try {
@@ -490,15 +464,12 @@ export default function DailyTasks() {
       setSearchResults([]);
     }
 
-    // debounce the heavier background refinement/fetch to avoid spamming the network / CPU
     if (fetchPeopleDebounceRef.current) clearTimeout(fetchPeopleDebounceRef.current);
     fetchPeopleDebounceRef.current = setTimeout(() => {
-      // call the existing fetchPeople which will do background fetch/refinement
       fetchPeople(value);
     }, 250);
   }, [allPeople, searchPeople, fetchPeople]);
 
-  // cleanup debounce on unmount
   useEffect(() => {
     return () => {
       if (fetchPeopleDebounceRef.current) clearTimeout(fetchPeopleDebounceRef.current);
@@ -570,7 +541,6 @@ export default function DailyTasks() {
         selectedTask?.is_consolidation_task;
 
       if (isConsolidationTask) {
-        // Preserve the original leader assignment
         updatedData.name = selectedTask.leader_name || selectedTask.name;
         updatedData.leader_name = selectedTask.leader_name;
         updatedData.leader_assigned = selectedTask.leader_assigned;
@@ -889,16 +859,13 @@ export default function DailyTasks() {
     setTotalCount(count);
   }, [filteredTasks]);
 
-  // Listen for task update events
   useEffect(() => {
     if (!user) return;
     
     const handleTaskUpdated = (event) => {
       console.log("Task updated event received:", event.detail);
-      // Force immediate refresh
       fetchUserTasks();
       
-      // Optional: Show a toast notification for specific actions
       if (event.detail?.action === 'tasksDeleted') {
         toast.info(`${event.detail.count} task(s) removed`);
       } else if (event.detail?.action === 'consolidationCreated') {
@@ -906,27 +873,22 @@ export default function DailyTasks() {
       }
     };
 
-    // Add the event listener
     window.addEventListener('taskUpdated', handleTaskUpdated);
     
-    // Cleanup function to remove the event listener
     return () => {
       window.removeEventListener('taskUpdated', handleTaskUpdated);
     };
   }, [user]);
 
-  // Auto-refresh tasks every 30 seconds
   useEffect(() => {
     if (!user) return;
     
-    // Initial fetch
     fetchUserTasks();
     
-    // Set up interval to refresh every 30 seconds
     const intervalId = setInterval(() => {
       console.log("Auto-refreshing tasks...");
       fetchUserTasks();
-    }, 30000); // 30 seconds
+    }, 30000); 
     
     return () => {
       clearInterval(intervalId);
@@ -1176,17 +1138,12 @@ export default function DailyTasks() {
             </p>
           ) : (
             filteredTasks.map((task) => {
-              // Get the recipient name
               const recipientName = task.contacted_person?.name || "";
 
-              // Determine if it's a consolidation task
               const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
 
-              // Get the assigned/leader name EXACTLY as shown in modal
-              // This should match what's in task.assignedTo
               const assignedDisplay = task.assignedTo || "";
 
-               // Get the source display
               const sourceDisplay = task.source_display || "Manual";
               
             return (
