@@ -1425,7 +1425,6 @@ const handleSubmit = async (e) => {
                   overflowY: 'auto',
                   mt: 0.5,
                 }}>
-               // In the dropdown rendering section, update the onClick handler:
 
 {peopleData.map((person) => (
   <Box
