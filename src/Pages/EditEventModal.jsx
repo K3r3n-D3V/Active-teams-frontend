@@ -179,6 +179,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
     setFormData(prev => ({ ...prev, [field]: value }));
   };
+  console.log("SCOPE",editScope, contextFilter)
 
   const handleDeactivateCell = async () => {
     try {
@@ -193,37 +194,13 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       if (deactivationReason) {
         params.append('reason', deactivationReason);
       }
-
-      // Determine the deactivation scope
-      if (editScope === 'single' || !isCellEvent) {
-        // Deactivate specific cell by EXACT cell name
-        const cellName = formData.eventName || formData['Event Name'];
-
-        // For OLD format cells: "Cynthia Bebel - Die Fakkel High School - School cell - Thursday"
-        // For NEW format cells: "Gia Home Cell"
-        params.append('cell_identifier', cellName);
-        params.append('person_name', originalPersonIdentifier);
-
-        if (originalContext.day) {
-          params.append('day_of_week', originalContext.day);
-        }
-      } else {
-        // Person scope
-        if (contextFilter === 'all') {
-          params.append('cell_identifier', originalPersonIdentifier);
-        } else if (contextFilter === 'day' && originalContext.day) {
-          params.append('cell_identifier', originalPersonIdentifier);
-          params.append('day_of_week', originalContext.day);
-        } else if (contextFilter === 'eventName' && originalContext.eventName) {
-          // Deactivate by EXACT cell name
-          params.append('cell_identifier', originalContext.eventName);
-          params.append('person_name', originalPersonIdentifier);
-        }
-      }
+      params.append('person_name', originalPersonIdentifier);
+      params.append('cell_identifier', originalContext.eventName);
+     
 
       console.log("Calling endpoint with:", params.toString());
 
-      const response = await fetch(`${BACKEND_URL}/cells/deactivate?${params.toString()}`, {
+      const response = await fetch(`${BACKEND_URL}/events/deactivate?${params.toString()}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${userToken}`
@@ -256,13 +233,15 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         deactivation_end: result.deactivation_end,
         deactivation_reason: deactivationReason
       }));
+      handleSubmit(null,true)
 
       // Close and reset
       setDeactivationDialogOpen(false);
       setDeactivationReason('');
       setDeactivationWeeks(2);
 
-      if (refreshEvents) refreshEvents();
+      if (refreshEvents) await refreshEvents(); //
+
 
     } catch (error) {
       console.error('Deactivation error:', error);
@@ -452,11 +431,11 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   };
 
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e, isDeactivating = false) => {
     try {
       setLoading(true);
 
-      if (changedFields.length === 0) {
+      if (changedFields.length === 0 && !isDeactivating) {
         toast.info("No changes made");
         onClose();
         return;
