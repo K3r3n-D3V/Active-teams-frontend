@@ -1272,9 +1272,14 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
-  const isTicketedEvent = event?.isTicketed || true;
+  const isTicketedEvent = event?.isTicketed || false;
   const eventPriceTiers = event?.priceTiers || [];
   const theme = useTheme();
+
+  // ADD THESE:
+console.log("Event isTicketed:", event?.isTicketed);
+console.log("Event priceTiers:", event?.priceTiers);
+console.log("Full event object:", event);
 
   const isDarkMode = theme.palette.mode === "dark";
   const decisionOptions = [

@@ -2200,10 +2200,18 @@ const EventTypesList = ({ eventTypes, selectedEventTypeFilter, onSelectEventType
     }
   }, [currentPage, isLoading]);
 
-  const handleCaptureClick = useCallback((event) => {
+  const handleCaptureClick = useCallback(async (event) => {
+  try {
+    const fullEvent = await fetchEventFull(event);
+    console.log("Full event for attendance:", fullEvent);
+    setSelectedEvent(fullEvent);
+    setAttendanceModalOpen(true);
+  } catch (err) {
+    console.error("Failed to fetch full event:", err);
     setSelectedEvent(event);
     setAttendanceModalOpen(true);
-  }, []);
+  }
+}, [fetchEventFull]);
 
   const handleCloseCreateEventModal = useCallback(
     (shouldRefresh = false) => {
