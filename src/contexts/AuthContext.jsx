@@ -422,6 +422,35 @@ export const AuthProvider = ({ children }) => {
     persistLeadersData(leadersData, leaderStatus);
   };
 
+  // Role sync
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      const response = await authFetch(`${BACKEND_URL}/me`);
+      if (response.ok) {
+        const freshUser = await response.json();
+        setUser(prev => {
+          if (!prev || prev.role !== freshUser.role) {
+            console.log(`Role updated: ${prev?.role} → ${freshUser.role}`);
+            const updated = ensureUserWithAvatar({ ...prev, ...freshUser });
+            persistUser(updated);
+            return updated;
+          }
+          return prev;
+        });
+      }
+    } catch (err) {
+      console.error('Role sync failed:', err);
+    }
+  }, [authFetch]);
+
+  // Poll every 30 seconds while logged in
+  useEffect(() => {
+    if (!user?.id) return;
+    fetchCurrentUser();
+    const interval = setInterval(fetchCurrentUser, 1_000);
+    return () => clearInterval(interval);
+  }, [user?.id, fetchCurrentUser]);
+
   const requestPasswordReset = async (email) => {
     try {
       const res = await fetch(`${BACKEND_URL}/forgot-password`, {
