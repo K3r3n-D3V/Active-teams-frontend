@@ -424,6 +424,9 @@ export const AuthProvider = ({ children }) => {
 
   // Role sync
   const fetchCurrentUser = useCallback(async () => {
+    // Don't poll if not authenticated
+    if (!localStorage.getItem('access_token')) return;
+    
     try {
       const response = await authFetch(`${BACKEND_URL}/me`);
       if (response.ok) {
@@ -439,17 +442,18 @@ export const AuthProvider = ({ children }) => {
         });
       }
     } catch (err) {
+      // Silently fail - don't throw, don't logout
       console.error('Role sync failed:', err);
     }
   }, [authFetch]);
-
-  // Poll every 30 seconds while logged in
+  
   useEffect(() => {
-    if (!user?.id) return;
-    fetchCurrentUser();
+    // Only poll when actually logged in
+    if (!user?.id || !isAuthenticated) return;
+  
     const interval = setInterval(fetchCurrentUser, 1_000);
-    return () => clearInterval(interval);
-  }, [user?.id, fetchCurrentUser]);
+    return () => clearInterval(interval);  
+  }, [user?.id, isAuthenticated, fetchCurrentUser]); 
 
   const requestPasswordReset = async (email) => {
     try {
