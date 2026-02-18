@@ -41,6 +41,9 @@ import {
   Tab,
   Container,
   CircularProgress,
+  Autocomplete,          
+  InputAdornment,    
+  Popper,    
 } from "@mui/material";
 import Collapse from "@mui/material/Collapse";
 import ExpandMore from "@mui/icons-material/ExpandMore";
@@ -114,6 +117,7 @@ const StatsDashboard = () => {
     time: "19:00",
     description: "",
     isRecurring: false,
+    recurringDays: [],
   });
   const [snackbar, setSnackbar] = useState({
     open: false,
@@ -607,7 +611,106 @@ const isOverdue = useCallback((cell) => {
     }
   };
 
+// ── Location (Geoapify) ──
+const [locationOptions, setLocationOptions] = useState([]);
+const [locationLoading, setLocationLoading] = useState(false);
 
+useEffect(() => {
+  const query = (newEventData.location || "").trim();
+  if (query.length < 2) {
+    setLocationOptions([]);
+    return;
+  }
+
+  const timer = setTimeout(async () => {
+    setLocationLoading(true);
+    try {
+      const apiKey = import.meta.env.VITE_GEOAPIFY_API_KEY;
+      if (!apiKey) throw new Error("Missing Geoapify API key in .env");
+
+      const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&limit=8&filter=countrycode:za&lang=en&apiKey=${apiKey}`;
+      console.log("→ Fetching Geoapify:", url);
+
+      const res = await fetch(url);
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`Geoapify HTTP ${res.status}: ${errText}`);
+      }
+
+      const data = await res.json();
+      console.log("← Geoapify full response:", data);
+
+      const features = data.features || data.results || []; // Geoapify uses "features"
+      if (features.length === 0) {
+        console.warn("No features returned from Geoapify");
+      }
+
+      const options = features.map((feature) => {
+        const props = feature.properties || {};
+        return {
+          label: props.formatted || "No address found",
+          formatted: props.formatted || "",
+          suburb: props.suburb || props.neighbourhood || props.district || "",
+          city: props.city || props.town || props.village || props.county || "",
+          // Bonus: store coordinates if you want to show map pin later
+          lat: feature.geometry?.coordinates?.[1],
+          lon: feature.geometry?.coordinates?.[0],
+        };
+      });
+
+      console.log("Mapped options:", options);
+      setLocationOptions(options);
+    } catch (err) {
+      console.error("Geoapify fetch failed:", err);
+      setLocationOptions([]);
+      toast.error("Couldn't load location suggestions. Check your internet or API key.");
+    } finally {
+      setLocationLoading(false);
+    }
+  }, 400);
+
+  return () => clearTimeout(timer);
+}, [newEventData.location]);
+
+// ── Event Leader (people search) ──
+const [peopleData, setPeopleData] = useState([]);
+const [allPeopleCache, setAllPeopleCache] = useState([]);
+
+useEffect(() => {
+  // Cache all people once
+  const fetchAll = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${BACKEND_URL}/people?perPage=0`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const formatted = (data?.results || []).map(p => ({
+          id: p._id,
+          fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+          email: p.Email || "",
+        }));
+        setAllPeopleCache(formatted);
+      }
+    } catch (err) {
+      console.error("People cache failed:", err);
+    }
+  };
+  fetchAll();
+}, []);
+
+const fetchPeople = (query) => {
+  if (!query.trim()) {
+    setPeopleData([]);
+    return;
+  }
+  const q = query.toLowerCase().trim();
+  const filtered = allPeopleCache.filter(p => 
+    p.fullName.toLowerCase().includes(q)
+  );
+  setPeopleData(filtered.slice(0, 10));
+};
   
   useEffect(() => {
     const fetchEventTypes = async () => {
@@ -733,6 +836,7 @@ useEffect(() => {
         eventLeaderEmail: newEventData.eventLeaderEmail || user.email || null,
         isRecurring: newEventData.isRecurring,
         status: "incomplete",
+        recurringDays: newEventData.isRecurring ? newEventData.recurringDays : [],
         created_at: new Date().toISOString(),
       };
 
@@ -758,6 +862,7 @@ useEffect(() => {
         time: "19:00",
         description: "",
         isRecurring: false,
+        recurringDays: [],
       });
 
       setSnackbar({
@@ -1153,6 +1258,37 @@ useEffect(() => {
   }
 
   const eventsOnSelectedDate = getEventsForDate(selectedDate);
+
+// Helper to make Autocomplete dropdown match the input width exactly
+// Improved Popper: force bottom placement, no flip, high z-index
+const SameWidthPopper = (props) => {
+  const { anchorEl } = props;
+  const width = anchorEl?.getBoundingClientRect?.()?.width || 'auto';
+
+  return (
+    <Popper
+      {...props}
+      placement="bottom-start"           // force it to open downward
+      modifiers={[
+        {
+          name: 'flip',
+          enabled: false,                 // prevent flipping to top
+        },
+        {
+          name: 'preventOverflow',
+          enabled: true,
+          options: {
+            boundary: 'viewport',         // respect viewport edges
+          },
+        },
+      ]}
+      style={{
+        zIndex: 9999,                     // very high to show over everything
+        width,
+      }}
+    />
+  );
+};
 
   return (
     <Container
@@ -1862,62 +1998,428 @@ useEffect(() => {
 <Dialog
   open={createEventModalOpen}
   onClose={() => setCreateEventModalOpen(false)}
-  maxWidth="sm" // Increased size for better layout
+  maxWidth="sm"
   fullWidth
-  PaperProps={{ 
-    sx: { 
-      borderRadius: 3, 
-      boxShadow: 24,
-      height: isXsDown ? '100%' : '90vh', // Better height management
-      maxHeight: '90vh'
-    } 
-  }}
   fullScreen={isXsDown}
+  PaperProps={{
+    sx: {
+      borderRadius: { xs: 0, sm: 2 },
+      boxShadow: 24,
+      bgcolor: '#0f0f0f',
+      color: '#e0e0e0',
+      overflow: 'auto',
+      overflowY: 'auto',         
+      maxHeight: '90vh',
+    }
+  }}
 >
-  <DialogTitle sx={{ 
-    background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-    color: 'white',
-    p: 3,
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center'
-  }}>
-    <Box display="flex" alignItems="center" gap={1.5}>
-      <Box component="span" sx={{ fontSize: 28, }}>
-        Create New Event
-      </Box>
-      <Box>
-        <Typography variant="caption" sx={{ opacity: 0.9 }}>
-          {formatDisplayDate(selectedDate)}
-        </Typography>
-      </Box>
-    </Box>
-    <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: 'white' }}>
-      <Close />
+  {/* Title */}
+  <DialogTitle
+    sx={{
+      bgcolor: '#000000',
+      color: '#ffffff',
+      p: 2.5,
+      fontSize: '1.1rem',
+      fontWeight: 600,
+      borderBottom: '1px solid #222',
+      position: 'relative',
+    }}
+  >
+    Create New Event
+    <IconButton
+      onClick={() => setCreateEventModalOpen(false)}
+      sx={{
+        position: 'absolute',
+        right: 8,
+        top: 8,
+        color: '#aaa',
+        '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.08)' },
+      }}
+    >
+      <Close fontSize="small" />
     </IconButton>
   </DialogTitle>
 
-  <DialogContent dividers sx={{ p: 0, overflow: 'hidden' }}>
-    <Box sx={{ height: '100%', overflow: 'auto' }}>
-      <CreateEvents
-        user={JSON.parse(localStorage.getItem('userProfile') || '{}')}
-        isModal={true}
-        onClose={(success) => {
-          if (success) {
-            // Refresh data after successful creation
-            fetchStats(true);
-            fetchOverdueCells(true);
-          }
-          setCreateEventModalOpen(false);
-        }}
-        eventTypes={eventTypes}
-        selectedEventType={newEventData.eventTypeName}
-        selectedEventTypeObj={eventTypes.find(et => et.name === newEventData.eventTypeName)}
-      />
-    </Box>
-  </DialogContent>
-</Dialog>
+  <DialogContent sx={{ p: 3, bgcolor: '#0f0f0f' }}>
+    <Stack spacing={3}>
+      {/* ── Event Type ── */}
+      <Box>
+        <Typography variant="caption" sx={{ color: '#888', mb: 0.5, display: 'block' }}>
+          Event Type *
+        </Typography>
+        <FormControl fullWidth>
+          <Select
+            value={newEventData.eventTypeName || ""}
+            onChange={(e) => setNewEventData(p => ({ ...p, eventTypeName: e.target.value }))}
+            displayEmpty
+            sx={{
+              bgcolor: '#1a1a1a',
+              color: '#fff',
+              borderRadius: 1,
+              fontSize: '0.95rem',
+              '& .MuiSelect-select': { py: 1.1, px: 1.6 },
+              '& fieldset': { borderColor: '#444' },
+              '&:hover fieldset': { borderColor: '#666' },
+              '&.Mui-focused fieldset': { borderColor: '#3b82f6', borderWidth: 1.5 },
+            }}
+          >
+            {eventTypesLoading ? (
+              <MenuItem disabled>Loading...</MenuItem>
+            ) : (
+              eventTypes
+                .filter(type => {
+                  const n = (type.name || '').toLowerCase();
+                  return !n.includes('ticket') && !n.includes('ticketed');
+                })
+                .map(type => (
+                  <MenuItem key={type._id || type.name} value={type.name}>
+                    {type.name}
+                  </MenuItem>
+                ))
+            )}
+          </Select>
+        </FormControl>
+      </Box>
 
+      {/* ── Event Name ── */}
+      <Box>
+        <Typography variant="caption" sx={{ color: '#888', mb: 0.5, display: 'block' }}>
+          Event Name *
+        </Typography>
+        <TextField
+          value={newEventData.eventName}
+          onChange={e => setNewEventData(p => ({ ...p, eventName: e.target.value }))}
+          fullWidth
+          variant="outlined"
+          autoFocus
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              bgcolor: '#1a1a1a',
+              color: '#fff',
+              borderRadius: 1,
+              fontSize: '0.95rem',
+              '& fieldset': { borderColor: '#444' },
+              '&:hover fieldset': { borderColor: '#666' },
+              '&.Mui-focused fieldset': { borderColor: '#3b82f6', borderWidth: 1.5 },
+            },
+            '& .MuiInputBase-input': { py: 1.1, px: 1.6 },
+          }}
+        />
+      </Box>
+
+      {/* ── Date & Time ── */}
+      <Grid container spacing={2}>
+        <Grid item xs={7}>
+          <Box>
+            <Typography variant="caption" sx={{ color: '#888', mb: 0.5, display: 'block' }}>
+              Date *
+            </Typography>
+            <TextField
+              type="date"
+              value={newEventData.date || selectedDate}
+              onChange={e => setNewEventData(p => ({ ...p, date: e.target.value }))}
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: '#1a1a1a',
+                  color: '#fff',
+                  borderRadius: 1,
+                  fontSize: '0.95rem',
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
+                },
+              }}
+            />
+          </Box>
+        </Grid>
+        <Grid item xs={5}>
+          <Box>
+            <Typography variant="caption" sx={{ color: '#888', mb: 0.5, display: 'block' }}>
+              Time *
+            </Typography>
+            <TextField
+              type="time"
+              value={newEventData.time || "19:00"}
+              onChange={e => setNewEventData(p => ({ ...p, time: e.target.value }))}
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: '#1a1a1a',
+                  color: '#fff',
+                  borderRadius: 1,
+                  fontSize: '0.95rem',
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
+                },
+              }}
+            />
+          </Box>
+        </Grid>
+      </Grid>
+
+      {/* ── Recurring ── */}
+      {/* ── Recurring ── */}
+      <Box>
+        <Typography variant="caption" sx={{ color: '#888', mb: 0.8, display: 'block', fontWeight: 500 }}>
+          Is Recurring?
+        </Typography>
+        <FormControlLabel
+          control={
+            <Checkbox
+              checked={newEventData.isRecurring}
+              onChange={(e) => setNewEventData(prev => ({ ...prev, isRecurring: e.target.checked }))}
+              size="small"
+              sx={{
+                color: '#888',
+                '&.Mui-checked': { color: '#3b82f6' },
+                padding: '4px',
+              }}
+            />
+          }
+          label={<Typography sx={{ color: '#ddd', fontSize: '0.92rem' }}>Yes</Typography>}
+          sx={{ ml: -0.5, mb: 1.5 }}
+        />
+
+        {newEventData.isRecurring && (
+          <Box sx={{ mt: 1.5 }}>
+            <Typography variant="caption" sx={{ color: '#888', mb: 1.2, display: 'block', fontWeight: 500 }}>
+              Recurring Days
+            </Typography>
+            <Grid container spacing={1} columns={{ xs: 4, sm: 7 }}>
+              {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map((day) => (
+                <Grid item xs={2} sm={1} key={day}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        size="small"
+                        checked={newEventData.recurringDays?.includes(day) || false}
+                        onChange={() => {
+                          setNewEventData((prev) => {
+                            const currentDays = prev.recurringDays || [];
+                            const updatedDays = currentDays.includes(day)
+                              ? currentDays.filter((d) => d !== day)
+                              : [...currentDays, day];
+                            return { ...prev, recurringDays: updatedDays };
+                          });
+                        }}
+                        sx={{
+                          color: '#888',
+                          '&.Mui-checked': { color: '#3b82f6' },
+                          padding: '4px 6px',
+                        }}
+                      />
+                    }
+                    label={<Typography sx={{ fontSize: '0.81rem', color: '#ccc' }}>{day}</Typography>}
+                    sx={{ m: 0 }}
+                  />
+                </Grid>
+              ))}
+            </Grid>
+          </Box>
+        )}
+      </Box>
+
+      {/* ── LOCATION AUTOCOMPLETE (Geoapify) ── */}
+     <Box>
+  <Typography variant="caption" sx={{ color: '#888', mb: 0.5, display: 'block' }}>
+    Location *
+  </Typography>
+  <Autocomplete
+    freeSolo
+    fullWidth
+    options={locationOptions}
+    getOptionLabel={(option) =>
+      typeof option === 'string' ? option : option.label || option.formatted || ""
+    }
+    value={newEventData.location}
+    inputValue={newEventData.location}
+    onInputChange={(e, newValue) => {
+      setNewEventData(p => ({ ...p, location: newValue }));
+    }}
+    onChange={(e, newValue) => {
+      const val = typeof newValue === 'string' ? newValue : newValue?.formatted || newValue?.label || '';
+      setNewEventData(p => ({ ...p, location: val }));
+    }}
+    loading={locationLoading}
+    renderInput={(params) => (
+      <TextField
+        {...params}
+        placeholder="Start typing a South African location..."
+        fullWidth
+        sx={{
+          '& .MuiOutlinedInput-root': {
+            bgcolor: '#1a1a1a',
+            color: '#fff',
+            borderRadius: 1,
+            fontSize: '0.95rem',
+            '& fieldset': { borderColor: '#444' },
+            '&:hover fieldset': { borderColor: '#666' },
+            '&.Mui-focused fieldset': { borderColor: '#3b82f6', borderWidth: 1.5 },
+          },
+          '& .MuiInputBase-input': { py: 1.1, px: 1.6 },
+        }}
+        InputProps={{
+          ...params.InputProps,
+          startAdornment: (
+            <InputAdornment position="start">
+              <Box component="span" sx={{ color: '#888', fontSize: '1.2rem' }}>📍</Box>
+            </InputAdornment>
+          ),
+          endAdornment: (
+            <>
+              {locationLoading ? <CircularProgress color="inherit" size={18} /> : null}
+              {params.InputProps.endAdornment}
+            </>
+          ),
+        }}
+      />
+    )}
+    renderOption={(props, option) => (
+      <li {...props}>
+        <Box>
+          <Typography variant="body2">{option.formatted || option.label || "No label"}</Typography>
+          {(option.suburb || option.city) && (
+            <Typography variant="caption" sx={{ color: '#888' }}>
+              {option.suburb ? `${option.suburb}, ` : ''}{option.city || ''}
+            </Typography>
+          )}
+        </Box>
+      </li>
+    )}
+    PopperComponent={SameWidthPopper}
+  />
+</Box>
+
+      {/* ── EVENT LEADER AUTOCOMPLETE (people search) ── */}
+      <Box>
+        <Typography variant="caption" sx={{ color: '#888', mb: 0.5, display: 'block' }}>
+          Event Leader *
+        </Typography>
+
+        <Autocomplete
+          freeSolo
+          fullWidth
+          options={peopleData}
+          getOptionLabel={(option) => (typeof option === 'string' ? option : option.fullName || '')}
+          value={newEventData.eventLeader}
+          inputValue={newEventData.eventLeader}
+          onInputChange={(e, newValue) => {
+            setNewEventData(p => ({ ...p, eventLeader: newValue }));
+            if (newValue.trim().length >= 2) {
+              fetchPeople(newValue); // same function as CreateEvents
+            } else {
+              setPeopleData([]);
+            }
+          }}
+          onChange={(e, newValue) => {
+            if (typeof newValue === 'string') {
+              setNewEventData(p => ({ ...p, eventLeader: newValue }));
+            } else if (newValue) {
+              setNewEventData(p => ({
+                ...p,
+                eventLeader: newValue.fullName,
+                eventLeaderEmail: newValue.email || '',
+              }));
+            }
+          }}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              placeholder="Type name and surname to search..."
+              fullWidth
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: '#1a1a1a',
+                  color: '#fff',
+                  borderRadius: 1,
+                  fontSize: '0.95rem',
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#3b82f6', borderWidth: 1.5 },
+                },
+                '& .MuiInputBase-input': { py: 1.1, px: 1.6 },
+              }}
+              InputProps={{
+                ...params.InputProps,
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Box component="span" sx={{ color: '#888', fontSize: '1.2rem' }}>👤</Box>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          )}
+          renderOption={(props, option) => (
+            <li {...props}>
+              <Box>
+                <Typography variant="body2" fontWeight={500}>
+                  {option.fullName}
+                </Typography>
+                <Typography variant="caption" sx={{ color: '#888' }}>
+                  {option.email}
+                </Typography>
+              </Box>
+            </li>
+          )}
+          PopperComponent={SameWidthPopper}
+        />
+      </Box>
+
+      {/* Description */}
+      <Box>
+        <Typography variant="caption" sx={{ color: '#888', mb: 0.5, display: 'block' }}>
+          Description
+        </Typography>
+        <TextField
+          value={newEventData.description || ''}
+          onChange={e => setNewEventData(p => ({ ...p, description: e.target.value }))}
+          fullWidth
+          multiline
+          rows={3}
+          placeholder="Enter event description..."
+          sx={{
+            '& .MuiOutlinedInput-root': {
+              bgcolor: '#1a1a1a',
+              color: '#fff',
+              borderRadius: 1,
+              fontSize: '0.95rem',
+              '& fieldset': { borderColor: '#444' },
+              '&:hover fieldset': { borderColor: '#666' },
+              '&.Mui-focused fieldset': { borderColor: '#3b82f6' },
+            },
+          }}
+        />
+      </Box>
+    </Stack>
+  </DialogContent>
+
+  <DialogActions sx={{ px: 3, py: 2, bgcolor: '#000', borderTop: '1px solid #222' }}>
+    <Button
+      onClick={() => setCreateEventModalOpen(false)}
+      sx={{ color: '#aaa', textTransform: 'none', fontSize: '0.9rem' }}
+    >
+      CANCEL
+    </Button>
+    <Button
+      variant="contained"
+      disableElevation
+      sx={{
+        bgcolor: '#3b82f6',
+        color: 'white',
+        textTransform: 'none',
+        px: 4,
+        fontSize: '0.9rem',
+        '&:hover': { bgcolor: '#2563eb' },
+      }}
+      onClick={handleSaveEvent}
+      disabled={!newEventData.eventName.trim() || !newEventData.eventTypeName}
+    >
+      CREATE EVENT
+    </Button>
+  </DialogActions>
+</Dialog>
       {/* OVERDUE CELLS MODAL */}
       <Dialog
         open={overdueModalOpen}
