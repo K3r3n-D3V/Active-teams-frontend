@@ -43,11 +43,6 @@ const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
 ).toLowerCase();
 
-/**
- * Popper that forces the dropdown (autocomplete suggestions) to:
- * - match the input width exactly
- * - have a high z-index (so it shows over modals)
- */
 const SameWidthPopper = (props) => {
   const { anchorEl } = props;
 
@@ -91,7 +86,7 @@ const CreateEvents = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
-  const [loadingPeople, setLoadingPeople] = useState(false);
+  const [loadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
 
   const isAdmin = user?.role === "admin";
@@ -125,7 +120,6 @@ const CreateEvents = ({
   const [locationError, setLocationError] = useState("");
   const [selectedLocation, setSelectedLocation] = useState(null);
 
-  // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
 
   useEffect(() => {
@@ -225,6 +219,7 @@ const CreateEvents = ({
         if (isActive) setLocationLoading(false);
       }
     }, 350);
+    console.log("timer", timer)
 
     return () => {
       isActive = false;
@@ -311,7 +306,7 @@ const CreateEvents = ({
             eventType: selectedEventType,
             isGlobal: false,
             isTicketed: false,
-            hasPersonSteps: isCellsType, // FIXED: Set to true only for CELLS type
+            hasPersonSteps: isCellsType, 
           };
         }
       }
@@ -545,7 +540,7 @@ const CreateEvents = ({
     setFormData((prev) => ({
       ...prev,
       eventLeader: person.fullName,
-      eventLeaderEmail: person.email,   // 👈 THIS IS THE IMPORTANT LINE
+      eventLeaderEmail: person.email,   
     }));
   };
 
@@ -628,165 +623,187 @@ const CreateEvents = ({
     return days[date.getDay()];
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) {
-      return setTimeout(() => {
-        formAlert.current.scrollIntoView({ behavior: "smooth" });
-      }, 200);
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  if (!validateForm()) {
+    return setTimeout(() => {
+      formAlert.current.scrollIntoView({ behavior: "smooth" });
+    }, 200);
+  }
+
+  setIsSubmitting(true);
+
+  try {
+    let eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
+    
+    if (eventTypeToSend === "all" || eventTypeToSend.toLowerCase() === "all cells") {
+      eventTypeToSend = "CELLS";
     }
 
-    setIsSubmitting(true);
+    if (!eventTypeToSend) {
+      toast.error("Event type is required");
+      setIsSubmitting(false);
+      return;
+    }
 
-    try {
-      let eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
+    console.log('Creating event with type:', eventTypeToSend);
+
+    let dayValue = "";
+
+    if (!formData.recurringDays || formData.recurringDays.length === 0) {
+      dayValue = formData.date ? getDayFromDate(formData.date) : "";
+    } else if (formData.recurringDays.length === 1) {
+      dayValue = formData.recurringDays[0];
+    } else {
+      dayValue = "Recurring";
+    }
+    let eventLeaderEmail = formData.eventLeaderEmail;
+    
+    if (!eventLeaderEmail && formData.eventLeader) {
+      const selectedPerson = allPeopleCache.find(p => 
+        p.fullName.toLowerCase() === formData.eventLeader.toLowerCase()
+      );
+      if (selectedPerson?.email) {
+        eventLeaderEmail = selectedPerson.email;
+        console.log('Found email from cache:', eventLeaderEmail);
+      }
+    }
+    
+    if (!eventLeaderEmail && user?.email) {
+      eventLeaderEmail = user.email;
+      console.log('Using user email as fallback:', eventLeaderEmail);
+    }
+    
+    if (!eventLeaderEmail) {
+      toast.error('Please select a leader with a valid email address or ensure your profile has an email');
+      setIsSubmitting(false);
+      return;
+    }
+
+    const payload = {
+      UUID: generateUUID(),
+      eventTypeName: eventTypeToSend,
+      eventName: formData.eventName,
+      isTicketed: !!isTicketedEvent,
+      isGlobal: !!isGlobalEvent,
+      hasPersonSteps: !!hasPersonSteps,
+      location: formData.location,
+      eventLeader: formData.eventLeader,
+      eventLeaderName: formData.eventLeader,
+      eventLeaderEmail: eventLeaderEmail,  
+      description: formData.description,
+      userEmail: user?.email || "",
+      recurring_day: formData.recurringDays,
+      day: dayValue,
+      status: "open",
+      leader1: formData.leader1 || "",
+      leader12: formData.leader12 || "",
+      isRecurring: isRecurring,
+      recurringDays: isRecurring ? formData.recurringDays : [],
+    };
+
+    if (formData.date && formData.time) {
+      const [hoursStr, minutesStr] = formData.time.split(":");
+      let hours = Number(hoursStr);
+      const minutes = Number(minutesStr);
+      if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
+      if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+
+      payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
+        .toString()
+        .padStart(2, "0")}:00`;
       
-      if (eventTypeToSend === "all" || eventTypeToSend.toLowerCase() === "all cells") {
-        eventTypeToSend = "CELLS";
-      }
+      payload.time = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+    }
 
-      if (!eventTypeToSend) {
-        toast.error("Event type is required");
-        setIsSubmitting(false);
-        return;
-      }
-
-      console.log('Creating event with type:', eventTypeToSend);
-
-      let dayValue = "";
-
-      if (!formData.recurringDays || formData.recurringDays.length === 0) {
-        dayValue = formData.date ? getDayFromDate(formData.date) : "";
-      } else if (formData.recurringDays.length === 1) {
-        dayValue = formData.recurringDays[0];
-      } else {
-        dayValue = "Recurring";
-      }
-
-      const payload = {
-        UUID: generateUUID(),
-        eventTypeName: eventTypeToSend,
-        eventName: formData.eventName,
-        isTicketed: !!isTicketedEvent,
-        isGlobal: !!isGlobalEvent,
-        hasPersonSteps: !!hasPersonSteps,
-        location: formData.location,
-        eventLeader: formData.eventLeader,
-        eventLeaderName: formData.eventLeader,
-        eventLeaderEmail: formData.eventLeaderEmail || "",
-        description: formData.description,
-        userEmail: user?.email || "",
-        recurring_day: formData.recurringDays,
-        day: dayValue,
-        status: "open",
-        leader1: formData.leader1 || "",
-        leader12: formData.leader12 || "",
-        isRecurring: isRecurring,
-        recurringDays: isRecurring ? formData.recurringDays : [],
-      };
-
-      if (formData.date && formData.time) {
-        const [hoursStr, minutesStr] = formData.time.split(":");
-        let hours = Number(hoursStr);
-        const minutes = Number(minutesStr);
-        if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
-        if (formData.timePeriod === "AM" && hours === 12) hours = 0;
-
-        payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
-          .toString()
-          .padStart(2, "0")}:00`;
-        
-        payload.time = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-      }
-
-      if (isTicketedEvent && !isGlobalEvent) {
-        if (priceTiers.length > 0) {
-          payload.priceTiers = priceTiers.map((tier) => ({
-            name: tier.name || "",
-            price: parseFloat(tier.price) || 0,
-            ageGroup: tier.ageGroup || "",
-            memberType: tier.memberType || "",
-            paymentMethod: tier.paymentMethod || "",
-          }));
-        } else {
-          payload.priceTiers = [];
-        }
+    if (isTicketedEvent && !isGlobalEvent) {
+      if (priceTiers.length > 0) {
+        payload.priceTiers = priceTiers.map((tier) => ({
+          name: tier.name || "",
+          price: parseFloat(tier.price) || 0,
+          ageGroup: tier.ageGroup || "",
+          memberType: tier.memberType || "",
+          paymentMethod: tier.paymentMethod || "",
+        }));
       } else {
         payload.priceTiers = [];
       }
-
-      if (hasPersonSteps && !isGlobalEvent) {
-        payload.leader1 = formData.leader1 || "";
-        payload.leader12 = formData.leader12 || "";
-      }
-
-      console.log('Final Payload:', payload);
-
-      const token = localStorage.getItem("token");
-      const headers = {
-        Authorization: token ? `Bearer ${token}` : "",
-        "Content-Type": "application/json",
-      };
-
-      const response = eventId
-        ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
-        : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
-
-      console.log("Response:", response.data);
-
-      toast.success(
-        eventId ? "Event updated successfully!" : "Event created successfully!"
-      );
-
-      if (!eventId) resetForm();
-
-      setTimeout(() => {
-        if (isModal && typeof onClose === "function") {
-          onClose(true);
-        } else {
-          navigate("/events", {
-            state: {
-              refresh: true,
-              timestamp: Date.now()
-            }
-          });
-        }
-      }, 1200);
-
-    } catch (err) {
-      console.error("Error:", err);
-      console.error("Response:", err?.response?.data);
-
-      let errorMsg = "Failed to submit event";
-
-      if (err?.response?.data) {
-        const errorData = err.response.data;
-
-        if (Array.isArray(errorData.detail)) {
-          errorMsg = "Validation errors: " + errorData.detail.map(errorObj => {
-            if (errorObj.msg) return errorObj.msg;
-            if (errorObj.loc && errorObj.msg) return `${errorObj.loc.join('.')}: ${errorObj.msg}`;
-            return JSON.stringify(errorObj);
-          }).join(', ');
-        }
-        else if (errorData.detail && typeof errorData.detail === 'object') {
-          errorMsg = errorData.detail.msg || JSON.stringify(errorData.detail);
-        }
-        else if (errorData.message) {
-          errorMsg = errorData.message;
-        }
-        else if (errorData.detail) {
-          errorMsg = errorData.detail;
-        }
-      } else if (err?.message) {
-        errorMsg = err.message;
-      }
-
-      toast.error(errorMsg);
-    } finally {
-      setIsSubmitting(false);
+    } else {
+      payload.priceTiers = [];
     }
-  };
+
+    if (hasPersonSteps && !isGlobalEvent) {
+      payload.leader1 = formData.leader1 || "";
+      payload.leader12 = formData.leader12 || "";
+    }
+
+    console.log(' Final Payload being sent:', JSON.stringify(payload, null, 2));
+
+    const token = localStorage.getItem("token");
+    const headers = {
+      Authorization: token ? `Bearer ${token}` : "",
+      "Content-Type": "application/json",
+    };
+
+    const response = eventId
+      ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
+      : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
+
+    console.log("Response:", response.data);
+
+    toast.success(
+      eventId ? "Event updated successfully!" : "Event created successfully!"
+    );
+
+    if (!eventId) resetForm();
+
+    setTimeout(() => {
+      if (isModal && typeof onClose === "function") {
+        onClose(true);
+      } else {
+        navigate("/events", {
+          state: {
+            refresh: true,
+            timestamp: Date.now()
+          }
+        });
+      }
+    }, 1200);
+
+  } catch (err) {
+    console.error("Error:", err);
+    console.error("Response:", err?.response?.data);
+
+    let errorMsg = "Failed to submit event";
+
+    if (err?.response?.data) {
+      const errorData = err.response.data;
+
+      if (Array.isArray(errorData.detail)) {
+        errorMsg = "Validation errors: " + errorData.detail.map(errorObj => {
+          if (errorObj.msg) return errorObj.msg;
+          if (errorObj.loc && errorObj.msg) return `${errorObj.loc.join('.')}: ${errorObj.msg}`;
+          return JSON.stringify(errorObj);
+        }).join(', ');
+      }
+      else if (errorData.detail && typeof errorData.detail === 'object') {
+        errorMsg = errorData.detail.msg || JSON.stringify(errorData.detail);
+      }
+      else if (errorData.message) {
+        errorMsg = errorData.message;
+      }
+      else if (errorData.detail) {
+        errorMsg = errorData.detail;
+      }
+    } else if (err?.message) {
+      errorMsg = err.message;
+    }
+
+    toast.error(errorMsg);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const containerStyle = isModal
     ? {
@@ -1408,53 +1425,60 @@ const CreateEvents = ({
                   overflowY: 'auto',
                   mt: 0.5,
                 }}>
-                  {peopleData.map((person) => (
-                    <Box
-                      key={person.id || `${person.fullName}-${person.email}`}
-                      sx={{
-                        padding: '12px',
-                        cursor: 'pointer',
-                        borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : '#f0f0f0'}`,
-                        '&:hover': {
-                          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
-                        },
-                        '&:last-child': {
-                          borderBottom: 'none',
-                        },
-                      }}
-                      onClick={() => {
-                        const selectedName = person.fullName;
-                        const selectedEmail = person.email;
-                        
-                        if (hasPersonSteps && !isGlobalEvent) {
-                          setFormData((prev) => ({
-                            ...prev,
-                            eventLeader: selectedName,
-                            eventLeaderEmail: selectedEmail.toLowerCase(),
-                            leader1: person.leader1 || "",
-                            leader12: person.leader12 || "",
-                          }));
-                        } else {
-                          setFormData((prev) => ({
-                            ...prev,
-                            eventLeader: selectedName,
-                            eventLeaderEmail: selectedEmail.toLowerCase(),
-                          }));
-                        }
+               // In the dropdown rendering section, update the onClick handler:
 
-                        setPeopleData([]);
-                      }}
-                    >
-                      <Typography variant="body1" fontWeight="500">
-                        {person.fullName}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
-                        {person.email}
-                        {person.leader1 && ` • L@1: ${person.leader1}`}
-                        {person.leader12 && ` • L@12: ${person.leader12}`}
-                      </Typography>
-                    </Box>
-                  ))}
+{peopleData.map((person) => (
+  <Box
+    key={person.id || `${person.fullName}-${person.email}`}
+    sx={{
+      padding: '12px',
+      cursor: 'pointer',
+      borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : '#f0f0f0'}`,
+      '&:hover': {
+        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
+      },
+      '&:last-child': {
+        borderBottom: 'none',
+      },
+    }}
+onClick={() => {
+  const selectedName = person.fullName;
+  const selectedEmail = person.email;
+  
+  console.log(' Selected person:', { name: selectedName, email: selectedEmail });
+  
+  if (!selectedEmail) {
+    console.warn(' Warning: Selected person has no email!');
+  }
+  
+  // Create updated form data with email
+  const updatedFormData = {
+    ...formData,
+    eventLeader: selectedName,
+    eventLeaderEmail: selectedEmail ? selectedEmail.toLowerCase() : "",
+  };
+  
+  if (hasPersonSteps && !isGlobalEvent) {
+    updatedFormData.leader1 = person.leader1 || "";
+    updatedFormData.leader12 = person.leader12 || "";
+  }
+  
+  console.log(' Updated form data:', updatedFormData);
+  
+  setFormData(updatedFormData);
+  setPeopleData([]);
+}}
+  >
+    <Typography variant="body1" fontWeight="500">
+      {person.fullName}
+    </Typography>
+    <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
+      {person.email}
+      {person.leader1 && ` • L@1: ${person.leader1}`}
+      {person.leader12 && ` • L@12: ${person.leader12}`}
+    </Typography>
+  </Box>
+))}
                 </Box>
               )}
               
