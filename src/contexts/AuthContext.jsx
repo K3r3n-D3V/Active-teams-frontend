@@ -428,7 +428,7 @@ export const AuthProvider = ({ children }) => {
     if (!localStorage.getItem('access_token')) return;
     
     try {
-      const response = await authFetch(`${BACKEND_URL}/me`);
+      const response = await authFetch(`${BACKEND_URL}/updated-role`);
       if (response.ok) {
         const freshUser = await response.json();
         setUser(prev => {
