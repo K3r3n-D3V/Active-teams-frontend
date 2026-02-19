@@ -2414,7 +2414,7 @@ console.log("Full event object:", event);
             'Status': didNotMeet ? 'Did Not Meet' : 'Complete',
             ...(isTicketedEvent && {
               'Price Name': attendeeTicketInfo[id]?.priceName || person.priceName || 'N/A',
-              'Price': attendeeTicketInfo[id]?.price || person.price ? `R${(attendeeTicketInfo[id]?.price || person.price).toFixed(2)}` : 'N/A',
+              'Price': (attendeeTicketInfo[id]?.price ?? person.price) != null ? `R${parseFloat(attendeeTicketInfo[id]?.price ?? person.price).toFixed(2)}` : 'N/A',
               'Age Group': attendeeTicketInfo[id]?.ageGroup || person.ageGroup || 'N/A',
               'Payment Method': attendeeTicketInfo[id]?.paymentMethod || person.paymentMethod || 'N/A'
             })
