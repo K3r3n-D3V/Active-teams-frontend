@@ -624,8 +624,8 @@ function ServiceCheckIn() {
             id: event._id || event.id || Math.random().toString(36),
             eventName: event.eventName || event.Event_Name || "Unnamed Event",
             status: (event.status || "open").toLowerCase(),
-            isGlobal: event.isGlobal === true,        // ✅ strict check
-            isTicketed: event.isTicketed === true,     // ✅ strict check
+            isGlobal: event.isGlobal === true,     
+            isTicketed: event.isTicketed === true,  
             date: event.date || event.createdAt,
             eventType: event.eventType || "Global Events",
             closed_by: event.closed_by,
@@ -657,7 +657,7 @@ function ServiceCheckIn() {
         if (!event || event.status === "error") return false;
         const typeName = (event.eventType || '').toLowerCase();
         if (typeName === 'cells' || typeName === 'all cells' || typeName === 'cell') return false;
-        if (event.isGlobal !== true) return false;  // ✅ only true passes
+        if (event.isGlobal !== true) return false;  
         return true;
       });
 
