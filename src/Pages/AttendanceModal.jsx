@@ -2414,7 +2414,7 @@ console.log("Full event object:", event);
             'Status': didNotMeet ? 'Did Not Meet' : 'Complete',
             ...(isTicketedEvent && {
               'Price Name': attendeeTicketInfo[id]?.priceName || person.priceName || 'N/A',
-              'Price': (attendeeTicketInfo[id]?.price ?? person.price) != null ? `R${parseFloat(attendeeTicketInfo[id]?.price ?? person.price).toFixed(2)}` : 'N/A',
+              'Price': attendeeTicketInfo[id]?.price || person.price || 'N/A',
               'Age Group': attendeeTicketInfo[id]?.ageGroup || person.ageGroup || 'N/A',
               'Payment Method': attendeeTicketInfo[id]?.paymentMethod || person.paymentMethod || 'N/A'
             })
@@ -2741,7 +2741,7 @@ console.log("Full event keys:", Object.keys(event || {}));
               <div style={{ fontSize: "12px", color: theme.palette.text.secondary, marginTop: "4px" }}>
                 {attendeeTicketInfo[person.id]?.priceName || person.priceName || "No ticket selected"}
                 {(attendeeTicketInfo[person.id]?.price || person.price) && 
-                  ` - R${(attendeeTicketInfo[person.id]?.price || person.price).toFixed(2)}`
+                  ` - ${(attendeeTicketInfo[person.id]?.price || person.price)}`
                 }
               </div>
             )}
@@ -3502,7 +3502,7 @@ console.log("Full event keys:", Object.keys(event || {}));
                               </td>
                               <td style={styles.td}>
                                 {attendeeTicketInfo[person.id]?.price || person.price 
-                                  ? `R${(attendeeTicketInfo[person.id]?.price || person.price).toFixed(2)}` 
+                                  ? `R${(attendeeTicketInfo[person.id]?.price || person.price)}` 
                                   : "-"}
                               </td>
                               <td style={styles.td}>
@@ -3962,7 +3962,7 @@ console.log("Full event keys:", Object.keys(event || {}));
               >
                 <div style={styles.ticketOptionName}>{tier.name}</div>
                 <div style={styles.ticketOptionDetails}>
-                  <span>Price: R{parseFloat(tier.price).toFixed(2)}</span>
+                  <span>Price: {tier.price}</span>
                   <span>•</span>
                   <span>Age: {tier.ageGroup}</span>
                   <span>•</span>
