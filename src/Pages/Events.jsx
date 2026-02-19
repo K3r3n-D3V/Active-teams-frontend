@@ -19,7 +19,6 @@ import {
   LinearProgress,
   TextField,
   InputAdornment,
-  debounce,
 } from "@mui/material";
 import { DataGrid, GridToolbar } from "@mui/x-data-grid";
 import SearchIcon from "@mui/icons-material/Search";
@@ -49,7 +48,7 @@ const formatRecurringDays = (recurringDays) => {
   }
 
   if (recurringDays.length === 1) {
-    return `${recurringDays[0]}`;
+    return `Every ${recurringDays[0]}`;
   }
 
   const dayOrder = {
@@ -65,11 +64,11 @@ const formatRecurringDays = (recurringDays) => {
   const sorted = [...recurringDays].sort((a, b) => dayOrder[a] - dayOrder[b]);
 
   if (sorted.length === 2) {
-    return `${sorted[0]} & ${sorted[1]}`;
+    return `Every ${sorted[0]} & ${sorted[1]}`;
   }
 
   const last = sorted.pop();
-  return `${sorted.join(", ")} & ${last}`;
+  return `Every ${sorted.join(", ")} & ${last}`;
 };
 
 const styles = {
@@ -483,19 +482,14 @@ const formatDate = (date) => {
 const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
   if (!events || events.length === 0) return [];
 
-  // Define the exact columns we want to show in the specified order
-  const desiredColumns = [
-    { field: 'eventName', headerName: 'Event Name' },
-    { field: 'eventLeaderName', headerName: 'Event Leader Name' },
-    { field: 'eventLeaderEmail', headerName: 'Event Leader Email' },
-    { field: 'day', headerName: 'Day' },
-    { field: 'date', headerName: 'Date' },
-  ];
+  const isCellType =
+    !selectedEventTypeFilter ||
+    selectedEventTypeFilter === "all" ||
+    selectedEventTypeFilter === "CELLS" ||
+    selectedEventTypeFilter.toLowerCase().includes("cell");
 
-  const columns = [];
-
-  // Add Status column
-  columns.push({
+  //STATUS column
+  const statusCol = {
     field: "overdue",
     headerName: "Status",
     flex: 0.8,
@@ -503,152 +497,163 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     renderCell: (params) => {
       const isOverdueEvent = isOverdue(params.row);
       const status = params.row.status || "incomplete";
-
-      if (
-        isOverdueEvent &&
-        (selectedEventTypeFilter === "all" ||
-          selectedEventTypeFilter === "CELLS")
-      ) {
+      if (isOverdueEvent && isCellType) {
         return (
-          <Box
-            sx={{
-              color: "#dc3545",
-              fontSize: "0.8rem",
-              fontWeight: "bold",
-              whiteSpace: "nowrap",
-              textAlign: "center",
-              width: "100%",
-            }}
-          >
+          <Box sx={{ color: "#dc3545", fontSize: "0.8rem", fontWeight: "bold", textAlign: "center", width: "100%" }}>
             OVERDUE
           </Box>
         );
       }
       return (
-        <Box
-          sx={{
-            color:
-              status === "complete"
-                ? "#28a745"
-                : status === "did_not_meet"
-                  ? "#dc3545"
-                  : "#6c757d",
-            fontWeight: "500",
-            fontSize: "0.8rem",
-            textTransform: "capitalize",
-            textAlign: "center",
-            width: "100%",
-          }}
-        >
+        <Box sx={{
+          color: status === "complete" ? "#28a745" : status === "did_not_meet" ? "#dc3545" : "#6c757d",
+          fontWeight: "500", fontSize: "0.8rem", textTransform: "capitalize", textAlign: "center", width: "100%",
+        }}>
           {status.replace("_", " ")}
         </Box>
       );
     },
-  });
+  };
 
-  // Add Recurring column
-  columns.push({
+  // RECURRING column
+  const recurringCol = {
     field: "recurring_info",
     headerName: "Recurring",
     flex: 0.8,
     minWidth: 120,
     renderCell: (params) => {
-      if (!params || !params.row) {
-        return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
-      }
-
+      if (!params?.row) return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
       const row = params.row;
       const isRecurring =
         row.is_recurring ||
-        (row.recurring_days &&
-          Array.isArray(row.recurring_days) &&
-          row.recurring_days.length > 0);
-
+        (row.recurring_days && Array.isArray(row.recurring_days) && row.recurring_days.length > 0);
       return (
-        <Box
-          sx={{
-            color: isRecurring ? "#2196f3" : "#6c757d",
-            fontSize: "0.95rem",
-            fontWeight: isRecurring ? "bold" : "normal",
-            textAlign: "center",
-            width: "100%",
-          }}
-        >
+        <Box sx={{ color: isRecurring ? "#2196f3" : "#6c757d", fontSize: "0.95rem", fontWeight: isRecurring ? "bold" : "normal", textAlign: "center", width: "100%" }}>
           {isRecurring ? "True" : "False"}
         </Box>
       );
     },
+  };
+
+  // NON-CELLS columns
+  if (!isCellType) {
+    return [
+      statusCol,
+      recurringCol,
+      {
+        field: "eventName",
+        headerName: "Event Name",
+        flex: 1.2,
+        minWidth: 160,
+        renderCell: (params) => (
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }} title={params.value || ""}>
+            {params.value || "-"}
+          </Box>
+        ),
+      },
+      {
+        field: "eventLeaderName",
+        headerName: "Event Leader Name",
+        flex: 1,
+        minWidth: 160,
+        renderCell: (params) => (
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }} title={params.value || ""}>
+            {params.value || "-"}
+          </Box>
+        ),
+      },
+      {
+        field: "eventLeaderEmail",
+        headerName: "Event Leader Email",
+        flex: 1,
+        minWidth: 180,
+        renderCell: (params) => (
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }} title={params.value || ""}>
+            {params.value || "-"}
+          </Box>
+        ),
+      },
+      {
+        field: "day",
+        headerName: "Day",
+        flex: 0.7,
+        minWidth: 100,
+        renderCell: (params) => params.value || "-",
+      },
+      {
+        field: "date",
+        headerName: "Date",
+        flex: 0.9,
+        minWidth: 120,
+        renderCell: (params) => formatDate(params.value),
+      },
+      {
+        field: "recurring_days",
+        headerName: "Recurring days",
+        flex: 1,
+        minWidth: 140,
+        renderCell: (params) => {
+          const days = params.value;
+          if (!days || !Array.isArray(days) || days.length === 0) return "-";
+          return (
+            <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }} title={days.join(", ")}>
+              {formatRecurringDays(days) || days.join(", ")}
+            </Box>
+          );
+        },
+      },
+    ];
+  }
+
+  //CELLS columns
+  const sampleEvent = events[0];
+  const filteredFields = Object.keys(sampleEvent).filter((key) => {
+    const keyLower = key.toLowerCase();
+    const excludedFields = [
+      "persistent_attendees", "uuid", "did_not_meet", "status", "week_identifier",
+      "attendees", "_id", "id", "isoverdue", "attendance", "location", "eventtype",
+      "event_type", "eventtypes", "displaydate", "originatedid", "leader12",
+      "leader@12", "leader at 12", "original_event_id", "_is_overdue", "haspersonsteps",
+      "has_person_steps", "is_recurring", "isrecurring", "recurring", "recurring_days",
+      "is_active", "Is_active", "Is active", "time", "Time", "isGlobal", "isTicketed",
+      "description", "new_people", "consolidations", "total_attendance", "closed_by",
+      "closed_at", "created_at", "updated_at",
+    ];
+    const exactMatch = excludedFields.includes(key);
+    const caseInsensitiveMatch = excludedFields.some((excluded) => excluded.toLowerCase() === keyLower);
+    const containsOverdue = keyLower.includes("overdue");
+    const containsDisplayDate = keyLower.includes("display") && keyLower.includes("date");
+    const containsOriginated = keyLower.includes("originated");
+    const containsLeader12 = keyLower.includes("leader") && keyLower.includes("12");
+    const containsLeader1 = keyLower.includes("leader1") || keyLower.includes("leader@1") || keyLower.includes("leader at 1");
+    const shouldExcludeLeader1 =
+      containsLeader1 &&
+      selectedEventTypeFilter !== "all" &&
+      selectedEventTypeFilter !== "CELLS" &&
+      selectedEventTypeFilter !== "Cells";
+    const containsPersonSteps = keyLower.includes("person") && keyLower.includes("steps");
+    return !(exactMatch || caseInsensitiveMatch || containsOverdue || containsDisplayDate || containsOriginated || containsLeader12 || shouldExcludeLeader1 || containsPersonSteps);
   });
 
-  // Add the desired columns
-  desiredColumns.forEach(({ field, headerName }) => {
-    columns.push({
-      field: field,
-      headerName: headerName,
+  const columns = [statusCol, recurringCol];
+  columns.push(
+    ...filteredFields.map((key) => ({
+      field: key,
+      headerName: key.replace(/_/g, " ").replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase()),
       flex: 1,
       minWidth: 150,
       renderCell: (params) => {
         const value = params.value;
-        
-        // Special handling for date field
-        if (field === 'date') {
-          return formatDate(value);
-        }
-        
+        if (key.toLowerCase().includes("date")) return formatDate(value);
         if (!value) return "-";
-
         return (
-          <Box
-            sx={{
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: 180,
-            }}
-            title={String(value)}
-          >
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }} title={String(value)}>
             {String(value)}
           </Box>
         );
       },
-    });
-  });
-
-  // Add Recurring Days column (show recurring pattern)
-  columns.push({
-    field: "recurring_days",
-    headerName: "Recurring days",
-    flex: 1,
-    minWidth: 180,
-    renderCell: (params) => {
-      if (!params || !params.row) {
-        return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
-      }
-
-      const row = params.row;
-      const recurringDays = row.recurring_days;
-      
-      if (!recurringDays || !Array.isArray(recurringDays) || recurringDays.length === 0) {
-        return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
-      }
-
-      const formattedDays = formatRecurringDays(recurringDays);
-
-      return (
-        <Box
-          sx={{
-            fontSize: "0.95rem",
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-          title={formattedDays}
-        >
-          {formattedDays}
-        </Box>
-      );
-    },
-  });
+    })),
+  );
 
   return columns;
 };
@@ -1426,6 +1431,7 @@ ${xmlCols}
 
     const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
     const userEmail = currentUser?.email || "";
+    console.log("Current user email:", userEmail);
     const userName = currentUser?.name || "";
     const userFirstName =
       currentUser?.firstName || userName?.split(" ")[0] || "";
@@ -1468,7 +1474,6 @@ ${xmlCols}
       }
     } else {
       endpoint = `${BACKEND_URL}/events/eventsdata`;
-      // Remove cells-specific parameters
       delete params.personal;
       delete params.leader_at_12_view;
       delete params.include_subordinate_cells;
@@ -1483,8 +1488,8 @@ ${xmlCols}
   };
   const fetchEvents = useCallback(
     async (filters = {}, showLoader = true, isSearching = false) => {
-      console.log("🔍 fetchEvents called with filters:", filters);
-
+      console.log(" fetchEvents called with filters:", filters);
+      console.log("isSearching:", isSearching);
       if (showLoader) {
         setLoading(true);
         setIsLoading(true);
@@ -1516,9 +1521,6 @@ ${xmlCols}
         console.log("Received events:", data.events?.length || 0);
 
         const allEvents = data.events || [];
-
-        // IMPORTANT: For /events/other endpoint, let backend handle filtering
-        // The backend will return appropriate events based on role
         const filtered = allEvents;
 
         console.log("Final events to display:", filtered.length);
@@ -1527,7 +1529,7 @@ ${xmlCols}
         setTotalEvents(data.total_events || 0);
         setTotalPages(data.total_pages || 1);
       } catch (error) {
-        console.error("❌ Fetch error:", error);
+        console.error(" Fetch error:", error);
         setEvents([]);
         if (!error.message.includes("401")) {
           toast.error("Failed to load events");
@@ -1937,6 +1939,16 @@ ${xmlCols}
     const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
     const [searchQuery, setSearchQuery] = useState("");
 
+const filteredEventTypes = eventTypes.filter((type) => {
+  const typeName =
+    typeof type === "string" ? type : type.name || "";
+
+  return typeName
+    .toLowerCase()
+    .includes(searchQuery.toLowerCase());
+});
+
+
     const getEventTypeColor = (typeName) => {
       const colors = {
         "Global Events": "#007bff",
@@ -2043,11 +2055,6 @@ ${xmlCols}
         color: isDarkMode ? theme.palette.text.secondary : "#666",
       },
     };
-
-    // const filteredEventTypes = eventTypes.filter((type) => {
-    //   const typeName = typeof type === "string" ? type : type.name || type;
-    //   return typeName.toLowerCase().includes(searchQuery.toLowerCase());
-    // });
 
     return (
       <Box sx={styles.container}>
@@ -2256,7 +2263,7 @@ ${xmlCols}
 
     searchDebounceRef.current = setTimeout(() => {
       setDebouncedSearchTerm(searchQuery);
-    }, 300); // 300ms debounce
+    }, 300); 
 
     return () => {
       if (searchDebounceRef.current) {
@@ -3053,13 +3060,6 @@ ${xmlCols}
     ],
   );
 
-  // const handleSearchChange = useCallback((e) => {
-  //   const value = e.target.value;
-  //   setSearchQuery(value);
-  //   setIsSearching(true)
-  //   handleSearchSubmit(value)
-  // }, []);
-
   useEffect(() => {
     const checkAccess = async () => {
       await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -3296,18 +3296,16 @@ ${xmlCols}
   }, [customEventTypes]);
 
   useEffect(() => {
-    // Don't fetch if we haven't selected a type yet
     if (!selectedEventTypeFilter) {
       return;
     }
 
-    // Don't fetch if we're not in events view
     if (!showingEvents) {
-      console.log("🚫 Not showing events, skipping fetch");
+      console.log(" Not showing events, skipping fetch");
       return;
     }
 
-    console.log("📡 FETCHING EVENTS FOR:", selectedEventTypeFilter);
+    console.log(" FETCHING EVENTS FOR:", selectedEventTypeFilter);
 
     const fetchParams = {
       page: currentPage,
@@ -3368,7 +3366,6 @@ ${xmlCols}
     currentPage,
     rowsPerPage,
     selectedStatus,
-    // searchQuery,
     viewFilter,
     isAdmin,
     isRegistrant,
@@ -3750,10 +3747,6 @@ ${xmlCols}
     setCurrentPage,
     setSearchQuery,
     setShowingEvents,
-    rowsPerPage,
-    searchQuery,
-    viewFilter,
-    DEFAULT_API_START_DATE,
     setEditingEventType,
     setEventTypesModalOpen,
     setToDeleteType,
@@ -4610,7 +4603,7 @@ ${xmlCols}
                         isDarkMode ? theme.palette.divider : "#e9ecef"
                       }`,
                       px: 2,
-                      py: 1.5, // slightly more breathing room on mobile
+                      py: 1.5, 
                       flexDirection: isMobileView ? "column" : "row",
                       alignItems: isMobileView ? "stretch" : "center",
                       gap: isMobileView ? 1.5 : 2,
@@ -4677,7 +4670,7 @@ ${xmlCols}
                           ? theme.palette.text.secondary
                           : "#6c757d",
                         width: isMobileView ? "100%" : "auto",
-                        order: isMobileView ? -1 : "unset", // move to top on mobile
+                        order: isMobileView ? -1 : "unset", 
                         mb: isMobileView ? 0.5 : 0,
                       }}
                     >
@@ -4698,7 +4691,7 @@ ${xmlCols}
                     >
                       <Button
                         variant="outlined"
-                        size="medium" // bigger on mobile
+                        size="medium" 
                         onClick={handlePreviousPage}
                         disabled={currentPage === 1 || loading}
                         sx={{
