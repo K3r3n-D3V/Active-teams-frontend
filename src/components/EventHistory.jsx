@@ -15,11 +15,13 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PersonIcon from '@mui/icons-material/Person';
 import EmojiPeopleIcon from '@mui/icons-material/EmojiPeople';
+import UndoIcon from '@mui/icons-material/Undo';
 
 const EventHistory = React.memo(function EventHistory({
   onViewDetails,
   onViewNewPeople,
   onViewConverts,
+  onUnsaveEvent,
   events = [],
   isLoading = false,
   onRefresh,
@@ -30,6 +32,24 @@ const EventHistory = React.memo(function EventHistory({
   const isMdDown = useMediaQuery(theme.breakpoints.down('md'));
   const isLgDown = useMediaQuery(theme.breakpoints.down('lg'));
 
+  // Check if an event can be unsaved
+  const canUnsaveEvent = React.useCallback((event) => {
+    if (!event || !event.date) return false;
+    
+    try {
+      const eventDate = new Date(event.date);
+      const today = new Date();
+      
+      // Compare dates (ignore time)
+      const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+      const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+      
+      return eventDay.getTime() === todayDay.getTime();
+    } catch (error) {
+      console.error('Error parsing event date:', error);
+      return false;
+    }
+  }, []);
 
   const filteredEvents = React.useMemo(() => {
     if (!Array.isArray(events)) {
@@ -148,6 +168,21 @@ const EventHistory = React.memo(function EventHistory({
         console.warn('Unknown type in handleViewDetails:', type);
     }
   }, [onViewDetails, onViewNewPeople, onViewConverts]);
+
+  const handleUnsaveEvent = React.useCallback((event) => {
+    if (!event) {
+      console.error('Event is undefined in handleUnsaveEvent');
+      return;
+    }
+
+    if (!canUnsaveEvent(event)) {
+      console.warn('Cannot unsave event - not from today');
+      return;
+    }
+
+    console.log('Unsaving event:', event.eventName);
+    if (onUnsaveEvent) onUnsaveEvent(event);
+  }, [onUnsaveEvent, canUnsaveEvent]);
 
   const columns = React.useMemo(() => {
     const baseColumns = [
@@ -342,6 +377,47 @@ const EventHistory = React.memo(function EventHistory({
             </Button>
           );
         }
+      },
+      // NEW: Unsave button column
+      {
+        field: 'unsave',
+        headerName: isSmDown ? '' : 'Unsave',
+        width: isSmDown ? 60 : 120,
+        sortable: false,
+        filterable: false,
+        hide: isSmDown,
+        renderCell: (params) => {
+          const event = params.row || {};
+          const canUnsave = canUnsaveEvent(event);
+
+          return (
+            <Tooltip 
+              title={canUnsave ? "Reopen this event" : "Only today's events can be reopened"}
+            >
+              <span>
+                <Button
+                  size={isSmDown ? "small" : "medium"}
+                  variant="outlined"
+                  color="warning"
+                  startIcon={isSmDown ? null : <UndoIcon />}
+                  onClick={() => handleUnsaveEvent(event)}
+                  disabled={!canUnsave}
+                  sx={{
+                    fontSize: isSmDown ? '0.7rem' : '0.75rem',
+                    minWidth: isSmDown ? 'auto' : 64,
+                    padding: isSmDown ? '2px 6px' : '4px 8px',
+                    '&:disabled': {
+                      opacity: 0.3,
+                      cursor: 'not-allowed'
+                    }
+                  }}
+                >
+                  {isSmDown ? 'U' : 'UNSAVE'}
+                </Button>
+              </span>
+            </Tooltip>
+          );
+        }
       }
     ];
 
@@ -351,7 +427,7 @@ const EventHistory = React.memo(function EventHistory({
         {
           field: 'actions',
           headerName: 'Actions',
-          width: 100,
+          width: 130,
           sortable: false,
           filterable: false,
           renderCell: (params) => {
@@ -359,6 +435,7 @@ const EventHistory = React.memo(function EventHistory({
             const attendanceCount = getAttendanceCount(event);
             const newPeopleCount = getNewPeopleCount(event);
             const consolidatedCount = getConsolidatedCount(event);
+            const canUnsave = canUnsaveEvent(event);
 
             return (
               <Box sx={{ display: 'flex', gap: 0.5 }}>
@@ -416,6 +493,24 @@ const EventHistory = React.memo(function EventHistory({
                     </IconButton>
                   </span>
                 </Tooltip>
+                <Tooltip title={canUnsave ? "Reopen event" : "Only today's events can be reopened"}>
+                  <span>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleUnsaveEvent(event)}
+                      disabled={!canUnsave}
+                      color="warning"
+                      sx={{
+                        '&:disabled': {
+                          opacity: 0.3,
+                          cursor: 'not-allowed'
+                        }
+                      }}
+                    >
+                      <UndoIcon fontSize="small" />
+                    </IconButton>
+                  </span>
+                </Tooltip>
               </Box>
             );
           }
@@ -424,11 +519,11 @@ const EventHistory = React.memo(function EventHistory({
     }
 
     return [...baseColumns, ...actionColumns];
-  }, [isSmDown, getAttendanceCount, getNewPeopleCount, getConsolidatedCount, handleViewDetails]);
+  }, [isSmDown, getAttendanceCount, getNewPeopleCount, getConsolidatedCount, handleViewDetails, handleUnsaveEvent, canUnsaveEvent]);
 
 
   React.useEffect(() => {
-    console.log(' EventHistory component data:', {
+    console.log('📊 EventHistory component data:', {
       eventsCount: events?.length || 0,
       filteredEventsCount: filteredEvents.length,
       screenSize: {
