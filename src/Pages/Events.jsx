@@ -482,84 +482,14 @@ const formatDate = (date) => {
 const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
   if (!events || events.length === 0) return [];
 
-  const sampleEvent = events[0];
-  const filteredFields = Object.keys(sampleEvent).filter((key) => {
-    const keyLower = key.toLowerCase();
+  const isCellType =
+    !selectedEventTypeFilter ||
+    selectedEventTypeFilter === "all" ||
+    selectedEventTypeFilter === "CELLS" ||
+    selectedEventTypeFilter.toLowerCase().includes("cell");
 
-    const excludedFields = [
-      "persistent_attendees",
-      "uuid",
-      "did_not_meet",
-      "status",
-      "week_identifier",
-      "attendees",
-      "_id",
-      "isoverdue",
-      "attendance",
-      "location",
-      "eventtype",
-      "event_type",
-      "eventtypes",
-      "status",
-      "displaydate",
-      "originatedid",
-      "leader12",
-      "leader@12",
-      "leader at 12",
-      "original_event_id",
-      "_is_overdue",
-      "haspersonsteps",
-      "haspersonsteps",
-      "has_person_steps",
-      "is_recurring",
-      "isrecurring",
-      "recurring",
-      "recurring_days",
-      "is_active",
-      "Is_active",
-      "Is active",
-      "time",
-      "Time",
-    ];
-
-    const exactMatch = excludedFields.includes(key);
-    const caseInsensitiveMatch = excludedFields.some(
-      (excluded) => excluded.toLowerCase() === keyLower,
-    );
-
-    const containsOverdue = keyLower.includes("overdue");
-    const containsDisplayDate =
-      keyLower.includes("display") && keyLower.includes("date");
-    const containsOriginated = keyLower.includes("originated");
-    const containsLeader12 =
-      keyLower.includes("leader") && keyLower.includes("12");
-    const containsLeader1 =
-      keyLower.includes("leader1") ||
-      keyLower.includes("leader@1") ||
-      keyLower.includes("leader at 1");
-    const shouldExcludeLeader1 =
-      containsLeader1 &&
-      selectedEventTypeFilter !== "all" &&
-      selectedEventTypeFilter !== "CELLS" &&
-      selectedEventTypeFilter !== "Cells";
-
-    const containsPersonSteps =
-      keyLower.includes("person") && keyLower.includes("steps");
-    const shouldExclude =
-      exactMatch ||
-      caseInsensitiveMatch ||
-      containsOverdue ||
-      containsDisplayDate ||
-      containsOriginated ||
-      containsLeader12 ||
-      shouldExcludeLeader1 ||
-      containsPersonSteps;
-
-    return !shouldExclude;
-  });
-  const columns = [];
-
-  columns.push({
+  //STATUS column
+  const statusCol = {
     field: "overdue",
     headerName: "Status",
     flex: 0.8,
@@ -567,106 +497,157 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     renderCell: (params) => {
       const isOverdueEvent = isOverdue(params.row);
       const status = params.row.status || "incomplete";
-
-      if (
-        isOverdueEvent &&
-        (selectedEventTypeFilter === "all" ||
-          selectedEventTypeFilter === "CELLS")
-      ) {
+      if (isOverdueEvent && isCellType) {
         return (
-          <Box
-            sx={{
-              color: "#dc3545",
-              fontSize: "0.8rem",
-              fontWeight: "bold",
-              whiteSpace: "nowrap",
-              textAlign: "center",
-              width: "100%",
-            }}
-          >
+          <Box sx={{ color: "#dc3545", fontSize: "0.8rem", fontWeight: "bold", textAlign: "center", width: "100%" }}>
             OVERDUE
           </Box>
         );
       }
       return (
-        <Box
-          sx={{
-            color:
-              status === "complete"
-                ? "#28a745"
-                : status === "did_not_meet"
-                  ? "#dc3545"
-                  : "#6c757d",
-            fontWeight: "500",
-            fontSize: "0.8rem",
-            textTransform: "capitalize",
-            textAlign: "center",
-            width: "100%",
-          }}
-        >
+        <Box sx={{
+          color: status === "complete" ? "#28a745" : status === "did_not_meet" ? "#dc3545" : "#6c757d",
+          fontWeight: "500", fontSize: "0.8rem", textTransform: "capitalize", textAlign: "center", width: "100%",
+        }}>
           {status.replace("_", " ")}
         </Box>
       );
     },
-  });
+  };
 
-  columns.push({
+  // RECURRING column
+  const recurringCol = {
     field: "recurring_info",
     headerName: "Recurring",
     flex: 0.8,
     minWidth: 120,
     renderCell: (params) => {
-      if (!params || !params.row) {
-        return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
-      }
-
+      if (!params?.row) return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
       const row = params.row;
       const isRecurring =
         row.is_recurring ||
-        (row.recurring_days &&
-          Array.isArray(row.recurring_days) &&
-          row.recurring_days.length > 0);
-
+        (row.recurring_days && Array.isArray(row.recurring_days) && row.recurring_days.length > 0);
       return (
-        <Box
-          sx={{
-            color: isRecurring ? "#2196f3" : "#6c757d",
-            fontSize: "0.95rem",
-            fontWeight: isRecurring ? "bold" : "normal",
-            textAlign: "center",
-            width: "100%",
-          }}
-        >
+        <Box sx={{ color: isRecurring ? "#2196f3" : "#6c757d", fontSize: "0.95rem", fontWeight: isRecurring ? "bold" : "normal", textAlign: "center", width: "100%" }}>
           {isRecurring ? "True" : "False"}
         </Box>
       );
     },
+  };
+
+  // NON-CELLS columns
+  if (!isCellType) {
+    return [
+      statusCol,
+      recurringCol,
+      {
+        field: "eventName",
+        headerName: "Event Name",
+        flex: 1.2,
+        minWidth: 160,
+        renderCell: (params) => (
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }} title={params.value || ""}>
+            {params.value || "-"}
+          </Box>
+        ),
+      },
+      {
+        field: "eventLeaderName",
+        headerName: "Event Leader Name",
+        flex: 1,
+        minWidth: 160,
+        renderCell: (params) => (
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }} title={params.value || ""}>
+            {params.value || "-"}
+          </Box>
+        ),
+      },
+      {
+        field: "eventLeaderEmail",
+        headerName: "Event Leader Email",
+        flex: 1,
+        minWidth: 180,
+        renderCell: (params) => (
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }} title={params.value || ""}>
+            {params.value || "-"}
+          </Box>
+        ),
+      },
+      {
+        field: "day",
+        headerName: "Day",
+        flex: 0.7,
+        minWidth: 100,
+        renderCell: (params) => params.value || "-",
+      },
+      {
+        field: "date",
+        headerName: "Date",
+        flex: 0.9,
+        minWidth: 120,
+        renderCell: (params) => formatDate(params.value),
+      },
+      {
+        field: "recurring_days",
+        headerName: "Recurring days",
+        flex: 1,
+        minWidth: 140,
+        renderCell: (params) => {
+          const days = params.value;
+          if (!days || !Array.isArray(days) || days.length === 0) return "-";
+          return (
+            <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }} title={days.join(", ")}>
+              {formatRecurringDays(days) || days.join(", ")}
+            </Box>
+          );
+        },
+      },
+    ];
+  }
+
+  //CELLS columns
+  const sampleEvent = events[0];
+  const filteredFields = Object.keys(sampleEvent).filter((key) => {
+    const keyLower = key.toLowerCase();
+    const excludedFields = [
+      "persistent_attendees", "uuid", "did_not_meet", "status", "week_identifier",
+      "attendees", "_id", "id", "isoverdue", "attendance", "location", "eventtype",
+      "event_type", "eventtypes", "displaydate", "originatedid", "leader12",
+      "leader@12", "leader at 12", "original_event_id", "_is_overdue", "haspersonsteps",
+      "has_person_steps", "is_recurring", "isrecurring", "recurring", "recurring_days",
+      "is_active", "Is_active", "Is active", "time", "Time", "isGlobal", "isTicketed",
+      "description", "new_people", "consolidations", "total_attendance", "closed_by",
+      "closed_at", "created_at", "updated_at",
+    ];
+    const exactMatch = excludedFields.includes(key);
+    const caseInsensitiveMatch = excludedFields.some((excluded) => excluded.toLowerCase() === keyLower);
+    const containsOverdue = keyLower.includes("overdue");
+    const containsDisplayDate = keyLower.includes("display") && keyLower.includes("date");
+    const containsOriginated = keyLower.includes("originated");
+    const containsLeader12 = keyLower.includes("leader") && keyLower.includes("12");
+    const containsLeader1 = keyLower.includes("leader1") || keyLower.includes("leader@1") || keyLower.includes("leader at 1");
+    const shouldExcludeLeader1 =
+      containsLeader1 &&
+      selectedEventTypeFilter !== "all" &&
+      selectedEventTypeFilter !== "CELLS" &&
+      selectedEventTypeFilter !== "Cells";
+    const containsPersonSteps = keyLower.includes("person") && keyLower.includes("steps");
+    return !(exactMatch || caseInsensitiveMatch || containsOverdue || containsDisplayDate || containsOriginated || containsLeader12 || shouldExcludeLeader1 || containsPersonSteps);
   });
 
+  const columns = [statusCol, recurringCol];
   columns.push(
     ...filteredFields.map((key) => ({
       field: key,
-      headerName: key
-        .replace(/_/g, " ")
-        .replace(/([A-Z])/g, " $1")
-        .replace(/^./, (str) => str.toUpperCase()),
+      headerName: key.replace(/_/g, " ").replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase()),
       flex: 1,
       minWidth: 150,
       renderCell: (params) => {
         const value = params.value;
         if (key.toLowerCase().includes("date")) return formatDate(value);
         if (!value) return "-";
-
         return (
-          <Box
-            sx={{
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: 180,
-            }}
-            title={String(value)}
-          >
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }} title={String(value)}>
             {String(value)}
           </Box>
         );
@@ -1469,7 +1450,6 @@ ${xmlCols}
     if (isCellType) {
       endpoint = `${BACKEND_URL}/events/cells`;
 
-      // CRITICAL: Always send name parameters for leader at 12
       params.firstName = userFirstName;
       params.userSurname = userSurname;
 
@@ -1720,10 +1700,10 @@ ${xmlCols}
         return showToAuthorized;
       });
     } catch (error) {
-      console.error("Error filtering event types:", error);
-      return allEventTypes.filter((eventType) => {
-        return isAdmin || isLeaderAt12 || isRegistrant || isLeader;
-      });
+  console.error("Error filtering event types:", error);
+  return allEventTypes.filter(() => {
+    return isAdmin || isLeaderAt12 || isRegistrant || isLeader;
+  });
     }
   };
 
@@ -2133,7 +2113,6 @@ const filteredEventTypes = eventTypes.filter((type) => {
 
               const description =
                 eventTypeObj.description || getEventTypeDescription(typeName);
-
               return (
                 <Box
                   key={typeName}
@@ -3393,303 +3372,308 @@ const filteredEventTypes = eventTypes.filter((type) => {
     DEFAULT_API_START_DATE,
   ]);
 
-  const StatusBadges = ({
-    selectedStatus,
-    setSelectedStatus,
-    setCurrentPage,
-    rowsPerPage,
-    searchQuery,
-    selectedEventTypeFilter,
-    viewFilter,
-    isAdmin,
-    isRegistrant,
-    isRegularUser,
-    isLeaderAt12,
-    isLeader,
-    fetchEvents,
-    DEFAULT_API_START_DATE,
-  }) => {
-    const statuses = [
-      {
-        value: "incomplete",
-        label: "INCOMPLETE",
-        style: styles.statusBadgeIncomplete,
-      },
-      {
-        value: "complete",
-        label: "COMPLETE",
-        style: styles.statusBadgeComplete,
-      },
-      {
-        value: "did_not_meet",
-        label: "DID NOT MEET",
-        style: styles.statusBadgeDidNotMeet,
-      },
-    ];
+const StatusBadges = ({
+  selectedStatus,
+  setSelectedStatus,
+  setCurrentPage,
+  rowsPerPage,
+  searchQuery,
+  selectedEventTypeFilter,
+  viewFilter,
+  isAdmin,
+  isRegistrant,
+  isRegularUser,
+  isLeaderAt12,
+  isLeader,
+  fetchEvents,
+  DEFAULT_API_START_DATE,
+}) => {
+  const statuses = [
+    {
+      value: "incomplete",
+      label: "INCOMPLETE",
+      style: styles.statusBadgeIncomplete,
+    },
+    {
+      value: "complete",
+      label: "COMPLETE",
+      style: styles.statusBadgeComplete,
+    },
+    {
+      value: "did_not_meet",
+      label: "DID NOT MEET",
+      style: styles.statusBadgeDidNotMeet,
+    },
+  ];
 
-    const handleStatusClick = (statusValue) => {
-      setSelectedStatus(statusValue);
-      setCurrentPage(1);
+  const handleStatusClick = (statusValue) => {
+    setSelectedStatus(statusValue);
+    setCurrentPage(1);
 
-      const fetchParams = {
-        page: 1,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        status: statusValue,
-        event_type:
-          selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
-        _t: Date.now(),
-      };
-
-      if (searchQuery.trim()) {
-        fetchParams.search = searchQuery.trim();
-      }
-
-      const isCellEvent =
-        selectedEventTypeFilter === "all" ||
-        selectedEventTypeFilter === "CELLS" ||
-        (selectedEventTypeFilter &&
-          selectedEventTypeFilter.toLowerCase().includes("cell"));
-
-      if (isCellEvent) {
-        if (isAdmin) {
-          if (viewFilter === "personal") {
-            fetchParams.personal = true;
-          }
-        } else if (isRegistrant || isRegularUser) {
-          fetchParams.personal = true;
-        } else if (isLeaderAt12) {
-          fetchParams.leader_at_12_view = true;
-          fetchParams.include_subordinate_cells = true;
-
-          if (viewFilter === "personal") {
-            fetchParams.show_personal_cells = true;
-            fetchParams.personal = true;
-          } else {
-            fetchParams.show_all_authorized = true;
-          }
-        } else if (isLeader) {
-          fetchParams.personal = true;
-        }
-      }
-
-      if (!isCellEvent) {
-        delete fetchParams.personal;
-        delete fetchParams.leader_at_12_view;
-        delete fetchParams.show_personal_cells;
-        delete fetchParams.show_all_authorized;
-        delete fetchParams.include_subordinate_cells;
-      }
-
-      fetchEvents(fetchParams, true);
+    const fetchParams = {
+      page: 1,
+      limit: rowsPerPage,
+      start_date: DEFAULT_API_START_DATE,
+      status: statusValue,
+      event_type:
+        selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
+      _t: Date.now(),
     };
 
-    const canDownload =
-      selectedStatus === "complete" || selectedStatus === "did_not_meet";
-    const [period, setPeriod] = useState("current");
-    const [dropdownOpen, setDropdownOpen] = useState(false);
-    useEffect(() => {
-      const handleClickOutside = () => {
-        if (dropdownOpen) {
-          setDropdownOpen(false);
+    if (searchQuery.trim()) {
+      fetchParams.search = searchQuery.trim();
+    }
+
+    const isCellEvent =
+      selectedEventTypeFilter === "all" ||
+      selectedEventTypeFilter === "CELLS" ||
+      (selectedEventTypeFilter &&
+        selectedEventTypeFilter.toLowerCase().includes("cell"));
+
+    if (isCellEvent) {
+      if (isAdmin) {
+        if (viewFilter === "personal") {
+          fetchParams.personal = true;
         }
-      };
+      } else if (isRegistrant || isRegularUser) {
+        fetchParams.personal = true;
+      } else if (isLeaderAt12) {
+        fetchParams.leader_at_12_view = true;
+        fetchParams.include_subordinate_cells = true;
 
-      if (dropdownOpen) {
-        document.addEventListener("click", handleClickOutside);
+        if (viewFilter === "personal") {
+          fetchParams.show_personal_cells = true;
+          fetchParams.personal = true;
+        } else {
+          fetchParams.show_all_authorized = true;
+        }
+      } else if (isLeader) {
+        fetchParams.personal = true;
       }
+    }
 
-      return () => {
-        document.removeEventListener("click", handleClickOutside);
-      };
-    }, [dropdownOpen]);
+    if (!isCellEvent) {
+      delete fetchParams.personal;
+      delete fetchParams.leader_at_12_view;
+      delete fetchParams.show_personal_cells;
+      delete fetchParams.show_all_authorized;
+      delete fetchParams.include_subordinate_cells;
+    }
 
-    return (
-      <div style={styles.statusBadgeContainer}>
-        {statuses.map((status) => (
+    fetchEvents(fetchParams, true);
+  };
+
+  const canDownload =
+    selectedStatus === "complete" || selectedStatus === "did_not_meet";
+  const [period, setPeriod] = useState("current");
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  
+  const dropdownRef = useRef(null);
+  
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setDropdownOpen(false);
+      }
+    };
+
+    if (dropdownOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [dropdownOpen]);
+
+  return (
+    <div style={styles.statusBadgeContainer}>
+      {statuses.map((status) => (
+        <button
+          key={status.value}
+          style={{
+            ...styles.statusBadge,
+            ...status.style,
+            ...(selectedStatus === status.value
+              ? styles.statusBadgeActive
+              : {}),
+          }}
+          onMouseDown={(e) => {
+            e.currentTarget.style.transform = "scale(0.94)";
+          }}
+          onMouseUp={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = "scale(1)";
+          }}
+          onClick={() => handleStatusClick(status.value)}
+        >
+          {status.label}
+        </button>
+      ))}
+
+      {/* Integrated dropdown in download button - only shown when COMPLETE or DID NOT MEET selected */}
+      {canDownload && (
+        <div
+          ref={dropdownRef}
+          style={{
+            marginLeft: 6,
+            position: "relative",
+          }}
+        >
+          {/* Main download button with integrated dropdown */}
           <button
-            key={status.value}
+            onClick={(e) => {
+              e.stopPropagation();
+              setDropdownOpen(!dropdownOpen);
+            }}
             style={{
               ...styles.statusBadge,
-              ...status.style,
-              ...(selectedStatus === status.value
-                ? styles.statusBadgeActive
-                : {}),
-            }}
-            onMouseDown={(e) => {
-              e.currentTarget.style.transform = "scale(0.94)";
-            }}
-            onMouseUp={(e) => {
-              e.currentTarget.style.transform = "scale(1)";
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.transform = "scale(1)";
-            }}
-            onClick={() => handleStatusClick(status.value)}
-          >
-            {status.label}
-          </button>
-        ))}
-
-        {/* Period selector + Bulk download: show only when COMPLETE or DID NOT MEET selected */}
-        {canDownload && (
-          <div
-            style={{
-              display: "flex",
-              gap: 8,
+              backgroundColor: "#f1f3f5",
+              color: "#35669b",
+              borderColor: "#ddd",
+              display: "inline-flex",
               alignItems: "center",
-              marginLeft: 6,
+              gap: "8px",
+              cursor: "pointer",
+              whiteSpace: "nowrap",
+              padding: "0.4rem 0.8rem",
+              fontSize: "5rem",
               position: "relative",
             }}
+            title={`Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance`}
           >
-            <div style={{ position: "relative" }}>
+            <GetAppIcon fontSize="small" style={{ color: "#6c757d" }} />
+            <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+              DOWNLOAD
+            </span>
+            <span style={{ 
+              fontSize: "0.7rem", 
+              marginLeft: "4px",
+              borderLeft: "1px solid #ccc",
+              paddingLeft: "8px",
+              display: "flex",
+              alignItems: "center",
+              gap: "2px"
+            }}>
+         
+              <span style={{ fontSize: "0.7rem" }}>▼</span>
+            </span>
+          </button>
+
+          {/* Dropdown menu attached to download button */}
+          {dropdownOpen && (
+            <div
+              style={{
+                position: "absolute",
+                top: "100%",
+                right: 0, 
+                zIndex: 1000,
+                backgroundColor: "#fff",
+                border: "1px solid #ddd",
+                borderRadius: "6px",
+                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                marginTop: "4px",
+                minWidth: "160px",
+                overflow: "hidden",
+              }}
+            >
+              <div style={{ 
+                padding: "0.5rem 0.8rem", 
+                fontSize: "0.7rem", 
+                color: "#999",
+                borderBottom: "1px solid #eee",
+                backgroundColor: "#f9f9f9"
+              }}>
+                Select week period:
+              </div>
+              
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  setDropdownOpen(!dropdownOpen);
+                  setPeriod("current");
+                  setDropdownOpen(false);
+                  downloadEventsByStatus(selectedStatus, "current");
                 }}
                 style={{
-                  ...styles.statusBadge,
-                  padding: "0.4rem 0.8rem",
-                  fontSize: "0.75rem",
-                  backgroundColor: "#f1f3f5",
-                  color: "#6c757d",
-                  borderColor: "#ddd",
+                  width: "100%",
+                  padding: "0.7rem 0.8rem",
+                  backgroundColor: "#fff",
+                  color: "#333",
+                  border: "none",
+                  textAlign: "left",
                   cursor: "pointer",
-                  whiteSpace: "nowrap",
+                  fontSize: "0.8rem",
                   display: "flex",
                   alignItems: "center",
-                  gap: "4px",
-                  minWidth: "120px",
-                  justifyContent: "space-between",
+                  gap: "8px",
+                  borderBottom: "1px solid #eee",
+                  transition: "background-color 0.2s",
                 }}
-                title="Select week period"
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f5f5f5"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#fff"}
               >
-                <span>
-                  {period === "current" ? "Current Week" : "Previous Week"}
-                </span>
-                <span style={{ fontSize: "0.7rem" }}>▼</span>
-              </button>
-
-              {/* Dropdown menu */}
-              {dropdownOpen && (
-                <div
+                <span
                   style={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    zIndex: 1000,
-                    backgroundColor: "#fff",
-                    border: "1px solid #ddd",
-                    borderRadius: "6px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                    marginTop: "4px",
-                    minWidth: "140px",
-                    overflow: "hidden",
+                    width: "8px",
+                    height: "8px",
+                    borderRadius: "50%",
+                    backgroundColor: period === "current" ? "#6c757d" : "#ddd",
+                    border: "none",
                   }}
-                >
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPeriod("current");
-                      setDropdownOpen(false);
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: "0.6rem 0.8rem",
-                      backgroundColor:
-                        period === "current" ? "#f1f3f5" : "#fff",
-                      color: "#6c757d",
-                      border: "none",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      fontSize: "0.75rem",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      borderBottom: "1px solid #eee",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        backgroundColor:
-                          period === "current" ? "#6c757d" : "transparent",
-                        border:
-                          period === "current" ? "none" : "1px solid #ddd",
-                      }}
-                    ></span>
-                    Current Week
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setPeriod("previous");
-                      setDropdownOpen(false);
-                    }}
-                    style={{
-                      width: "100%",
-                      padding: "0.6rem 0.8rem",
-                      backgroundColor:
-                        period === "previous" ? "#f1f3f5" : "#fff",
-                      color: "#6c757d",
-                      border: "none",
-                      textAlign: "left",
-                      cursor: "pointer",
-                      fontSize: "0.75rem",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        backgroundColor:
-                          period === "previous" ? "#6c757d" : "transparent",
-                        border:
-                          period === "previous" ? "none" : "1px solid #ddd",
-                      }}
-                    ></span>
-                    Previous Week
-                  </button>
-                </div>
-              )}
+                ></span>
+                <span style={{ flex: 1 }}>Current Week</span>
+                {period === "current" && (
+                  <span style={{ color: "#6c757d", fontSize: "0.7rem" }}>✓</span>
+                )}
+              </button>
+              
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setPeriod("previous");
+                  setDropdownOpen(false);
+                  downloadEventsByStatus(selectedStatus, "previous");
+                }}
+                style={{
+                  width: "100%",
+                  padding: "0.7rem 0.8rem",
+                  backgroundColor: "#fff",
+                  color: "#333",
+                  border: "none",
+                  textAlign: "left",
+                  cursor: "pointer",
+                  fontSize: "0.8rem",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  transition: "background-color 0.2s",
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f5f5f5"}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#fff"}
+              >
+                <span
+                  style={{
+                    width: "8px",
+                    height: "8px",
+                    borderRadius: "50%",
+                    backgroundColor: period === "previous" ? "#6c757d" : "#ddd",
+                    border: "none",
+                  }}
+                ></span>
+                <span style={{ flex: 1 }}>Previous Week</span>
+                {period === "previous" && (
+                  <span style={{ color: "#6c757d", fontSize: "0.7rem" }}>✓</span>
+                )}
+              </button>
             </div>
-
-            <button
-              key="download-bulk"
-              onClick={() => downloadEventsByStatus(selectedStatus, period)}
-              title={`Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance (${period === "current" ? "current week" : "previous week"})`}
-              style={{
-                ...styles.statusBadge,
-                backgroundColor: "#f1f3f5",
-                color: "#6c757d",
-                borderColor: "#ddd",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "8px",
-                cursor: "pointer",
-                whiteSpace: "nowrap",
-                padding: "0.4rem 0.8rem",
-                fontSize: "5rem",
-              }}
-            >
-              <GetAppIcon fontSize="small" style={{ color: "#6c757d" }} />
-              <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
-                DOWNLOAD
-                {selectedStatus === "complete" ? " COMPLETED" : " DID NOT MEET"}
-              </span>
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  };
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
   const ViewFilterButtons = () => {
     const shouldShowToggle =
