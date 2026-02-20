@@ -48,7 +48,7 @@ const formatRecurringDays = (recurringDays) => {
   }
 
   if (recurringDays.length === 1) {
-    return `Every ${recurringDays[0]}`;
+    return ` ${recurringDays[0]}`;
   }
 
   const dayOrder = {
@@ -64,11 +64,11 @@ const formatRecurringDays = (recurringDays) => {
   const sorted = [...recurringDays].sort((a, b) => dayOrder[a] - dayOrder[b]);
 
   if (sorted.length === 2) {
-    return `Every ${sorted[0]} & ${sorted[1]}`;
+    return ` ${sorted[0]} & ${sorted[1]}`;
   }
 
   const last = sorted.pop();
-  return `Every ${sorted.join(", ")} & ${last}`;
+  return ` ${sorted.join(", ")} & ${last}`;
 };
 
 const styles = {
