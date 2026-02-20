@@ -971,7 +971,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const otherFields = availableFields.filter(f => {
     const skipFields = ['is_active', 'Display date', 'Display_date', 'display_date',
       'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring',
-      'data-recurring', 'is_recurring', 'isRecurring', 'is_overdue', 'isOverdue'];
+      'data-recurring', 'is_recurring', 'isRecurring', 'is_overdue', 'isOverdue', "closed_by", "closed_at", "new_people", "consolidations"];
 
     // ADDED: For non-cell events, also skip these fields from "other fields"
     if (!isCellEvent) {
