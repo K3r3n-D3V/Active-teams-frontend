@@ -699,22 +699,25 @@ const [peopleData, setPeopleData] = useState([]);
 const [allPeopleCache, setAllPeopleCache] = useState([]);
 
 useEffect(() => {
-  // Cache all people once
   const fetchAll = async () => {
     try {
       const token = localStorage.getItem("token");
       const res = await fetch(`${BACKEND_URL}/people?perPage=0`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const data = await res.json();
-        const formatted = (data?.results || []).map(p => ({
-          id: p._id,
-          fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-          email: p.Email || "",
-        }));
-        setAllPeopleCache(formatted);
-      }
+      if (!res.ok) throw new Error("People fetch failed");
+      
+      const json = await res.json();
+      const formatted = (json?.results || json?.data || []).map(p => ({
+        id:        p._id,
+        fullName:  `${p.Name || ""} ${p.Surname || ""}`.trim(),
+        email:     p.Email || "",
+        leader1:   p["Leader @1"]  || p.leader1  || "",
+        leader12:  p["Leader @12"] || p.leader12 || "",
+      }));
+      
+      setAllPeopleCache(formatted);
+      console.log(`Cached ${formatted.length} people`);
     } catch (err) {
       console.error("People cache failed:", err);
     }
@@ -723,15 +726,26 @@ useEffect(() => {
 }, []);
 
 const fetchPeople = (query) => {
-  if (!query.trim()) {
+  if (!query?.trim()) {
     setPeopleData([]);
     return;
   }
+
   const q = query.toLowerCase().trim();
-  const filtered = allPeopleCache.filter(p => 
-    p.fullName.toLowerCase().includes(q)
+
+  const matches = allPeopleCache.filter(p =>
+    p.fullName.toLowerCase().includes(q) ||
+    p.email?.toLowerCase().includes(q)
   );
-  setPeopleData(filtered.slice(0, 10));
+
+  // You can sort by match quality if you want
+  matches.sort((a, b) => {
+    const aStarts = a.fullName.toLowerCase().startsWith(q) ? -1 : 1;
+    const bStarts = b.fullName.toLowerCase().startsWith(q) ? -1 : 1;
+    return aStarts - bStarts;
+  });
+
+  setPeopleData(matches.slice(0, 12)); // a bit more generous limit
 };
   
   useEffect(() => {
@@ -816,20 +830,11 @@ useEffect(() => {
     [filteredEvents]
   );
 
+ 
   const handleCreateEvent = useCallback(() => {
-  const globalEvent = eventTypes?.find(
-    (et) => et.name?.toLowerCase() === "global events"
-  );
-
-  setNewEventData((prev) => ({
-    ...prev,
-    date: selectedDate,
-    eventTypeName: globalEvent?.name || "Global Events",
-  }));
-
-  setCreateEventModalOpen(true);
-}, [selectedDate, eventTypes]);
-
+    setNewEventData((prev) => ({ ...prev, date: selectedDate }));
+    setCreateEventModalOpen(true);
+  }, [selectedDate]);
 
   const handleSaveEvent = async () => {
     if (!newEventData.eventName.trim()) {
@@ -844,65 +849,23 @@ useEffect(() => {
     try {
       const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
 
-      // const payload = {
-      //   eventName: newEventData.eventName.trim(),
-      //   eventTypeName: newEventData.eventTypeName,
-      //   date: newEventData.date || selectedDate,
-      //   time: newEventData.time,
-      //   location: newEventData.location || null,
-      //   description: newEventData.description || null,
-      //   eventLeaderName:
-      //     newEventData.eventLeaderName ||
-      //     `${user.name || ""} ${user.surname || ""}`.trim() ||
-      //     "Unknown Leader",
-      //   eventLeaderEmail: newEventData.eventLeaderEmail || user.email || null,
-      //   isRecurring: newEventData.isRecurring,
-      //   status: "incomplete",
-      //   recurringDays: newEventData.isRecurring ? newEventData.recurringDays : [],
-      //   created_at: new Date().toISOString(),
-      // };
-
       const payload = {
-  UUID: generateUUID(),                     // ← added (very useful even in drafts)
-
-  eventName: newEventData.eventName.trim(),
-  eventTypeName: newEventData.eventTypeName,
-
-  date: newEventData.date || selectedDate,
-  time: newEventData.time,
-  // Optional: day: newEventData.date ? new Date(newEventData.date).getDay() : null,
-
-  location: newEventData.location || null,
-  description: newEventData.description || null,
-
-  eventLeaderName:
-    newEventData.eventLeaderName ||
-    `${user.name || ""} ${user.surname || ""}`.trim() ||
-    "Unknown Leader",
-
-  eventLeaderEmail:
-    newEventData.eventLeaderEmail || user.email || null,
-
-  // ── Added missing classification flags ──
-  isTicketed: newEventData.isTicketed ?? false,
-  isGlobal:   newEventData.isGlobal   ?? false,
-  hasPersonSteps: newEventData.hasPersonSteps ?? false,
-
-  // ── Leader extras (only if your form actually collects them) ──
-  eventLeader: newEventData.eventLeaderName || "",     // if it's an ID/reference
-  leader1:     newEventData.leader1     || "",
-  leader12:    newEventData.leader12    || "",     // consider renaming to leader2
-
-  isRecurring: newEventData.isRecurring,
-  recurringDays: newEventData.isRecurring ? newEventData.recurringDays : [],
-
-  status: "incomplete",           // stays incomplete until final submission
-
-  userEmail: user?.email || null,           // ← added
-
-  created_at: new Date().toISOString(),
-  // Optional: updated_at: new Date().toISOString(),  // helpful for drafts
-};
+        eventName: newEventData.eventName.trim(),
+        eventTypeName: newEventData.eventTypeName,
+        date: newEventData.date || selectedDate,
+        time: newEventData.time,
+        location: newEventData.location || null,
+        description: newEventData.description || null,
+        eventLeaderName:
+          newEventData.eventLeaderName ||
+          `${user.name || ""} ${user.surname || ""}`.trim() ||
+          "Unknown Leader",
+        eventLeaderEmail: newEventData.eventLeaderEmail || user.email || null,
+        isRecurring: newEventData.isRecurring,
+        recurringDays: newEventData.recurringDays || [],
+        status: "incomplete",
+        created_at: new Date().toISOString(),
+      };
 
       const res = await authFetch(`${BACKEND_URL}/events`, {
         method: "POST",
@@ -926,7 +889,6 @@ useEffect(() => {
         time: "19:00",
         description: "",
         isRecurring: false,
-        recurringDays: [],
       });
 
       setSnackbar({
@@ -2358,122 +2320,104 @@ const SameWidthPopper = (props) => {
 
       {/* ── EVENT LEADER AUTOCOMPLETE (people search) ── */}
       <Box>
-              <TextField
-                label="Event Leader *"
-                value={newEventData.eventLeader}
-                onChange={(e, newValue) => {
-            if (typeof newValue === 'string') {
-              setNewEventData(p => ({ ...p, eventLeader: newValue }));
-            } else if (newValue) {
-              setNewEventData(p => ({
-                ...p,
-                eventLeader: newValue.fullName,
-                eventLeaderEmail: newValue.email || '',
-              }));
-            }
-          }}
-                onFocus={() => {
-                  if (newEventData.eventLeaderName.length >= 1) {
-                    fetchPeople(newEventData.eventLeaderName);
-                  }
-                }}
-                onBlur={() => {
-                  // Delay hiding dropdown to allow for selection
-                  setTimeout(() => setPeopleData([]), 200);
-                }}
-                fullWidth
-                size="small"
-                sx={{
-                '& .MuiOutlinedInput-root': {
-                  bgcolor: '#1a1a1a',
-                  color: '#fff',
-                  borderRadius: 1,
-                  fontSize: '0.95rem',
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#3b82f6', borderWidth: 1.5 },
-                },
-                '& .MuiInputBase-input': { py: 1.1, px: 1.6 },
-              }}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <PersonIcon />
-                    </InputAdornment>
-                  ),
-                }}
-                placeholder="Type name and surname to search..."
-                autoComplete="off"
-              />
+  <Autocomplete
+    freeSolo
+    fullWidth
+    disableClearable
+    options={peopleData}
+    getOptionLabel={(option) =>
+      typeof option === 'string' ? option : option.fullName || ''
+    }
+    value={newEventData.eventLeader || ''}
+    inputValue={newEventData.eventLeader || ''}
+    onInputChange={(event, newInputValue) => {
+      setNewEventData((prev) => ({ ...prev, eventLeader: newInputValue }));
 
-        {/* <Autocomplete
-          freeSolo
-          fullWidth
-          options={peopleData}
-          getOptionLabel={(option) => (typeof option === 'string' ? option : option.fullName || '')}
-          value={newEventData.eventLeader}
-          inputValue={newEventData.eventLeader}
-          onInputChange={(e, newValue) => {
-            setNewEventData(p => ({ ...p, eventLeader: newValue }));
-            if (newValue.trim().length >= 2) {
-              fetchPeople(newValue); // same function as CreateEvents
-            } else {
-              setPeopleData([]);
-            }
-          }}
-          onChange={(e, newValue) => {
-            if (typeof newValue === 'string') {
-              setNewEventData(p => ({ ...p, eventLeader: newValue }));
-            } else if (newValue) {
-              setNewEventData(p => ({
-                ...p,
-                eventLeader: newValue.fullName,
-                eventLeaderEmail: newValue.email || '',
-              }));
-            }
-          }}
-          renderInput={(params) => (
-            <TextField
-              {...params}
-              placeholder="Type name and surname to search..."
-              fullWidth
-              sx={{
-                '& .MuiOutlinedInput-root': {
-                  bgcolor: '#1a1a1a',
-                  color: '#fff',
-                  borderRadius: 1,
-                  fontSize: '0.95rem',
-                  '& fieldset': { borderColor: '#444' },
-                  '&:hover fieldset': { borderColor: '#666' },
-                  '&.Mui-focused fieldset': { borderColor: '#3b82f6', borderWidth: 1.5 },
-                },
-                '& .MuiInputBase-input': { py: 1.1, px: 1.6 },
-              }}
-              InputProps={{
-                ...params.InputProps,
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <Box component="span" sx={{ color: '#888', fontSize: '1.2rem' }}>👤</Box>
-                  </InputAdornment>
-                ),
-              }}
-            /> */}
-          {/* )}
-          renderOption={(props, option) => (
-            <li {...props}>
-              <Box>
-                <Typography variant="body2" fontWeight={500}>
-                  {option.fullName}
-                </Typography>
-                <Typography variant="caption" sx={{ color: '#888' }}>
-                  {option.email}
-                </Typography>
-              </Box>
-            </li>
-          )}
-          PopperComponent={SameWidthPopper}
-        /> */}
-      </Box>
+      if (newInputValue.trim().length >= 2) {
+        fetchPeople(newInputValue);
+      } else {
+        setPeopleData([]);
+      }
+    }}
+    onChange={(event, selectedOption) => {
+  if (typeof selectedOption === 'string') {
+    // User typed free text (not selected from list)
+    setNewEventData(prev => ({
+      ...prev,
+      eventLeader: selectedOption,
+      eventLeaderName: selectedOption,
+      eventLeaderEmail: '',
+      // Do NOT set leader1/leader12 for free-typed values
+      leader1: '',
+      leader12: '',
+    }));
+  } else if (selectedOption) {
+    // User selected a real person → auto-fill based on flags
+    const isLevel1 = !!selectedOption.leader1 && 
+      ["Yes", "yes", "true", "1", "Y", true].includes(selectedOption.leader1);
+
+    const isLevel12 = !!selectedOption.leader12 && 
+      ["Yes", "yes", "true", "1", "Y", true].includes(selectedOption.leader12);
+      console.log("Leader @1 flag:", selectedOption.leader1);
+    console.log("Leader @12 flag:", selectedOption.leader12);
+    console.log("Auto-setting leader1:", isLevel1 ? selectedOption.fullName : 'empty');
+    console.log("Auto-setting leader12:", isLevel12 ? selectedOption.fullName : 'empty');
+
+    setNewEventData(prev => ({
+      ...prev,
+      eventLeader: selectedOption.fullName,
+      eventLeaderName: selectedOption.fullName,
+      eventLeaderEmail: selectedOption.email || '',
+      leader1: isLevel1 ? selectedOption.fullName : '',
+      leader12: isLevel12 ? selectedOption.fullName : '',
+    }));
+  }
+}}
+    renderInput={(params) => (
+      <TextField
+        {...params}
+        label="Event Leader *"
+        placeholder="Type name and surname to search..."
+        fullWidth
+        size="small"
+        autoComplete="off"
+        sx={{
+          '& .MuiOutlinedInput-root': {
+            bgcolor: '#1a1a1a',
+            color: '#fff',
+            borderRadius: 1,
+            fontSize: '0.95rem',
+            '& fieldset': { borderColor: '#444' },
+            '&:hover fieldset': { borderColor: '#666' },
+            '&.Mui-focused fieldset': { borderColor: '#3b82f6', borderWidth: 1.5 },
+          },
+          '& .MuiInputBase-input': { py: 1.1, px: 1.6 },
+        }}
+        InputProps={{
+          ...params.InputProps,
+          startAdornment: (
+            <InputAdornment position="start">
+              <PersonIcon />
+            </InputAdornment>
+          ),
+        }}
+      />
+    )}
+    renderOption={(props, option) => (
+      <li {...props}>
+        <Box>
+          <Typography variant="body2" fontWeight={500}>
+            {option.fullName}
+          </Typography>
+          <Typography variant="caption" sx={{ color: '#888' }}>
+            {option.email}
+          </Typography>
+        </Box>
+      </li>
+    )}
+    PopperComponent={SameWidthPopper}
+  />
+</Box>
 
       {/* Description */}
       <Box>
