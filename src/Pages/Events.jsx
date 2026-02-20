@@ -482,84 +482,14 @@ const formatDate = (date) => {
 const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
   if (!events || events.length === 0) return [];
 
-  const sampleEvent = events[0];
-  const filteredFields = Object.keys(sampleEvent).filter((key) => {
-    const keyLower = key.toLowerCase();
+  const isCellType =
+    !selectedEventTypeFilter ||
+    selectedEventTypeFilter === "all" ||
+    selectedEventTypeFilter === "CELLS" ||
+    selectedEventTypeFilter.toLowerCase().includes("cell");
 
-    const excludedFields = [
-      "persistent_attendees",
-      "uuid",
-      "did_not_meet",
-      "status",
-      "week_identifier",
-      "attendees",
-      "_id",
-      "isoverdue",
-      "attendance",
-      "location",
-      "eventtype",
-      "event_type",
-      "eventtypes",
-      "status",
-      "displaydate",
-      "originatedid",
-      "leader12",
-      "leader@12",
-      "leader at 12",
-      "original_event_id",
-      "_is_overdue",
-      "haspersonsteps",
-      "haspersonsteps",
-      "has_person_steps",
-      "is_recurring",
-      "isrecurring",
-      "recurring",
-      "recurring_days",
-      "is_active",
-      "Is_active",
-      "Is active",
-      "time",
-      "Time",
-    ];
-
-    const exactMatch = excludedFields.includes(key);
-    const caseInsensitiveMatch = excludedFields.some(
-      (excluded) => excluded.toLowerCase() === keyLower,
-    );
-
-    const containsOverdue = keyLower.includes("overdue");
-    const containsDisplayDate =
-      keyLower.includes("display") && keyLower.includes("date");
-    const containsOriginated = keyLower.includes("originated");
-    const containsLeader12 =
-      keyLower.includes("leader") && keyLower.includes("12");
-    const containsLeader1 =
-      keyLower.includes("leader1") ||
-      keyLower.includes("leader@1") ||
-      keyLower.includes("leader at 1");
-    const shouldExcludeLeader1 =
-      containsLeader1 &&
-      selectedEventTypeFilter !== "all" &&
-      selectedEventTypeFilter !== "CELLS" &&
-      selectedEventTypeFilter !== "Cells";
-
-    const containsPersonSteps =
-      keyLower.includes("person") && keyLower.includes("steps");
-    const shouldExclude =
-      exactMatch ||
-      caseInsensitiveMatch ||
-      containsOverdue ||
-      containsDisplayDate ||
-      containsOriginated ||
-      containsLeader12 ||
-      shouldExcludeLeader1 ||
-      containsPersonSteps;
-
-    return !shouldExclude;
-  });
-  const columns = [];
-
-  columns.push({
+  //STATUS column
+  const statusCol = {
     field: "overdue",
     headerName: "Status",
     flex: 0.8,
@@ -567,106 +497,157 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     renderCell: (params) => {
       const isOverdueEvent = isOverdue(params.row);
       const status = params.row.status || "incomplete";
-
-      if (
-        isOverdueEvent &&
-        (selectedEventTypeFilter === "all" ||
-          selectedEventTypeFilter === "CELLS")
-      ) {
+      if (isOverdueEvent && isCellType) {
         return (
-          <Box
-            sx={{
-              color: "#dc3545",
-              fontSize: "0.8rem",
-              fontWeight: "bold",
-              whiteSpace: "nowrap",
-              textAlign: "center",
-              width: "100%",
-            }}
-          >
+          <Box sx={{ color: "#dc3545", fontSize: "0.8rem", fontWeight: "bold", textAlign: "center", width: "100%" }}>
             OVERDUE
           </Box>
         );
       }
       return (
-        <Box
-          sx={{
-            color:
-              status === "complete"
-                ? "#28a745"
-                : status === "did_not_meet"
-                  ? "#dc3545"
-                  : "#6c757d",
-            fontWeight: "500",
-            fontSize: "0.8rem",
-            textTransform: "capitalize",
-            textAlign: "center",
-            width: "100%",
-          }}
-        >
+        <Box sx={{
+          color: status === "complete" ? "#28a745" : status === "did_not_meet" ? "#dc3545" : "#6c757d",
+          fontWeight: "500", fontSize: "0.8rem", textTransform: "capitalize", textAlign: "center", width: "100%",
+        }}>
           {status.replace("_", " ")}
         </Box>
       );
     },
-  });
+  };
 
-  columns.push({
+  // RECURRING column
+  const recurringCol = {
     field: "recurring_info",
     headerName: "Recurring",
     flex: 0.8,
     minWidth: 120,
     renderCell: (params) => {
-      if (!params || !params.row) {
-        return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
-      }
-
+      if (!params?.row) return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
       const row = params.row;
       const isRecurring =
         row.is_recurring ||
-        (row.recurring_days &&
-          Array.isArray(row.recurring_days) &&
-          row.recurring_days.length > 0);
-
+        (row.recurring_days && Array.isArray(row.recurring_days) && row.recurring_days.length > 0);
       return (
-        <Box
-          sx={{
-            color: isRecurring ? "#2196f3" : "#6c757d",
-            fontSize: "0.95rem",
-            fontWeight: isRecurring ? "bold" : "normal",
-            textAlign: "center",
-            width: "100%",
-          }}
-        >
+        <Box sx={{ color: isRecurring ? "#2196f3" : "#6c757d", fontSize: "0.95rem", fontWeight: isRecurring ? "bold" : "normal", textAlign: "center", width: "100%" }}>
           {isRecurring ? "True" : "False"}
         </Box>
       );
     },
+  };
+
+  // NON-CELLS columns
+  if (!isCellType) {
+    return [
+      statusCol,
+      recurringCol,
+      {
+        field: "eventName",
+        headerName: "Event Name",
+        flex: 1.2,
+        minWidth: 160,
+        renderCell: (params) => (
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }} title={params.value || ""}>
+            {params.value || "-"}
+          </Box>
+        ),
+      },
+      {
+        field: "eventLeaderName",
+        headerName: "Event Leader Name",
+        flex: 1,
+        minWidth: 160,
+        renderCell: (params) => (
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }} title={params.value || ""}>
+            {params.value || "-"}
+          </Box>
+        ),
+      },
+      {
+        field: "eventLeaderEmail",
+        headerName: "Event Leader Email",
+        flex: 1,
+        minWidth: 180,
+        renderCell: (params) => (
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }} title={params.value || ""}>
+            {params.value || "-"}
+          </Box>
+        ),
+      },
+      {
+        field: "day",
+        headerName: "Day",
+        flex: 0.7,
+        minWidth: 100,
+        renderCell: (params) => params.value || "-",
+      },
+      {
+        field: "date",
+        headerName: "Date",
+        flex: 0.9,
+        minWidth: 120,
+        renderCell: (params) => formatDate(params.value),
+      },
+      {
+        field: "recurring_days",
+        headerName: "Recurring days",
+        flex: 1,
+        minWidth: 140,
+        renderCell: (params) => {
+          const days = params.value;
+          if (!days || !Array.isArray(days) || days.length === 0) return "-";
+          return (
+            <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }} title={days.join(", ")}>
+              {formatRecurringDays(days) || days.join(", ")}
+            </Box>
+          );
+        },
+      },
+    ];
+  }
+
+  //CELLS columns
+  const sampleEvent = events[0];
+  const filteredFields = Object.keys(sampleEvent).filter((key) => {
+    const keyLower = key.toLowerCase();
+    const excludedFields = [
+      "persistent_attendees", "uuid", "did_not_meet", "status", "week_identifier",
+      "attendees", "_id", "id", "isoverdue", "attendance", "location", "eventtype",
+      "event_type", "eventtypes", "displaydate", "originatedid", "leader12",
+      "leader@12", "leader at 12", "original_event_id", "_is_overdue", "haspersonsteps",
+      "has_person_steps", "is_recurring", "isrecurring", "recurring", "recurring_days",
+      "is_active", "Is_active", "Is active", "time", "Time", "isGlobal", "isTicketed",
+      "description", "new_people", "consolidations", "total_attendance", "closed_by",
+      "closed_at", "created_at", "updated_at",
+    ];
+    const exactMatch = excludedFields.includes(key);
+    const caseInsensitiveMatch = excludedFields.some((excluded) => excluded.toLowerCase() === keyLower);
+    const containsOverdue = keyLower.includes("overdue");
+    const containsDisplayDate = keyLower.includes("display") && keyLower.includes("date");
+    const containsOriginated = keyLower.includes("originated");
+    const containsLeader12 = keyLower.includes("leader") && keyLower.includes("12");
+    const containsLeader1 = keyLower.includes("leader1") || keyLower.includes("leader@1") || keyLower.includes("leader at 1");
+    const shouldExcludeLeader1 =
+      containsLeader1 &&
+      selectedEventTypeFilter !== "all" &&
+      selectedEventTypeFilter !== "CELLS" &&
+      selectedEventTypeFilter !== "Cells";
+    const containsPersonSteps = keyLower.includes("person") && keyLower.includes("steps");
+    return !(exactMatch || caseInsensitiveMatch || containsOverdue || containsDisplayDate || containsOriginated || containsLeader12 || shouldExcludeLeader1 || containsPersonSteps);
   });
 
+  const columns = [statusCol, recurringCol];
   columns.push(
     ...filteredFields.map((key) => ({
       field: key,
-      headerName: key
-        .replace(/_/g, " ")
-        .replace(/([A-Z])/g, " $1")
-        .replace(/^./, (str) => str.toUpperCase()),
+      headerName: key.replace(/_/g, " ").replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase()),
       flex: 1,
       minWidth: 150,
       renderCell: (params) => {
         const value = params.value;
         if (key.toLowerCase().includes("date")) return formatDate(value);
         if (!value) return "-";
-
         return (
-          <Box
-            sx={{
-              whiteSpace: "nowrap",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              maxWidth: 180,
-            }}
-            title={String(value)}
-          >
+          <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }} title={String(value)}>
             {String(value)}
           </Box>
         );
