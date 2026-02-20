@@ -651,13 +651,12 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       </Box>
     );
 
-    if (field === 'is_active' || field === 'Display date' || field === 'Display_date' ||
-      field === 'display_date' || field === 'did_not_meet' || field === 'Did_not_meet' ||
-      field === 'S' || field === 's' || field === 'Data-recurring' || field === 'data-recurring' ||
-      field === 'is_recurring' || field === 'isRecurring' || field === 'is_overdue' ||
-      field === 'isOverdue') {
-      return null;
-    }
+if (field === 'is_active' || field === 'Display date' || field === 'Display_date' ||
+  field === 'display_date' || field === 'did_not_meet' || field === 'Did_not_meet' ||
+  field === 'S' || field === 's' || field === 'Data-recurring' || field === 'data-recurring' ||
+  field === 'is_recurring' || field === 'isRecurring') {
+  return null;
+}
 
     if (
       (fl.includes('date') && !fl.includes('datecaptured') && !fl.includes('display')) ||
@@ -968,22 +967,24 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
   const locationFields = availableFields.filter(f => ['Address', 'location', 'address'].includes(f));
   const timeFields = availableFields.filter(f => ['date', 'Date Of Event', 'time', 'Time', 'Day', 'recurring_day'].includes(f));
-  const otherFields = availableFields.filter(f => {
-    const skipFields = ['is_active', 'Display date', 'Display_date', 'display_date',
-      'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring',
-      'data-recurring', 'is_recurring', 'isRecurring', 'is_overdue', 'isOverdue', "closed_by", "closed_at", "new_people", "consolidations"];
+const otherFields = availableFields.filter(f => {
+  const skipFields = [
+    'is_active', 'Display date', 'Display_date', 'display_date',
+    'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring',
+    'data-recurring', 'is_recurring', 'isRecurring',
+    'closed_by', 'closed_at', 'new_people', 'consolidations',"Status"
+  ];
 
-    // ADDED: For non-cell events, also skip these fields from "other fields"
-    if (!isCellEvent) {
-      const fl = f.toLowerCase();
-      if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12') ||
-        fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps') {
-        skipFields.push(f);
-      }
+  if (!isCellEvent) {
+    const fl = f.toLowerCase();
+    if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12') ||
+      fl.includes('haspersonsteps') || fl.includes('has personal steps') || fl === 'haspersonalsteps') {
+      skipFields.push(f);
     }
+  }
 
-    return ![...personFields, ...eventFields, ...locationFields, ...timeFields, ...skipFields].includes(f);
-  });
+  return ![...personFields, ...eventFields, ...locationFields, ...timeFields, ...skipFields].includes(f);
+});
 
   const eventName = formData.eventName || formData['Event Name'] || 'Unnamed Event';
 
@@ -1201,7 +1202,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                   </Grid>
                 </Box>
 
-                {otherFields.length > 0 && (
+                {/* {otherFields.length > 0 && (
                   <Box sx={{ mt: 3 }}>
                     <Button
                       fullWidth
@@ -1222,7 +1223,86 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                       </Grid>
                     </Collapse>
                   </Box>
-                )}
+                )} */}
+                {otherFields.length > 0 && (
+  <Box sx={{ mt: 3 }}>
+    <Button
+      fullWidth
+      onClick={() => setShowAllFields(!showAllFields)}
+      startIcon={showAllFields ? <ExpandLess /> : <ExpandMore />}
+      size="small"
+    >
+      {showAllFields ? 'Hide' : 'Show'} Other Fields ({otherFields.length})
+    </Button>
+
+    <Collapse in={showAllFields}>
+      <Box sx={{ mt: 1 }}>
+
+        {/* Row 1: Event Type | Day | is overdue */}
+        <Grid container spacing={2}>
+          {[
+            otherFields.find(f => f === 'eventType' || f === 'Event Type'),
+            otherFields.find(f => f === 'day' || f === 'Day'),
+            otherFields.find(f => f === '_is_overdue' || f === 'is_overdue' || f === 'isOverdue'),
+          ]
+            .filter(Boolean)
+            .map(field => (
+              <Grid item xs={12} md={4} key={field}>
+                {renderField(field)}
+              </Grid>
+            ))}
+        </Grid>
+
+<Grid container spacing={2} sx={{ mt: 0 }}>
+  {(() => {
+    const recurringField = otherFields.find(f => f === 'recurring_days' || f === 'recurring_day');
+    const origEventId = otherFields.find(f => f === 'original_event_id');
+    const compositeId = otherFields.find(f => f === 'original_composite_id');
+    return (
+      <>
+        {recurringField && (
+          <Grid item xs={12} md={4} key={recurringField}>
+            {renderField(recurringField)}
+          </Grid>
+        )}
+        {origEventId && (
+          <Grid item xs={12} md={4} key={origEventId}>
+            {renderField(origEventId)}
+          </Grid>
+        )}
+        {compositeId && (
+          <Grid item xs={12} md={4} key={compositeId}>
+            {renderField(compositeId)}
+          </Grid>
+        )}
+      </>
+    );
+  })()}
+</Grid>
+{(() => {
+  const handled = new Set([
+    'eventType', 'Event Type',
+    'day', 'Day',
+    '_is_overdue', 'is_overdue', 'isOverdue',
+    'recurring_days', 'recurring_day',
+    'original_event_id',        
+    'original_composite_id',   
+  ]);
+  const remaining = otherFields.filter(f => !handled.has(f));
+  return remaining.length > 0 ? (
+    <Grid container spacing={2} sx={{ mt: 0 }}>
+      {remaining.map(field => (
+        <Grid item xs={12} md={6} key={field}>
+          {renderField(field)}
+        </Grid>
+      ))}
+    </Grid>
+  ) : null;
+})()}
+      </Box>
+    </Collapse>
+  </Box>
+)}
               </Box>
             ) : (
               <Grid container spacing={2}>
