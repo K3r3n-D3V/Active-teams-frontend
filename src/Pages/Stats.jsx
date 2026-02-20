@@ -6,6 +6,7 @@ import React, {
   useMemo,
   useRef,
 } from "react";
+import PersonIcon from "@mui/icons-material/Person";
 import {
   Box,
   Grid,
@@ -65,9 +66,17 @@ import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import { AuthContext } from "../contexts/AuthContext";
 import { useTaskUpdate } from '../contexts/TaskUpdateContext';
-import CreateEvents from "./CreateEvents";
+// import CreateEvents from "./CreateEvents";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+function generateUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 const StatsDashboard = () => {
 
@@ -127,6 +136,13 @@ const StatsDashboard = () => {
   const [eventTypes, setEventTypes] = useState([]);
   const [eventTypesLoading, setEventTypesLoading] = useState(true);
   const [overdueModalOpen, setOverdueModalOpen] = useState(false);
+  const [eventTypeFlags, setEventTypeFlags] = useState({
+    isGlobal: false,
+    isTicketed: false,
+    hasPersonSteps: false,
+  });
+
+  const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent, hasPersonSteps } = eventTypeFlags;
 
   // Dedicated overdue cells state
   const [cells, setCells] = useState([]);
@@ -201,6 +217,12 @@ const StatsDashboard = () => {
 
       setCellsLoading(true);
       setCellsError(null);
+
+       setEventTypeFlags({
+      isGlobal,
+      isTicketed,
+      hasPersonSteps,
+    });
 
       console.log("→ Starting fetchOverdueCells", {
         forceRefresh,
@@ -822,23 +844,65 @@ useEffect(() => {
     try {
       const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
 
+      // const payload = {
+      //   eventName: newEventData.eventName.trim(),
+      //   eventTypeName: newEventData.eventTypeName,
+      //   date: newEventData.date || selectedDate,
+      //   time: newEventData.time,
+      //   location: newEventData.location || null,
+      //   description: newEventData.description || null,
+      //   eventLeaderName:
+      //     newEventData.eventLeaderName ||
+      //     `${user.name || ""} ${user.surname || ""}`.trim() ||
+      //     "Unknown Leader",
+      //   eventLeaderEmail: newEventData.eventLeaderEmail || user.email || null,
+      //   isRecurring: newEventData.isRecurring,
+      //   status: "incomplete",
+      //   recurringDays: newEventData.isRecurring ? newEventData.recurringDays : [],
+      //   created_at: new Date().toISOString(),
+      // };
+
       const payload = {
-        eventName: newEventData.eventName.trim(),
-        eventTypeName: newEventData.eventTypeName,
-        date: newEventData.date || selectedDate,
-        time: newEventData.time,
-        location: newEventData.location || null,
-        description: newEventData.description || null,
-        eventLeaderName:
-          newEventData.eventLeaderName ||
-          `${user.name || ""} ${user.surname || ""}`.trim() ||
-          "Unknown Leader",
-        eventLeaderEmail: newEventData.eventLeaderEmail || user.email || null,
-        isRecurring: newEventData.isRecurring,
-        status: "incomplete",
-        recurringDays: newEventData.isRecurring ? newEventData.recurringDays : [],
-        created_at: new Date().toISOString(),
-      };
+  UUID: generateUUID(),                     // ← added (very useful even in drafts)
+
+  eventName: newEventData.eventName.trim(),
+  eventTypeName: newEventData.eventTypeName,
+
+  date: newEventData.date || selectedDate,
+  time: newEventData.time,
+  // Optional: day: newEventData.date ? new Date(newEventData.date).getDay() : null,
+
+  location: newEventData.location || null,
+  description: newEventData.description || null,
+
+  eventLeaderName:
+    newEventData.eventLeaderName ||
+    `${user.name || ""} ${user.surname || ""}`.trim() ||
+    "Unknown Leader",
+
+  eventLeaderEmail:
+    newEventData.eventLeaderEmail || user.email || null,
+
+  // ── Added missing classification flags ──
+  isTicketed: newEventData.isTicketed ?? false,
+  isGlobal:   newEventData.isGlobal   ?? false,
+  hasPersonSteps: newEventData.hasPersonSteps ?? false,
+
+  // ── Leader extras (only if your form actually collects them) ──
+  eventLeader: newEventData.eventLeaderName || "",     // if it's an ID/reference
+  leader1:     newEventData.leader1     || "",
+  leader12:    newEventData.leader12    || "",     // consider renaming to leader2
+
+  isRecurring: newEventData.isRecurring,
+  recurringDays: newEventData.isRecurring ? newEventData.recurringDays : [],
+
+  status: "incomplete",           // stays incomplete until final submission
+
+  userEmail: user?.email || null,           // ← added
+
+  created_at: new Date().toISOString(),
+  // Optional: updated_at: new Date().toISOString(),  // helpful for drafts
+};
 
       const res = await authFetch(`${BACKEND_URL}/events`, {
         method: "POST",
@@ -2294,11 +2358,55 @@ const SameWidthPopper = (props) => {
 
       {/* ── EVENT LEADER AUTOCOMPLETE (people search) ── */}
       <Box>
-        <Typography variant="caption" sx={{ color: '#888', mb: 0.5, display: 'block' }}>
-          Event Leader *
-        </Typography>
+              <TextField
+                label="Event Leader *"
+                value={newEventData.eventLeader}
+                onChange={(e, newValue) => {
+            if (typeof newValue === 'string') {
+              setNewEventData(p => ({ ...p, eventLeader: newValue }));
+            } else if (newValue) {
+              setNewEventData(p => ({
+                ...p,
+                eventLeader: newValue.fullName,
+                eventLeaderEmail: newValue.email || '',
+              }));
+            }
+          }}
+                onFocus={() => {
+                  if (newEventData.eventLeaderName.length >= 1) {
+                    fetchPeople(newEventData.eventLeaderName);
+                  }
+                }}
+                onBlur={() => {
+                  // Delay hiding dropdown to allow for selection
+                  setTimeout(() => setPeopleData([]), 200);
+                }}
+                fullWidth
+                size="small"
+                sx={{
+                '& .MuiOutlinedInput-root': {
+                  bgcolor: '#1a1a1a',
+                  color: '#fff',
+                  borderRadius: 1,
+                  fontSize: '0.95rem',
+                  '& fieldset': { borderColor: '#444' },
+                  '&:hover fieldset': { borderColor: '#666' },
+                  '&.Mui-focused fieldset': { borderColor: '#3b82f6', borderWidth: 1.5 },
+                },
+                '& .MuiInputBase-input': { py: 1.1, px: 1.6 },
+              }}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <PersonIcon />
+                    </InputAdornment>
+                  ),
+                }}
+                placeholder="Type name and surname to search..."
+                autoComplete="off"
+              />
 
-        <Autocomplete
+        {/* <Autocomplete
           freeSolo
           fullWidth
           options={peopleData}
@@ -2349,8 +2457,8 @@ const SameWidthPopper = (props) => {
                   </InputAdornment>
                 ),
               }}
-            />
-          )}
+            /> */}
+          {/* )}
           renderOption={(props, option) => (
             <li {...props}>
               <Box>
@@ -2364,7 +2472,7 @@ const SameWidthPopper = (props) => {
             </li>
           )}
           PopperComponent={SameWidthPopper}
-        />
+        /> */}
       </Box>
 
       {/* Description */}
