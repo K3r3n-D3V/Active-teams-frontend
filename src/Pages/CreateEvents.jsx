@@ -8,6 +8,7 @@ import {
   CardContent,
   FormControlLabel,
   Box,
+  MenuItem,
   InputAdornment,
   Typography,
   useTheme,
@@ -28,9 +29,9 @@ import { toast } from "react-toastify";
 import { Popper } from "@mui/material";
 
 function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
+    const r = (Math.random() * 16) | 0;
+    const v = c === "x" ? r : (r & 0x3) | 0x8;
     return v.toString(16);
   });
 }
@@ -43,6 +44,11 @@ const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
 ).toLowerCase();
 
+/**
+ * Popper that forces the dropdown (autocomplete suggestions) to:
+ * - match the input width exactly
+ * - have a high z-index (so it shows over modals)
+ */
 const SameWidthPopper = (props) => {
   const { anchorEl } = props;
 
@@ -82,11 +88,15 @@ const CreateEvents = ({
     hasPersonSteps: false,
   });
 
-  const { isGlobal: isGlobalEvent, isTicketed: isTicketedEvent, hasPersonSteps } = eventTypeFlags;
+  const {
+    isGlobal: isGlobalEvent,
+    isTicketed: isTicketedEvent,
+    hasPersonSteps,
+  } = eventTypeFlags;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
-  const [loadingPeople] = useState(false);
+  const [loadingPeople, setLoadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
 
   const isAdmin = user?.role === "admin";
@@ -120,6 +130,7 @@ const CreateEvents = ({
   const [locationError, setLocationError] = useState("");
   const [selectedLocation, setSelectedLocation] = useState(null);
 
+  // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
 
   useEffect(() => {
@@ -152,7 +163,9 @@ const CreateEvents = ({
 
   useEffect(() => {
     if (!GEOAPIFY_API_KEY) {
-      setLocationError("Missing Geoapify API key. Please set VITE_GEOAPIFY_API_KEY in your .env file.");
+      setLocationError(
+        "Missing Geoapify API key. Please set VITE_GEOAPIFY_API_KEY in your .env file."
+      );
       return;
     }
 
@@ -219,7 +232,6 @@ const CreateEvents = ({
         if (isActive) setLocationLoading(false);
       }
     }, 350);
-    console.log("timer", timer)
 
     return () => {
       isActive = false;
@@ -238,21 +250,21 @@ const CreateEvents = ({
   ];
 
   useEffect(() => {
-    console.log('CreateEvents - Props received:', {
+    console.log("CreateEvents - Props received:", {
       selectedEventTypeObj,
       selectedEventType,
-      eventTypes: eventTypes.map(et => ({
+      eventTypes: eventTypes.map((et) => ({
         name: et.name,
         isGlobal: et.isGlobal,
         isTicketed: et.isTicketed,
-        hasPersonSteps: et.hasPersonSteps
-      }))
+        hasPersonSteps: et.hasPersonSteps,
+      })),
     });
 
     const determineEventType = () => {
       // If we have a selectedEventTypeObj, use its properties
       if (selectedEventTypeObj) {
-        console.log('Using selectedEventTypeObj:', selectedEventTypeObj);
+        console.log("Using selectedEventTypeObj:", selectedEventTypeObj);
         return {
           eventType: selectedEventTypeObj.name || selectedEventTypeObj.displayName || "",
           isGlobal: !!selectedEventTypeObj.isGlobal,
@@ -260,27 +272,23 @@ const CreateEvents = ({
           hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps,
         };
       }
-      
       // If we have a selectedEventType string, find the matching object
       if (selectedEventType) {
-        console.log('Looking for event type:', selectedEventType);
-        
+        console.log("Looking for event type:", selectedEventType);
         // Handle "all" and convert to "CELLS" - FIXED: Always set hasPersonSteps to true for CELLS
-        if (selectedEventType === 'all' || selectedEventType.toUpperCase() === 'ALL CELLS') {
-          console.log('Detected ALL CELLS - converting to CELLS with personal steps');
+        if (selectedEventType === "all" || selectedEventType.toUpperCase() === "ALL CELLS") {
+          console.log("Detected ALL CELLS - converting to CELLS with personal steps");
           return {
-            eventType: 'CELLS',
+            eventType: "CELLS",
             isGlobal: false,
             isTicketed: false,
             hasPersonSteps: true, // FIXED: This was the issue - always true for CELLS
           };
         }
-        
         // Try to find the full event type object
-        const foundEventType = eventTypes.find(et => {
-          const etName = et.name || et.displayName || '';
+        const foundEventType = eventTypes.find((et) => {
+          const etName = et.name || et.displayName || "";
           const searchName = selectedEventType;
-          
           return (
             etName === searchName ||
             etName.toLowerCase() === searchName.toLowerCase() ||
@@ -289,9 +297,8 @@ const CreateEvents = ({
             searchName.includes(etName)
           );
         });
-        
         if (foundEventType) {
-          console.log('Found event type:', foundEventType);
+          console.log("Found event type:", foundEventType);
           return {
             eventType: foundEventType.name || foundEventType.displayName || selectedEventType,
             isGlobal: !!foundEventType.isGlobal,
@@ -299,18 +306,17 @@ const CreateEvents = ({
             hasPersonSteps: !!foundEventType.hasPersonSteps,
           };
         } else {
-          console.log('Event type not found, using defaults');
+          console.log("Event type not found, using defaults");
           // For CELLS type specifically, set hasPersonSteps to true
-          const isCellsType = selectedEventType.toUpperCase() === 'CELLS';
+          const isCellsType = selectedEventType.toUpperCase() === "CELLS";
           return {
             eventType: selectedEventType,
             isGlobal: false,
             isTicketed: false,
-            hasPersonSteps: isCellsType, 
+            hasPersonSteps: isCellsType, // FIXED: Set to true only for CELLS type
           };
         }
       }
-      
       return {
         eventType: "",
         isGlobal: false,
@@ -321,11 +327,11 @@ const CreateEvents = ({
 
     const { eventType, isGlobal, isTicketed, hasPersonSteps } = determineEventType();
 
-    console.log('Final event type settings:', {
+    console.log("Final event type settings:", {
       eventType,
       isGlobal,
       isTicketed,
-      hasPersonSteps
+      hasPersonSteps,
     });
 
     setEventTypeFlags({
@@ -337,32 +343,33 @@ const CreateEvents = ({
     setFormData((prev) => ({
       ...prev,
       eventType,
-      ...(prev.hasPersonSteps && !hasPersonSteps ? { 
-        leader1: "",
-        leader12: "" 
-      } : {})
+      ...(prev.hasPersonSteps && !hasPersonSteps
+        ? {
+            leader1: "",
+            leader12: "",
+          }
+        : {}),
     }));
-
   }, [selectedEventTypeObj, selectedEventType, eventTypes]);
 
   useEffect(() => {
-    console.log('Leader fields debug:', {
+    console.log("Leader fields debug:", {
       hasPersonSteps,
       isGlobalEvent,
       shouldShowLeaderFields: hasPersonSteps && !isGlobalEvent,
       formData: {
         leader1: formData.leader1,
-        leader12: formData.leader12
-      }
+        leader12: formData.leader12,
+      },
     });
   }, [hasPersonSteps, isGlobalEvent, formData.leader1, formData.leader12]);
 
   useEffect(() => {
-    console.log('Price tier debug:', {
+    console.log("Price tier debug:", {
       isTicketedEvent,
       isGlobalEvent,
       shouldShowPriceTiers: isTicketedEvent && !isGlobalEvent,
-      priceTiersCount: priceTiers.length
+      priceTiersCount: priceTiers.length,
     });
   }, [isTicketedEvent, isGlobalEvent, priceTiers]);
 
@@ -419,10 +426,8 @@ const CreateEvents = ({
     }
 
     const searchLower = q.toLowerCase().trim();
-    
-    const filtered = allPeopleCache.filter(person => {
+    const filtered = allPeopleCache.filter((person) => {
       const fullName = person.fullName.toLowerCase();
-      
       // Simple: just check if full name contains the search
       return fullName.includes(searchLower);
     });
@@ -452,20 +457,26 @@ const CreateEvents = ({
         }
 
         if (data.recurring_day) {
-          data.recurringDays = Array.isArray(data.recurring_day) ? data.recurring_day : [];
+          data.recurringDays = Array.isArray(data.recurring_day)
+            ? data.recurring_day
+            : [];
         }
 
         if (data.isTicketed !== undefined) {
-          setEventTypeFlags(prev => ({
+          setEventTypeFlags((prev) => ({
             ...prev,
-            isTicketed: !!data.isTicketed
+            isTicketed: !!data.isTicketed,
           }));
         }
 
         if (data.isTicketed) {
           console.log("Setting price tiers for ticketed event:", data.priceTiers);
-          if (data.priceTiers && Array.isArray(data.priceTiers) && data.priceTiers.length > 0) {
-            const formattedPriceTiers = data.priceTiers.map(tier => ({
+          if (
+            data.priceTiers &&
+            Array.isArray(data.priceTiers) &&
+            data.priceTiers.length > 0
+          ) {
+            const formattedPriceTiers = data.priceTiers.map((tier) => ({
               name: tier.name || "",
               price: tier.price || "",
               ageGroup: tier.ageGroup || "",
@@ -489,7 +500,6 @@ const CreateEvents = ({
         }
 
         setFormData((prev) => ({ ...prev, ...data }));
-
       } catch (err) {
         console.error("Failed to fetch event:", err);
         toast.error("Failed to load event data. Please try again.");
@@ -540,7 +550,7 @@ const CreateEvents = ({
     setFormData((prev) => ({
       ...prev,
       eventLeader: person.fullName,
-      eventLeaderEmail: person.email,   
+      eventLeaderEmail: person.email, // 👈 THIS IS THE IMPORTANT LINE
     }));
   };
 
@@ -597,7 +607,8 @@ const CreateEvents = ({
               newErrors[`tier_${index}_price`] = "Valid price is required";
             if (!tier.ageGroup) newErrors[`tier_${index}_ageGroup`] = "Age group is required";
             if (!tier.memberType) newErrors[`tier_${index}_memberType`] = "Member type is required";
-            if (!tier.paymentMethod) newErrors[`tier_${index}_paymentMethod`] = "Payment method is required";
+            if (!tier.paymentMethod)
+              newErrors[`tier_${index}_paymentMethod`] = "Payment method is required";
           });
         }
       }
@@ -617,193 +628,182 @@ const CreateEvents = ({
 
   const getDayFromDate = (dateString) => {
     if (!dateString) return "";
-    
     const date = new Date(dateString);
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+    const days = [
+      "Sunday",
+      "Monday",
+      "Tuesday",
+      "Wednesday",
+      "Thursday",
+      "Friday",
+      "Saturday",
+    ];
     return days[date.getDay()];
   };
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  if (!validateForm()) {
-    return setTimeout(() => {
-      formAlert.current.scrollIntoView({ behavior: "smooth" });
-    }, 200);
-  }
-
-  setIsSubmitting(true);
-
-  try {
-    let eventTypeToSend = selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
-    
-    if (eventTypeToSend === "all" || eventTypeToSend.toLowerCase() === "all cells") {
-      eventTypeToSend = "CELLS";
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) {
+      return setTimeout(() => {
+        formAlert.current.scrollIntoView({ behavior: "smooth" });
+      }, 200);
     }
 
-    if (!eventTypeToSend) {
-      toast.error("Event type is required");
-      setIsSubmitting(false);
-      return;
-    }
+    setIsSubmitting(true);
 
-    console.log('Creating event with type:', eventTypeToSend);
-
-    let dayValue = "";
-
-    if (!formData.recurringDays || formData.recurringDays.length === 0) {
-      dayValue = formData.date ? getDayFromDate(formData.date) : "";
-    } else if (formData.recurringDays.length === 1) {
-      dayValue = formData.recurringDays[0];
-    } else {
-      dayValue = "Recurring";
-    }
-    let eventLeaderEmail = formData.eventLeaderEmail;
-    
-    if (!eventLeaderEmail && formData.eventLeader) {
-      const selectedPerson = allPeopleCache.find(p => 
-        p.fullName.toLowerCase() === formData.eventLeader.toLowerCase()
-      );
-      if (selectedPerson?.email) {
-        eventLeaderEmail = selectedPerson.email;
-        console.log('Found email from cache:', eventLeaderEmail);
+    try {
+      let eventTypeToSend =
+        selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
+      if (eventTypeToSend === "all" || eventTypeToSend.toLowerCase() === "all cells") {
+        eventTypeToSend = "CELLS";
       }
-    }
-    
-    if (!eventLeaderEmail && user?.email) {
-      eventLeaderEmail = user.email;
-      console.log('Using user email as fallback:', eventLeaderEmail);
-    }
-    
-    if (!eventLeaderEmail) {
-      toast.error('Please select a leader with a valid email address or ensure your profile has an email');
-      setIsSubmitting(false);
-      return;
-    }
 
-    const payload = {
-      UUID: generateUUID(),
-      eventTypeName: eventTypeToSend,
-      eventName: formData.eventName,
-      isTicketed: !!isTicketedEvent,
-      isGlobal: !!isGlobalEvent,
-      hasPersonSteps: !!hasPersonSteps,
-      location: formData.location,
-      eventLeader: formData.eventLeader,
-      eventLeaderName: formData.eventLeader,
-      eventLeaderEmail: eventLeaderEmail,  
-      description: formData.description,
-      userEmail: user?.email || "",
-      recurring_day: formData.recurringDays,
-      day: dayValue,
-      status: "open",
-      leader1: formData.leader1 || "",
-      leader12: formData.leader12 || "",
-      isRecurring: isRecurring,
-      recurringDays: isRecurring ? formData.recurringDays : [],
-    };
+      if (!eventTypeToSend) {
+        toast.error("Event type is required");
+        setIsSubmitting(false);
+        return;
+      }
 
-    if (formData.date && formData.time) {
-      const [hoursStr, minutesStr] = formData.time.split(":");
-      let hours = Number(hoursStr);
-      const minutes = Number(minutesStr);
-      if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
-      if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+      console.log("Creating event with type:", eventTypeToSend);
 
-      payload.date = `${formData.date}T${hours.toString().padStart(2, "0")}:${minutes
-        .toString()
-        .padStart(2, "0")}:00`;
-      
-      payload.time = `${hours.toString().padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
-    }
+      let dayValue = "";
 
-    if (isTicketedEvent && !isGlobalEvent) {
-      if (priceTiers.length > 0) {
-        payload.priceTiers = priceTiers.map((tier) => ({
-          name: tier.name || "",
-          price: parseFloat(tier.price) || 0,
-          ageGroup: tier.ageGroup || "",
-          memberType: tier.memberType || "",
-          paymentMethod: tier.paymentMethod || "",
-        }));
+      if (!formData.recurringDays || formData.recurringDays.length === 0) {
+        dayValue = formData.date ? getDayFromDate(formData.date) : "";
+      } else if (formData.recurringDays.length === 1) {
+        dayValue = formData.recurringDays[0];
+      } else {
+        dayValue = "Recurring";
+      }
+
+      const payload = {
+        UUID: generateUUID(),
+        eventTypeName: formData.eventType,
+        eventName: formData.eventName,
+        isTicketed: !!isTicketedEvent,
+        isGlobal: !!isGlobalEvent,
+        hasPersonSteps: !!hasPersonSteps,
+        location: formData.location,
+        eventLeader: formData.eventLeader,
+        eventLeaderName: formData.eventLeader,
+        eventLeaderEmail: formData.eventLeaderEmail || "",
+        description: formData.description,
+        userEmail: user?.email || "",
+        recurring_day: formData.recurringDays,
+        day: dayValue,
+        status: "open",
+        leader1: formData.leader1 || "",
+        leader12: formData.leader12 || "",
+        isRecurring: isRecurring,
+        recurringDays: isRecurring ? formData.recurringDays : [],
+      };
+
+      if (formData.date && formData.time) {
+        const [hoursStr, minutesStr] = formData.time.split(":");
+        let hours = Number(hoursStr);
+        const minutes = Number(minutesStr);
+        if (formData.timePeriod === "PM" && hours !== 12) hours += 12;
+        if (formData.timePeriod === "AM" && hours === 12) hours = 0;
+
+        payload.date = `${formData.date}T${hours
+          .toString()
+          .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}:00`;
+        payload.time = `${hours
+          .toString()
+          .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
+      }
+
+      if (isTicketedEvent && !isGlobalEvent) {
+        if (priceTiers.length > 0) {
+          payload.priceTiers = priceTiers.map((tier) => ({
+            name: tier.name || "",
+            price: parseFloat(tier.price) || 0,
+            ageGroup: tier.ageGroup || "",
+            memberType: tier.memberType || "",
+            paymentMethod: tier.paymentMethod || "",
+          }));
+        } else {
+          payload.priceTiers = [];
+        }
       } else {
         payload.priceTiers = [];
       }
-    } else {
-      payload.priceTiers = [];
+
+      if (hasPersonSteps && !isGlobalEvent) {
+        payload.leader1 = formData.leader1 || "";
+        payload.leader12 = formData.leader12 || "";
+      }
+
+      console.log("Final Payload:", payload);
+
+      const token = localStorage.getItem("token");
+      const headers = {
+        Authorization: token ? `Bearer ${token}` : "",
+        "Content-Type": "application/json",
+      };
+
+      const response = eventId
+        ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, {
+            headers,
+          })
+        : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
+
+      console.log("Response:", response.data);
+
+      toast.success(
+        eventId ? "Event updated successfully!" : "Event created successfully!"
+      );
+
+      if (!eventId) resetForm();
+
+      setTimeout(() => {
+        if (isModal && typeof onClose === "function") {
+          onClose(true);
+        } else {
+          navigate("/events", {
+            state: {
+              refresh: true,
+              timestamp: Date.now(),
+            },
+          });
+        }
+      }, 1200);
+    } catch (err) {
+      console.error("Error:", err);
+      console.error("Response:", err?.response?.data);
+
+      let errorMsg = "Failed to submit event";
+
+      if (err?.response?.data) {
+        const errorData = err.response.data;
+
+        if (Array.isArray(errorData.detail)) {
+          errorMsg =
+            "Validation errors: " +
+            errorData.detail
+              .map((errorObj) => {
+                if (errorObj.msg) return errorObj.msg;
+                if (errorObj.loc && errorObj.msg)
+                  return `${errorObj.loc.join(".")}: ${errorObj.msg}`;
+                return JSON.stringify(errorObj);
+              })
+              .join(", ");
+        } else if (errorData.detail && typeof errorData.detail === "object") {
+          errorMsg = errorData.detail.msg || JSON.stringify(errorData.detail);
+        } else if (errorData.message) {
+          errorMsg = errorData.message;
+        } else if (errorData.detail) {
+          errorMsg = errorData.detail;
+        }
+      } else if (err?.message) {
+        errorMsg = err.message;
+      }
+
+      toast.error(errorMsg);
+    } finally {
+      setIsSubmitting(false);
     }
-
-    if (hasPersonSteps && !isGlobalEvent) {
-      payload.leader1 = formData.leader1 || "";
-      payload.leader12 = formData.leader12 || "";
-    }
-
-    console.log(' Final Payload being sent:', JSON.stringify(payload, null, 2));
-
-    const token = localStorage.getItem("token");
-    const headers = {
-      Authorization: token ? `Bearer ${token}` : "",
-      "Content-Type": "application/json",
-    };
-
-    const response = eventId
-      ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, { headers })
-      : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
-
-    console.log("Response:", response.data);
-
-    toast.success(
-      eventId ? "Event updated successfully!" : "Event created successfully!"
-    );
-
-    if (!eventId) resetForm();
-
-    setTimeout(() => {
-      if (isModal && typeof onClose === "function") {
-        onClose(true);
-      } else {
-        navigate("/events", {
-          state: {
-            refresh: true,
-            timestamp: Date.now()
-          }
-        });
-      }
-    }, 1200);
-
-  } catch (err) {
-    console.error("Error:", err);
-    console.error("Response:", err?.response?.data);
-
-    let errorMsg = "Failed to submit event";
-
-    if (err?.response?.data) {
-      const errorData = err.response.data;
-
-      if (Array.isArray(errorData.detail)) {
-        errorMsg = "Validation errors: " + errorData.detail.map(errorObj => {
-          if (errorObj.msg) return errorObj.msg;
-          if (errorObj.loc && errorObj.msg) return `${errorObj.loc.join('.')}: ${errorObj.msg}`;
-          return JSON.stringify(errorObj);
-        }).join(', ');
-      }
-      else if (errorData.detail && typeof errorData.detail === 'object') {
-        errorMsg = errorData.detail.msg || JSON.stringify(errorData.detail);
-      }
-      else if (errorData.message) {
-        errorMsg = errorData.message;
-      }
-      else if (errorData.detail) {
-        errorMsg = errorData.detail;
-      }
-    } else if (err?.message) {
-      errorMsg = err.message;
-    }
-
-    toast.error(errorMsg);
-  } finally {
-    setIsSubmitting(false);
-  }
-};
+  };
 
   const containerStyle = isModal
     ? {
@@ -870,7 +870,7 @@ const handleSubmit = async (e) => {
         },
       },
 
-      //  Make date/time picker icons white in dark mode
+      // Make date/time picker icons white in dark mode
       "& .MuiInputAdornment-root .MuiSvgIcon-root": {
         color: isDarkMode ? "#fff" : theme.palette.text.secondary,
       },
@@ -1015,8 +1015,8 @@ const handleSubmit = async (e) => {
             <Alert
               ref={formAlert}
               sx={{
-                marginBottom: "20px"
-              }} 
+                marginBottom: "20px",
+              }}
               severity="error"
             >
               Please fill In all required fields
@@ -1025,33 +1025,35 @@ const handleSubmit = async (e) => {
 
           <form onSubmit={handleSubmit}>
             <TextField
+              select
               label="Event Type *"
-              value={
-                (() => {
-                  let displayValue = formData.eventType || selectedEventTypeObj?.name || selectedEventType || "";
-                  if (displayValue === "all" || displayValue.toLowerCase() === "all cells") {
-                    return "CELLS";
-                  }
-                  return displayValue;
-                })()
-              }
+              value={formData.eventType || ""}
+              onChange={(e) => {
+                const selectedName = e.target.value;
+
+                const selectedObj = eventTypes.find((et) => et.name === selectedName);
+
+                setFormData((prev) => ({
+                  ...prev,
+                  eventType: selectedName,
+                }));
+
+                if (selectedObj) {
+                  setIsGlobalEvent(selectedObj.isGlobal);
+                  setIsTicketedEvent(selectedObj.isTicketed);
+                  setHasPersonSteps(selectedObj.hasPersonSteps);
+                }
+              }}
               fullWidth
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
-              InputProps={{ readOnly: true }}
-              disabled
-              helperText={
-                selectedEventTypeObj 
-                  ? `Type: ${selectedEventTypeObj.isGlobal ? 'Global' : 'Local'} ${selectedEventTypeObj.isTicketed ? '| Ticketed' : ''} ${selectedEventTypeObj.hasPersonSteps ? '| Personal Steps' : ''}` 
-                  : hasPersonSteps 
-                    ? "Type: Local | Personal Steps Event (Cell)" 
-                    : isGlobalEvent
-                      ? `Type: Global${isTicketedEvent ? ' | Ticketed' : ''}`
-                      : isTicketedEvent
-                        ? "Type: Local | Ticketed"
-                        : "Event type details"
-              }
-            />
+            >
+              {eventTypes.map((et) => (
+                <MenuItem key={et.id} value={et.name}>
+                  {et.name}
+                </MenuItem>
+              ))}
+            </TextField>
 
             <TextField
               label="Event Name *"
@@ -1074,10 +1076,7 @@ const handleSubmit = async (e) => {
                     mb: 2,
                   }}
                 >
-                  <Typography
-                    variant="h6"
-                    sx={darkModeStyles.sectionTitle}
-                  >
+                  <Typography variant="h6" sx={darkModeStyles.sectionTitle}>
                     Price Tiers *
                   </Typography>
                   <Button
@@ -1135,9 +1134,7 @@ const handleSubmit = async (e) => {
                     <TextField
                       label="Price Name *"
                       value={tier.name}
-                      onChange={(e) =>
-                        handlePriceTierChange(index, "name", e.target.value)
-                      }
+                      onChange={(e) => handlePriceTierChange(index, "name", e.target.value)}
                       fullWidth
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
@@ -1149,9 +1146,7 @@ const handleSubmit = async (e) => {
                       label="Price (R) *"
                       type="number"
                       value={tier.price}
-                      onChange={(e) =>
-                        handlePriceTierChange(index, "price", e.target.value)
-                      }
+                      onChange={(e) => handlePriceTierChange(index, "price", e.target.value)}
                       fullWidth
                       size="small"
                       inputProps={{ min: 0, step: "0.01" }}
@@ -1163,9 +1158,7 @@ const handleSubmit = async (e) => {
                     <TextField
                       label="Age Group *"
                       value={tier.ageGroup}
-                      onChange={(e) =>
-                        handlePriceTierChange(index, "ageGroup", e.target.value)
-                      }
+                      onChange={(e) => handlePriceTierChange(index, "ageGroup", e.target.value)}
                       fullWidth
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
@@ -1176,13 +1169,7 @@ const handleSubmit = async (e) => {
                     <TextField
                       label="Member Type *"
                       value={tier.memberType}
-                      onChange={(e) =>
-                        handlePriceTierChange(
-                          index,
-                          "memberType",
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => handlePriceTierChange(index, "memberType", e.target.value)}
                       fullWidth
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
@@ -1193,13 +1180,7 @@ const handleSubmit = async (e) => {
                     <TextField
                       label="Payment Method *"
                       value={tier.paymentMethod}
-                      onChange={(e) =>
-                        handlePriceTierChange(
-                          index,
-                          "paymentMethod",
-                          e.target.value
-                        )
-                      }
+                      onChange={(e) => handlePriceTierChange(index, "paymentMethod", e.target.value)}
                       fullWidth
                       size="small"
                       sx={{ ...darkModeStyles.textField }}
@@ -1211,12 +1192,7 @@ const handleSubmit = async (e) => {
               </Box>
             )}
 
-            <Box
-              display="flex"
-              gap={2}
-              flexDirection={{ xs: "column", sm: "row" }}
-              mb={3}
-            >
+            <Box display="flex" gap={2} flexDirection={{ xs: "column", sm: "row" }} mb={3}>
               <TextField
                 label="Date *"
                 type="date"
@@ -1244,36 +1220,20 @@ const handleSubmit = async (e) => {
             </Box>
 
             <Box mb={3}>
-              <Typography
-                fontWeight="bold"
-                mb={1}
-                sx={darkModeStyles.sectionTitle}
-              >
-                Is Recurring? {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
+              <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
+                Is Recurring?{" "}
+                {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
               </Typography>
               <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={isRecurring}
-                    onChange={handleIsRecurringChange}
-                  />
-                }
+                control={<Checkbox checked={isRecurring} onChange={handleIsRecurringChange} />}
                 label="Yes"
               />
 
-              <Typography
-                fontWeight="bold"
-                mb={1}
-                sx={darkModeStyles.sectionTitle}
-              >
-                Recurring Days {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
+              <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
+                Recurring Days{" "}
+                {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
               </Typography>
-              <Box
-                display="flex"
-                flexWrap="wrap"
-                gap={2}
-                sx={darkModeStyles.daysContainer}
-              >
+              <Box display="flex" flexWrap="wrap" gap={2} sx={darkModeStyles.daysContainer}>
                 {days.map((day) => (
                   <FormControlLabel
                     key={day}
@@ -1313,7 +1273,9 @@ const handleSubmit = async (e) => {
                 setSelectedLocation(typeof newValue === "string" ? null : newValue);
                 handleChange("location", formatted);
               }}
-              getOptionLabel={(option) => (typeof option === "string" ? option : option.label || "")}
+              getOptionLabel={(option) =>
+                typeof option === "string" ? option : option.label || ""
+              }
               filterOptions={(x) => x}
               loading={locationLoading}
               PopperComponent={SameWidthPopper} // this makes dropdown same width
@@ -1340,7 +1302,9 @@ const handleSubmit = async (e) => {
                   helperText={
                     errors.location ||
                     locationError ||
-                    (GEOAPIFY_API_KEY ? "Start typing a South African location..." : "Missing Geoapify API key.")
+                    (GEOAPIFY_API_KEY
+                      ? "Start typing a South African location..."
+                      : "Missing Geoapify API key.")
                   }
                   InputProps={{
                     ...params.InputProps,
@@ -1351,7 +1315,9 @@ const handleSubmit = async (e) => {
                     ),
                     endAdornment: (
                       <>
-                        {locationLoading ? <CircularProgress color="inherit" size={18} /> : null}
+                        {locationLoading ? (
+                          <CircularProgress color="inherit" size={18} />
+                        ) : null}
                         {params.InputProps.endAdornment}
                       </>
                     ),
@@ -1364,7 +1330,9 @@ const handleSubmit = async (e) => {
                     <Typography variant="body1">{option.label}</Typography>
                     {(option.suburb || option.city || option.state || option.postcode) && (
                       <Typography variant="caption" color="text.secondary">
-                        {[option.suburb, option.city, option.state, option.postcode].filter(Boolean).join(" • ")}
+                        {[option.suburb, option.city, option.state, option.postcode]
+                          .filter(Boolean)
+                          .join(" • ")}
                       </Typography>
                     )}
                   </Box>
@@ -1373,7 +1341,7 @@ const handleSubmit = async (e) => {
             />
 
             {/* Event Leader section */}
-            <Box sx={{ mb: 3, position: 'relative' }}>
+            <Box sx={{ mb: 3, position: "relative" }}>
               <TextField
                 label="Event Leader *"
                 value={formData.eventLeader}
@@ -1409,80 +1377,80 @@ const handleSubmit = async (e) => {
                 placeholder="Type name and surname to search..."
                 autoComplete="off"
               />
-              
               {peopleData.length > 0 && (
-                <Box sx={{
-                  position: 'absolute',
-                  top: '100%',
-                  left: 0,
-                  right: 0,
-                  zIndex: 1000,
-                  backgroundColor: isDarkMode ? theme.palette.background.paper : '#fff',
-                  border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
-                  borderRadius: '4px',
-                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  mt: 0.5,
-                }}>
+                <Box
+                  sx={{
+                    position: "absolute",
+                    top: "100%",
+                    left: 0,
+                    right: 0,
+                    zIndex: 1000,
+                    backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+                    border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
+                    borderRadius: "4px",
+                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    mt: 0.5,
+                  }}
+                >
+                  {peopleData.map((person) => (
+                    <Box
+                      key={person.id || `${person.fullName}-${person.email}`}
+                      sx={{
+                        padding: "12px",
+                        cursor: "pointer",
+                        borderBottom: `1px solid ${
+                          isDarkMode ? theme.palette.divider : "#f0f0f0"
+                        }`,
+                        "&:hover": {
+                          backgroundColor: isDarkMode
+                            ? "rgba(255,255,255,0.1)"
+                            : "#f5f5f5",
+                        },
+                        "&:last-child": {
+                          borderBottom: "none",
+                        },
+                      }}
+                      onClick={() => {
+                        const selectedName = person.fullName;
+                        const selectedEmail = person.email;
+                        if (hasPersonSteps && !isGlobalEvent) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            eventLeader: selectedName,
+                            eventLeaderEmail: selectedEmail.toLowerCase(),
+                            leader1: person.leader1 || "",
+                            leader12: person.leader12 || "",
+                          }));
+                        } else {
+                          setFormData((prev) => ({
+                            ...prev,
+                            eventLeader: selectedName,
+                            eventLeaderEmail: selectedEmail.toLowerCase(),
+                          }));
+                        }
 
-{peopleData.map((person) => (
-  <Box
-    key={person.id || `${person.fullName}-${person.email}`}
-    sx={{
-      padding: '12px',
-      cursor: 'pointer',
-      borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : '#f0f0f0'}`,
-      '&:hover': {
-        backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : '#f5f5f5',
-      },
-      '&:last-child': {
-        borderBottom: 'none',
-      },
-    }}
-onClick={() => {
-  const selectedName = person.fullName;
-  const selectedEmail = person.email;
-  
-  console.log(' Selected person:', { name: selectedName, email: selectedEmail });
-  
-  if (!selectedEmail) {
-    console.warn(' Warning: Selected person has no email!');
-  }
-  
-  // Create updated form data with email
-  const updatedFormData = {
-    ...formData,
-    eventLeader: selectedName,
-    eventLeaderEmail: selectedEmail ? selectedEmail.toLowerCase() : "",
-  };
-  
-  if (hasPersonSteps && !isGlobalEvent) {
-    updatedFormData.leader1 = person.leader1 || "";
-    updatedFormData.leader12 = person.leader12 || "";
-  }
-  
-  console.log(' Updated form data:', updatedFormData);
-  
-  setFormData(updatedFormData);
-  setPeopleData([]);
-}}
-  >
-    <Typography variant="body1" fontWeight="500">
-      {person.fullName}
-    </Typography>
-    <Typography variant="body2" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
-      {person.email}
-      {person.leader1 && ` • L@1: ${person.leader1}`}
-      {person.leader12 && ` • L@12: ${person.leader12}`}
-    </Typography>
-  </Box>
-))}
+                        setPeopleData([]);
+                      }}
+                    >
+                      <Typography variant="body1" fontWeight="500">
+                        {person.fullName}
+                      </Typography>
+                      <Typography
+                        variant="body2"
+                        sx={{ color: "text.secondary", fontSize: "0.75rem" }}
+                      >
+                        {person.email}
+                        {person.leader1 && ` • L@1: ${person.leader1}`}
+                        {person.leader12 && ` • L@12: ${person.leader12}`}
+                      </Typography>
+                    </Box>
+                  ))}
                 </Box>
               )}
-              
               {loadingPeople && (
-                <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5 }}>
+                <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
                   Searching...
                 </Typography>
               )}
@@ -1526,9 +1494,13 @@ onClick={() => {
             )}
 
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {isTicketedEvent && !isGlobalEvent && <Chip label="Ticketed Event" color="warning" size="small" />}
+              {isTicketedEvent && !isGlobalEvent && (
+                <Chip label="Ticketed Event" color="warning" size="small" />
+              )}
               {isGlobalEvent && <Chip label="Global Event" color="info" size="small" />}
-              {hasPersonSteps && !isGlobalEvent && <Chip label="Personal Steps Event" color="secondary" size="small" />}
+              {hasPersonSteps && !isGlobalEvent && (
+                <Chip label="Personal Steps Event" color="secondary" size="small" />
+              )}
             </Box>
 
             <TextField
@@ -1581,8 +1553,8 @@ onClick={() => {
                     ? "Updating..."
                     : "Creating..."
                   : eventId
-                    ? "Update Event"
-                    : "Create Event"}
+                  ? "Update Event"
+                  : "Create Event"}
               </Button>
             </Box>
           </form>
