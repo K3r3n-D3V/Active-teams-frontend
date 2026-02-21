@@ -550,7 +550,7 @@ const CreateEvents = ({
     setFormData((prev) => ({
       ...prev,
       eventLeader: person.fullName,
-      eventLeaderEmail: person.email, // 👈 THIS IS THE IMPORTANT LINE
+      eventLeaderEmail: person.email,
     }));
   };
 
