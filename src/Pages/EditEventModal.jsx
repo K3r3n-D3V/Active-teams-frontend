@@ -66,7 +66,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     'status': ['status', 'Status'],
   };
 
-  console.log("User role:", fieldMapping );
+  console.log("User role:", fieldMapping);
   const getFieldPermissions = useCallback((field) => {
     const fl = field.toLowerCase();
     const isWeekId = fl.includes('week') && (fl.includes('identifier') || fl.includes('id'));
@@ -179,7 +179,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
     setFormData(prev => ({ ...prev, [field]: value }));
   };
-  console.log("SCOPE",editScope, contextFilter)
+  console.log("SCOPE", editScope, contextFilter)
 
   const handleDeactivateCell = async () => {
     try {
@@ -196,7 +196,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       }
       params.append('person_name', originalPersonIdentifier);
       params.append('cell_identifier', originalContext.eventName);
-     
+
 
       console.log("Calling endpoint with:", params.toString());
 
@@ -233,7 +233,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
         deactivation_end: result.deactivation_end,
         deactivation_reason: deactivationReason
       }));
-      handleSubmit(null,true)
+      handleSubmit(null, true)
 
       // Close and reset
       setDeactivationDialogOpen(false);
@@ -430,202 +430,219 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     return { ...cleanData, "is_permanent_deact": isPermanent };
   };
 
+const handleSubmit = async (e, isDeactivating = false) => {
+  try {
+    setLoading(true);
 
-  const handleSubmit = async (e, isDeactivating = false) => {
-    try {
-      setLoading(true);
+    if (changedFields.length === 0 && !isDeactivating) {
+      toast.info("No changes made");
+      onClose();
+      return;
+    }
 
-      if (changedFields.length === 0 && !isDeactivating) {
-        toast.info("No changes made");
-        onClose();
-        return;
+    const unauthorizedFields = changedFields.filter(field => isFieldDisabled(field));
+    if (unauthorizedFields.length > 0) {
+      toast.error(`You don't have permission to modify: ${unauthorizedFields.join(', ')}`);
+      setLoading(false);
+      return;
+    }
+
+    const updateData = prepareUpdateData();
+
+    if ('Time' in updateData || 'time' in updateData) {
+      const timeValue = updateData.Time || updateData.time;
+      if (timeValue) {
+        console.log(`DEBUG - Storing time as-is: ${timeValue}`);
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      toast.info("No valid changes to save");
+      setLoading(false);
+      return;
+    }
+
+    let endpoint, method, body;
+
+    const originalEventName = event['Event Name'] || event.eventName;
+    const originalDay = event.Day || event.day;
+
+    const newEventName = formData['Event Name'] || formData.eventName;
+    const newDay = formData.Day || formData.day;
+
+    if (editScope === 'single') {
+      let identifier = event.UUID || event._id || event.id || event.original_event_id;
+            if (identifier?.includes?.('_')) {
+        identifier = identifier.split('_')[0];
       }
 
-      const unauthorizedFields = changedFields.filter(field => isFieldDisabled(field));
-      if (unauthorizedFields.length > 0) {
-        toast.error(`You don't have permission to modify: ${unauthorizedFields.join(', ')}`);
+      if (!identifier) {
+        toast.error("Cannot update: Event ID not found");
         setLoading(false);
         return;
       }
 
-      const updateData = prepareUpdateData();
-
-      if ('Time' in updateData || 'time' in updateData) {
-        const timeValue = updateData.Time || updateData.time;
-        if (timeValue) {
-          console.log(`DEBUG - Storing time as-is: ${timeValue}`);
-        }
-      }
-
-      if (Object.keys(updateData).length === 0) {
-        toast.info("No valid changes to save");
-        setLoading(false);
-        return;
-      }
-
-      let endpoint, method, body;
-
-      const originalEventName = event['Event Name'] || event.eventName;
-      const originalDay = event.Day || event.day;
-
-      const newEventName = formData['Event Name'] || formData.eventName;
-      const newDay = formData.Day || formData.day;
-
-      if (editScope === 'single') {
-        let identifier = event._id || event.id || event.UUID;
-        if (identifier?.includes?.('_')) identifier = identifier.split('_')[0];
-
-        if (!identifier) {
-          toast.error("Cannot update: Event ID not found");
-          setLoading(false);
-          return;
-        }
-
+      console.log("Using identifier for update:", identifier); 
+      
+      if (isCellEvent) {
         endpoint = `/events/cells/${identifier}`;
-        method = 'PUT';
-        body = JSON.stringify(updateData);
-
-        if (newEventName && newEventName !== originalEventName) {
-          const confirmMsg = `Update event name from "${originalEventName}" to "${newEventName}"?\n\nThis will update ONLY this specific event.\n\nContinue?`;
-          if (!window.confirm(confirmMsg)) {
-            setLoading(false);
-            return;
-          }
-        }
+      } else {
+        endpoint = `/events/${identifier}`;
       }
-      else if (editScope === 'person') {
-        if (!originalPersonIdentifier) {
-          toast.error("Cannot update: Person identifier not found");
-          setLoading(false);
-          return;
-        }
+      
+      method = 'PUT';
+      body = JSON.stringify(updateData);
 
-        if (!originalEventName) {
-          toast.error("Cannot update: Original event name is required for 'Update All'");
-          setLoading(false);
-          return;
-        }
-
-        if (!originalDay) {
-          toast.error("Cannot update: Original day is required for 'Update All'");
-          setLoading(false);
-          return;
-        }
-
-        endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/event/${encodeURIComponent(originalEventName)}/day/${encodeURIComponent(originalDay)}`;
-        method = 'PUT';
-        body = JSON.stringify(updateData);
-
-        let confirmMsg = `This will update ONLY:\n\n`;
-        confirmMsg += `• Person: ${originalPersonIdentifier}\n`;
-        confirmMsg += `• Event name: "${originalEventName}"\n`;
-        confirmMsg += `• Day: ${originalDay}\n\n`;
-
-        const changes = [];
-        if (newEventName && newEventName !== originalEventName) {
-          changes.push(`Event name: "${originalEventName}" → "${newEventName}"`);
-        }
-        if (newDay && newDay !== originalDay) {
-          changes.push(`Day: ${originalDay} → ${newDay}`);
-        }
-
-        const otherFields = changedFields.filter(f =>
-          !['Event Name', 'eventName', 'Day', 'day'].includes(f)
-        );
-        if (otherFields.length > 0) {
-          changes.push(`Other fields: ${otherFields.join(', ')}`);
-        }
-
-        if (changes.length > 0) {
-          confirmMsg += `Changes:\n${changes.join('\n')}\n\n`;
-        }
-
-        confirmMsg += `Continue?`;
-
+      if (newEventName && newEventName !== originalEventName) {
+        const confirmMsg = `Update event name from "${originalEventName}" to "${newEventName}"?\n\nThis will update ONLY this specific event.\n\nContinue?`;
         if (!window.confirm(confirmMsg)) {
           setLoading(false);
           return;
         }
       }
-
-      const userToken = localStorage.getItem("access_token") || token;
-      if (!userToken) {
-        toast.error("No authentication token found. Please log in again.");
+    }
+    else if (editScope === 'person') {
+      if (!originalPersonIdentifier) {
+        toast.error("Cannot update: Person identifier not found");
         setLoading(false);
         return;
       }
 
-      const response = await fetch(`${BACKEND_URL}${endpoint}`, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${userToken}`
-        },
-        body
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        let errorData;
-        try { errorData = JSON.parse(errorText); } catch { errorData = { detail: errorText }; }
-
-        if (response.status === 404) {
-          toast.error(`Not found: ${errorData.detail || 'The event or events could not be found'}`);
-        } else if (response.status === 401) {
-          toast.error("Your session has expired. Please log in again.");
-          localStorage.removeItem("access_token");
-        } else if (response.status === 409) {
-          toast.error(`Conflict: ${errorData.detail || 'Duplicate event detected'}`);
-        } else {
-          toast.error(`Update failed: ${errorData.detail || errorData.message || `Error ${response.status}`}`);
-        }
-
-        throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+      if (!originalEventName) {
+        toast.error("Cannot update: Original event name is required for 'Update All'");
+        setLoading(false);
+        return;
       }
 
-      const result = await response.json();
+      if (!originalDay) {
+        toast.error("Cannot update: Original day is required for 'Update All'");
+        setLoading(false);
+        return;
+      }
 
-      if (editScope === 'person') {
-        if (result.success) {
-          if (result.modified_count === 0) {
-            toast.info(`No changes were made to ${originalEventName} events`);
-          } else {
-            toast.success(`Updated ${result.modified_count || 0} ${originalDay} events named "${originalEventName}"`);
-          }
+      endpoint = `/events/person/${encodeURIComponent(originalPersonIdentifier)}/event/${encodeURIComponent(originalEventName)}/day/${encodeURIComponent(originalDay)}`;
+      method = 'PUT';
+      body = JSON.stringify(updateData);
+
+      let confirmMsg = `This will update ONLY:\n\n`;
+      confirmMsg += `• Person: ${originalPersonIdentifier}\n`;
+      confirmMsg += `• Event name: "${originalEventName}"\n`;
+      confirmMsg += `• Day: ${originalDay}\n\n`;
+
+      const changes = [];
+      if (newEventName && newEventName !== originalEventName) {
+        changes.push(`Event name: "${originalEventName}" → "${newEventName}"`);
+      }
+      if (newDay && newDay !== originalDay) {
+        changes.push(`Day: ${originalDay} → ${newDay}`);
+      }
+
+      const otherFields = changedFields.filter(f =>
+        !['Event Name', 'eventName', 'Day', 'day'].includes(f)
+      );
+      if (otherFields.length > 0) {
+        changes.push(`Other fields: ${otherFields.join(', ')}`);
+      }
+
+      if (changes.length > 0) {
+        confirmMsg += `Changes:\n${changes.join('\n')}\n\n`;
+      }
+
+      confirmMsg += `Continue?`;
+
+      if (!window.confirm(confirmMsg)) {
+        setLoading(false);
+        return;
+      }
+    }
+
+    const userToken = localStorage.getItem("access_token") || token;
+    if (!userToken) {
+      toast.error("No authentication token found. Please log in again.");
+      setLoading(false);
+      return;
+    }
+
+    const response = await fetch(`${BACKEND_URL}${endpoint}`, {
+      method,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${userToken}`
+      },
+      body
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      let errorData;
+      try { errorData = JSON.parse(errorText); } catch { errorData = { detail: errorText }; }
+
+      if (response.status === 404) {
+        toast.error(`Not found: ${errorData.detail || 'The event or events could not be found'}`);
+      } else if (response.status === 401) {
+        toast.error("Your session has expired. Please log in again.");
+        localStorage.removeItem("access_token");
+      } else if (response.status === 409) {
+        toast.error(`Conflict: ${errorData.detail || 'Duplicate event detected'}`);
+      } else {
+        toast.error(`Update failed: ${errorData.detail || errorData.message || `Error ${response.status}`}`);
+      }
+
+      throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (editScope === 'person') {
+      if (result.success) {
+        if (result.modified_count === 0) {
+          toast.info(`No changes were made to ${originalEventName} events`);
         } else {
-          toast.warning(result.message || "Update completed with warnings");
+          toast.success(`Updated ${result.modified_count || 0} ${originalDay} events named "${originalEventName}"`);
         }
       } else {
-        if (result.success) {
-          if (result.modified) {
-            toast.success('Event updated successfully');
-          } else {
-            toast.info('No changes were made to the event');
-          }
+        toast.warning(result.message || "Update completed with warnings");
+      }
+    } else {
+      // Handle single event update response
+      if (result.sync_info) {
+        // This is from the generic endpoint
+        if (result.sync_info.status_updated) {
+          toast.success(`Status updated to ${result.sync_info.new_status}`);
         } else {
-          toast.error(result.message || 'Update failed');
+          toast.success('Event updated successfully');
         }
+      } else if (result.success) {
+        // This is from the cells endpoint
+        if (result.modified) {
+          toast.success('Event updated successfully');
+        } else {
+          toast.info('No changes were made to the event');
+        }
+      } else {
+        toast.error(result.message || 'Update failed');
       }
-
-      if (refreshEvents) {
-        await refreshEvents();
-      }
-
-      onClose(true, {
-        Day: formData.Day || formData.day,
-        day: formData.Day || formData.day,
-        date: formData.date,
-      });
-
-    } catch (error) {
-      console.error("Error saving:", error);
-      if (!error.message.includes('401')) {
-        toast.error(`Failed to save: ${error.message || error}`);
-      }
-    } finally {
-      setLoading(false);
     }
-  };
+
+    if (refreshEvents) {
+      await refreshEvents();
+    }
+
+    onClose(true, {
+      Day: formData.Day || formData.day,
+      day: formData.Day || formData.day,
+      date: formData.date,
+    });
+
+  } catch (error) {
+    console.error("Error saving:", error);
+    if (!error.message.includes('401')) {
+      toast.error(`Failed to save: ${error.message || error}`);
+    }
+  } finally {
+    setLoading(false);
+  }
+};
 
   const renderField = (field) => {
     const value = formData[field] || '';
@@ -654,8 +671,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
     if (field === 'is_active' || field === 'Display date' || field === 'Display_date' ||
       field === 'display_date' || field === 'did_not_meet' || field === 'Did_not_meet' ||
       field === 'S' || field === 's' || field === 'Data-recurring' || field === 'data-recurring' ||
-      field === 'is_recurring' || field === 'isRecurring' || field === 'is_overdue' ||
-      field === 'isOverdue') {
+      field === 'is_recurring' || field === 'isRecurring') {
       return null;
     }
 
@@ -969,11 +985,13 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   const locationFields = availableFields.filter(f => ['Address', 'location', 'address'].includes(f));
   const timeFields = availableFields.filter(f => ['date', 'Date Of Event', 'time', 'Time', 'Day', 'recurring_day'].includes(f));
   const otherFields = availableFields.filter(f => {
-    const skipFields = ['is_active', 'Display date', 'Display_date', 'display_date',
+    const skipFields = [
+      'is_active', 'Display date', 'Display_date', 'display_date',
       'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring',
-      'data-recurring', 'is_recurring', 'isRecurring', 'is_overdue', 'isOverdue'];
+      'data-recurring', 'is_recurring', 'isRecurring',
+      'closed_by', 'closed_at', 'new_people', 'consolidations', "Status"
+    ];
 
-    // ADDED: For non-cell events, also skip these fields from "other fields"
     if (!isCellEvent) {
       const fl = f.toLowerCase();
       if (fl === 'leader1' || fl === 'leader12' || fl.includes('leader at 12') ||
@@ -1201,7 +1219,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                   </Grid>
                 </Box>
 
-                {otherFields.length > 0 && (
+                {/* {otherFields.length > 0 && (
                   <Box sx={{ mt: 3 }}>
                     <Button
                       fullWidth
@@ -1220,6 +1238,85 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
                           </Grid>
                         ))}
                       </Grid>
+                    </Collapse>
+                  </Box>
+                )} */}
+                {otherFields.length > 0 && (
+                  <Box sx={{ mt: 3 }}>
+                    <Button
+                      fullWidth
+                      onClick={() => setShowAllFields(!showAllFields)}
+                      startIcon={showAllFields ? <ExpandLess /> : <ExpandMore />}
+                      size="small"
+                    >
+                      {showAllFields ? 'Hide' : 'Show'} Other Fields ({otherFields.length})
+                    </Button>
+
+                    <Collapse in={showAllFields}>
+                      <Box sx={{ mt: 1 }}>
+
+                        {/* Row 1: Event Type | Day | is overdue */}
+                        <Grid container spacing={2}>
+                          {[
+                            otherFields.find(f => f === 'eventType' || f === 'Event Type'),
+                            otherFields.find(f => f === 'day' || f === 'Day'),
+                            otherFields.find(f => f === '_is_overdue' || f === 'is_overdue' || f === 'isOverdue'),
+                          ]
+                            .filter(Boolean)
+                            .map(field => (
+                              <Grid item xs={12} md={4} key={field}>
+                                {renderField(field)}
+                              </Grid>
+                            ))}
+                        </Grid>
+
+                        <Grid container spacing={2} sx={{ mt: 0 }}>
+                          {(() => {
+                            const recurringField = otherFields.find(f => f === 'recurring_days' || f === 'recurring_day');
+                            const origEventId = otherFields.find(f => f === 'original_event_id');
+                            const compositeId = otherFields.find(f => f === 'original_composite_id');
+                            return (
+                              <>
+                                {recurringField && (
+                                  <Grid item xs={12} md={4} key={recurringField}>
+                                    {renderField(recurringField)}
+                                  </Grid>
+                                )}
+                                {origEventId && (
+                                  <Grid item xs={12} md={4} key={origEventId}>
+                                    {renderField(origEventId)}
+                                  </Grid>
+                                )}
+                                {compositeId && (
+                                  <Grid item xs={12} md={4} key={compositeId}>
+                                    {renderField(compositeId)}
+                                  </Grid>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </Grid>
+                        {(() => {
+                          const handled = new Set([
+                            'eventType', 'Event Type',
+                            'day', 'Day',
+                            '_is_overdue', 'is_overdue', 'isOverdue',
+                            'recurring_days', 'recurring_day',
+                            'original_event_id',
+                            'original_composite_id',
+                          ]);
+                          const remaining = otherFields.filter(f => !handled.has(f));
+                          return remaining.length > 0 ? (
+                            <Grid container spacing={2} sx={{ mt: 0 }}>
+                              {remaining.map(field => (
+                                <Grid item xs={12} md={6} key={field}>
+                                  {renderField(field)}
+                                </Grid>
+                              ))}
+                            </Grid>
+                          ) : null;
+                        })()}
+                      </Box>
                     </Collapse>
                   </Box>
                 )}

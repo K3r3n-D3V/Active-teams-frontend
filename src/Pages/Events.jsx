@@ -489,6 +489,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     const excludedFields = [
       "persistent_attendees",
       "uuid",
+      "Is Global",
       "did_not_meet",
       "status",
       "week_identifier",
