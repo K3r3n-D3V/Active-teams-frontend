@@ -214,7 +214,6 @@ export default function DailyTasks() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to update task");
 
-      // Update local state
       setTasks((prev) =>
         prev.map((t) =>
           t._id === taskId
@@ -229,8 +228,7 @@ export default function DailyTasks() {
 
       toast.success("Task marked as completed!");
       notifyTaskUpdate();
-      // Trigger a re-fetch for stats (optional)
-      fetchUserTasks(); // This will update the local tasks list
+      fetchUserTasks(); 
     } catch (err) {
       console.error("Error completing task:", err.message);
       toast.error("Failed to update task: " + err.message);
@@ -320,7 +318,6 @@ export default function DailyTasks() {
         throw new Error(data.message || "Failed to update task type");
       }
 
-      // Immediate local update – no refresh needed
       setTaskTypes((prev) =>
         prev.map((t) => {
           const tid = t._id || t.id;
@@ -333,7 +330,6 @@ export default function DailyTasks() {
 
       toast.success("Task type updated!");
 
-      // Clean up UI
       setIsEditTypeModalOpen(false);
       setTypeMenuOpen(false);
       setSelectedTypeToManage(null);
@@ -373,7 +369,6 @@ export default function DailyTasks() {
 
       toast.success("Task type deleted!");
 
-      // This is the important fix
       setTaskTypes((prev) =>
         prev.filter((t) => (t._id || t.id) !== taskTypeId),
       );
@@ -525,7 +520,6 @@ export default function DailyTasks() {
             throw new Error("Failed to fetch people");
           const data = await response.json();
           const rawPeople = data?.results || [];
-          // minimal mapping required for dropdown + fast search
           const mapped = rawPeople.map((raw) => ({
             _id: (raw._id || raw.id || "").toString(),
             name: (raw.Name || raw.name || "").toString().trim(),
@@ -534,7 +528,6 @@ export default function DailyTasks() {
             phone: (raw.Phone || raw.phone || raw.Number || "")
               .toString()
               .trim(),
-            // precompute lowercase fullName for instant matching
             fullNameLower:
               `${(raw.Name || raw.name || "").toString().trim()} ${(raw.Surname || raw.surname || "").toString().trim()}`.toLowerCase(),
           }));
@@ -558,17 +551,18 @@ export default function DailyTasks() {
     [API_URL, authFetch],
   );
 
-  // prefetch people in background as soon as user is available
   useEffect(() => {
-    if (!user) return;
-    if (
-      (!window.globalPeopleCache || window.globalPeopleCache.length === 0) &&
-      !isFetchingRef.current
-    ) {
-      // background prefetch (no toast here; will show toast when user opens modal)
-      fetchAllPeople(false).catch(() => {});
-    }
-  }, [user, fetchAllPeople]);
+  if (!user) return;
+  if (window.globalPeopleCache?.length > 0 && allPeople.length === 0) {
+    setAllPeople(window.globalPeopleCache);
+  }
+  if (
+    (!window.globalPeopleCache || window.globalPeopleCache.length === 0) &&
+    !isFetchingRef.current
+  ) {
+    fetchAllPeople(false).catch(() => {});
+  }
+}, [user, fetchAllPeople]);
 
   const searchPeople = useCallback(
     (peopleList, searchValue, field = "name") => {
@@ -609,9 +603,9 @@ export default function DailyTasks() {
       setIsSearching(true);
 
       const localSource =
-        allPeople && allPeople.length > 0
-          ? allPeople
-          : window.globalPeopleCache || [];
+  window.globalPeopleCache?.length > 0
+    ? window.globalPeopleCache
+    : allPeople;
       if (localSource && localSource.length > 0) {
         try {
           const quick = searchPeople(localSource, query, "name");
@@ -648,9 +642,9 @@ export default function DailyTasks() {
       const query = q.trim();
 
       const localSource =
-        allPeople && allPeople.length > 0
-          ? allPeople
-          : window.globalPeopleCache || [];
+  window.globalPeopleCache?.length > 0
+    ? window.globalPeopleCache
+    : allPeople;
       if (localSource && localSource.length > 0) {
         try {
           const quick = searchPeople(localSource, query, "name");
@@ -676,18 +670,17 @@ export default function DailyTasks() {
 
   const handleRecipientInput = useCallback(
     (value) => {
-      // immediate UI update
+      
       setTaskData((prev) => ({
         ...prev,
         recipientDisplay: value,
         recipient: null,
       }));
 
-      // QUICK local feedback from whatever cache we already have (very fast)
       const localSource =
-        allPeople && allPeople.length > 0
-          ? allPeople
-          : window.globalPeopleCache || [];
+  window.globalPeopleCache?.length > 0
+    ? window.globalPeopleCache
+    : allPeople;
       if (localSource && localSource.length > 0) {
         try {
           const quick = searchPeople(localSource, value, "name");
@@ -699,7 +692,6 @@ export default function DailyTasks() {
         setSearchResults([]);
       }
 
-      // debounce background refinement/fetch
       if (fetchPeopleDebounceRef.current)
         clearTimeout(fetchPeopleDebounceRef.current);
       fetchPeopleDebounceRef.current = setTimeout(() => {
@@ -1657,7 +1649,7 @@ export default function DailyTasks() {
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            zIndex: 2000, // make sure it's on top
+            zIndex: 2000,
           }}
         >
           <div
@@ -1848,12 +1840,12 @@ export default function DailyTasks() {
 
                       console.log("Selected value from form:", selectedValue);
 
-                      // Try to find by ID first (normal case)
+                      
                       let selected = taskTypes.find(
                         (t) => String(t._id || t.id) === selectedValue,
                       );
 
-                      // Fallback: if no match by ID, maybe it's storing the name by mistake
+                      
                       if (!selected) {
                         console.warn(
                           "No match by ID — trying to match by name",
@@ -1934,8 +1926,8 @@ export default function DailyTasks() {
                           );
 
                           setEditTaskTypeName(selectedTypeToManage.name || "");
-                          setIsEditTypeModalOpen(true); // ← MUST be true here
-                          setTypeMenuOpen(false); // close the small ; menu
+                          setIsEditTypeModalOpen(true);
+                          setTypeMenuOpen(false); 
                         }}
                         style={{
                           width: "100%",
@@ -2332,7 +2324,7 @@ export default function DailyTasks() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 2000, // high enough to be on top
+            zIndex: 2000, 
           }}
         >
           <div
