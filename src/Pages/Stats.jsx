@@ -62,6 +62,7 @@ import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import { AuthContext } from "../contexts/AuthContext";
 import { useTaskUpdate } from '../contexts/TaskUpdateContext';
+import CreateEvents from "./CreateEvents";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
@@ -690,10 +691,25 @@ useEffect(() => {
     [filteredEvents]
   );
 
+  const globalEvent = eventTypes?.find(
+    (et) => et.name?.toLowerCase() === "global events"
+  );
+
+  const filteredEventTypes = eventTypes?.filter(
+  (et) => !et.isTicketed
+);
+  
   const handleCreateEvent = useCallback(() => {
-    setNewEventData((prev) => ({ ...prev, date: selectedDate }));
-    setCreateEventModalOpen(true);
-  }, [selectedDate]);
+
+  setNewEventData((prev) => ({
+    ...prev,
+    date: selectedDate,
+    eventTypeName: globalEvent?.name || "Global Events",
+  }));
+
+  setCreateEventModalOpen(true);
+}, [selectedDate, eventTypes]);
+
 
   const handleSaveEvent = async () => {
     if (!newEventData.eventName.trim()) {
@@ -1084,7 +1100,7 @@ useEffect(() => {
 
       <Paper variant="outlined" sx={{ mb: 1.5, p: 0.5 }}>
         <Box display="flex">
-          {["Overdue Cells", "Tasks", "Calendar"].map((tab, i) => (
+          {["Overdue Cells", "Tasks", "Calendar"].map((_tab, i) => (
             <Box key={i} sx={{ flex: 1, p: 1, textAlign: "center" }}>
               <Skeleton width="100%" height={24} />
             </Box>
@@ -1847,223 +1863,66 @@ useEffect(() => {
         </Paper>
       )}
 
-      {/* CREATE EVENT MODAL */}
-      <Dialog
-        open={createEventModalOpen}
-        onClose={() => setCreateEventModalOpen(false)}
-        maxWidth="md"
-        fullWidth
-        PaperProps={{ sx: { borderRadius: 3, boxShadow: 24 } }}
-        fullScreen={isXsDown}
-      >
-        <DialogTitle
-          sx={{
-            background: `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark} 100%)`,
-            color: "white",
-            p: 3,
-          }}
-        >
-          <Box display="flex" alignItems="center" justifyContent="space-between">
-            <Box display="flex" alignItems="center" gap={1.5}>
-              <Box component="span" sx={{ fontSize: 28 }}>
-                Create New Event
-              </Box>
-              <Box>
-                <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                  {formatDisplayDate(selectedDate)}
-                </Typography>
-              </Box>
-            </Box>
-            <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: "white" }}>
-              <Close />
-            </IconButton>
-          </Box>
-        </DialogTitle>
+{/* CREATE EVENT MODAL - Using CreateEvents component */}
+<Dialog
+  open={createEventModalOpen}
+  onClose={() => setCreateEventModalOpen(false)}
+  maxWidth="sm" // Increased size for better layout
+  fullWidth
+  PaperProps={{ 
+    sx: { 
+      borderRadius: 3, 
+      boxShadow: 24,
+      height: isXsDown ? '100%' : '90vh', // Better height management
+      maxHeight: '90vh'
+    } 
+  }}
+  fullScreen={isXsDown}
+>
+  <DialogTitle sx={{ 
+    background: 'black',
+    color: 'white',
+    p: 3,
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center'
+  }}>
+    <Box display="flex" alignItems="center" gap={1.5}>
+      <Box component="span" sx={{ fontSize: 28, }}>
+        Create New Event
+      </Box>
+      <Box>
+        <Typography variant="caption" sx={{ opacity: 0.9 }}>
+          {formatDisplayDate(selectedDate)}
+        </Typography>
+      </Box>
+    </Box>
+    <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: 'white' }}>
+      <Close />
+    </IconButton>
+  </DialogTitle>
 
-        <DialogContent sx={{ p: { xs: 2, sm: 3 }, mt: 2 }}>
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="subtitle2"
-              sx={{
-                mb: 2,
-                color: "primary.main",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                fontSize: "0.75rem",
-                letterSpacing: 1,
-              }}
-            >
-              EVENT DETAILS
-            </Typography>
-
-            <Grid container spacing={2.5}>
-              <Grid item xs={12}>
-                <TextField
-                  label="Event Name"
-                  value={newEventData.eventName}
-                  onChange={(e) =>
-                    setNewEventData((p) => ({ ...p, eventName: e.target.value }))
-                  }
-                  fullWidth
-                  required
-                />
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <FormControl fullWidth disabled={eventTypesLoading}>
-                  <InputLabel>Event Type</InputLabel>
-                  <Select
-                    value={newEventData.eventTypeName || ""}
-                    onChange={(e) =>
-                      setNewEventData((p) => ({ ...p, eventTypeName: e.target.value }))
-                    }
-                  >
-                    {eventTypesLoading ? (
-                      <MenuItem disabled>Loading event types...</MenuItem>
-                    ) : eventTypes.length > 0 ? (
-                      eventTypes.map((type) => (
-                        <MenuItem key={type._id || type.name} value={type.name}>
-                          {type.name} {type.description && `- ${type.description}`}
-                        </MenuItem>
-                      ))
-                    ) : (
-                      <MenuItem disabled>No event types available</MenuItem>
-                    )}
-                  </Select>
-                </FormControl>
-              </Grid>
-
-              <Grid item xs={12} sm={6}>
-                <TextField
-                  label="Time"
-                  type="time"
-                  value={newEventData.time}
-                  onChange={(e) => setNewEventData((p) => ({ ...p, time: e.target.value }))}
-                  fullWidth
-                  InputLabelProps={{ shrink: true }}
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <TextField
-                  label="Location"
-                  value={newEventData.location}
-                  onChange={(e) =>
-                    setNewEventData((p) => ({ ...p, location: e.target.value }))
-                  }
-                  fullWidth
-                />
-              </Grid>
-            </Grid>
-          </Box>
-
-          <Divider sx={{ my: 3 }} />
-
-          <Box sx={{ mb: 3 }}>
-            <Typography
-              variant="subtitle2"
-              sx={{
-                mb: 2,
-                color: "primary.main",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                fontSize: "0.75rem",
-                letterSpacing: 1,
-              }}
-            >
-              EVENT LEADER INFORMATION
-            </Typography>
-
-            <Grid container spacing={2.5}>
-              <Grid item xs={12}>
-                <TextField
-                  label="Leader Name"
-                  value={newEventData.eventLeaderName}
-                  onChange={(e) =>
-                    setNewEventData((p) => ({ ...p, eventLeaderName: e.target.value }))
-                  }
-                  fullWidth
-                />
-              </Grid>
-
-              <Grid item xs={12}>
-                <TextField
-                  label="Leader Email"
-                  type="email"
-                  value={newEventData.eventLeaderEmail}
-                  onChange={(e) =>
-                    setNewEventData((p) => ({ ...p, eventLeaderEmail: e.target.value }))
-                  }
-                  fullWidth
-                />
-              </Grid>
-            </Grid>
-          </Box>
-
-          <Divider sx={{ my: 3 }} />
-
-          <Box>
-            <Typography
-              gutterBottom
-              sx={{
-                mb: 2,
-                color: "primary.main",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                fontSize: "0.75rem",
-                letterSpacing: 1,
-              }}
-            >
-              ADDITIONAL INFORMATION
-            </Typography>
-
-            <TextField
-              label="Description"
-              value={newEventData.description}
-              onChange={(e) =>
-                setNewEventData((p) => ({ ...p, description: e.target.value }))
-              }
-              fullWidth
-              multiline
-              rows={4}
-            />
-
-            <Box
-              mt={2}
-              p={2}
-              sx={{
-                backgroundColor: "rgba(33, 150, 243, 0.08)",
-                borderRadius: 2,
-                border: "1px solid rgba(33, 150, 243, 0.2)",
-              }}
-            >
-              <FormControlLabel
-                control={
-                  <Checkbox
-                    checked={newEventData.isRecurring}
-                    onChange={(e) =>
-                      setNewEventData((p) => ({ ...p, isRecurring: e.target.checked }))
-                    }
-                  />
-                }
-                label="Recurring Event"
-              />
-            </Box>
-          </Box>
-        </DialogContent>
-
-        <DialogActions sx={{ p: 3, backgroundColor: "rgba(0,0,0,0.02)" }}>
-          <Button onClick={() => setCreateEventModalOpen(false)}>Cancel</Button>
-          <Button
-            variant="contained"
-            startIcon={<Save />}
-            onClick={handleSaveEvent}
-            disabled={!newEventData.eventName}
-          >
-            Create Event
-          </Button>
-        </DialogActions>
-      </Dialog>
+  <DialogContent dividers sx={{ p: 0, overflow: 'hidden' }}>
+    <Box sx={{ height: '100%', overflow: 'auto' }}>
+      <CreateEvents
+        user={JSON.parse(localStorage.getItem('userProfile') || '{}')}
+        isModal={true}
+        onClose={(success) => {
+          if (success) {
+            // Refresh data after successful creation
+            fetchStats(true);
+            fetchOverdueCells(true);
+          }
+          setCreateEventModalOpen(false);
+        }}
+        eventTypes={filteredEventTypes}
+        defaultEventType={globalEvent?.name || "Global Events"} 
+        selectedEventType={newEventData.eventTypeName}
+        selectedEventTypeObj={eventTypes.find(et => et.name === newEventData.eventTypeName)}
+      />
+    </Box>
+  </DialogContent>
+</Dialog>
 
       {/* OVERDUE CELLS MODAL */}
       <Dialog
