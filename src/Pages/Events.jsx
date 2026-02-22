@@ -708,7 +708,7 @@ const MobileEventCard = ({
     const xmlCols = columnWidths
       .map(
         (w, i) =>
-          `                    <x:Column ss:Index="${i + 1}" ss:AutoFitWidth="0" ss:Width="${w}"/>`,
+          `    <x:Column ss:Index="${i + 1}" ss:AutoFitWidth="0" ss:Width="${w}"/>`,
       )
       .join("\n");
 
@@ -776,46 +776,45 @@ ${xmlCols}
     }, 100);
   };
 
-  const normalizeEventAttendance = (event) => {
-    if (!event) return [];
-    const eventDate = event.date;
-    let weekAttendance = event.attendance || {};
-    if (
-      weekAttendance &&
-      typeof weekAttendance === "object" &&
-      !weekAttendance.status
-    ) {
-      weekAttendance = weekAttendance[eventDate] || {};
+const normalizeEventAttendance = (event) => {
+  if (!event) return [];
+  
+  const eventDate = event.date;
+  let attendees = [];
+
+  // Check attendance object by date key first
+  if (event.attendance && typeof event.attendance === "object") {
+    const dateAttendance = event.attendance[eventDate];
+    if (dateAttendance) {
+      attendees = dateAttendance.attendees || [];
     }
-    const attendees = weekAttendance?.attendees || event.attendees || [];
+  }
 
-    // map to rows similar to AttendanceModal
-    return (attendees || []).map((att) => ({
-      "Event ID": event._id || event.id || "",
-      "Event Name": event.eventName || event.Event_Name || event.name || "",
-      "Event Date": formatDate(event.date),
-      "Attendee ID": att.id || att._id || "",
-      Name: att.fullName || att.name || "",
-      Email: att.email || "",
-      "Event Leader Name ":
-        event.eventLeaderName ||
-        event.leaderName ||
-        event.eventLeader ||
-        event.leader ||
-        "",
-      "Leader @12": att.leader12 || "",
-      "Leader @144": att.leader144 || "",
-      Phone: att.phone || "",
-      Decision: att.decision || "",
-      "Price Tier": att.priceTier || att.price_tier || "",
-      "Payment Method": att.paymentMethod || "",
-      Price: att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-      Paid: att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-      Owing: att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-    }));
-  };
+  // Fall back to top-level attendees
+  if (attendees.length === 0) {
+    attendees = event.attendees || [];
+  }
 
+  if (attendees.length === 0) return [];
+
+  return attendees.map((att) => ({
+    "Event Name": event.eventName || event["Event Name"] || "",
+    "Event Date": eventDate,
+    "Name": att.fullName || att.name || "",
+    "Email": att.email || "",
+    "Event Leader Name": event.eventLeaderName || event.Leader || "",
+    "Leader @12": event.leader12 || "",
+    "Phone": att.phone || "",
+    "Decision": att.decision || "",
+    "Price Tier": att.priceTier || "",
+    "Payment Method": att.paymentMethod || "",
+    "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
+    "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
+    "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
+  }));
+};
   const fetchEventFull = async (event) => {
+
     try {
       let eventId = event._id || event.id;
       if (!eventId) return event;
@@ -1073,6 +1072,11 @@ const Events = () => {
     cacheRef.current.data.clear();
     cacheRef.current.timestamp.clear();
   }, []);
+  const eventsCache = useRef({});
+
+  const getCacheKey = useCallback(() => {
+    return `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
+  }, [selectedEventTypeFilter, selectedStatus, viewFilter]);
 
   const escapeHtml = (s) =>
     String(s || "")
@@ -1195,42 +1199,43 @@ ${xmlCols}
     };
   };
 
-  const normalizeEventAttendance = (event) => {
-    if (!event) return [];
-    const eventDate = event.date;
-    let weekAttendance = event.attendance || {};
-    if (
-      weekAttendance &&
-      typeof weekAttendance === "object" &&
-      !weekAttendance.status
-    ) {
-      weekAttendance = weekAttendance[eventDate] || {};
-    }
-    const attendees = weekAttendance?.attendees || event.attendees || [];
+const normalizeEventAttendance = (event) => {
+  if (!event) return [];
+  
+  const eventDate = event.date;
+  let attendees = [];
 
-    // map to rows similar to AttendanceModal
-    return (attendees || []).map((att) => ({
-      "Event Name": event.eventName || event.Event_Name || event.name || "",
-      "Event Date": formatDate(event.date),
-      Name: att.fullName || att.name || "",
-      Email: att.email || "",
-      "Event Leader Name":
-        event.eventLeaderName ||
-        event.leaderName ||
-        event.eventLeader ||
-        event.leader ||
-        "",
-      "Leader @12": att.leader12 || "",
-      "Leader @144": att.leader144 || "",
-      Phone: att.phone || "",
-      Decision: att.decision || "",
-      "Price Tier": att.priceTier || att.price_tier || "",
-      "Payment Method": att.paymentMethod || "",
-      Price: att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-      Paid: att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-      Owing: att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-    }));
-  };
+  // Check attendance object by date key first
+  if (event.attendance && typeof event.attendance === "object") {
+    const dateAttendance = event.attendance[eventDate];
+    if (dateAttendance) {
+      attendees = dateAttendance.attendees || [];
+    }
+  }
+
+  // Fall back to top-level attendees
+  if (attendees.length === 0) {
+    attendees = event.attendees || [];
+  }
+
+  if (attendees.length === 0) return [];
+
+  return attendees.map((att) => ({
+    "Event Name": event.eventName || event["Event Name"] || "",
+    "Event Date": eventDate,
+    "Name": att.fullName || att.name || "",
+    "Email": att.email || "",
+    "Event Leader Name": event.eventLeaderName || event.Leader || "",
+    "Leader @12": event.leader12 || "",
+    "Phone": att.phone || "",
+    "Decision": att.decision || "",
+    "Price Tier": att.priceTier || "",
+    "Payment Method": att.paymentMethod || "",
+    "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
+    "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
+    "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
+  }));
+};
 
   const fetchEventFull = async (event) => {
     try {
@@ -1700,10 +1705,10 @@ ${xmlCols}
         return showToAuthorized;
       });
     } catch (error) {
-  console.error("Error filtering event types:", error);
-  return allEventTypes.filter(() => {
-    return isAdmin || isLeaderAt12 || isRegistrant || isLeader;
-  });
+      console.error("Error filtering event types:", error);
+      return allEventTypes.filter(() => {
+        return isAdmin || isLeaderAt12 || isRegistrant || isLeader;
+      });
     }
   };
 
@@ -1828,7 +1833,7 @@ ${xmlCols}
               ) || { name: typeName };
 
               const description =
-                eventTypeObj.description || getEventTypeDescription(typeName);
+                eventTypeObj.description
 
               return (
                 <Box
@@ -1869,7 +1874,6 @@ ${xmlCols}
         size="small"
         onClick={() => {
           setViewMode("grid");
-          // setShowingEventsForType(false);
         }}
         sx={{
           minWidth: "auto",
@@ -1938,14 +1942,14 @@ ${xmlCols}
     const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
     const [searchQuery, setSearchQuery] = useState("");
 
-const filteredEventTypes = eventTypes.filter((type) => {
-  const typeName =
-    typeof type === "string" ? type : type.name || "";
+    const filteredEventTypes = eventTypes.filter((type) => {
+      const typeName =
+        typeof type === "string" ? type : type.name || "";
 
-  return typeName
-    .toLowerCase()
-    .includes(searchQuery.toLowerCase());
-});
+      return typeName
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase());
+    });
 
 
     const getEventTypeColor = (typeName) => {
@@ -2112,7 +2116,7 @@ const filteredEventTypes = eventTypes.filter((type) => {
               ) || { name: typeName };
 
               const description =
-                eventTypeObj.description || getEventTypeDescription(typeName);
+                eventTypeObj.description;
               return (
                 <Box
                   key={typeName}
@@ -2121,9 +2125,9 @@ const filteredEventTypes = eventTypes.filter((type) => {
                     borderLeft: `4px solid ${color}`,
                     ...(isActive
                       ? {
-                          ...styles.eventTypeItemActive,
-                          borderLeftColor: color,
-                        }
+                        ...styles.eventTypeItemActive,
+                        borderLeftColor: color,
+                      }
                       : {}),
                   }}
                   onClick={() => onSelectEventType(typeName)}
@@ -2146,11 +2150,11 @@ const filteredEventTypes = eventTypes.filter((type) => {
   const clearAllFilters = useCallback(() => {
     setSearchQuery("");
     setIsSearching(false);
-    setTotalEvents(events.length||0)
- 
+    setTotalEvents(events.length || 0)
+
   }, [viewFilter, userRole, fetchEvents, rowsPerPage, DEFAULT_API_START_DATE]);
 
-  const [allCurrentEvents, setAllCurrentEvents] = useState([]); 
+  const [allCurrentEvents, setAllCurrentEvents] = useState([]);
   const [isSearching, setIsSearching] = useState(null);
 
   const fetchAllCurrentEvents = useCallback(async () => {
@@ -2208,11 +2212,11 @@ const filteredEventTypes = eventTypes.filter((type) => {
     DEFAULT_API_START_DATE,
   ]);
 
-  useEffect(()=>{
+  useEffect(() => {
     if (!isSearching) return
     console.log("FETCHED AGAIN!")
     fetchAllCurrentEvents()
-  },[selectedStatus, selectedEventTypeFilter, viewFilter, userRole])
+  }, [selectedStatus, selectedEventTypeFilter, viewFilter, userRole])
 
   const handleSearchSubmit = (searchText) => {
     if (!searchText.trim()) return;
@@ -2261,7 +2265,7 @@ const filteredEventTypes = eventTypes.filter((type) => {
 
     searchDebounceRef.current = setTimeout(() => {
       setDebouncedSearchTerm(searchQuery);
-    }, 300); 
+    }, 300);
 
     return () => {
       if (searchDebounceRef.current) {
@@ -2275,7 +2279,7 @@ const filteredEventTypes = eventTypes.filter((type) => {
     if (!debouncedSearchTerm.trim()) return events;
     console.log("NEW FILTERS!")
     return handleSearchSubmit(debouncedSearchTerm) || [];
-  }, [allCurrentEvents, debouncedSearchTerm,selectedStatus]);
+  }, [allCurrentEvents, debouncedSearchTerm, selectedStatus]);
   console.log(
     "issearching",
     isSearching,
@@ -2284,55 +2288,20 @@ const filteredEventTypes = eventTypes.filter((type) => {
     searchQuery,
   );
 
-  const handleRowsPerPageChange = useCallback(
-    (e) => {
-      const newRowsPerPage = Number(e.target.value);
-      setRowsPerPage(newRowsPerPage);
-      setCurrentPage(1);
-      const shouldApplyPersonalFilter =
-        viewFilter === "personal" &&
-        (userRole === "admin" || userRole === "leader at 12");
+  const handleRowsPerPageChange = useCallback((e) => {
+    const newRowsPerPage = Number(e.target.value);
+    const cacheKey = `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
+    const cached = eventsCache.current[cacheKey];
 
-      fetchEvents(
-        {
-          status: selectedStatus !== "all" ? selectedStatus : undefined,
-          search: searchQuery.trim() || undefined,
-          event_type:
-            selectedEventTypeFilter !== "all"
-              ? selectedEventTypeFilter
-              : undefined,
-          page: 1,
-          limit: newRowsPerPage,
-          personal: shouldApplyPersonalFilter ? true : undefined,
-          start_date: DEFAULT_API_START_DATE,
-        },
-        true,
-      );
-    },
-    [
-      viewFilter,
-      userRole,
-      fetchEvents,
-      selectedStatus,
-      searchQuery,
-      selectedEventTypeFilter,
-      DEFAULT_API_START_DATE,
-    ],
-  );
+    setRowsPerPage(newRowsPerPage);
+    setCurrentPage(1);
 
-  const handleNextPage = useCallback(() => {
-    if (currentPage < totalPages && !isLoading) {
-      const newPage = currentPage + 1;
-      setCurrentPage(newPage);
+    if (cached) {
+      setTotalPages(Math.ceil(cached.length / newRowsPerPage) || 1);
+      setEvents(cached.slice(0, newRowsPerPage));
     }
-  }, [currentPage, totalPages, isLoading]);
+  }, [selectedEventTypeFilter, selectedStatus, viewFilter]);
 
-  const handlePreviousPage = useCallback(() => {
-    if (currentPage > 1 && !isLoading) {
-      const newPage = currentPage - 1;
-      setCurrentPage(newPage);
-    }
-  }, [currentPage, isLoading]);
 
   const handleCaptureClick = useCallback((event) => {
     setSelectedEvent(event);
@@ -2596,6 +2565,9 @@ const filteredEventTypes = eventTypes.filter((type) => {
       DEFAULT_API_START_DATE,
     ],
   );
+  useEffect(() => {
+    eventsCache.current = {};
+  }, []);
 
   const handleEditEvent = useCallback((event) => {
     let eventId = event._id;
@@ -2885,16 +2857,15 @@ const filteredEventTypes = eventTypes.filter((type) => {
 
             const shouldForceDelete = window.confirm(
               ` Cannot delete "${typeName}"\n\n` +
-                `${eventsCount} event(s) are using this event type:\n\n` +
-                `${eventsListText}\n` +
-                `${
-                  eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ""
-                }\n` +
-                `━\n\n` +
-                ` FORCE DELETE OPTION:\n\n` +
-                `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
-                `Click Cancel to keep everything.\n\n` +
-                ` THIS ACTION CANNOT BE UNDONE!`,
+              `${eventsCount} event(s) are using this event type:\n\n` +
+              `${eventsListText}\n` +
+              `${eventsCount > 5 ? `\n...and ${eventsCount - 5} more\n` : ""
+              }\n` +
+              `━\n\n` +
+              ` FORCE DELETE OPTION:\n\n` +
+              `Click OK to DELETE ALL ${eventsCount} events and the event type.\n` +
+              `Click Cancel to keep everything.\n\n` +
+              ` THIS ACTION CANNOT BE UNDONE!`,
             );
 
             if (shouldForceDelete) {
@@ -2916,7 +2887,7 @@ const filteredEventTypes = eventTypes.filter((type) => {
               if (
                 selectedEventTypeFilter === typeName ||
                 selectedEventTypeFilter?.toUpperCase() ===
-                  typeName.toUpperCase()
+                typeName.toUpperCase()
               ) {
                 setSelectedEventTypeFilter("all");
                 setSelectedEventTypeObj(null);
@@ -2935,8 +2906,7 @@ const filteredEventTypes = eventTypes.filter((type) => {
               }
 
               toast.success(
-                ` Deleted event type "${typeName}" and ${
-                  forceResult.events_deleted || eventsCount
+                ` Deleted event type "${typeName}" and ${forceResult.events_deleted || eventsCount
                 } events`,
                 { autoClose: 5000 },
               );
@@ -2951,8 +2921,8 @@ const filteredEventTypes = eventTypes.filter((type) => {
 
           throw new Error(
             errorData.detail ||
-              errorData.message ||
-              "Failed to delete event type",
+            errorData.message ||
+            "Failed to delete event type",
           );
         }
 
@@ -3026,37 +2996,31 @@ const filteredEventTypes = eventTypes.filter((type) => {
     setSelectedEventTypeObj,
   ]);
 
-  const handlePageChange = useCallback(
-    (newPage) => {
-      setCurrentPage(newPage);
-      const shouldApplyPersonalFilter =
-        viewFilter === "personal" &&
-        (userRole === "admin" || userRole === "leader at 12");
+ const handlePageChange = useCallback(
+  (newPage) => {
+    const cacheKey = `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
+    const cached = eventsCache.current[cacheKey];
 
-      fetchEvents({
-        page: newPage,
-        limit: rowsPerPage,
-        status: selectedStatus !== "all" ? selectedStatus : undefined,
-        event_type:
-          selectedEventTypeFilter !== "all"
-            ? selectedEventTypeFilter
-            : undefined,
-        search: searchQuery.trim() || undefined,
-        personal: shouldApplyPersonalFilter ? true : undefined,
-        start_date: DEFAULT_API_START_DATE,
-      });
-    },
-    [
-      viewFilter,
-      userRole,
-      fetchEvents,
-      rowsPerPage,
-      selectedStatus,
-      selectedEventTypeFilter,
-      searchQuery,
-      DEFAULT_API_START_DATE,
-    ],
-  );
+    setCurrentPage(newPage);
+
+    if (cached) {
+      const skip = (newPage - 1) * rowsPerPage;
+      setEvents(cached.slice(skip, skip + rowsPerPage)); 
+    }
+  },
+  [selectedEventTypeFilter, selectedStatus, viewFilter, rowsPerPage]
+);
+  const handleNextPage = useCallback(() => {
+    if (currentPage < totalPages && !isLoading) {
+      handlePageChange(currentPage + 1);
+    }
+  }, [currentPage, totalPages, isLoading, handlePageChange]);
+
+  const handlePreviousPage = useCallback(() => {
+    if (currentPage > 1 && !isLoading) {
+      handlePageChange(currentPage - 1);
+    }
+  }, [currentPage, isLoading, handlePageChange]);
 
   useEffect(() => {
     const checkAccess = async () => {
@@ -3230,6 +3194,7 @@ const filteredEventTypes = eventTypes.filter((type) => {
           } catch (e) {
             errorData = {
               detail: `HTTP ${response.status}: ${response.statusText}`,
+              error: e,
             };
           }
 
@@ -3294,30 +3259,30 @@ const filteredEventTypes = eventTypes.filter((type) => {
   }, [customEventTypes]);
 
   useEffect(() => {
-    if (!selectedEventTypeFilter) {
+    if (!selectedEventTypeFilter || !showingEvents) return;
+
+    const cacheKey = `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
+    const cached = eventsCache.current[cacheKey];
+
+    if (cached) {
+      console.log("Using cached data for:", cacheKey);
+      const skip = (currentPage - 1) * rowsPerPage;
+      setEvents(cached.slice(skip, skip + rowsPerPage));
+      setTotalEvents(cached.length);
+      setTotalPages(Math.ceil(cached.length / rowsPerPage) || 1);
       return;
     }
 
-    if (!showingEvents) {
-      console.log(" Not showing events, skipping fetch");
-      return;
-    }
-
-    console.log(" FETCHING EVENTS FOR:", selectedEventTypeFilter);
-
+    console.log("Fetching from server for:", cacheKey);
     const fetchParams = {
-      page: currentPage,
-      limit: rowsPerPage,
+      page: 1,
+      limit: 1000,
+      must_paginate: false,
       start_date: DEFAULT_API_START_DATE,
       status: selectedStatus || "incomplete",
       event_type:
         selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
-      _t: Date.now(),
     };
-
-    if (searchQuery.trim()) {
-      fetchParams.search = searchQuery.trim();
-    }
 
     const isCellEvent =
       selectedEventTypeFilter === "all" ||
@@ -3325,14 +3290,6 @@ const filteredEventTypes = eventTypes.filter((type) => {
       selectedEventTypeFilter.toLowerCase().includes("cell");
 
     if (isCellEvent) {
-      delete fetchParams.personal;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.include_subordinate_cells;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.leader_at_1_identifier;
-
-      // cell-specific params  user;s views depend on role and view filter
       if (isAdmin && viewFilter === "personal") {
         fetchParams.personal = true;
       } else if (isRegistrant || isRegularUser) {
@@ -3347,22 +3304,50 @@ const filteredEventTypes = eventTypes.filter((type) => {
           fetchParams.show_all_authorized = true;
         }
       }
-    } else {
-      delete fetchParams.personal;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.include_subordinate_cells;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.leader_at_1_identifier;
-      delete fetchParams.firstName;
-      delete fetchParams.userSurname;
     }
-    fetchEvents(fetchParams, true);
+
+    (async () => {
+      setLoading(true);
+      setIsLoading(true);
+      try {
+        const token = localStorage.getItem("access_token");
+        const [params, endpoint] = fetchEventsFilters(fetchParams);
+        const queryString = new URLSearchParams(params).toString();
+        const response = await authFetch(`${endpoint}?${queryString}`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        const allFetched = data.events || [];
+      //Events sort day order
+
+allFetched.sort((a, b) => {
+  const aOverdue = a._is_overdue || false;
+  const bOverdue = b._is_overdue || false;
+
+  if (aOverdue !== bOverdue) return aOverdue ? 1 : -1;
+  return new Date(b.date) - new Date(a.date);
+});
+        eventsCache.current[cacheKey] = allFetched;
+        setTotalEvents(allFetched.length);
+        setTotalPages(Math.ceil(allFetched.length / rowsPerPage) || 1);
+        setCurrentPage(1);
+        setEvents(allFetched.slice(0, rowsPerPage)); // show first page
+      } catch (error) {
+        console.error("Fetch error:", error);
+        setEvents([]);
+      } finally {
+        setLoading(false);
+        setIsLoading(false);
+      }
+    })();
   }, [
     selectedEventTypeFilter,
     showingEvents,
-    currentPage,
-    rowsPerPage,
     selectedStatus,
     viewFilter,
     isAdmin,
@@ -3372,308 +3357,308 @@ const filteredEventTypes = eventTypes.filter((type) => {
     DEFAULT_API_START_DATE,
   ]);
 
-const StatusBadges = ({
-  selectedStatus,
-  setSelectedStatus,
-  setCurrentPage,
-  rowsPerPage,
-  searchQuery,
-  selectedEventTypeFilter,
-  viewFilter,
-  isAdmin,
-  isRegistrant,
-  isRegularUser,
-  isLeaderAt12,
-  isLeader,
-  fetchEvents,
-  DEFAULT_API_START_DATE,
-}) => {
-  const statuses = [
-    {
-      value: "incomplete",
-      label: "INCOMPLETE",
-      style: styles.statusBadgeIncomplete,
-    },
-    {
-      value: "complete",
-      label: "COMPLETE",
-      style: styles.statusBadgeComplete,
-    },
-    {
-      value: "did_not_meet",
-      label: "DID NOT MEET",
-      style: styles.statusBadgeDidNotMeet,
-    },
-  ];
+  const StatusBadges = ({
+    selectedStatus,
+    setSelectedStatus,
+    setCurrentPage,
+    rowsPerPage,
+    searchQuery,
+    selectedEventTypeFilter,
+    viewFilter,
+    isAdmin,
+    isRegistrant,
+    isRegularUser,
+    isLeaderAt12,
+    isLeader,
+    fetchEvents,
+    DEFAULT_API_START_DATE,
+  }) => {
+    const statuses = [
+      {
+        value: "incomplete",
+        label: "INCOMPLETE",
+        style: styles.statusBadgeIncomplete,
+      },
+      {
+        value: "complete",
+        label: "COMPLETE",
+        style: styles.statusBadgeComplete,
+      },
+      {
+        value: "did_not_meet",
+        label: "DID NOT MEET",
+        style: styles.statusBadgeDidNotMeet,
+      },
+    ];
 
-  const handleStatusClick = (statusValue) => {
-    setSelectedStatus(statusValue);
-    setCurrentPage(1);
+    const handleStatusClick = (statusValue) => {
+      setSelectedStatus(statusValue);
+      setCurrentPage(1);
 
-    const fetchParams = {
-      page: 1,
-      limit: rowsPerPage,
-      start_date: DEFAULT_API_START_DATE,
-      status: statusValue,
-      event_type:
-        selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
-      _t: Date.now(),
-    };
+      const fetchParams = {
+        page: 1,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        status: statusValue,
+        event_type:
+          selectedEventTypeFilter === "all" ? "CELLS" : selectedEventTypeFilter,
+        _t: Date.now(),
+      };
 
-    if (searchQuery.trim()) {
-      fetchParams.search = searchQuery.trim();
-    }
+      if (searchQuery.trim()) {
+        fetchParams.search = searchQuery.trim();
+      }
 
-    const isCellEvent =
-      selectedEventTypeFilter === "all" ||
-      selectedEventTypeFilter === "CELLS" ||
-      (selectedEventTypeFilter &&
-        selectedEventTypeFilter.toLowerCase().includes("cell"));
+      const isCellEvent =
+        selectedEventTypeFilter === "all" ||
+        selectedEventTypeFilter === "CELLS" ||
+        (selectedEventTypeFilter &&
+          selectedEventTypeFilter.toLowerCase().includes("cell"));
 
-    if (isCellEvent) {
-      if (isAdmin) {
-        if (viewFilter === "personal") {
+      if (isCellEvent) {
+        if (isAdmin) {
+          if (viewFilter === "personal") {
+            fetchParams.personal = true;
+          }
+        } else if (isRegistrant || isRegularUser) {
+          fetchParams.personal = true;
+        } else if (isLeaderAt12) {
+          fetchParams.leader_at_12_view = true;
+          fetchParams.include_subordinate_cells = true;
+
+          if (viewFilter === "personal") {
+            fetchParams.show_personal_cells = true;
+            fetchParams.personal = true;
+          } else {
+            fetchParams.show_all_authorized = true;
+          }
+        } else if (isLeader) {
           fetchParams.personal = true;
         }
-      } else if (isRegistrant || isRegularUser) {
-        fetchParams.personal = true;
-      } else if (isLeaderAt12) {
-        fetchParams.leader_at_12_view = true;
-        fetchParams.include_subordinate_cells = true;
+      }
 
-        if (viewFilter === "personal") {
-          fetchParams.show_personal_cells = true;
-          fetchParams.personal = true;
-        } else {
-          fetchParams.show_all_authorized = true;
+      if (!isCellEvent) {
+        delete fetchParams.personal;
+        delete fetchParams.leader_at_12_view;
+        delete fetchParams.show_personal_cells;
+        delete fetchParams.show_all_authorized;
+        delete fetchParams.include_subordinate_cells;
+      }
+
+      fetchEvents(fetchParams, true);
+    };
+
+    const canDownload =
+      selectedStatus === "complete" || selectedStatus === "did_not_meet";
+    const [period, setPeriod] = useState("current");
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+
+    const dropdownRef = useRef(null);
+
+    useEffect(() => {
+      const handleClickOutside = (event) => {
+        if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+          setDropdownOpen(false);
         }
-      } else if (isLeader) {
-        fetchParams.personal = true;
+      };
+
+      if (dropdownOpen) {
+        document.addEventListener("mousedown", handleClickOutside);
       }
-    }
 
-    if (!isCellEvent) {
-      delete fetchParams.personal;
-      delete fetchParams.leader_at_12_view;
-      delete fetchParams.show_personal_cells;
-      delete fetchParams.show_all_authorized;
-      delete fetchParams.include_subordinate_cells;
-    }
+      return () => {
+        document.removeEventListener("mousedown", handleClickOutside);
+      };
+    }, [dropdownOpen]);
 
-    fetchEvents(fetchParams, true);
-  };
-
-  const canDownload =
-    selectedStatus === "complete" || selectedStatus === "did_not_meet";
-  const [period, setPeriod] = useState("current");
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  
-  const dropdownRef = useRef(null);
-  
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setDropdownOpen(false);
-      }
-    };
-
-    if (dropdownOpen) {
-      document.addEventListener("mousedown", handleClickOutside);
-    }
-
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, [dropdownOpen]);
-
-  return (
-    <div style={styles.statusBadgeContainer}>
-      {statuses.map((status) => (
-        <button
-          key={status.value}
-          style={{
-            ...styles.statusBadge,
-            ...status.style,
-            ...(selectedStatus === status.value
-              ? styles.statusBadgeActive
-              : {}),
-          }}
-          onMouseDown={(e) => {
-            e.currentTarget.style.transform = "scale(0.94)";
-          }}
-          onMouseUp={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.transform = "scale(1)";
-          }}
-          onClick={() => handleStatusClick(status.value)}
-        >
-          {status.label}
-        </button>
-      ))}
-
-      {/* Integrated dropdown in download button - only shown when COMPLETE or DID NOT MEET selected */}
-      {canDownload && (
-        <div
-          ref={dropdownRef}
-          style={{
-            marginLeft: 6,
-            position: "relative",
-          }}
-        >
-          {/* Main download button with integrated dropdown */}
+    return (
+      <div style={styles.statusBadgeContainer}>
+        {statuses.map((status) => (
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setDropdownOpen(!dropdownOpen);
-            }}
+            key={status.value}
             style={{
               ...styles.statusBadge,
-              backgroundColor: "#f1f3f5",
-              color: "#35669b",
-              borderColor: "#ddd",
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "8px",
-              cursor: "pointer",
-              whiteSpace: "nowrap",
-              padding: "0.4rem 0.8rem",
-              fontSize: "5rem",
+              ...status.style,
+              ...(selectedStatus === status.value
+                ? styles.statusBadgeActive
+                : {}),
+            }}
+            onMouseDown={(e) => {
+              e.currentTarget.style.transform = "scale(0.94)";
+            }}
+            onMouseUp={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.transform = "scale(1)";
+            }}
+            onClick={() => handleStatusClick(status.value)}
+          >
+            {status.label}
+          </button>
+        ))}
+
+        {/* Integrated dropdown in download button - only shown when COMPLETE or DID NOT MEET selected */}
+        {canDownload && (
+          <div
+            ref={dropdownRef}
+            style={{
+              marginLeft: 6,
               position: "relative",
             }}
-            title={`Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance`}
           >
-            <GetAppIcon fontSize="small" style={{ color: "#6c757d" }} />
-            <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
-              DOWNLOAD
-            </span>
-            <span style={{ 
-              fontSize: "0.7rem", 
-              marginLeft: "4px",
-              borderLeft: "1px solid #ccc",
-              paddingLeft: "8px",
-              display: "flex",
-              alignItems: "center",
-              gap: "2px"
-            }}>
-         
-              <span style={{ fontSize: "0.7rem" }}>▼</span>
-            </span>
-          </button>
-
-          {/* Dropdown menu attached to download button */}
-          {dropdownOpen && (
-            <div
-              style={{
-                position: "absolute",
-                top: "100%",
-                right: 0, 
-                zIndex: 1000,
-                backgroundColor: "#fff",
-                border: "1px solid #ddd",
-                borderRadius: "6px",
-                boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                marginTop: "4px",
-                minWidth: "160px",
-                overflow: "hidden",
+            {/* Main download button with integrated dropdown */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setDropdownOpen(!dropdownOpen);
               }}
+              style={{
+                ...styles.statusBadge,
+                backgroundColor: "#f1f3f5",
+                color: "#35669b",
+                borderColor: "#ddd",
+                display: "inline-flex",
+                alignItems: "center",
+                gap: "8px",
+                cursor: "pointer",
+                whiteSpace: "nowrap",
+                padding: "0.4rem 0.8rem",
+                fontSize: "5rem",
+                position: "relative",
+              }}
+              title={`Download ${selectedStatus === "complete" ? "COMPLETED" : "DID NOT MEET"} attendance`}
             >
-              <div style={{ 
-                padding: "0.5rem 0.8rem", 
-                fontSize: "0.7rem", 
-                color: "#999",
-                borderBottom: "1px solid #eee",
-                backgroundColor: "#f9f9f9"
+              <GetAppIcon fontSize="small" style={{ color: "#6c757d" }} />
+              <span style={{ fontWeight: 700, fontSize: "0.85rem" }}>
+                DOWNLOAD
+              </span>
+              <span style={{
+                fontSize: "0.7rem",
+                marginLeft: "4px",
+                borderLeft: "1px solid #ccc",
+                paddingLeft: "8px",
+                display: "flex",
+                alignItems: "center",
+                gap: "2px"
               }}>
-                Select week period:
-              </div>
-              
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPeriod("current");
-                  setDropdownOpen(false);
-                  downloadEventsByStatus(selectedStatus, "current");
-                }}
+
+                <span style={{ fontSize: "0.7rem" }}>▼</span>
+              </span>
+            </button>
+
+            {/* Dropdown menu attached to download button */}
+            {dropdownOpen && (
+              <div
                 style={{
-                  width: "100%",
-                  padding: "0.7rem 0.8rem",
+                  position: "absolute",
+                  top: "100%",
+                  right: 0,
+                  zIndex: 1000,
                   backgroundColor: "#fff",
-                  color: "#333",
-                  border: "none",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  fontSize: "0.8rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
+                  border: "1px solid #ddd",
+                  borderRadius: "6px",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
+                  marginTop: "4px",
+                  minWidth: "160px",
+                  overflow: "hidden",
+                }}
+              >
+                <div style={{
+                  padding: "0.5rem 0.8rem",
+                  fontSize: "0.7rem",
+                  color: "#999",
                   borderBottom: "1px solid #eee",
-                  transition: "background-color 0.2s",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f5f5f5"}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#fff"}
-              >
-                <span
-                  style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    backgroundColor: period === "current" ? "#6c757d" : "#ddd",
-                    border: "none",
+                  backgroundColor: "#f9f9f9"
+                }}>
+                  Select week period:
+                </div>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPeriod("current");
+                    setDropdownOpen(false);
+                    downloadEventsByStatus(selectedStatus, "current");
                   }}
-                ></span>
-                <span style={{ flex: 1 }}>Current Week</span>
-                {period === "current" && (
-                  <span style={{ color: "#6c757d", fontSize: "0.7rem" }}>✓</span>
-                )}
-              </button>
-              
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setPeriod("previous");
-                  setDropdownOpen(false);
-                  downloadEventsByStatus(selectedStatus, "previous");
-                }}
-                style={{
-                  width: "100%",
-                  padding: "0.7rem 0.8rem",
-                  backgroundColor: "#fff",
-                  color: "#333",
-                  border: "none",
-                  textAlign: "left",
-                  cursor: "pointer",
-                  fontSize: "0.8rem",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  transition: "background-color 0.2s",
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f5f5f5"}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#fff"}
-              >
-                <span
                   style={{
-                    width: "8px",
-                    height: "8px",
-                    borderRadius: "50%",
-                    backgroundColor: period === "previous" ? "#6c757d" : "#ddd",
+                    width: "100%",
+                    padding: "0.7rem 0.8rem",
+                    backgroundColor: "#fff",
+                    color: "#333",
                     border: "none",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    fontSize: "0.8rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    borderBottom: "1px solid #eee",
+                    transition: "background-color 0.2s",
                   }}
-                ></span>
-                <span style={{ flex: 1 }}>Previous Week</span>
-                {period === "previous" && (
-                  <span style={{ color: "#6c757d", fontSize: "0.7rem" }}>✓</span>
-                )}
-              </button>
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-};
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f5f5f5"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#fff"}
+                >
+                  <span
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      backgroundColor: period === "current" ? "#6c757d" : "#ddd",
+                      border: "none",
+                    }}
+                  ></span>
+                  <span style={{ flex: 1 }}>Current Week</span>
+                  {period === "current" && (
+                    <span style={{ color: "#6c757d", fontSize: "0.7rem" }}>✓</span>
+                  )}
+                </button>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPeriod("previous");
+                    setDropdownOpen(false);
+                    downloadEventsByStatus(selectedStatus, "previous");
+                  }}
+                  style={{
+                    width: "100%",
+                    padding: "0.7rem 0.8rem",
+                    backgroundColor: "#fff",
+                    color: "#333",
+                    border: "none",
+                    textAlign: "left",
+                    cursor: "pointer",
+                    fontSize: "0.8rem",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    transition: "background-color 0.2s",
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = "#f5f5f5"}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = "#fff"}
+                >
+                  <span
+                    style={{
+                      width: "8px",
+                      height: "8px",
+                      borderRadius: "50%",
+                      backgroundColor: period === "previous" ? "#6c757d" : "#ddd",
+                      border: "none",
+                    }}
+                  ></span>
+                  <span style={{ flex: 1 }}>Previous Week</span>
+                  {period === "previous" && (
+                    <span style={{ color: "#6c757d", fontSize: "0.7rem" }}>✓</span>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   const ViewFilterButtons = () => {
     const shouldShowToggle =
@@ -3783,9 +3768,9 @@ const StatusBadges = ({
       isLeaderAt12 !== undefined
         ? isLeaderAt12
         : normalizedRole === "leaderat12" ||
-          normalizedRole.includes("leaderat12") ||
-          normalizedRole.includes("leader at 12") ||
-          normalizedRole.includes("leader@12");
+        normalizedRole.includes("leaderat12") ||
+        normalizedRole.includes("leader at 12") ||
+        normalizedRole.includes("leader@12");
     const computedIsLeader =
       isLeader !== undefined
         ? isLeader
@@ -3975,8 +3960,8 @@ const StatusBadges = ({
 
         const typeToDelete = exactEventType
           ? exactEventType.name ||
-            exactEventType.eventType ||
-            exactEventType.eventTypeName
+          exactEventType.eventType ||
+          exactEventType.eventTypeName
           : selectedTypeForMenu;
 
         if (setToDeleteType) setToDeleteType(typeToDelete);
@@ -4018,7 +4003,7 @@ const StatusBadges = ({
             <span>•</span>
             <span>
               {selectedEventTypeFilter === "all" &&
-              (computedIsLeaderAt12 || computedIsLeader)
+                (computedIsLeaderAt12 || computedIsLeader)
                 ? "ALL CELLS"
                 : getDisplayName(selectedEventTypeFilter)}
             </span>
@@ -4291,6 +4276,7 @@ const StatusBadges = ({
                 setShowingEvents(false);
                 setSelectedStatus("incomplete");
                 setSearchQuery("");
+                eventsCache.current = {}
               }}
               startIcon={<ArrowBackIcon />}
               sx={{
@@ -4556,43 +4542,43 @@ const StatusBadges = ({
                 <>
                   {!isSearching
                     ? paginatedEvents.map((event) => (
-                        <>
-                          <MobileEventCard
-                            key={event._id}
-                            event={event}
-                            onOpenAttendance={() => handleCaptureClick(event)}
-                            onEdit={() => handleEditEvent(event)}
-                            onDelete={() => handleDeleteEvent(event)}
-                            isOverdue={isOverdue(event)}
-                            formatDate={formatDate}
-                            theme={theme}
-                            styles={styles}
-                            isAdmin={isAdmin}
-                            isLeaderAt12={isLeaderAt12}
-                            currentUserLeaderAt1={currentUserLeaderAt1}
-                            selectedEventTypeFilter={selectedEventTypeFilter}
-                          />
-                        </>
-                      ))
+                      <>
+                        <MobileEventCard
+                          key={event._id}
+                          event={event}
+                          onOpenAttendance={() => handleCaptureClick(event)}
+                          onEdit={() => handleEditEvent(event)}
+                          onDelete={() => handleDeleteEvent(event)}
+                          isOverdue={isOverdue(event)}
+                          formatDate={formatDate}
+                          theme={theme}
+                          styles={styles}
+                          isAdmin={isAdmin}
+                          isLeaderAt12={isLeaderAt12}
+                          currentUserLeaderAt1={currentUserLeaderAt1}
+                          selectedEventTypeFilter={selectedEventTypeFilter}
+                        />
+                      </>
+                    ))
                     : filteredEvents.map((event) => (
-                        <>
-                          <MobileEventCard
-                            key={event._id}
-                            event={event}
-                            onOpenAttendance={() => handleCaptureClick(event)}
-                            onEdit={() => handleEditEvent(event)}
-                            onDelete={() => handleDeleteEvent(event)}
-                            isOverdue={isOverdue(event)}
-                            formatDate={formatDate}
-                            theme={theme}
-                            styles={styles}
-                            isAdmin={isAdmin}
-                            isLeaderAt12={isLeaderAt12}
-                            currentUserLeaderAt1={currentUserLeaderAt1}
-                            selectedEventTypeFilter={selectedEventTypeFilter}
-                          />
-                        </>
-                      ))}
+                      <>
+                        <MobileEventCard
+                          key={event._id}
+                          event={event}
+                          onOpenAttendance={() => handleCaptureClick(event)}
+                          onEdit={() => handleEditEvent(event)}
+                          onDelete={() => handleDeleteEvent(event)}
+                          isOverdue={isOverdue(event)}
+                          formatDate={formatDate}
+                          theme={theme}
+                          styles={styles}
+                          isAdmin={isAdmin}
+                          isLeaderAt12={isLeaderAt12}
+                          currentUserLeaderAt1={currentUserLeaderAt1}
+                          selectedEventTypeFilter={selectedEventTypeFilter}
+                        />
+                      </>
+                    ))}
 
                   {/* MOBILE PAGINATION*/}
                   <Box
@@ -4602,11 +4588,10 @@ const StatusBadges = ({
                       backgroundColor: isDarkMode
                         ? theme.palette.background.paper
                         : "#f8f9fa",
-                      borderTop: `1px solid ${
-                        isDarkMode ? theme.palette.divider : "#e9ecef"
-                      }`,
+                      borderTop: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"
+                        }`,
                       px: 2,
-                      py: 1.5, 
+                      py: 1.5,
                       flexDirection: isMobileView ? "column" : "row",
                       alignItems: isMobileView ? "stretch" : "center",
                       gap: isMobileView ? 1.5 : 2,
@@ -4673,7 +4658,7 @@ const StatusBadges = ({
                           ? theme.palette.text.secondary
                           : "#6c757d",
                         width: isMobileView ? "100%" : "auto",
-                        order: isMobileView ? -1 : "unset", 
+                        order: isMobileView ? -1 : "unset",
                         mb: isMobileView ? 0.5 : 0,
                       }}
                     >
@@ -4694,7 +4679,7 @@ const StatusBadges = ({
                     >
                       <Button
                         variant="outlined"
-                        size="medium" 
+                        size="medium"
                         onClick={handlePreviousPage}
                         disabled={currentPage === 1 || loading}
                         sx={{
@@ -4807,37 +4792,37 @@ const StatusBadges = ({
                       rows={
                         !isSearching
                           ? paginatedEvents.map((event, idx) => {
-                              const id =
-                                event._id || event.id || event.UUID || idx;
+                            const id =
+                              event._id || event.id || event.UUID || idx;
 
-                              const isRecurring =
-                                event.is_recurring ||
-                                (event.recurring_days &&
-                                  event.recurring_days.length > 1);
+                            const isRecurring =
+                              event.is_recurring ||
+                              (event.recurring_days &&
+                                event.recurring_days.length > 1);
 
-                              return {
-                                id: id,
-                                ...event,
-                                _id: id,
-                                "data-recurring": isRecurring,
-                              };
-                            })
+                            return {
+                              id: id,
+                              ...event,
+                              _id: id,
+                              "data-recurring": isRecurring,
+                            };
+                          })
                           : filteredEvents.map((event, idx) => {
-                              const id =
-                                event._id || event.id || event.UUID || idx;
+                            const id =
+                              event._id || event.id || event.UUID || idx;
 
-                              const isRecurring =
-                                event.is_recurring ||
-                                (event.recurring_days &&
-                                  event.recurring_days.length > 1);
+                            const isRecurring =
+                              event.is_recurring ||
+                              (event.recurring_days &&
+                                event.recurring_days.length > 1);
 
-                              return {
-                                id: id,
-                                ...event,
-                                _id: id,
-                                "data-recurring": isRecurring,
-                              };
-                            })
+                            return {
+                              id: id,
+                              ...event,
+                              _id: id,
+                              "data-recurring": isRecurring,
+                            };
+                          })
                       }
                       columns={[
                         ...generateDynamicColumns(
@@ -4857,8 +4842,8 @@ const StatusBadges = ({
                                 title={
                                   params.row?.is_recurring
                                     ? `Capture Attendance - ${formatRecurringDays(
-                                        params.row.recurring_days,
-                                      )}`
+                                      params.row.recurring_days,
+                                    )}`
                                     : "Capture Attendance"
                                 }
                                 arrow
@@ -4945,9 +4930,8 @@ const StatusBadges = ({
                           color: isDarkMode ? "#fff" : "#333",
                           fontWeight: 600,
                           fontSize: "0.875rem",
-                          borderBottom: `2px solid ${
-                            isDarkMode ? "#333" : "#ddd"
-                          }`,
+                          borderBottom: `2px solid ${isDarkMode ? "#333" : "#ddd"
+                            }`,
                           minHeight: "52px !important",
                         },
                         "& .MuiDataGrid-columnHeader": {
@@ -4964,11 +4948,10 @@ const StatusBadges = ({
                         },
                         "& .MuiDataGrid-cell": {
                           alignItems: "center",
-                          borderBottom: `1px solid ${
-                            isDarkMode
+                          borderBottom: `1px solid ${isDarkMode
                               ? "rgba(255,255,255,0.1)"
                               : "rgba(0,0,0,0.08)"
-                          }`,
+                            }`,
                           color: isDarkMode
                             ? theme.palette.text.primary
                             : "#212529",
@@ -4993,9 +4976,8 @@ const StatusBadges = ({
                         "& .MuiDataGrid-toolbarContainer": {
                           backgroundColor: isDarkMode ? "#1a1a1a" : "#f5f5f5",
                           padding: "12px 16px",
-                          borderBottom: `1px solid ${
-                            isDarkMode ? "#333" : "#ddd"
-                          }`,
+                          borderBottom: `1px solid ${isDarkMode ? "#333" : "#ddd"
+                            }`,
                         },
                         "& .MuiDataGrid-menuIcon": {
                           color: isDarkMode ? "#fff" : "#666",
@@ -5020,9 +5002,8 @@ const StatusBadges = ({
                   backgroundColor: isDarkMode
                     ? theme.palette.background.paper
                     : "#f8f9fa",
-                  borderTop: `1px solid ${
-                    isDarkMode ? theme.palette.divider : "#e9ecef"
-                  }`,
+                  borderTop: `1px solid ${isDarkMode ? theme.palette.divider : "#e9ecef"
+                    }`,
                 }}
               >
                 <Box
@@ -5375,25 +5356,25 @@ const StatusBadges = ({
                 .toLowerCase()
                 .includes(eventTypeSearch.toLowerCase());
             }).length === 0 && (
-              <Box
-                sx={{
-                  textAlign: "center",
-                  padding: "3rem 1rem",
-                  color: isDarkMode ? theme.palette.text.secondary : "#666",
-                  width: "100%",
-                  maxWidth: "600px",
-                  margin: "0 auto",
-                }}
-              >
-                <SearchIcon sx={{ fontSize: 40, color: "#ccc", mb: 1.5 }} />
-                <Typography variant="h6" gutterBottom sx={{ fontSize: "18px" }}>
-                  No event types found
-                </Typography>
-                <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                  Try a different search term
-                </Typography>
-              </Box>
-            )}
+                <Box
+                  sx={{
+                    textAlign: "center",
+                    padding: "3rem 1rem",
+                    color: isDarkMode ? theme.palette.text.secondary : "#666",
+                    width: "100%",
+                    maxWidth: "600px",
+                    margin: "0 auto",
+                  }}
+                >
+                  <SearchIcon sx={{ fontSize: 40, color: "#ccc", mb: 1.5 }} />
+                  <Typography variant="h6" gutterBottom sx={{ fontSize: "18px" }}>
+                    No event types found
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontSize: "13px" }}>
+                    Try a different search term
+                  </Typography>
+                </Box>
+              )}
           </Box>
         ) : (
           <Box sx={{ flexGrow: 1, overflowY: "auto", padding: "24px" }}>
@@ -5613,8 +5594,8 @@ const StatusBadges = ({
             if (selectedTypeForMenu) {
               const fullEventTypeObj = findEventTypeByName(
                 selectedTypeForMenu.name ||
-                  selectedTypeForMenu.eventTypeName ||
-                  selectedTypeForMenu,
+                selectedTypeForMenu.eventTypeName ||
+                selectedTypeForMenu,
               );
               setEditingEventType(fullEventTypeObj);
               setEventTypesModalOpen(true);
@@ -5822,7 +5803,7 @@ const StatusBadges = ({
             >
               <Typography sx={styles.modalTitle}>
                 {selectedEventTypeFilter === "CELLS" ||
-                selectedEventTypeFilter === "all"
+                  selectedEventTypeFilter === "all"
                   ? "Create New Cell"
                   : "Create New Event"}
               </Typography>
