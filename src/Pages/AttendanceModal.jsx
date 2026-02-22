@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useContext, useMemo } from "react";
 import { toast } from "react-toastify";
 import {
@@ -2930,57 +2931,38 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       whiteSpace: "nowrap",
     },
     tabsContainer: {
-    borderBottom: `1px solid ${theme.palette.divider}`,
-    padding: "0 clamp(15px, 3vw, 40px)",
-    display: "flex",
-    position: "relative",
-    alignItems: "center",
-    justifyContent: "flex-start",
-    flexWrap: "wrap",
-  },
-
+      borderBottom: `1px solid ${theme.palette.divider}`,
+      padding: "0 clamp(12px, 3vw, 30px)",
+      display: "flex",
+      gap: 0,
+      position: "relative",
+    },
     mobileMenuButton: {
-      minWidth: "40px",
-      padding: "4px",
-      display: "flex",
-      justifyContent: "center",
-      cursor: "pointer",
-      background: "transparent",
+      background: "none",
       border: "none",
-      marginRight: "8px",
-      color: "#fff",
+      padding: 12,
+      cursor: "pointer",
+      color: theme.palette.primary.main,
+      display: isMobile ? "flex" : "none",
+      alignItems: "center",
     },
-    tabsWrapper: {
-      display: "flex",
-      flexDirection: "row",
-      gap: "25px",
-      width: "auto",
-      marginTop: isMobile ? "8px" : "0",
-      flexWrap: isMobile && window.innerWidth <= 360 ? "nowrap" : "wrap",
-    },
-
     tab: {
-    flex: "unset",   
-    width: "auto",   
-    textAlign: "center",
-    padding: "23px 12px",
-    border: "transparent",
-    borderRadius: "4px",
-    backgroundColor: "transparent",
-    cursor: "pointer",
-    color: theme.palette.text.primary,
-    minWidth: "unset", 
-  },
-
-
-  tabActive: {
-  backgroundColor: "transparent",
-  color: "#4aa3ff", 
-  borderColor: "transparent",
-  borderBottom: "3px solid #4aa3ff",
-  borderRadius: 0,
-},
-
+      padding: "clamp(10px, 2vw, 16px) clamp(12px, 2vw, 24px)",
+      fontSize: 14,
+      fontWeight: 600,
+      background: "none",
+      border: "none",
+      borderBottom: "3px solid transparent",
+      cursor: "pointer",
+      color: theme.palette.text.secondary,
+      transition: "all 0.2s",
+      whiteSpace: "nowrap",
+      flex: isMobile ? "1" : "none",
+    },
+    tabActive: {
+      color: theme.palette.primary.main,
+      borderBottom: `3px solid ${theme.palette.primary.main}`,
+    },
     contentArea: {
       flex: 1,
       overflowY: "auto",
@@ -3001,7 +2983,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       marginBottom: 16,
       WebkitOverflowScrolling: "touch",
       paddingBottom: 8,
-       color: theme.palette.error.contrastText || "#fff",
     },
     table: {
       width: "100%",
@@ -3216,7 +3197,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       background: theme.palette.error.main,
       color: theme.palette.error.contrastText || "#fff",
       border: "none",
-      padding: "8px 20px",
+      padding: "12px 20px",
       borderRadius: 6,
       cursor: "pointer",
       fontSize: 16,
@@ -3433,7 +3414,7 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
                   }}
                   onClick={() => setActiveTab(1)}
                 >
-                  ASSOCIATE 
+                  ASSOCIATE PERSON
                 </button>
               </>
             )}
