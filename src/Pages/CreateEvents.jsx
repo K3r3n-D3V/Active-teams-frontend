@@ -1497,7 +1497,7 @@ const CreateEvents = ({
               {isTicketedEvent && !isGlobalEvent && (
                 <Chip label="Ticketed Event" color="warning" size="small" />
               )}
-              {isGlobalEvent && <Chip label="Global Event" color="info" size="small" />}
+              {isGlobalEvent && null}
               {hasPersonSteps && !isGlobalEvent && (
                 <Chip label="Personal Steps Event" color="secondary" size="small" />
               )}
