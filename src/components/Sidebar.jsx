@@ -91,7 +91,7 @@ export default function Sidebar({ mode, setMode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const isMobile = useMediaQuery('(max-width:900px)');
   const location = useLocation();
-  const { user } = useContext(AuthContext);
+  const { user, refreshUser } = useContext(AuthContext);
   const [userHasCell, setUserHasCell] = useState(true);
   const [menuItems, setMenuItems] = useState([]);
 
@@ -99,6 +99,13 @@ export default function Sidebar({ mode, setMode }) {
     const savedMode = localStorage.getItem('themeMode');
     if (savedMode) setMode(savedMode);
   }, [setMode]);
+
+
+  useEffect(() => {
+    if (user) {
+      refreshUser();
+    }
+  }, []);
 
   useEffect(() => {
     const checkUserAccess = async () => {

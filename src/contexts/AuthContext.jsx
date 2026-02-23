@@ -411,6 +411,23 @@ export const AuthProvider = ({ children }) => {
     return () => window.removeEventListener('force-logout', handler);
   }, [logout]);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const token = localStorage.getItem(KEY_ACCESS);
+      if (!token) return;
+      const res = await fetch(`${BACKEND_URL}/me`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (!res.ok) return;
+      const freshUser = await res.json();
+      const withAvatar = ensureUserWithAvatar(freshUser);
+      setUser(withAvatar);
+      persistUser(withAvatar);
+    } catch (e) {
+      console.error('Error refreshing user:', e);
+    }
+  }, []);
+
   const setUserAndPersist = (u) => {
     const withAvatar = ensureUserWithAvatar(u);
     setUser(withAvatar);
@@ -512,6 +529,7 @@ export const AuthProvider = ({ children }) => {
       setUser: setUserAndPersist,
       setLeaders: setLeadersData,
       attemptRefresh,
+      refreshUser,
       requestPasswordReset,
       resetPassword
     }}>
