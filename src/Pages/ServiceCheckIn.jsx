@@ -322,13 +322,9 @@ function ServiceCheckIn() {
 
     const attendeeInterval = setInterval(loadData, 3000);
 
-    const eventsInterval = setInterval(() => {
-      fetchEvents(true);
-    }, 30 * 1000);
 
     return () => {
       clearInterval(attendeeInterval);
-      clearInterval(eventsInterval);
     };
   }, [currentEventId]);
 
@@ -514,7 +510,10 @@ function ServiceCheckIn() {
   };
 
   const fetchEvents = async (forceRefresh = false) => {
-    setIsLoadingEvents(true);
+    if (!forceRefresh && events.length > 0) {
+      setIsLoadingEvents(true);
+      return;
+    }
     try {
       const response = await authFetch(`${BASE_URL}/events/eventsdata`);
 
@@ -2897,7 +2896,8 @@ const closedEvents = events.filter(event => {
               onUnsaveEvent={handleUnsaveEvent}
               events={getFilteredClosedEvents()}
               searchTerm={eventSearch}
-              isLoading={isLoadingEvents}
+              // isLoading={isLoadingEvents}
+              isLoading={isLoadingEvents && events.length === 0}
               onRefresh={() => {
                 console.log('Refreshing event history...');
                 fetchEvents(true);
