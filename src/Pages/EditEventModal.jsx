@@ -119,8 +119,22 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
       const initialData = {};
       Object.keys(cleanEvent).forEach(key => {
-        const systemFields = ['_id', '__v', 'id', 'UUID', 'created_at', 'updated_at',
-          'persistent_attendees', 'attendees', 'total_attendance', 'isEventType', 'eventTypeId', 'last_updated'];
+        const systemFields = [
+  '_id', '__v', 'id', 'UUID', 'created_at', 'updated_at',
+  'persistent_attendees', 'attendees', 'total_attendance',
+  'isEventType', 'eventTypeId', 'last_updated',
+  'attendance', 'attendance_data',
+  'checked_in_count', 'decisions', 'total_associated',
+  'total_associated_count', 'last_attendance_count',
+  'last_decisions_count', 'last_attendance_breakdown',
+  'last_attendance_data', 'last_headcount', 'last_status',
+  'last_attendance_date', 'last_updated_by',
+  'priceTiers', 'price_tiers',
+  'new_people', 'consolidations',
+  'is_new_event', 'updatedAt', 'Date Of Event',
+  'total_headcounts', 'deactivation_start', 'deactivation_end',
+  'deactivation_reason', 'is_active'
+];
 
         if (!systemFields.includes(key)) {
           let value = cleanEvent[key] ?? '';
