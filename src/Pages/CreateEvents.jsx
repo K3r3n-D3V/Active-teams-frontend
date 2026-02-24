@@ -96,7 +96,7 @@ const CreateEvents = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
-  const [loadingPeople, setLoadingPeople] = useState(false);
+  const [loadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
 
   const isAdmin = user?.role === "admin";
@@ -553,6 +553,7 @@ const CreateEvents = ({
       eventLeaderEmail: person.email,
     }));
   };
+  console.log("Leader select debug:", handleLeaderSelect)
 
   const handleRemovePriceTier = (index) => {
     setPriceTiers((prev) => prev.filter((_, i) => i !== index));
@@ -597,7 +598,7 @@ const CreateEvents = ({
         if (!formData.time) newErrors.time = "Time is required";
       }
 
-      if (isTicketedEvent && !isGlobalEvent) {
+      if (isTicketedEvent ) {
         if (priceTiers.length === 0) {
           newErrors.priceTiers = "Add at least one price tier for ticketed events";
         } else {
@@ -713,19 +714,19 @@ const CreateEvents = ({
           .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
       }
 
-      if (isTicketedEvent && !isGlobalEvent) {
-        if (priceTiers.length > 0) {
-          payload.priceTiers = priceTiers.map((tier) => ({
-            name: tier.name || "",
-            price: parseFloat(tier.price) || 0,
-            ageGroup: tier.ageGroup || "",
-            memberType: tier.memberType || "",
-            paymentMethod: tier.paymentMethod || "",
-          }));
-        } else {
-          payload.priceTiers = [];
-        }
-      } else {
+if (isTicketedEvent) {
+  if (priceTiers.length > 0) {
+    payload.priceTiers = priceTiers.map((tier) => ({
+      name: tier.name || "",
+      price: parseFloat(tier.price) || 0,
+      ageGroup: tier.ageGroup || "",
+      memberType: tier.memberType || "",
+      paymentMethod: tier.paymentMethod || "",
+    }));
+  } else {
+    payload.priceTiers = [];
+  }
+} else {
         payload.priceTiers = [];
       }
 
@@ -1066,7 +1067,7 @@ const CreateEvents = ({
               helperText={errors.eventName}
             />
 
-            {isTicketedEvent && !isGlobalEvent && (
+            {isTicketedEvent && (
               <Box sx={{ mb: 3 }}>
                 <Box
                   sx={{
@@ -1494,7 +1495,7 @@ const CreateEvents = ({
             )}
 
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {isTicketedEvent && !isGlobalEvent && (
+              {isTicketedEvent && (
                 <Chip label="Ticketed Event" color="warning" size="small" />
               )}
               {isGlobalEvent && null}
