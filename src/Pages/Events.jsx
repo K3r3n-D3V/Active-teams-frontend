@@ -3276,7 +3276,7 @@ const normalizeEventAttendance = (event) => {
     console.log("Fetching from server for:", cacheKey);
     const fetchParams = {
       page: 1,
-      limit: 1000,
+      limit: 100,
       must_paginate: false,
       start_date: DEFAULT_API_START_DATE,
       status: selectedStatus || "incomplete",
