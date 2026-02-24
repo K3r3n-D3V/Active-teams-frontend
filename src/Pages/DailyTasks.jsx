@@ -1,4 +1,4 @@
-import { useContext, useEffect, useState,useCallback,useRef } from "react";
+import { useContext, useEffect, useState, useCallback, useRef } from "react";
 import { Phone, UserPlus, Plus } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
@@ -22,17 +22,19 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
     >
       <div
         style={{
-          backgroundColor: isDarkMode ? '#1e1e1e' : "white",
-          color: isDarkMode ? '#fff' : '#1a1a24',
-          padding: "28px",
+          backgroundColor: isDarkMode ? "#1e1e1e" : "white",
+          color: isDarkMode ? "#fff" : "#1a1a24",
+          padding: "clamp(25px, 4vw, 40px)",
           borderRadius: "16px",
-          maxWidth: "500px",
+          maxWidth: "clamp(200px, 85vw, 480px)",
           width: "90%",
           maxHeight: "90vh",
           overflowY: "auto",
           position: "relative",
-          boxShadow: isDarkMode ? "0 8px 24px rgba(255,255,255,0.1)" : "0 8px 24px rgba(0,0,0,0.4)",
-          border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+          boxShadow: isDarkMode
+            ? "0 12px 40px rgba(255,255,255,0.12)"
+            : "0 12px 40px rgba(0,0,0,0.35)",
+          border: `1px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
         }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -43,9 +45,9 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
             right: "16px",
             background: "none",
             border: "none",
-            fontSize: "22px",
+            fontSize: "clamp(20px,4vw,28px)",
             cursor: "pointer",
-            color: isDarkMode ? '#aaa' : '#6b7280',
+            color: isDarkMode ? "#aaa" : "#6b7280",
             fontWeight: "bold",
           }}
           onClick={onClose}
@@ -53,9 +55,7 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
         >
           ×
         </button>
-        <div style={{ marginTop: "8px" }}>
-          {children}
-        </div>
+        <div style={{ marginTop: "clamp(8px,2vw,16px)" }}>{children}</div>
       </div>
     </div>
   );
@@ -64,10 +64,10 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 export default function DailyTasks() {
   if (!window.globalPeopleCache) window.globalPeopleCache = [];
   if (!window.globalCacheTimestamp) window.globalCacheTimestamp = 0;
-  const CACHE_DURATION = 30 * 60 * 1000; 
+  const CACHE_DURATION = 30 * 60 * 1000;
 
   const theme = useTheme();
-  const isDarkMode = theme.palette.mode === 'dark';
+  const isDarkMode = theme.palette.mode === "dark";
 
   const { user, authFetch } = useContext(AuthContext);
 
@@ -84,7 +84,14 @@ export default function DailyTasks() {
   const [addingTaskType, setAddingTaskType] = useState(false);
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(false);
+  const [isEditTypeModalOpen, setIsEditTypeModalOpen] = useState(false);
+  const [editTaskTypeName, setEditTaskTypeName] = useState("");
+  const [updatingTaskType, setUpdatingTaskType] = useState(false);
+  const [typeMenuOpen, setTypeMenuOpen] = useState(false);
+  const [selectedTypeToManage, setSelectedTypeToManage] = useState(null);
+  const isAdmin = user?.role?.toLowerCase() === "admin";
 
+  const [deletingTaskType, setDeletingTaskType] = useState(false);
   const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
   const getCurrentDateTime = () => {
@@ -113,7 +120,7 @@ export default function DailyTasks() {
   const peopleFetchPromiseRef = useRef(null);
   const fetchPeopleDebounceRef = useRef(null);
   const RECIPIENT_DEBOUNCE = 100;
-   const PEOPLE_TOAST_ID = "loading-people";
+  const PEOPLE_TOAST_ID = "loading-people";
   const parseDate = (dateStr) => {
     if (!dateStr) return null;
     const date = new Date(dateStr);
@@ -121,9 +128,11 @@ export default function DailyTasks() {
   };
 
   const isSameDay = (date1, date2) => {
-    return date1.getFullYear() === date2.getFullYear() &&
+    return (
+      date1.getFullYear() === date2.getFullYear() &&
       date1.getMonth() === date2.getMonth() &&
-      date1.getDate() === date2.getDate();
+      date1.getDate() === date2.getDate()
+    );
   };
 
   const isDateInRange = (date, startDate, endDate) => {
@@ -150,26 +159,88 @@ export default function DailyTasks() {
   };
 
   const getEndOfMonth = (date) => {
-    return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
+    return new Date(
+      date.getFullYear(),
+      date.getMonth() + 1,
+      0,
+      23,
+      59,
+      59,
+      999,
+    );
   };
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return '';
+    if (!dateStr) return "";
     const date = new Date(dateStr);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const months = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
     return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
   };
 
   const formatDateTime = (dateStr) => {
-    if (!dateStr) return '';
+    if (!dateStr) return "";
     const date = new Date(dateStr);
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
+  const markTaskComplete = async (taskId) => {
+    try {
+      const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          status: "completed",
+          taskStage: "Completed",
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update task");
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t._id === taskId
+            ? {
+                ...t,
+                status: "completed",
+                ...data.updatedTask,
+              }
+            : t,
+        ),
+      );
+
+      toast.success("Task marked as completed!");
+      notifyTaskUpdate();
+      fetchUserTasks(); 
+    } catch (err) {
+      console.error("Error completing task:", err.message);
+      toast.error("Failed to update task: " + err.message);
+    }
+  };
+
+  console.log("Deleting:", selectedTypeToManage);
+  console.log(
+    "Deleting tasktype:",
+    selectedTypeToManage?.name,
+    selectedTypeToManage?.id,
+  );
 
   const fetchTaskTypes = async () => {
     try {
@@ -191,12 +262,13 @@ export default function DailyTasks() {
     setAddingTaskType(true);
     try {
       const res = await authFetch(`${API_URL}/tasktypes`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newTaskTypeName.trim() }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to create task type');
+      if (!res.ok)
+        throw new Error(data.message || "Failed to create task type");
       setTaskTypes([...taskTypes, data.taskType || data]);
       setNewTaskTypeName("");
       setIsAddTypeModalOpen(false);
@@ -207,24 +279,126 @@ export default function DailyTasks() {
       setAddingTaskType(false);
     }
   };
+  const updateTaskType = async () => {
+    if (!selectedTypeToManage) {
+      toast.error("No task type selected");
+      return;
+    }
+
+    const taskTypeId = selectedTypeToManage._id || selectedTypeToManage.id;
+    if (!taskTypeId) {
+      toast.error("Missing task type ID");
+      return;
+    }
+
+    const newName = editTaskTypeName.trim();
+    if (!newName) {
+      toast.warning("Please enter a task type name");
+      return;
+    }
+
+    if (newName === selectedTypeToManage.name) {
+      toast.info("No changes to save");
+      setIsEditTypeModalOpen(false);
+      return;
+    }
+
+    setUpdatingTaskType(true);
+
+    try {
+      const res = await authFetch(`${API_URL}/tasktypes/${taskTypeId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to update task type");
+      }
+
+      setTaskTypes((prev) =>
+        prev.map((t) => {
+          const tid = t._id || t.id;
+          if (tid === taskTypeId) {
+            return { ...t, name: newName };
+          }
+          return t;
+        }),
+      );
+
+      toast.success("Task type updated!");
+
+      setIsEditTypeModalOpen(false);
+      setTypeMenuOpen(false);
+      setSelectedTypeToManage(null);
+      setEditTaskTypeName("");
+    } catch (err) {
+      console.error("Update error:", err);
+      toast.error(err.message || "Could not update task type");
+    } finally {
+      setUpdatingTaskType(false);
+    }
+  };
+
+  const deleteTaskType = async (taskTypeId) => {
+    if (!taskTypeId || typeof taskTypeId !== "string") {
+      toast.error("No valid task type ID provided");
+      console.warn("Invalid ID passed to deleteTaskType:", taskTypeId);
+      return;
+    }
+
+    console.log("Deleting TaskType ID:", taskTypeId);
+
+    setDeletingTaskType(true);
+
+    try {
+      const res = await authFetch(`${API_URL}/tasktypes/${taskTypeId}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      console.log("Delete response:", data);
+      console.log("Delete status:", res.status);
+
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to delete task type");
+      }
+
+      toast.success("Task type deleted!");
+
+      setTaskTypes((prev) =>
+        prev.filter((t) => (t._id || t.id) !== taskTypeId),
+      );
+
+      setTypeMenuOpen(false);
+      setSelectedTypeToManage(null);
+    } catch (err) {
+      console.error(err);
+      toast.error(err.message || "Error deleting task type");
+    } finally {
+      setDeletingTaskType(false);
+    }
+  };
 
   const fetchUserTasks = async () => {
     if (!user?.email) return;
-    
+
     const controller = new AbortController();
     const signal = controller.signal;
-    
+
     try {
       setLoading(true);
       const res = await authFetch(`${API_URL}/tasks?user_email=${user.email}`, {
-        signal
+        signal,
       });
-      
+
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
 
       const tasksArray = Array.isArray(data) ? data : data.tasks || [];
-      
 
       console.log("=== DEBUG: Tasks from API ===");
       tasksArray.forEach((task, index) => {
@@ -238,18 +412,20 @@ export default function DailyTasks() {
           name: task.name,
           assigned_to: task.assigned_to,
           source_display: task.source_display,
-          consolidation_source: task.consolidation_source
+          consolidation_source: task.consolidation_source,
         });
       });
       console.log("=== END DEBUG ===");
 
       const normalizedTasks = tasksArray.map((task) => {
-        const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
+        const isConsolidation =
+          task.taskType === "consolidation" || task.is_consolidation_task;
 
         let assignedTo = "";
 
         if (isConsolidation) {
-          assignedTo = task.leader_name ||
+          assignedTo =
+            task.leader_name ||
             task.leader_assigned ||
             task.assigned_to ||
             `${user.name || ""} ${user.surname || ""}`.trim();
@@ -260,11 +436,11 @@ export default function DailyTasks() {
               leader_assigned: task.leader_assigned,
               assigned_to: task.assigned_to,
               assignedfor: task.assignedfor,
-              final_assignedTo: assignedTo
+              final_assignedTo: assignedTo,
             });
           }
 
-          if (assignedTo.includes('@')) {
+          if (assignedTo.includes("@")) {
             assignedTo = "Consolidation Leader";
           }
         } else {
@@ -277,12 +453,18 @@ export default function DailyTasks() {
           date: task.date || task.followup_date,
           status: (task.status || "Open").toLowerCase(),
           taskName: task.name || task.taskName,
-          type: (task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call")) || "call",
+          type:
+            task.type ||
+            (task.taskType?.toLowerCase()?.includes("visit")
+              ? "visit"
+              : "call") ||
+            "call",
           leader_name: task.leader_name || task.leader_assigned,
           leader_assigned: task.leader_assigned,
-          consolidation_name: task.consolidation_name ||
+          consolidation_name:
+            task.consolidation_name ||
             (isConsolidation
-              ? `${task.person_name || ''} ${task.person_surname || ''} - ${task.decision_display_name || 'Consolidation'}`
+              ? `${task.person_name || ""} ${task.person_surname || ""} - ${task.decision_display_name || "Consolidation"}`
               : task.name),
           decision_display_name: task.decision_display_name,
           is_consolidation_task: isConsolidation,
@@ -291,7 +473,7 @@ export default function DailyTasks() {
 
       setTasks(normalizedTasks);
     } catch (err) {
-      if (err.name !== 'AbortError') {
+      if (err.name !== "AbortError") {
         console.error("Error fetching user tasks:", err.message);
         toast.error(err.message);
       }
@@ -300,201 +482,241 @@ export default function DailyTasks() {
         setLoading(false);
       }
     }
-    
+
     return () => controller.abort();
   };
 
-  const fetchAllPeople = useCallback(async (forceRefresh = false) => {
-    const now = Date.now();
-    if (!forceRefresh && window.globalPeopleCache && window.globalCacheTimestamp && (now - window.globalCacheTimestamp < CACHE_DURATION)) {
-      setAllPeople(window.globalPeopleCache);
-      return window.globalPeopleCache;
-    }
- 
-    if (isFetchingRef.current) {
-      if (peopleFetchPromiseRef.current) {
+  const fetchAllPeople = useCallback(
+    async (forceRefresh = false) => {
+      const now = Date.now();
+      if (
+        !forceRefresh &&
+        window.globalPeopleCache &&
+        window.globalCacheTimestamp &&
+        now - window.globalCacheTimestamp < CACHE_DURATION
+      ) {
+        setAllPeople(window.globalPeopleCache);
+        return window.globalPeopleCache;
+      }
+
+      if (isFetchingRef.current) {
+        if (peopleFetchPromiseRef.current) {
+          try {
+            const result = await peopleFetchPromiseRef.current;
+            return result || window.globalPeopleCache || [];
+          } catch (e) {
+            return window.globalPeopleCache || [];
+          }
+        }
+        return window.globalPeopleCache || [];
+      }
+
+      isFetchingRef.current = true;
+      setIsLoadingPeople(true);
+      peopleFetchPromiseRef.current = (async () => {
         try {
-          const result = await peopleFetchPromiseRef.current;
-          return result || window.globalPeopleCache || [];
-        } catch (e) {
+          const response = await authFetch(`${API_URL}/people?perPage=0`);
+          if (!response || !response.ok)
+            throw new Error("Failed to fetch people");
+          const data = await response.json();
+          const rawPeople = data?.results || [];
+          const mapped = rawPeople.map((raw) => ({
+            _id: (raw._id || raw.id || "").toString(),
+            name: (raw.Name || raw.name || "").toString().trim(),
+            surname: (raw.Surname || raw.surname || "").toString().trim(),
+            email: (raw.Email || raw.email || "").toString().trim(),
+            phone: (raw.Phone || raw.phone || raw.Number || "")
+              .toString()
+              .trim(),
+            fullNameLower:
+              `${(raw.Name || raw.name || "").toString().trim()} ${(raw.Surname || raw.surname || "").toString().trim()}`.toLowerCase(),
+          }));
+          window.globalPeopleCache = mapped;
+          window.globalCacheTimestamp = Date.now();
+          setAllPeople(mapped);
+          return mapped;
+        } catch (err) {
+          console.error("Fetch people error:", err);
+          toast.error(`Failed to load people: ${err?.message}`);
           return window.globalPeopleCache || [];
+        } finally {
+          isFetchingRef.current = false;
+          peopleFetchPromiseRef.current = null;
+          setIsLoadingPeople(false);
         }
-      }
-      return window.globalPeopleCache || [];
-    }
- 
-    isFetchingRef.current = true;
-    setIsLoadingPeople(true);
-    peopleFetchPromiseRef.current = (async () => {
-      try {
-        const response = await authFetch(`${API_URL}/people?perPage=0`);
-        if (!response || !response.ok) throw new Error("Failed to fetch people");
-        const data = await response.json();
-        const rawPeople = data?.results || [];
-        // minimal mapping required for dropdown + fast search
-        const mapped = rawPeople.map(raw => ({
-           _id: (raw._id || raw.id || "").toString(),
-           name: (raw.Name || raw.name || "").toString().trim(),
-           surname: (raw.Surname || raw.surname || "").toString().trim(),
-           email: (raw.Email || raw.email || "").toString().trim(),
-           phone: (raw.Phone || raw.phone || raw.Number || "").toString().trim(),
-           // precompute lowercase fullName for instant matching
-           fullNameLower: `${(raw.Name || raw.name || "").toString().trim()} ${(raw.Surname || raw.surname || "").toString().trim()}`.toLowerCase()
-         }));
-         window.globalPeopleCache = mapped;
-         window.globalCacheTimestamp = Date.now();
-         setAllPeople(mapped);
-         return mapped;
-       } catch (err) {
-         console.error('Fetch people error:', err);
-         toast.error(`Failed to load people: ${err?.message}`);
-         return window.globalPeopleCache || [];
-       } finally {
-         isFetchingRef.current = false;
-         peopleFetchPromiseRef.current = null;
-         setIsLoadingPeople(false);
-       }
-     })();
- 
-     return await peopleFetchPromiseRef.current;
-   }, [API_URL, authFetch]);
- 
-  // prefetch people in background as soon as user is available
+      })();
+
+      return await peopleFetchPromiseRef.current;
+    },
+    [API_URL, authFetch],
+  );
+
   useEffect(() => {
-    if (!user) return;
-    if ((!window.globalPeopleCache || window.globalPeopleCache.length === 0) && !isFetchingRef.current) {
-      // background prefetch (no toast here; will show toast when user opens modal)
-      fetchAllPeople(false).catch(() => {});
-    }
-  }, [user, fetchAllPeople]);
+  if (!user) return;
+  if (window.globalPeopleCache?.length > 0 && allPeople.length === 0) {
+    setAllPeople(window.globalPeopleCache);
+  }
+  if (
+    (!window.globalPeopleCache || window.globalPeopleCache.length === 0) &&
+    !isFetchingRef.current
+  ) {
+    fetchAllPeople(false).catch(() => {});
+  }
+}, [user, fetchAllPeople]);
 
-  const searchPeople = useCallback((peopleList, searchValue, field = 'name') => {
-    if (!searchValue.trim()) return peopleList;
+  const searchPeople = useCallback(
+    (peopleList, searchValue, field = "name") => {
+      if (!searchValue.trim()) return peopleList;
 
-    const searchLower = searchValue.toLowerCase().trim();
+      const searchLower = searchValue.toLowerCase().trim();
 
-    return peopleList.filter(person => {
-      switch (field) {
-        case 'name': {
-          const nameLower = person.name.toLowerCase();
-          const surnameLower = person.surname.toLowerCase();
-          const fullName = `${nameLower} ${surnameLower}`;
-          
-          return nameLower.includes(searchLower) ||
-            surnameLower.includes(searchLower) ||
-            fullName.includes(searchLower);
+      return peopleList.filter((person) => {
+        switch (field) {
+          case "name": {
+            const nameLower = person.name.toLowerCase();
+            const surnameLower = person.surname.toLowerCase();
+            const fullName = `${nameLower} ${surnameLower}`;
+
+            return (
+              nameLower.includes(searchLower) ||
+              surnameLower.includes(searchLower) ||
+              fullName.includes(searchLower)
+            );
+          }
+          default:
+            return true;
         }
-        default:
-          return true;
+      });
+    },
+    [],
+  );
+
+  const fetchPeople = useCallback(
+    async (q) => {
+      if (!q || !q.trim()) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
       }
-    });
-  }, []);
 
-  const fetchPeople = useCallback(async (q) => {
-    if (!q || !q.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
+      const query = q.trim();
+      setIsSearching(true);
 
-    const query = q.trim();
-    setIsSearching(true);
-
-    const localSource = (allPeople && allPeople.length > 0) ? allPeople : (window.globalPeopleCache || []);
-    if (localSource && localSource.length > 0) {
-      try {
-        const quick = searchPeople(localSource, query, 'name');
-        setSearchResults(quick.slice(0, 50));
-      } catch (e) {
-        console.error("Quick local search failed:", e);
+      const localSource =
+  window.globalPeopleCache?.length > 0
+    ? window.globalPeopleCache
+    : allPeople;
+      if (localSource && localSource.length > 0) {
+        try {
+          const quick = searchPeople(localSource, query, "name");
+          setSearchResults(quick.slice(0, 50));
+        } catch (e) {
+          console.error("Quick local search failed:", e);
+          setSearchResults([]);
+        }
+      } else {
         setSearchResults([]);
       }
-    } else {
-      setSearchResults([]);
-    }
 
-    try {
-      const people = await fetchAllPeople(false);
-      const finalResults = searchPeople(people || [], query, 'name');
-      setSearchResults(finalResults.slice(0, 50));
-      console.log(`Search results for "${q}":`, finalResults);
-    } catch (err) {
-      console.error("Error searching people:", err);
-    } finally {
-      setIsSearching(false);
-    }
-  }, [allPeople, searchPeople, fetchAllPeople]);
-
-  const fetchAssigned = useCallback(async (q) => {
-    if (!q || !q.trim()) {
-      setAssignedResults([]);
-      return;
-    }
-
-    const query = q.trim();
-
-    const localSource = (allPeople && allPeople.length > 0) ? allPeople : (window.globalPeopleCache || []);
-    if (localSource && localSource.length > 0) {
       try {
-        const quick = searchPeople(localSource, query, 'name');
-        setAssignedResults(quick.slice(0, 50));
-      } catch (e) {
-        console.error("Quick local search failed:", e);
+        const people = await fetchAllPeople(false);
+        const finalResults = searchPeople(people || [], query, "name");
+        setSearchResults(finalResults.slice(0, 50));
+        console.log(`Search results for "${q}":`, finalResults);
+      } catch (err) {
+        console.error("Error searching people:", err);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [allPeople, searchPeople, fetchAllPeople],
+  );
+
+  const fetchAssigned = useCallback(
+    async (q) => {
+      if (!q || !q.trim()) {
+        setAssignedResults([]);
+        return;
+      }
+
+      const query = q.trim();
+
+      const localSource =
+  window.globalPeopleCache?.length > 0
+    ? window.globalPeopleCache
+    : allPeople;
+      if (localSource && localSource.length > 0) {
+        try {
+          const quick = searchPeople(localSource, query, "name");
+          setAssignedResults(quick.slice(0, 50));
+        } catch (e) {
+          console.error("Quick local search failed:", e);
+          setAssignedResults([]);
+        }
+      } else {
         setAssignedResults([]);
       }
-    } else {
-      setAssignedResults([]);
-    }
 
-    try {
-      const people = await fetchAllPeople(false);
-      const finalResults = searchPeople(people || [], query, 'name');
-      setAssignedResults(finalResults.slice(0, 50));
-    } catch (err) {
-      console.error("Error searching assigned people:", err);
-    }
-  }, [allPeople, searchPeople, fetchAllPeople]);
-
- 
-  const handleRecipientInput = useCallback((value) => {
-    // immediate UI update
-    setTaskData(prev => ({ ...prev, recipientDisplay: value, recipient: null }));
- 
-    // QUICK local feedback from whatever cache we already have (very fast)
-    const localSource = (allPeople && allPeople.length > 0) ? allPeople : (window.globalPeopleCache || []);
-    if (localSource && localSource.length > 0) {
       try {
-        const quick = searchPeople(localSource, value, 'name');
-        setSearchResults(quick.slice(0, 50));
-      } catch (e) {
+        const people = await fetchAllPeople(false);
+        const finalResults = searchPeople(people || [], query, "name");
+        setAssignedResults(finalResults.slice(0, 50));
+      } catch (err) {
+        console.error("Error searching assigned people:", err);
+      }
+    },
+    [allPeople, searchPeople, fetchAllPeople],
+  );
+
+  const handleRecipientInput = useCallback(
+    (value) => {
+      
+      setTaskData((prev) => ({
+        ...prev,
+        recipientDisplay: value,
+        recipient: null,
+      }));
+
+      const localSource =
+  window.globalPeopleCache?.length > 0
+    ? window.globalPeopleCache
+    : allPeople;
+      if (localSource && localSource.length > 0) {
+        try {
+          const quick = searchPeople(localSource, value, "name");
+          setSearchResults(quick.slice(0, 50));
+        } catch (e) {
+          setSearchResults([]);
+        }
+      } else {
         setSearchResults([]);
       }
-    } else {
-      setSearchResults([]);
-    }
- 
-    // debounce background refinement/fetch
-    if (fetchPeopleDebounceRef.current) clearTimeout(fetchPeopleDebounceRef.current);
-    fetchPeopleDebounceRef.current = setTimeout(() => {
-      fetchPeople(value);
-    }, RECIPIENT_DEBOUNCE);
-  }, [allPeople, searchPeople, fetchPeople]);
- 
+
+      if (fetchPeopleDebounceRef.current)
+        clearTimeout(fetchPeopleDebounceRef.current);
+      fetchPeopleDebounceRef.current = setTimeout(() => {
+        fetchPeople(value);
+      }, RECIPIENT_DEBOUNCE);
+    },
+    [allPeople, searchPeople, fetchPeople],
+  );
+
   useEffect(() => {
     return () => {
-      if (fetchPeopleDebounceRef.current) clearTimeout(fetchPeopleDebounceRef.current);
+      if (fetchPeopleDebounceRef.current)
+        clearTimeout(fetchPeopleDebounceRef.current);
     };
   }, []);
 
   const createTask = async (taskPayload) => {
     try {
       const res = await authFetch(`${API_URL}/tasks`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(taskPayload),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || 'Failed to create task');
+      if (!res.ok) throw new Error(data.message || "Failed to create task");
       if (data.task) {
         setTasks((prev) => [
           {
@@ -529,8 +751,14 @@ export default function DailyTasks() {
     setSearchResults([]);
     setAssignedResults([]);
     setSelectedTask({});
-    if ((!window.globalPeopleCache || window.globalPeopleCache.length === 0) && !isFetchingRef.current) {
-      toast.info("Loading people…", { toastId: PEOPLE_TOAST_ID, autoClose: false });
+    if (
+      (!window.globalPeopleCache || window.globalPeopleCache.length === 0) &&
+      !isFetchingRef.current
+    ) {
+      toast.info("Loading people…", {
+        toastId: PEOPLE_TOAST_ID,
+        autoClose: false,
+      });
       fetchAllPeople(false)
         .then(() => toast.dismiss(PEOPLE_TOAST_ID))
         .catch(() => toast.dismiss(PEOPLE_TOAST_ID));
@@ -548,12 +776,13 @@ export default function DailyTasks() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setTaskData({ ...taskData, [name]: value });
+    setTaskData({ ...taskData, [e.target.name]: e.target.value });
   };
 
   const updateTask = async (taskId, updatedData) => {
     try {
-      const isConsolidationTask = selectedTask?.taskType === 'consolidation' ||
+      const isConsolidationTask =
+        selectedTask?.taskType === "consolidation" ||
         selectedTask?.is_consolidation_task;
 
       if (isConsolidationTask) {
@@ -572,16 +801,18 @@ export default function DailyTasks() {
 
       setTasks((prev) =>
         prev.map((t) =>
-          t._id === taskId ? {
-            ...t,
-            ...data.updatedTask,
-            date: data.updatedTask.followup_date,
-            ...(isConsolidationTask && {
-              leader_name: selectedTask.leader_name,
-              leader_assigned: selectedTask.leader_assigned
-            })
-          } : t
-        )
+          t._id === taskId
+            ? {
+                ...t,
+                ...data.updatedTask,
+                date: data.updatedTask.followup_date,
+                ...(isConsolidationTask && {
+                  leader_name: selectedTask.leader_name,
+                  leader_assigned: selectedTask.leader_assigned,
+                }),
+              }
+            : t,
+        ),
       );
       handleClose();
     } catch (err) {
@@ -592,7 +823,9 @@ export default function DailyTasks() {
 
   const handleEdit = (task) => {
     if (task.status?.toLowerCase() === "completed") {
-      toast.info("This task has been marked as completed and cannot be edited.");
+      toast.info(
+        "This task has been marked as completed and cannot be edited.",
+      );
       return;
     }
 
@@ -603,17 +836,19 @@ export default function DailyTasks() {
     const nameParts = (task.contacted_person?.name || "").split(" ");
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || "";
-    
+
     setTaskData({
       taskType: task.taskType || "",
       recipient: {
         Name: firstName,
         Surname: lastName,
-        Phone: task.contacted_person?.phone || task.contacted_person?.Number || "",
+        Phone:
+          task.contacted_person?.phone || task.contacted_person?.Number || "",
         Email: task.contacted_person?.email || "",
       },
       recipientDisplay: task.contacted_person?.name || "",
-      assignedTo: task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
+      assignedTo:
+        task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
       dueDate: formatDateTime(task.date),
       status: task.status,
       taskStage: task.status,
@@ -629,13 +864,16 @@ export default function DailyTasks() {
       const person = taskData.recipient;
       console.log("Recipient data:", person);
       console.log("Full taskData:", taskData);
-      
+
       if (!person || !person.Name) {
         console.error("Invalid recipient:", person);
-        throw new Error("Person details not found. Please select a valid recipient.");
+        throw new Error(
+          "Person details not found. Please select a valid recipient.",
+        );
       }
 
-      const isConsolidationTask = selectedTask?.taskType === 'consolidation' ||
+      const isConsolidationTask =
+        selectedTask?.taskType === "consolidation" ||
         selectedTask?.is_consolidation_task;
 
       const taskPayload = {
@@ -643,10 +881,13 @@ export default function DailyTasks() {
         name: isConsolidationTask
           ? taskData.assignedTo
           : taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
-        taskType: taskData.taskType ||
+        taskType:
+          taskData.taskType ||
           (isConsolidationTask
             ? "consolidation"
-            : formType === "call" ? "Call Task" : "Visit Task"),
+            : formType === "call"
+              ? "Call Task"
+              : "Visit Task"),
         contacted_person: {
           name: `${person.Name} ${person.Surname || ""}`.trim(),
           phone: person.Phone || person.Number || "",
@@ -659,17 +900,23 @@ export default function DailyTasks() {
       };
 
       if (isConsolidationTask) {
-        taskPayload.leader_name = selectedTask.leader_name || taskData.assignedTo;
-        taskPayload.leader_assigned = selectedTask.leader_assigned || taskData.assignedTo;
+        taskPayload.leader_name =
+          selectedTask.leader_name || taskData.assignedTo;
+        taskPayload.leader_assigned =
+          selectedTask.leader_assigned || taskData.assignedTo;
         taskPayload.is_consolidation_task = true;
       }
 
       if (selectedTask && selectedTask._id) {
         await updateTask(selectedTask._id, taskPayload);
-        toast.info(`Task for ${person.Name} ${person.Surname} updated successfully!`);
+        toast.info(
+          `Task for ${person.Name} ${person.Surname} updated successfully!`,
+        );
       } else {
         await createTask(taskPayload);
-        toast.success(`You have successfully captured ${person.Name} ${person.Surname}`);
+        toast.success(
+          `You have successfully captured ${person.Name} ${person.Surname}`,
+        );
       }
       handleClose();
     } catch (err) {
@@ -731,26 +978,27 @@ export default function DailyTasks() {
         return;
       }
 
-      const formattedTasks = filteredTasks.map(task => ({
+      const formattedTasks = filteredTasks.map((task) => ({
         "Member ID": task.memberID || user.id || "",
-        "Name": task.name || user.name || "",
+        Name: task.name || user.name || "",
         "Task Type": task.taskType || "",
         "Contact Person": task.contacted_person?.name || "",
-        "Contact Phone": task.contacted_person?.phone || task.contacted_person?.Number || "",
+        "Contact Phone":
+          task.contacted_person?.phone || task.contacted_person?.Number || "",
         "Contact Email": task.contacted_person?.email || "",
         "Follow-up Date": task.followup_date
           ? new Date(task.followup_date).toLocaleString()
           : "",
-        "Status": task.status || "",
-        "Type": task.type || "",
+        Status: task.status || "",
+        Type: task.type || "",
         "Assigned For": task.assignedfor || user.email || "",
       }));
 
       const headers = Object.keys(formattedTasks[0]);
 
-      const columnWidths = headers.map(header => {
+      const columnWidths = headers.map((header) => {
         let maxLength = header.length;
-        formattedTasks.forEach(task => {
+        formattedTasks.forEach((task) => {
           const value = String(task[header] || "");
           if (value.length > maxLength) {
             maxLength = value.length;
@@ -759,9 +1007,9 @@ export default function DailyTasks() {
         return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
       });
 
-      let colWidthsXml = columnWidths.map(width =>
-        `<x:Width>${width}</x:Width>`
-      ).join('\n                  ');
+      let colWidthsXml = columnWidths
+        .map((width) => `<x:Width>${width}</x:Width>`)
+        .join("\n                  ");
 
       let html = `
         <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
@@ -777,7 +1025,7 @@ export default function DailyTasks() {
                       <x:DisplayGridlines/>
                     </x:WorksheetOptions>
                     <x:WorksheetColumns>
-      ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${index + 1}" ss:AutoFitWidth="0" ss:Width="${width}"/>`).join('\n')}
+      ${columnWidths.map((width, index) => `                    <x:Column ss:Index="${index + 1}" ss:AutoFitWidth="0" ss:Width="${width}"/>`).join("\n")}
                     </x:WorksheetColumns>
                   </x:ExcelWorksheet>
                 </x:ExcelWorksheets>
@@ -817,15 +1065,15 @@ export default function DailyTasks() {
                 <tr>
       `;
 
-      headers.forEach(header => {
+      headers.forEach((header) => {
         html += `                <th>${header}</th>\n`;
       });
 
       html += `              </tr>\n            </thead>\n            <tbody>\n`;
 
-      formattedTasks.forEach(task => {
+      formattedTasks.forEach((task) => {
         html += `              <tr>\n`;
-        headers.forEach(header => {
+        headers.forEach((header) => {
           const value = task[header] || "";
           html += `                <td>${value}</td>\n`;
         });
@@ -838,16 +1086,16 @@ export default function DailyTasks() {
         </html>`;
 
       const blob = new Blob([html], {
-        type: 'application/vnd.ms-excel;charset=utf-8;'
+        type: "application/vnd.ms-excel;charset=utf-8;",
       });
 
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
-      const fileName = `filtered_tasks_${user?.name || 'user'}_${new Date().toISOString().split('T')[0]}.xls`;
+      const fileName = `filtered_tasks_${user?.name || "user"}_${new Date().toISOString().split("T")[0]}.xls`;
 
       link.href = url;
       link.download = fileName;
-      link.style.display = 'none';
+      link.style.display = "none";
       document.body.appendChild(link);
       link.click();
 
@@ -869,7 +1117,7 @@ export default function DailyTasks() {
     const count = filteredTasks.filter(
       (t) =>
         (t.status || "").toLowerCase() === "completed" ||
-        (t.status || "").toLowerCase() === "awaiting task"
+        (t.status || "").toLowerCase() === "awaiting task",
     ).length;
 
     setTotalCount(count);
@@ -877,97 +1125,112 @@ export default function DailyTasks() {
 
   useEffect(() => {
     if (!user) return;
-    
+
     const handleTaskUpdated = (event) => {
       console.log("Task updated event received:", event.detail);
       fetchUserTasks();
-      
-      if (event.detail?.action === 'tasksDeleted') {
+
+      if (event.detail?.action === "tasksDeleted") {
         toast.info(`${event.detail.count} task(s) removed`);
-      } else if (event.detail?.action === 'consolidationCreated') {
+      } else if (event.detail?.action === "consolidationCreated") {
         toast.info("New consolidation task added");
       }
     };
 
-    window.addEventListener('taskUpdated', handleTaskUpdated);
-    
+    window.addEventListener("taskUpdated", handleTaskUpdated);
+
     return () => {
-      window.removeEventListener('taskUpdated', handleTaskUpdated);
+      window.removeEventListener("taskUpdated", handleTaskUpdated);
     };
   }, [user]);
 
-
   return (
-    <div style={{
-      height: '100vh',
-      overflow: 'hidden',
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: isDarkMode ? '#1e1e1e' : '#f8f9fa',
-      paddingTop: '5rem'
-    }}>
+    <div
+      style={{
+        height: "100vh",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        backgroundColor: isDarkMode ? "#1e1e1e" : "#f8f9fa",
+        paddingTop: "5rem",
+      }}
+    >
       {/* Header section */}
-      <div style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '16px 16px 0 16px',
-        width: '100%',
-        flexShrink: 0,
-        boxSizing: 'border-box'
-      }}>
-        <div style={{
-          backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-          color: isDarkMode ? '#fff' : '#1a1a24',
-          borderRadius: '16px',
-          padding: '24px 16px',
-          textAlign: 'center',
-          boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-          border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-        }}>
-          <h1 style={{
-            fontSize: 'clamp(48px, 8vw, 72px)',
-            fontWeight: '700',
-            margin: 0,
-            letterSpacing: '-2px',
-            lineHeight: '1.2'
-          }}>
+      <div
+        style={{
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "16px 16px 0 16px",
+          width: "100%",
+          flexShrink: 0,
+          boxSizing: "border-box",
+        }}
+      >
+        <div
+          style={{
+            backgroundColor: isDarkMode ? "#1e1e1e" : "#ffffff",
+            color: isDarkMode ? "#fff" : "#1a1a24",
+            borderRadius: "16px",
+            padding: "24px 16px",
+            textAlign: "center",
+            boxShadow: isDarkMode
+              ? "0 2px 8px rgba(255,255,255,0.1)"
+              : "0 4px 24px rgba(0, 0, 0, 0.08)",
+            border: `1px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+          }}
+        >
+          <h1
+            style={{
+              fontSize: "clamp(48px, 8vw, 72px)",
+              fontWeight: "700",
+              margin: 0,
+              letterSpacing: "-2px",
+              lineHeight: "1.2",
+            }}
+          >
             {totalCount}
           </h1>
-          <p style={{
-            marginTop: '8px',
-            fontSize: '14px',
-            letterSpacing: '1px',
-            textTransform: 'uppercase',
-            color: isDarkMode ? '#aaa' : '#6b7280',
-            fontWeight: '600'
-          }}>
+          <p
+            style={{
+              marginTop: "8px",
+              fontSize: "14px",
+              letterSpacing: "1px",
+              textTransform: "uppercase",
+              color: isDarkMode ? "#aaa" : "#6b7280",
+              fontWeight: "600",
+            }}
+          >
             Tasks Complete
           </p>
 
-          <div style={{
-            display: 'flex',
-            justifyContent: 'center',
-            gap: '12px',
-            marginTop: '24px',
-            flexWrap: 'wrap'
-          }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: "12px",
+              marginTop: "24px",
+              flexWrap: "wrap",
+            }}
+          >
             <button
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                backgroundColor: isDarkMode ? '#fff' : '#000',
-                color: isDarkMode ? '#000' : '#fff',
-                fontWeight: '600',
-                padding: '12px 20px',
-                borderRadius: '10px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '14px',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-                width: '140px',
-                minHeight: '44px'
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                backgroundColor: isDarkMode ? "#fff" : "#000",
+                color: isDarkMode ? "#000" : "#fff",
+                fontWeight: "600",
+                padding: "12px 20px",
+                borderRadius: "10px",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "14px",
+                boxShadow: isDarkMode
+                  ? "0 2px 8px rgba(18, 163, 37, 0.1)"
+                  : "0 4px 24px rgba(0, 0, 0, 0.08)",
+                width: "140px",
+                minHeight: "44px",
               }}
               onClick={() => handleOpen("call")}
             >
@@ -975,67 +1238,78 @@ export default function DailyTasks() {
             </button>
             <button
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                backgroundColor: isDarkMode ? '#fff' : '#000',
-                color: isDarkMode ? '#000' : '#fff',
-                fontWeight: '600',
-                padding: '12px 20px',
-                borderRadius: '10px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '14px',
-                boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-                width: '140px',
-                minHeight: '44px'
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                backgroundColor: isDarkMode ? "#fff" : "#000",
+                color: isDarkMode ? "#000" : "#fff",
+                fontWeight: "600",
+                padding: "12px 20px",
+                borderRadius: "10px",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "14px",
+                boxShadow: isDarkMode
+                  ? "0 2px 8px rgba(255,255,255,0.1)"
+                  : "0 4px 24px rgba(0, 0, 0, 0.08)",
+                width: "140px",
+                minHeight: "44px",
               }}
               onClick={() => handleOpen("visit")}
             >
               <UserPlus size={18} /> Visit Task
             </button>
 
-            {user?.role === 'admin' && (
+            {isAdmin && (
               <button
                 style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  backgroundColor: isDarkMode ? '#fff' : '#000',
-                  color: isDarkMode ? '#000' : '#fff',
-                  fontWeight: '600',
-                  padding: '12px 20px',
-                  borderRadius: '10px',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-                  width: '140px',
-                  minHeight: '44px'
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: "8px",
+                  backgroundColor: isDarkMode ? "#fff" : "#000",
+                  color: isDarkMode ? "#000" : "#fff",
+                  fontWeight: "600",
+                  padding: "12px 20px",
+                  borderRadius: "10px",
+                  border: "none",
+                  cursor: "pointer",
+                  fontSize: "14px",
+                  boxShadow: isDarkMode
+                    ? "0 2px 8px rgba(255,255,255,0.1)"
+                    : "0 4px 24px rgba(0, 0, 0, 0.08)",
+                  width: "140px",
+                  minHeight: "44px",
                 }}
-                onClick={() => setIsAddTypeModalOpen(true)}
+                onClick={() => {
+                  console.log(
+                    "New Task Type button clicked – setter exists:",
+                    !!setNewTaskTypeName,
+                  );
+                  setIsAddTypeModalOpen(true);
+                  setNewTaskTypeName("");
+                }}
               >
                 <Plus size={18} /> New Task Type
               </button>
             )}
           </div>
 
-          <div style={{ marginTop: '20px' }}>
+          <div style={{ marginTop: "20px" }}>
             <select
               style={{
-                padding: '10px 16px',
-                borderRadius: '10px',
-                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                color: isDarkMode ? '#fff' : '#1a1a24',
-                fontSize: '14px',
-                cursor: 'pointer',
-                fontWeight: '500',
-                outline: 'none',
-                width: '100%',
-                maxWidth: '280px'
+                padding: "10px 16px",
+                borderRadius: "10px",
+                border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
+                color: isDarkMode ? "#fff" : "#1a1a24",
+                fontSize: "14px",
+                cursor: "pointer",
+                fontWeight: "500",
+                outline: "none",
+                width: "100%",
+                maxWidth: "280px",
               }}
               value={dateRange}
               onChange={(e) => setDateRange(e.target.value)}
@@ -1048,27 +1322,27 @@ export default function DailyTasks() {
             </select>
           </div>
 
-          <div style={{ marginTop: '12px' }}>
+          <div style={{ marginTop: "12px" }}>
             <button
               style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '8px',
-                backgroundColor: isDarkMode ? '#fff' : '#000',
-                color: isDarkMode ? '#000' : '#fff',
-                fontWeight: '600',
-                padding: '12px 20px',
-                borderRadius: '10px',
-                border: 'none',
-                cursor: 'pointer',
-                fontSize: '14px',
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: "8px",
+                backgroundColor: isDarkMode ? "#fff" : "#000",
+                color: isDarkMode ? "#000" : "#fff",
+                fontWeight: "600",
+                padding: "12px 20px",
+                borderRadius: "10px",
+                border: "none",
+                cursor: "pointer",
+                fontSize: "14px",
                 boxShadow: isDarkMode
-                  ? '0 2px 8px rgba(255,255,255,0.1)'
-                  : '0 4px 24px rgba(0, 0, 0, 0.08)',
-                width: '100%',
-                maxWidth: '280px',
-                margin: '0 auto'
+                  ? "0 2px 8px rgba(255,255,255,0.1)"
+                  : "0 4px 24px rgba(0, 0, 0, 0.08)",
+                width: "100%",
+                maxWidth: "280px",
+                margin: "0 auto",
               }}
               onClick={downloadFilteredTasks}
             >
@@ -1077,218 +1351,296 @@ export default function DailyTasks() {
           </div>
         </div>
 
-        <div style={{
-          display: 'flex',
-          justifyContent: 'center',
-          gap: '8px',
-          marginTop: '20px',
-          flexWrap: 'wrap',
-          overflowX: 'auto',
-          paddingBottom: '8px'
-        }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "center",
+            gap: "8px",
+            marginTop: "20px",
+            flexWrap: "wrap",
+            overflowX: "auto",
+            paddingBottom: "8px",
+          }}
+        >
           {["all", "call", "visit", "consolidation"].map((type) => (
             <button
               key={type}
               style={{
-                padding: '8px 16px',
-                borderRadius: '20px',
-                border: filterType === type ? 'none' : `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                fontWeight: '600',
-                cursor: 'pointer',
-                backgroundColor: filterType === type ? (isDarkMode ? '#fff' : '#000') : (isDarkMode ? '#2d2d2d' : '#ffffff'),
-                color: filterType === type ? (isDarkMode ? '#000' : '#fff') : (isDarkMode ? '#fff' : '#1a1a24'),
-                fontSize: '13px',
-                boxShadow: filterType === type ? (isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)') : 'none',
-                whiteSpace: 'nowrap',
-                flexShrink: 0
+                padding: "8px 16px",
+                borderRadius: "20px",
+                border:
+                  filterType === type
+                    ? "none"
+                    : `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                fontWeight: "600",
+                cursor: "pointer",
+                backgroundColor:
+                  filterType === type
+                    ? isDarkMode
+                      ? "#fff"
+                      : "#000"
+                    : isDarkMode
+                      ? "#2d2d2d"
+                      : "#ffffff",
+                color:
+                  filterType === type
+                    ? isDarkMode
+                      ? "#000"
+                      : "#fff"
+                    : isDarkMode
+                      ? "#fff"
+                      : "#1a1a24",
+                fontSize: "13px",
+                boxShadow:
+                  filterType === type
+                    ? isDarkMode
+                      ? "0 2px 8px rgba(255,255,255,0.1)"
+                      : "0 4px 24px rgba(0, 0, 0, 0.08)"
+                    : "none",
+                whiteSpace: "nowrap",
+                flexShrink: 0,
               }}
               onClick={() => setFilterType(type)}
             >
-              {type === "all" ? "All" : type.charAt(0).toUpperCase() + type.slice(1)}
+              {type === "all"
+                ? "All"
+                : type.charAt(0).toUpperCase() + type.slice(1)}
             </button>
           ))}
         </div>
       </div>
 
       {/* Task list container */}
-      <div style={{
-        flex: 1,
-        overflowY: 'auto',
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '0 16px 16px 16px',
-        width: '100%',
-        boxSizing: 'border-box'
-      }}>
-        <div style={{ marginTop: '16px' }}>
+      <div
+        style={{
+          flex: 1,
+          overflowY: "auto",
+          maxWidth: "1200px",
+          margin: "0 auto",
+          padding: "0 16px 16px 16px",
+          width: "100%",
+          boxSizing: "border-box",
+        }}
+      >
+        <div style={{ marginTop: "16px" }}>
           {loading ? (
-            <p style={{
-              textAlign: 'center',
-              color: isDarkMode ? '#aaa' : '#6b7280',
-              fontStyle: 'italic',
-              padding: '20px'
-            }}>
+            <p
+              style={{
+                textAlign: "center",
+                color: isDarkMode ? "#aaa" : "#6b7280",
+                fontStyle: "italic",
+                padding: "20px",
+              }}
+            >
               Loading tasks...
             </p>
           ) : filteredTasks.length === 0 ? (
-            <p style={{
-              textAlign: 'center',
-              color: isDarkMode ? '#aaa' : '#6b7280',
-              padding: '20px'
-            }}>
+            <p
+              style={{
+                textAlign: "center",
+                color: isDarkMode ? "#aaa" : "#6b7280",
+                padding: "20px",
+              }}
+            >
               No tasks yet.
             </p>
           ) : (
             filteredTasks.map((task) => {
               const recipientName = task.contacted_person?.name || "";
 
-              const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
+              const isConsolidation =
+                task.taskType === "consolidation" || task.is_consolidation_task;
 
               const assignedDisplay = task.assignedTo || "";
 
               const sourceDisplay = task.source_display || "Manual";
-              
-            return (
-              <div
-                key={task._id}
-                style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-                  padding: '16px',
-                  borderRadius: '12px',
-                  border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                  marginBottom: '10px',
-                  cursor: 'pointer',
-                  boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-                }}
-              >
+
+              return (
                 <div
+                  key={task._id}
                   style={{
-                    cursor: 'pointer',
-                    flex: 1,
-                    minWidth: 0
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    backgroundColor: isDarkMode ? "#1e1e1e" : "#ffffff",
+                    padding: "16px",
+                    borderRadius: "12px",
+                    border: `1px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                    marginBottom: "10px",
+                    cursor: "pointer",
+                    boxShadow: isDarkMode
+                      ? "0 2px 8px rgba(255,255,255,0.1)"
+                      : "0 4px 24px rgba(0, 0, 0, 0.08)",
                   }}
-                  onClick={() => handleEdit(task)}
                 >
-                  {/* Recipient Name */}
-                  <p style={{
-                    fontWeight: '700',
-                    color: isDarkMode ? '#fff' : '#1a1a24',
-                    margin: '0 0 4px 0',
-                    fontSize: '15px',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {recipientName || 'No recipient'}
-                  </p>
-
-                  {/* Assigned To - EXACTLY as shown in modal */}
-                  <p style={{
-                    fontSize: '13px',
-                    color: isDarkMode ? '#aaa' : '#6b7280',
-                    margin: '0 0 4px 0',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap'
-                  }}>
-                    {assignedDisplay || 'Not assigned'}
-                  </p>
-
-                  {/* Consolidation Source Badge */}
-                  {isConsolidation && sourceDisplay && sourceDisplay !== "Manual" && (
-                    <span style={{
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      backgroundColor: sourceDisplay === "Service" ? '#dcfce7' : 
-                                      sourceDisplay === "Cell" ? '#fef3c7' : '#e0e7ff',
-                      color: sourceDisplay === "Service" ? '#166534' : 
-                            sourceDisplay === "Cell" ? '#92400e' : '#3730a3',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      display: 'inline-block',
-                      marginTop: '4px',
-                      marginRight: '6px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}>
-                      {sourceDisplay} Consolidation
-                    </span>
-                  )}
-
-                  {/* Recurring Badge */}
-                  {task.isRecurring && (
-                    <span style={{
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      backgroundColor: '#fde047',
-                      color: '#854d0e',
-                      padding: '2px 6px',
-                      borderRadius: '4px',
-                      display: 'inline-block',
-                      marginTop: '6px',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.5px',
-                    }}>
-                      Recurring
-                    </span>
-                  )}
-                </div>
-                
-                <div style={{
-                  textAlign: 'right',
-                  marginLeft: '12px',
-                  flexShrink: 0
-                }}>
-                  <span
+                  <div
                     style={{
-                      display: 'inline-block',
-                      padding: '5px 12px',
-                      borderRadius: '16px',
-                      fontSize: '12px',
-                      fontWeight: '600',
-                      textTransform: 'capitalize',
-                      border: '2px solid',
-                      cursor: 'pointer',
-                      backgroundColor: task.status === "open"
-                        ? (isDarkMode ? '#2d2d2d' : '#ffffff')
-                        : task.status === "completed"
-                          ? (isDarkMode ? '#fff' : '#000')
-                          : (isDarkMode ? '#3a3a3a' : '#e5e5e5'),
-                      color: task.status === "open"
-                        ? (isDarkMode ? '#fff' : '#000')
-                        : task.status === "completed"
-                          ? (isDarkMode ? '#000' : '#fff')
-                          : (isDarkMode ? '#fff' : '#1a1a24'),
-                      borderColor: task.status === "open"
-                        ? (isDarkMode ? '#fff' : '#000')
-                        : task.status === "completed"
-                          ? (isDarkMode ? '#fff' : '#000')
-                          : (isDarkMode ? '#444' : '#6b7280'),
+                      cursor: "pointer",
+                      flex: 1,
+                      minWidth: 0,
                     }}
                     onClick={() => handleEdit(task)}
                   >
-                    {task.status}
-                  </span>
-                  <div style={{
-                    fontSize: '11px',
-                    color: isDarkMode ? '#aaa' : '#6b7280',
-                    marginTop: '6px',
-                    fontWeight: '500'
-                  }}>
-                    {formatDate(task.date)}
+                    {/* Recipient Name */}
+                    <p
+                      style={{
+                        fontWeight: "700",
+                        color: isDarkMode ? "#fff" : "#1a1a24",
+                        margin: "0 0 4px 0",
+                        fontSize: "15px",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {recipientName || "No recipient"}
+                    </p>
+
+                    {/* Assigned To - EXACTLY as shown in modal */}
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        color: isDarkMode ? "#aaa" : "#6b7280",
+                        margin: "0 0 4px 0",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {assignedDisplay || "Not assigned"}
+                    </p>
+
+                    {/* Consolidation Source Badge */}
+                    {isConsolidation &&
+                      sourceDisplay &&
+                      sourceDisplay !== "Manual" && (
+                        <span
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: "700",
+                            backgroundColor:
+                              sourceDisplay === "Service"
+                                ? "#dcfce7"
+                                : sourceDisplay === "Cell"
+                                  ? "#fef3c7"
+                                  : "#e0e7ff",
+                            color:
+                              sourceDisplay === "Service"
+                                ? "#166534"
+                                : sourceDisplay === "Cell"
+                                  ? "#92400e"
+                                  : "#3730a3",
+                            padding: "2px 6px",
+                            borderRadius: "4px",
+                            display: "inline-block",
+                            marginTop: "4px",
+                            marginRight: "6px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.5px",
+                          }}
+                        >
+                          {sourceDisplay} Consolidation
+                        </span>
+                      )}
+
+                    {/* Recurring Badge */}
+                    {task.isRecurring && (
+                      <span
+                        style={{
+                          fontSize: "10px",
+                          fontWeight: "700",
+                          backgroundColor: "#fde047",
+                          color: "#854d0e",
+                          padding: "2px 6px",
+                          borderRadius: "4px",
+                          display: "inline-block",
+                          marginTop: "6px",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        Recurring
+                      </span>
+                    )}
+                  </div>
+
+                  <div
+                    style={{
+                      textAlign: "right",
+                      marginLeft: "12px",
+                      flexShrink: 0,
+                    }}
+                  >
+                    <span
+                      style={{
+                        display: "inline-block",
+                        padding: "5px 12px",
+                        borderRadius: "16px",
+                        fontSize: "12px",
+                        fontWeight: "600",
+                        textTransform: "capitalize",
+                        border: "2px solid",
+                        cursor: "pointer",
+                        backgroundColor:
+                          task.status === "open"
+                            ? isDarkMode
+                              ? "#2d2d2d"
+                              : "#ffffff"
+                            : task.status === "completed"
+                              ? isDarkMode
+                                ? "#fff"
+                                : "#000"
+                              : isDarkMode
+                                ? "#3a3a3a"
+                                : "#e5e5e5",
+                        color:
+                          task.status === "open"
+                            ? isDarkMode
+                              ? "#fff"
+                              : "#000"
+                            : task.status === "completed"
+                              ? isDarkMode
+                                ? "#000"
+                                : "#fff"
+                              : isDarkMode
+                                ? "#fff"
+                                : "#1a1a24",
+                        borderColor:
+                          task.status === "open"
+                            ? isDarkMode
+                              ? "#fff"
+                              : "#000"
+                            : task.status === "completed"
+                              ? isDarkMode
+                                ? "#fff"
+                                : "#000"
+                              : isDarkMode
+                                ? "#444"
+                                : "#6b7280",
+                      }}
+                      onClick={() => handleEdit(task)}
+                    >
+                      {task.status}
+                    </span>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: isDarkMode ? "#aaa" : "#6b7280",
+                        marginTop: "6px",
+                        fontWeight: "500",
+                      }}
+                    >
+                      {formatDate(task.date)}
+                    </div>
                   </div>
                 </div>
-              </div>
-            );
+              );
             })
           )}
         </div>
       </div>
 
-      {isAddTypeModalOpen && (
+      {isEditTypeModalOpen && (
         <div
           style={{
             position: "fixed",
@@ -1297,81 +1649,89 @@ export default function DailyTasks() {
             display: "flex",
             justifyContent: "center",
             alignItems: "center",
-            zIndex: 1000,
+            zIndex: 2000,
           }}
         >
           <div
             style={{
-              backgroundColor: isDarkMode ? '#1e1e1e' : "#fff",
-              color: isDarkMode ? '#fff' : '#1a1a24',
-              padding: "24px",
+              backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
+              color: isDarkMode ? "#fff" : "#1a1a24",
+              padding: "32px",
               borderRadius: "16px",
               width: "90%",
-              maxWidth: "440px",
-              boxShadow: isDarkMode ? "0 20px 60px rgba(255,255,255,0.1)" : "0 20px 60px rgba(0,0,0,0.3)",
-              display: "flex",
-              flexDirection: "column",
-              gap: "16px",
-              border: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
+              maxWidth: "480px",
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
+              position: "relative",
             }}
           >
-            <h2 style={{
-              margin: 0,
-              fontSize: "20px",
-              fontWeight: "700",
-              textAlign: 'center'
-            }}>
-              Add New Task Type
+            {/* Debug banner so you know it's really the edit modal */}
+            <div
+              style={{
+                background: "#fef3c7",
+                color: "#92400e",
+                padding: "8px 12px",
+                borderRadius: "8px",
+                marginBottom: "16px",
+                fontWeight: "bold",
+                textAlign: "center",
+              }}
+            ></div>
+
+            <h2 style={{ margin: "0 0 24px 0", textAlign: "center" }}>
+              Edit Task Type
             </h2>
+
             <input
               type="text"
-              value={newTaskTypeName}
-              onChange={(e) => setNewTaskTypeName(e.target.value)}
-              placeholder="Enter task type name"
+              value={editTaskTypeName}
+              onChange={(e) => setEditTaskTypeName(e.target.value)}
+              placeholder="Task type name"
               autoFocus
               style={{
-                padding: "12px 14px",
-                fontSize: "14px",
-                borderRadius: "10px",
-                border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                color: isDarkMode ? '#fff' : '#1a1a24',
                 width: "100%",
-                boxSizing: "border-box",
-                outline: 'none',
+                padding: "12px 16px",
+                fontSize: "16px",
+                borderRadius: "10px",
+                border: `2px solid ${isDarkMode ? "#555" : "#d1d5db"}`,
+                backgroundColor: isDarkMode ? "#2a2a2a" : "#f9fafb",
+                color: isDarkMode ? "#fff" : "#111827",
+                marginBottom: "24px",
               }}
             />
-            <div style={{ display: "flex", gap: "10px", justifyContent: "center" }}>
+
+            <div style={{ display: "flex", gap: "16px" }}>
               <button
-                onClick={createTaskType}
-                disabled={addingTaskType}
+                onClick={updateTaskType}
+                disabled={updatingTaskType || !editTaskTypeName.trim()}
                 style={{
-                  padding: "10px 20px",
-                  backgroundColor: isDarkMode ? '#fff' : '#000',
-                  color: isDarkMode ? '#000' : '#fff',
-                  fontWeight: "600",
+                  flex: 1,
+                  padding: "12px",
+                  backgroundColor: "#2563eb",
+                  color: "white",
                   borderRadius: "10px",
                   border: "none",
-                  cursor: addingTaskType ? "not-allowed" : "pointer",
-                  fontSize: "14px",
-                  opacity: addingTaskType ? 0.7 : 1,
-                  flex: 1
+                  fontWeight: "600",
+                  cursor: updatingTaskType ? "not-allowed" : "pointer",
+                  opacity: updatingTaskType ? 0.7 : 1,
                 }}
               >
-                {addingTaskType ? "Adding..." : "Add"}
+                {updatingTaskType ? "Saving..." : "Save Changes"}
               </button>
+
               <button
-                onClick={() => setIsAddTypeModalOpen(false)}
+                onClick={() => {
+                  setIsEditTypeModalOpen(false);
+                  setEditTaskTypeName("");
+                }}
                 style={{
-                  padding: "10px 20px",
-                  backgroundColor: isDarkMode ? '#2d2d2d' : "#e5e5e5",
-                  color: isDarkMode ? '#fff' : "#1a1a24",
-                  fontWeight: "600",
+                  flex: 1,
+                  padding: "12px",
+                  backgroundColor: "#6b7280",
+                  color: "white",
                   borderRadius: "10px",
                   border: "none",
+                  fontWeight: "600",
                   cursor: "pointer",
-                  fontSize: "14px",
-                  flex: 1
                 }}
               >
                 Cancel
@@ -1381,216 +1741,441 @@ export default function DailyTasks() {
         </div>
       )}
 
-      {isModalOpen && (
-        <Modal isOpen={isModalOpen} onClose={handleClose} isDarkMode={isDarkMode}>
-          <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <label style={{
-                fontSize: '14px',
-                fontWeight: '600',
-                color: isDarkMode ? '#fff' : '#1a1a24',
-                marginBottom: '4px'
-              }}>
-                Task Type
-              </label>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleClose}
+        isDarkMode={isDarkMode}
+        contentStyle={{
+          width: "90%",
+          maxWidth: "900px",
+          maxHeight: "85vh",
+          overflowY: "auto",
+          padding: "20px",
+          borderRadius: "16px",
+          backgroundColor: isDarkMode ? "#1a1a1e" : "#ffffff",
+        }}
+      >
+        <form
+          style={{ display: "flex", flexDirection: "column", gap: "16px" }}
+          onSubmit={handleSubmit}
+        >
+          <h3
+            style={{
+              fontSize: "20px",
+              fontWeight: "bold",
+              color: isDarkMode ? "#fff" : "#1a1a24",
+              margin: 0,
+              textAlign: "center",
+            }}
+          >
+            {selectedTask?.taskType === "consolidation" ||
+            selectedTask?.is_consolidation_task
+              ? "Consolidation Task"
+              : formType === "call"
+                ? "Call Task"
+                : "Visit Task"}
+          </h3>
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: isDarkMode ? "#fff" : "#1a1a24",
+                marginBottom:"13px",
+              }}
+            >
+              Task Type
+            </label>
+
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
               <select
                 name="taskType"
                 value={taskData.taskType}
                 onChange={handleChange}
                 required
                 style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                  fontSize: '14px',
-                  backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                  color: isDarkMode ? '#fff' : '#1a1a24',
-                  outline: 'none',
+                  flex: 1,
+                  padding: "10px 12px",
+                  borderRadius: "10px",
+                  border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                  fontSize: "14px",
+                  backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
+                  color: isDarkMode ? "#fff" : "#1a1a24",
+                  outline: "none",
                 }}
               >
                 <option value="">Select a task type</option>
-                {taskTypes.map((opt, idx) => (
-                  <option key={idx} value={opt.name || opt}>
-                    {opt.name || opt}
+                {taskTypes.map((opt) => (
+                  <option key={opt._id || opt.id} value={opt._id || opt.id}>
+                    {opt.name}
                   </option>
                 ))}
               </select>
-            </div>
 
-            <div style={{ position: 'relative' }}>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: '600',
-                color: isDarkMode ? '#fff' : '#1a1a24',
-                marginBottom: '6px'
-              }}>
-                Recipient
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  name="recipientDisplay"
-                  value={taskData.recipientDisplay || ""}
-                  onChange={(e) => handleRecipientInput(e.target.value)}
-                  autoComplete="off"
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    paddingRight: isSearching || isLoadingPeople ? '36px' : '12px',
-                    borderRadius: '10px',
-                    border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                    fontSize: '14px',
-                    backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                    color: isDarkMode ? '#fff' : '#1a1a24',
-                    outline: 'none',
-                  }}
-                  placeholder="Enter recipient name"
-                />
-                {(isSearching || isLoadingPeople) && (
-                  <div style={{
-                    position: 'absolute',
-                    right: '12px',
-                    top: '50%',
-                    transform: 'translateY(-50%)',
-                    display: 'flex',
-                    alignItems: 'center'
-                  }}>
-                  </div>
-                )}
-              {/* inline info when background fetch is in progress */}
-              {isLoadingPeople && (
-                <div style={{ marginTop: 6, fontSize: 12, color: isDarkMode ? '#aaa' : '#6b7280' }}>
-                  Loading people… results may be refined shortly.
+              {/* ADMIN semicolon */}
+              {isAdmin && (
+                <div style={{ position: "relative" }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!taskData.taskType) {
+                        toast.info("Please select a task type first");
+                        return;
+                      }
+
+                      const selectedValue = taskData.taskType.trim();
+
+                      console.log(
+                        "Looking for task type with value:",
+                        selectedValue,
+                      );
+                      console.log(
+                        "All available taskTypes:",
+                        taskTypes.map((t) => ({
+                          id: t._id || t.id,
+                          name: t.name,
+                        })),
+                      );
+
+                      console.log("Selected value from form:", selectedValue);
+
+                      
+                      let selected = taskTypes.find(
+                        (t) => String(t._id || t.id) === selectedValue,
+                      );
+
+                      
+                      if (!selected) {
+                        console.warn(
+                          "No match by ID — trying to match by name",
+                        );
+                        selected = taskTypes.find(
+                          (t) => t.name === selectedValue,
+                        );
+                      }
+
+                      if (!selected) {
+                        console.error("Still no match for:", selectedValue);
+                        console.log("Available types:", taskTypes);
+                        toast.error("Cannot find the selected task type");
+                        return;
+                      }
+
+                      console.log("Found task type to manage:", {
+                        id: selected._id || selected.id,
+                        name: selected.name,
+                      });
+
+                      setSelectedTypeToManage(selected);
+                      setTypeMenuOpen(true);
+                    }}
+                    style={{
+                      padding: "10px 14px",
+                      borderRadius: "10px",
+                      border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                      backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
+                      color: isDarkMode ? "#fff" : "#000",
+                      fontWeight: "800",
+                      cursor: "pointer",
+                      fontSize: "18px",
+                      lineHeight: "1",
+                    }}
+                  >
+                    :
+                  </button>
+
+                  {/* Popup menu */}
+                  {typeMenuOpen && selectedTypeToManage && (
+                    <div
+                      style={{
+                        position: "absolute",
+                        right: 0,
+                        top: "48px",
+                        backgroundColor: isDarkMode ? "#1e1e1e" : "#fff",
+                        border: `1px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                        borderRadius: "10px",
+                        width: "160px",
+                        boxShadow: isDarkMode
+                          ? "0 8px 24px rgba(255,255,255,0.1)"
+                          : "0 8px 24px rgba(0,0,0,0.2)",
+                        zIndex: 99,
+                        overflow: "hidden",
+                      }}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!selectedTypeToManage) {
+                            console.warn(
+                              "No selectedTypeToManage when clicking Edit",
+                            );
+                            return;
+                          }
+
+                          console.log(
+                            "EDIT button clicked → opening edit modal",
+                          );
+                          console.log(
+                            "Current selected name:",
+                            selectedTypeToManage.name,
+                          );
+                          console.log(
+                            "Current selected ID:",
+                            selectedTypeToManage._id || selectedTypeToManage.id,
+                          );
+
+                          setEditTaskTypeName(selectedTypeToManage.name || "");
+                          setIsEditTypeModalOpen(true);
+                          setTypeMenuOpen(false); 
+                        }}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          border: "none",
+                          background: "transparent",
+                          cursor: "pointer",
+                          textAlign: "left",
+                          fontWeight: "600",
+                          color: isDarkMode ? "#fff" : "#000",
+                        }}
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          console.log(
+                            "Delete button clicked → current selectedTypeToManage:",
+                            selectedTypeToManage,
+                          );
+
+                          const id =
+                            selectedTypeToManage?._id ||
+                            selectedTypeToManage?.id;
+                          if (!id) {
+                            toast.error("Cannot delete — missing task type ID");
+                            console.warn(
+                              "No valid ID found in selectedTypeToManage",
+                              selectedTypeToManage,
+                            );
+                            return;
+                          }
+
+                          console.log("Proceeding to delete with ID:", id);
+                          deleteTaskType(id);
+                        }}
+                        disabled={deletingTaskType || !selectedTypeToManage}
+                        style={{
+                          width: "100%",
+                          padding: "12px",
+                          border: "none",
+                          background: "transparent",
+                          cursor: deletingTaskType ? "not-allowed" : "pointer",
+                          textAlign: "left",
+                          fontWeight: "700",
+                          color: "#ef4444",
+                        }}
+                      >
+                        {deletingTaskType ? "Deleting..." : "Delete"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
-              </div>
-              {searchResults.length > 0 && (
-                <ul style={{
-                  position: 'absolute',
-                  zIndex: 10,
-                  width: '100%',
-                  backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-                  border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                  borderRadius: '10px',
-                  marginTop: '4px',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                  listStyle: 'none',
-                  padding: 0,
-                  margin: '4px 0 0 0',
-                  boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
-                }}>
-                  {searchResults.map((person) => (
-                    <li
-                      key={person._id}
-                      style={{
-                        padding: '10px 12px',
-                        cursor: 'pointer',
-                        borderBottom: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                        color: isDarkMode ? '#fff' : '#1a1a24',
-                      }}
-                      onClick={() => {
-                        setTaskData({
-                          ...taskData,
-                          recipient: {
-                            Name: person.name,
-                            Surname: person.surname,
-                            Phone: person.phone || "",
-                            Email: person.email || "",
-                          },
-                          recipientDisplay: `${person.name} ${person.surname}`,
-                          contacted_person: {
-                            name: `${person.name} ${person.surname}`,
-                            phone: person.phone || "",
-                            email: person.email || "",
-                          },
-                        });
-                        setSearchResults([]);
-                        setIsSearching(false);
-                      }}
-                      onMouseEnter={(e) => e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6'}
-                      onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
-                    >
-                      {person.name} {person.surname}
-                    </li>
-                  ))}
-                </ul>
-              )}
             </div>
+          </div>
 
-            <div style={{ position: 'relative' }}>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: isDarkMode ? '#fff' : '#1a1a24',
-                  marginBottom: '6px',
-                }}
-              >
-                {selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
-                  ? "Leader Assigned"
-                  : "Assigned To"
-              }
-              </label>
+          <div style={{ position: "relative" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: isDarkMode ? "#fff" : "#1a1a24",
+                marginBottom: "6px",
+              }}
+            >
+              Recipient
+            </label>
+            <div style={{ position: "relative" }}>
               <input
                 type="text"
-                name="assignedTo"
-                value={taskData.assignedTo}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  setTaskData({ ...taskData, assignedTo: value });
-                  fetchAssigned(value);
-                }}
+                name="recipientDisplay"
+                value={taskData.recipientDisplay || ""}
+                onChange={(e) => handleRecipientInput(e.target.value)}
                 autoComplete="off"
-                disabled={true}
                 required
                 style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                  fontSize: '14px',
-                  backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                  color: isDarkMode ? '#aaa' : '#6b7280',
-                  outline: 'none',
-                  cursor: 'not-allowed',
+                  width: "100%",
+                  padding: "10px 12px",
+                  paddingRight:
+                    isSearching || isLoadingPeople ? "36px" : "12px",
+                  borderRadius: "10px",
+                  border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                  fontSize: "14px",
+                  backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
+                  color: isDarkMode ? "#fff" : "#1a1a24",
+                  outline: "none",
                 }}
-                placeholder={
-                  selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task
-                    ? "Leader name (read-only)"
-                    : "Assigned to current user"
-                }
+                placeholder="Enter recipient name"
               />
-              {assignedResults.length > 0 && !(selectedTask?.taskType === 'consolidation' || selectedTask?.is_consolidation_task) && (
+              {(isSearching || isLoadingPeople) && (
+                <div
+                  style={{
+                    position: "absolute",
+                    right: "12px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    display: "flex",
+                    alignItems: "center",
+                  }}
+                ></div>
+              )}
+        
+            </div>
+            {searchResults.length > 0 && (
+              <ul
+                style={{
+                  position: "absolute",
+                  zIndex: 10,
+                  width: "100%",
+                  backgroundColor: isDarkMode ? "#1e1e1e" : "#ffffff",
+                  border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                  borderRadius: "10px",
+                  marginTop: "4px",
+                  maxHeight: "200px",
+                  overflowY: "auto",
+                  listStyle: "none",
+                  padding: 0,
+                  margin: "4px 0 0 0",
+                  boxShadow: isDarkMode
+                    ? "0 2px 8px rgba(255,255,255,0.1)"
+                    : "0 4px 24px rgba(0, 0, 0, 0.08)",
+                }}
+              >
+                {searchResults.map((person) => (
+                  <li
+                    key={person._id}
+                    style={{
+                      padding: "10px 12px",
+                      cursor: "pointer",
+                      borderBottom: `1px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                      color: isDarkMode ? "#fff" : "#1a1a24",
+                    }}
+                    onClick={() => {
+                      setTaskData({
+                        ...taskData,
+                        recipient: {
+                          Name: person.name,
+                          Surname: person.surname,
+                          Phone: person.phone || "",
+                          Email: person.email || "",
+                        },
+                        recipientDisplay: `${person.name} ${person.surname}`,
+                        contacted_person: {
+                          name: `${person.name} ${person.surname}`,
+                          phone: person.phone || "",
+                          email: person.email || "",
+                        },
+                      });
+                      setSearchResults([]);
+                      setIsSearching(false);
+                    }}
+                    onMouseEnter={(e) =>
+                      (e.target.style.backgroundColor = isDarkMode
+                        ? "#2d2d2d"
+                        : "#f3f4f6")
+                    }
+                    onMouseLeave={(e) =>
+                      (e.target.style.backgroundColor = "transparent")
+                    }
+                  >
+                    {person.name} {person.surname}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div style={{ position: "relative" }}>
+            <label
+              style={{
+                display: "block",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: isDarkMode ? "#fff" : "#1a1a24",
+                marginBottom: "6px",
+              }}
+            >
+              {selectedTask?.taskType === "consolidation" ||
+              selectedTask?.is_consolidation_task
+                ? "Leader Assigned"
+                : "Assigned To"}
+            </label>
+            <input
+              type="text"
+              name="assignedTo"
+              value={taskData.assignedTo}
+              onChange={(e) => {
+                const value = e.target.value;
+                setTaskData({ ...taskData, assignedTo: value });
+                fetchAssigned(value);
+              }}
+              autoComplete="off"
+              disabled={true}
+              required
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "10px",
+                border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                fontSize: "14px",
+                backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
+                color: isDarkMode ? "#aaa" : "#6b7280",
+                outline: "none",
+                cursor: "not-allowed",
+              }}
+              placeholder={
+                selectedTask?.taskType === "consolidation" ||
+                selectedTask?.is_consolidation_task
+                  ? "Leader name (read-only)"
+                  : "Assigned to current user"
+              }
+            />
+            {assignedResults.length > 0 &&
+              !(
+                selectedTask?.taskType === "consolidation" ||
+                selectedTask?.is_consolidation_task
+              ) && (
                 <ul
                   style={{
-                    position: 'absolute',
+                    position: "absolute",
                     zIndex: 10,
-                    width: '100%',
-                    backgroundColor: isDarkMode ? '#1e1e1e' : '#ffffff',
-                    border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                    borderRadius: '10px',
-                    marginTop: '4px',
-                    maxHeight: '200px',
-                    overflowY: 'auto',
-                    listStyle: 'none',
+                    width: "100%",
+                    backgroundColor: isDarkMode ? "#1e1e1e" : "#ffffff",
+                    border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                    borderRadius: "10px",
+                    marginTop: "4px",
+                    maxHeight: "200px",
+                    overflowY: "auto",
+                    listStyle: "none",
                     padding: 0,
-                    margin: '4px 0 0 0',
-                    boxShadow: isDarkMode ? '0 2px 8px rgba(255,255,255,0.1)' : '0 4px 24px rgba(0, 0, 0, 0.08)',
+                    margin: "4px 0 0 0",
+                    boxShadow: isDarkMode
+                      ? "0 2px 8px rgba(255,255,255,0.1)"
+                      : "0 4px 24px rgba(0, 0, 0, 0.08)",
                   }}
                 >
                   {assignedResults.map((person) => (
                     <li
                       key={person._id}
                       style={{
-                        padding: '10px 12px',
-                        cursor: 'pointer',
-                        borderBottom: `1px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                        color: isDarkMode ? '#fff' : '#1a1a24',
+                        padding: "10px 12px",
+                        cursor: "pointer",
+                        borderBottom: `1px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                        color: isDarkMode ? "#fff" : "#1a1a24",
                       }}
                       onClick={() => {
                         setTaskData({
@@ -1601,118 +2186,231 @@ export default function DailyTasks() {
                         setAssignedResults([]);
                       }}
                       onMouseEnter={(e) =>
-                        (e.target.style.backgroundColor = isDarkMode ? '#2d2d2d' : '#f3f4f6')
+                        (e.target.style.backgroundColor = isDarkMode
+                          ? "#2d2d2d"
+                          : "#f3f4f6")
                       }
-                      onMouseLeave={(e) => (e.target.style.backgroundColor = 'transparent')}
+                      onMouseLeave={(e) =>
+                        (e.target.style.backgroundColor = "transparent")
+                      }
                     >
                       {person.name} {person.surname}
                     </li>
                   ))}
                 </ul>
               )}
-            </div>
+          </div>
 
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: '600',
-                color: isDarkMode ? '#fff' : '#1a1a24',
-                marginBottom: '6px'
-              }}>
-                Due Date & Time
-              </label>
-              <input
-                type="datetime-local"
-                name="dueDate"
-                value={taskData.dueDate}
-                onChange={handleChange}
-                disabled
-                style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                  backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                  fontSize: '14px',
-                  color: isDarkMode ? '#aaa' : '#6b7280',
-                  outline: 'none',
-                }}
-              />
-            </div>
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: isDarkMode ? "#fff" : "#1a1a24",
+                marginBottom: "6px",
+              }}
+            >
+              Due Date & Time
+            </label>
+            <input
+              type="datetime-local"
+              name="dueDate"
+              value={taskData.dueDate}
+              onChange={handleChange}
+              disabled
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "10px",
+                border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
+                fontSize: "14px",
+                color: isDarkMode ? "#aaa" : "#6b7280",
+                outline: "none",
+              }}
+            />
+          </div>
 
-            <div>
-              <label style={{
-                display: 'block',
-                fontSize: '13px',
-                fontWeight: '600',
-                color: isDarkMode ? '#fff' : '#1a1a24',
-                marginBottom: '6px'
-              }}>
-                Task Stage
-              </label>
-              <select
-                name="taskStage"
-                value={taskData.taskStage}
-                onChange={handleChange}
+          <div>
+            <label
+              style={{
+                display: "block",
+                fontSize: "13px",
+                fontWeight: "600",
+                color: isDarkMode ? "#fff" : "#1a1a24",
+                marginBottom: "6px",
+              }}
+            >
+              Task Stage
+            </label>
+            <select
+              name="taskStage"
+              value={taskData.taskStage}
+              onChange={handleChange}
+              style={{
+                width: "100%",
+                padding: "10px 12px",
+                borderRadius: "10px",
+                border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+                fontSize: "14px",
+                backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
+                color: isDarkMode ? "#fff" : "#1a1a24",
+                outline: "none",
+              }}
+            >
+              <option value="Open">Open</option>
+              <option value="Awaiting task">Awaiting task</option>
+              <option value="Completed">Completed</option>
+            </select>
+          </div>
+
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "center",
+              gap: "10px",
+              paddingTop: "12px",
+            }}
+          >
+            <button
+              type="button"
+              style={{
+                padding: "10px 20px",
+                borderRadius: "10px",
+                backgroundColor: isDarkMode ? "#2d2d2d" : "#e5e5e5",
+                color: isDarkMode ? "#fff" : "#1a1a24",
+                fontWeight: "600",
+                border: `1px solid ${isDarkMode ? "#444" : "transparent"}`,
+                cursor: "pointer",
+                fontSize: "14px",
+                flex: 1,
+              }}
+              onClick={handleClose}
+              disabled={submitting}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              style={{
+                padding: "10px 20px",
+                borderRadius: "10px",
+                backgroundColor: submitting
+                  ? "#666"
+                  : isDarkMode
+                    ? "#fff"
+                    : "#000",
+                color: submitting ? "#fff" : isDarkMode ? "#000" : "#fff",
+                fontWeight: "600",
+                border: "none",
+                cursor: submitting ? "not-allowed" : "pointer",
+                fontSize: "14px",
+                flex: 1,
+              }}
+              disabled={submitting}
+            >
+              {submitting ? "Saving..." : "Save Task"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+      {isAddTypeModalOpen && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            backgroundColor: "rgba(0,0,0,0.75)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            zIndex: 2000, 
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: isDarkMode ? "#1e1e1e" : "#ffffff",
+              color: isDarkMode ? "#ffffff" : "#1a1a24",
+              padding: "32px",
+              borderRadius: "16px",
+              width: "90%",
+              maxWidth: "480px",
+              boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
+              position: "relative",
+            }}
+          >
+            <h2
+              style={{
+                margin: "0 0 24px 0",
+                textAlign: "center",
+                fontSize: "24px",
+              }}
+            >
+              Add New Task Type
+            </h2>
+
+            <input
+              type="text"
+              value={newTaskTypeName}
+              onChange={(e) => setNewTaskTypeName(e.target.value)}
+              placeholder="Enter task type name"
+              autoFocus
+              style={{
+                width: "100%",
+                padding: "14px 16px",
+                fontSize: "16px",
+                borderRadius: "10px",
+                border: `2px solid ${isDarkMode ? "#555" : "#d1d5db"}`,
+                backgroundColor: isDarkMode ? "#2a2a2a" : "#f9fafb",
+                color: isDarkMode ? "#fff" : "#111827",
+                marginBottom: "24px",
+                outline: "none",
+              }}
+            />
+
+            <div style={{ display: "flex", gap: "16px" }}>
+              <button
+                onClick={createTaskType}
+                disabled={addingTaskType || !newTaskTypeName.trim()}
                 style={{
-                  width: '100%',
-                  padding: '10px 12px',
-                  borderRadius: '10px',
-                  border: `2px solid ${isDarkMode ? '#444' : '#e5e7eb'}`,
-                  fontSize: '14px',
-                  backgroundColor: isDarkMode ? '#2d2d2d' : '#f3f4f6',
-                  color: isDarkMode ? '#fff' : '#1a1a24',
-                  outline: 'none',
+                  flex: 1,
+                  padding: "14px",
+                  backgroundColor: "#2563eb",
+                  color: "white",
+                  borderRadius: "10px",
+                  border: "none",
+                  fontWeight: "600",
+                  fontSize: "16px",
+                  cursor: addingTaskType ? "not-allowed" : "pointer",
+                  opacity: addingTaskType ? 0.7 : 1,
                 }}
               >
-                <option value="Open">Open</option>
-                <option value="Awaiting task">Awaiting task</option>
-                <option value="Completed">Completed</option>
-              </select>
-            </div>
+                {addingTaskType ? "Adding..." : "Add"}
+              </button>
 
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', paddingTop: '12px' }}>
               <button
-                type="button"
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: '10px',
-                  backgroundColor: isDarkMode ? '#2d2d2d' : '#e5e5e5',
-                  color: isDarkMode ? '#fff' : '#1a1a24',
-                  fontWeight: '600',
-                  border: `1px solid ${isDarkMode ? '#444' : 'transparent'}`,
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  flex: 1
+                onClick={() => {
+                  setIsAddTypeModalOpen(false);
+                  setNewTaskTypeName("");
                 }}
-                onClick={handleClose}
-                disabled={submitting}
+                style={{
+                  flex: 1,
+                  padding: "14px",
+                  backgroundColor: "#6b7280",
+                  color: "white",
+                  borderRadius: "10px",
+                  border: "none",
+                  fontWeight: "600",
+                  fontSize: "16px",
+                  cursor: "pointer",
+                }}
               >
                 Cancel
               </button>
-              <button
-                type="submit"
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: '10px',
-                  backgroundColor: submitting ? '#666' : (isDarkMode ? '#fff' : '#000'),
-                  color: submitting ? '#fff' : (isDarkMode ? '#000' : '#fff'),
-                  fontWeight: '600',
-                  border: 'none',
-                  cursor: submitting ? 'not-allowed' : 'pointer',
-                  fontSize: '14px',
-                  flex: 1
-                }}
-                disabled={submitting}
-              >
-                {submitting ? "Saving..." : "Save Task"}
-              </button>
             </div>
-          </form>
-        </Modal>
+          </div>
+        </div>
       )}
-
       <ToastContainer
         position="top-right"
         autoClose={3000}
@@ -1722,7 +2420,7 @@ export default function DailyTasks() {
         pauseOnHover
         theme={isDarkMode ? "dark" : "light"}
       />
-      
+
       <style>{`
         @keyframes spin {
           from {

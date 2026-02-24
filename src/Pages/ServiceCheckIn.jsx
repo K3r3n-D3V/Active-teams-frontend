@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef, useContext } from "react";
 import {
-  Checkbox,         
-  FormControlLabel, 
-  Menu,          
+  Checkbox,
+  FormControlLabel,
+  Menu,
   DialogContentText,
-  ListItemIcon,    
-  ListItemText, 
-  
+  ListItemIcon,
+  ListItemText,
+
 } from "@mui/material";
 import {
   Box,
@@ -71,14 +71,10 @@ import { useTaskUpdate } from "../contexts/TaskUpdateContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
-let eventsCache = null;
-let eventsCacheTimestamp = null;
-const CACHE_DURATION = 5 * 60 * 1000;
-
 function ServiceCheckIn() {
   const { authFetch } = useContext(AuthContext);
 
-const { notifyTaskUpdate } = useTaskUpdate();
+  const { notifyTaskUpdate } = useTaskUpdate();
 
 
   const [attendees, setAttendees] = useState([]);
@@ -160,12 +156,12 @@ const { notifyTaskUpdate } = useTaskUpdate();
 
 
 
-const [contextMenu, setContextMenu] = useState({
-  mouseX: null,
-  mouseY: null,
-  data: null,
-  type: null
-});
+  const [contextMenu, setContextMenu] = useState({
+    mouseX: null,
+    mouseY: null,
+    data: null,
+    type: null
+  });
   const containerPadding = getResponsiveValue(0.5, 1, 2, 3, 3);
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(0.5, 1, 1.5, 2, 2);
@@ -312,6 +308,26 @@ const [contextMenu, setContextMenu] = useState({
     }
   };
 
+  useEffect(() => {
+    if (!currentEventId) return;
+
+    const loadData = async () => {
+      const data = await fetchRealTimeEventData(currentEventId);
+      if (data) {
+        setRealTimeData(data);
+      }
+    };
+
+    loadData();
+
+    const attendeeInterval = setInterval(loadData, 3000);
+
+
+    return () => {
+      clearInterval(attendeeInterval);
+    };
+  }, [currentEventId]);
+
   const handleFullRefresh = async () => {
     if (!currentEventId) {
       toast.error("Please select an event first");
@@ -347,7 +363,7 @@ const [contextMenu, setContextMenu] = useState({
               surname: p.Surname || "",
               email: p.Email || "",
               phone: p.Number || "",
-              number: p.Number || "", 
+              number: p.Number || "",
               leader1: p["Leader @1"] || "",
               leader12: p["Leader @12"] || "",
               leader144: p["Leader @144"] || "",
@@ -377,77 +393,75 @@ const [contextMenu, setContextMenu] = useState({
   };
 
 
-const handleRemoveConsolidation = async (consolidation) => {
-  if (!currentEventId) {
-    toast.error("Please select an event first");
-    return;
-  }
-
-  try {
-    setIsDeleting(true);
-    
-    const response = await authFetch(
-      `${BASE_URL}/service-checkin/remove-consolidation?event_id=${currentEventId}&consolidation_id=${consolidation.id}&keep_person_in_attendees=true`,
-      { method: 'DELETE' }
-    );
-    
-    if (response.ok) {
-      const result = await response.json();
-      
-      if (result.task_deletion?.deleted && result.task_deletion.count > 0) {
-        toast.success(`Consolidation removed and ${result.task_deletion.count} task(s) deleted`);
-        
-        if (notifyTaskUpdate) {
-          notifyTaskUpdate();
-        }
-        
-        window.dispatchEvent(new CustomEvent('taskUpdated', { 
-          detail: { 
-            action: 'tasksDeleted',
-            count: result.task_deletion.count,
-            consolidationId: consolidation.id,
-            taskIds: result.task_deletion.task_ids
-          }
-        }));
-        
-      } else {
-        toast.success(result.message || "Consolidation removed successfully");
-      }
-      
-      const freshData = await fetchRealTimeEventData(currentEventId);
-      if (freshData) {
-        setRealTimeData(freshData);
-      }
+  const handleRemoveConsolidation = async (consolidation) => {
+    if (!currentEventId) {
+      toast.error("Please select an event first");
+      return;
     }
-  } catch (error) {
-    console.error("Removal error:", error);
-    toast.error("Failed to remove. Please try again.");
-  } finally {
-    setIsDeleting(false);
-  }
-};
+
+    try {
+      setIsDeleting(true);
+
+      const response = await authFetch(
+        `${BASE_URL}/service-checkin/remove-consolidation?event_id=${currentEventId}&consolidation_id=${consolidation.id}&keep_person_in_attendees=true`,
+        { method: 'DELETE' }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+
+        if (result.task_deletion?.deleted && result.task_deletion.count > 0) {
+          toast.success(`Consolidation removed and ${result.task_deletion.count} task(s) deleted`);
+
+          if (notifyTaskUpdate) {
+            notifyTaskUpdate();
+          }
+
+          window.dispatchEvent(new CustomEvent('taskUpdated', {
+            detail: {
+              action: 'tasksDeleted',
+              count: result.task_deletion.count,
+              consolidationId: consolidation.id,
+              taskIds: result.task_deletion.task_ids
+            }
+          }));
+
+        } else {
+          toast.success(result.message || "Consolidation removed successfully");
+        }
+
+        const freshData = await fetchRealTimeEventData(currentEventId);
+        if (freshData) {
+          setRealTimeData(freshData);
+        }
+      }
+    } catch (error) {
+      console.error("Removal error:", error);
+      toast.error("Failed to remove. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
 
-const handleContextMenu = (event, person, type) => {
-  event.preventDefault();
-  setContextMenu({
-    mouseX: event.clientX - 2,
-    mouseY: event.clientY - 4,
-    data: person,
-    type: type 
-  });
-};
+  const handleContextMenu = (event, person, type) => {
+    event.preventDefault();
+    setContextMenu({
+      mouseX: event.clientX - 2,
+      mouseY: event.clientY - 4,
+      data: person,
+      type: type
+    });
+  };
 
-const handleCloseContextMenu = () => {
-  setContextMenu({
-    mouseX: null,
-    mouseY: null,
-    data: null,
-    type: null
-  });
-};
-
-
+  const handleCloseContextMenu = () => {
+    setContextMenu({
+      mouseX: null,
+      mouseY: null,
+      data: null,
+      type: null
+    });
+  };
 
   const fetchAllPeople = async () => {
     setIsLoadingPeople(true);
@@ -496,35 +510,19 @@ const handleCloseContextMenu = () => {
   };
 
   const fetchEvents = async (forceRefresh = false) => {
-    const now = Date.now();
-    if (eventsCache && eventsCacheTimestamp && (now - eventsCacheTimestamp) < CACHE_DURATION && !forceRefresh) {
-      console.log('Using cached events data');
-      setEvents(eventsCache);
-
-      if (!currentEventId && eventsCache.length > 0) {
-        const filteredEvents = getFilteredEvents(eventsCache);
-        if (filteredEvents.length > 0) {
-          setCurrentEventId(filteredEvents[0].id);
-        }
-      }
+    if (!forceRefresh && events.length > 0) {
+      setIsLoadingEvents(true);
       return;
     }
-
-    setIsLoadingEvents(true);
     try {
-      console.log('Fetching events from API...');
-
-      const response = await authFetch(`${BASE_URL}/events/global`);
+      const response = await authFetch(`${BASE_URL}/events/eventsdata`);
 
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('RAW Global events API response:', data);
-
       const eventsData = data.events || [];
-      console.log(`Number of raw events from API: ${eventsData.length}`);
 
       const peopleResponse = await authFetch(`${BASE_URL}/cache/people`);
       let peopleList = [];
@@ -532,49 +530,29 @@ const handleCloseContextMenu = () => {
         const peopleData = await peopleResponse.json();
         if (peopleData.success && peopleData.cached_data) {
           peopleList = peopleData.cached_data;
-          console.log(`Loaded ${peopleList.length} people for leader mapping`);
         }
       }
 
       const findPerson = (id, email) => {
         if (!id && !email) return null;
-
         if (id) {
           const byId = peopleList.find(p => p._id === id || p.id === id);
           if (byId) return byId;
         }
-
         if (email) {
           const emailLower = email.toLowerCase();
           const byEmail = peopleList.find(p =>
-            p.Email && p.Email.toLowerCase() === emailLower ||
-            p.email && p.email.toLowerCase() === emailLower
+            (p.Email && p.Email.toLowerCase() === emailLower) ||
+            (p.email && p.email.toLowerCase() === emailLower)
           );
           if (byEmail) return byEmail;
         }
-
         return null;
       };
 
       const transformedEvents = eventsData.map(event => {
         try {
-          if (!event) {
-            return {
-              id: Math.random().toString(36),
-              eventName: "Invalid Event",
-              status: "unknown",
-              date: new Date().toISOString(),
-              attendance: 0,
-              newPeople: 0,
-              consolidated: 0,
-              attendees: [],
-              new_people: [],
-              consolidations: [],
-              attendanceData: [],
-              newPeopleData: [],
-              consolidatedData: []
-            };
-          }
+          if (!event) return null;
 
           const attendeesArray = Array.isArray(event.attendees) ? event.attendees : [];
           const newPeopleArray = Array.isArray(event.new_people) ? event.new_people : [];
@@ -582,29 +560,24 @@ const handleCloseContextMenu = () => {
 
           const attendanceData = attendeesArray.map(att => {
             const personId = att.id || att._id || att.person_id;
-            const personEmail = att.email || att.Email;
-            const foundPerson = findPerson(personId, personEmail);
-
+            const foundPerson = findPerson(personId, att.email || att.Email);
             return {
               ...att,
               name: att.name || att.Name || foundPerson?.Name || '',
               surname: att.surname || att.Surname || foundPerson?.Surname || '',
               email: att.email || att.Email || foundPerson?.Email || '',
               phone: att.phone || att.Number || foundPerson?.Number || '',
-              leader1: foundPerson?.["Leader @1"] || att.leader1 || att["Leader @1"] || '',
-              leader12: foundPerson?.["Leader @12"] || att.leader12 || att["Leader @12"] || '',
-              leader144: foundPerson?.["Leader @144"] || att.leader144 || att["Leader @144"] || '',
+              leader1: foundPerson?.["Leader @1"] || att.leader1 || '',
+              leader12: foundPerson?.["Leader @12"] || att.leader12 || '',
+              leader144: foundPerson?.["Leader @144"] || att.leader144 || '',
               id: personId || Math.random().toString(36),
               _id: personId,
-              original_data: att
             };
           });
 
           const newPeopleData = newPeopleArray.map(np => {
             const personId = np.id || np._id || np.person_id;
-            const personEmail = np.email || np.Email;
-            const foundPerson = findPerson(personId, personEmail);
-
+            const foundPerson = findPerson(personId, np.email || np.Email);
             return {
               ...np,
               name: np.name || np.Name || foundPerson?.Name || '',
@@ -613,21 +586,18 @@ const handleCloseContextMenu = () => {
               phone: np.phone || np.Number || foundPerson?.Number || '',
               gender: np.gender || np.Gender || foundPerson?.Gender || '',
               invitedBy: np.invitedBy || np.InvitedBy || foundPerson?.InvitedBy || '',
-              leader1: foundPerson?.["Leader @1"] || np.leader1 || np["Leader @1"] || '',
-              leader12: foundPerson?.["Leader @12"] || np.leader12 || np["Leader @12"] || '',
-              leader144: foundPerson?.["Leader @144"] || np.leader144 || np["Leader @144"] || '',
+              leader1: foundPerson?.["Leader @1"] || np.leader1 || '',
+              leader12: foundPerson?.["Leader @12"] || np.leader12 || '',
+              leader144: foundPerson?.["Leader @144"] || np.leader144 || '',
               id: personId || Math.random().toString(36),
               _id: personId,
               isNew: true,
-              original_data: np
             };
           });
 
           const consolidatedData = consolidationsArray.map(cons => {
             const personId = cons.person_id || cons.id || cons._id;
-            const personEmail = cons.person_email || cons.email;
-            const foundPerson = findPerson(personId, personEmail);
-
+            const foundPerson = findPerson(personId, cons.person_email || cons.email);
             return {
               ...cons,
               name: cons.person_name || cons.name || foundPerson?.Name || '',
@@ -641,29 +611,20 @@ const handleCloseContextMenu = () => {
               assigned_to: cons.assigned_to || cons.assignedTo || '',
               decision_type: cons.decision_type || cons.consolidation_type || 'Commitment',
               status: cons.status || 'active',
-              leader1: foundPerson?.["Leader @1"] || cons.leader1 || cons["Leader @1"] || '',
-              leader12: foundPerson?.["Leader @12"] || cons.leader12 || cons["Leader @12"] || '',
-              leader144: foundPerson?.["Leader @144"] || cons.leader144 || cons["Leader @144"] || '',
+              leader1: foundPerson?.["Leader @1"] || cons.leader1 || '',
+              leader12: foundPerson?.["Leader @12"] || cons.leader12 || '',
+              leader144: foundPerson?.["Leader @144"] || cons.leader144 || '',
               id: personId || Math.random().toString(36),
               _id: personId,
-              original_data: cons
             };
           });
 
-          const attendeesCount = attendanceData.length;
-          const newPeopleCount = newPeopleData.length;
-          const consolidationsCount = consolidatedData.length;
-
-          const totalAttendance = typeof event.total_attendance === 'number'
-            ? event.total_attendance
-            : attendeesCount;
-
-          const transformedEvent = {
+          return {
             id: event._id || event.id || Math.random().toString(36),
             eventName: event.eventName || event.Event_Name || "Unnamed Event",
             status: (event.status || "open").toLowerCase(),
-            isGlobal: event.isGlobal !== false,
-            isTicketed: event.isTicketed || false,
+            isGlobal: event.isGlobal === true,     
+            isTicketed: event.isTicketed === true,  
             date: event.date || event.createdAt,
             eventType: event.eventType || "Global Events",
             closed_by: event.closed_by,
@@ -671,116 +632,92 @@ const handleCloseContextMenu = () => {
             attendees: attendeesArray,
             new_people: newPeopleArray,
             consolidations: consolidationsArray,
-            total_attendance: totalAttendance,
-            attendance: attendeesCount,
-            newPeople: newPeopleCount,
-            consolidated: consolidationsCount,
-            attendanceData: attendanceData,
-            newPeopleData: newPeopleData,
-            consolidatedData: consolidatedData,
+            total_attendance: typeof event.total_attendance === 'number' ? event.total_attendance : attendanceData.length,
+            attendance: attendanceData.length,
+            newPeople: newPeopleData.length,
+            consolidated: consolidatedData.length,
+            attendanceData,
+            newPeopleData,
+            consolidatedData,
             location: event.location || event.Location || '',
             description: event.description || '',
             UUID: event.UUID || '',
             created_at: event.created_at,
-            updated_at: event.updated_at
+            updated_at: event.updated_at,
           };
-
-          if (attendanceData.some(a => a.leader1 || a.leader12 || a.leader144) ||
-            newPeopleData.some(np => np.leader1 || np.leader12 || np.leader144) ||
-            consolidatedData.some(c => c.leader1 || c.leader12 || c.leader144)) {
-            console.log(`Event "${transformedEvent.eventName}" has leader data`);
-          }
-
-          return transformedEvent;
 
         } catch (error) {
           console.error('Error transforming event:', error, event);
-          return {
-            id: Math.random().toString(36),
-            eventName: event?.eventName || "Error Event",
-            status: "error",
-            date: new Date().toISOString(),
-            attendance: 0,
-            newPeople: 0,
-            consolidated: 0,
-            attendees: [],
-            new_people: [],
-            consolidations: [],
-            attendanceData: [],
-            newPeopleData: [],
-            consolidatedData: []
-          };
+          return null;
         }
+      }).filter(Boolean);
+
+const validEvents = transformedEvents.filter(event => {
+        if (!event || event.status === "error") return false;
+        const typeName = (event.eventType || '').toLowerCase();
+        if (typeName === 'cells' || typeName === 'all cells' || typeName === 'cell') return false;
+        if (event.isGlobal !== true) return false;
+        return true;
       });
 
-      const validEvents = transformedEvents.filter(event =>
-        event && event.status !== "error" && event.eventName !== "Error Event"
-      );
-
-      console.log(`Final transformed events: ${validEvents.length} valid`);
-
-      eventsCache = validEvents;
-      eventsCacheTimestamp = now;
-
+      console.log(`Fetched ${eventsData.length} raw, ${validEvents.length} valid global events`);
       setEvents(validEvents);
 
       if (!currentEventId && validEvents.length > 0) {
         const filteredEvents = getFilteredEvents(validEvents);
         if (filteredEvents.length > 0) {
-          console.log(`Setting current event to: ${filteredEvents[0].eventName}`);
           setCurrentEventId(filteredEvents[0].id);
         }
       }
 
     } catch (err) {
-      console.error('Error fetching global events:', err);
+      console.error('Error fetching events:', err);
       toast.error("Failed to fetch events. Please try again.");
     } finally {
       setIsLoadingEvents(false);
     }
   };
 
-  const getFilteredEvents = (eventsList = events) => {
-    const today = new Date();
-    const todayDateString = today.toISOString().split('T')[0];
 
-    const filteredEvents = eventsList.filter(event => {
-      const isGlobal = event.isGlobal === true ||
-        event.eventType === "Global Events" ||
-        event.eventType === "Event" ||
-        event.eventType?.toLowerCase().includes("event");
+const getFilteredEvents = (eventsList = events) => {
+  const today = new Date();
+  const todayDateString = today.toISOString().split('T')[0];
 
-      const eventStatus = event.status?.toLowerCase() || '';
-      const isNotClosed = eventStatus !== 'complete' && eventStatus !== 'closed';
-      const didMeet = eventStatus !== 'cancelled' && eventStatus !== 'did_not_meet';
+  return eventsList.filter(event => {
+    // Exclude cells always, regardless of isGlobal
+    const typeName = (event.eventType || event.eventTypeName || '').toLowerCase();
+    if (typeName === 'cells' || typeName === 'all cells' || typeName === 'cell') return false;
 
-      let eventDateString = '';
-      if (event.date) {
-        const eventDate = new Date(event.date);
-        eventDateString = eventDate.toISOString().split('T')[0];
-      }
+    // Show any event type as long as isGlobal is true
+    if (event.isGlobal !== true) return false;
 
-      const isForToday = eventDateString === todayDateString;
+    // Exclude closed/cancelled
+    const eventStatus = event.status?.toLowerCase() || '';
+    if (eventStatus === 'complete' || eventStatus === 'closed') return false;
+    if (eventStatus === 'cancelled' || eventStatus === 'did_not_meet') return false;
 
-      return isGlobal && isNotClosed && didMeet && isForToday;
-    });
-
-    return filteredEvents;
-  };
+    // Only show today's events
+    if (!event.date) return false;
+    const eventDateString = new Date(event.date).toISOString().split('T')[0];
+    return eventDateString === todayDateString;
+  });
+};
 
   const getFilteredClosedEvents = () => {
     try {
-      const closedEvents = events.filter(event => {
-        const isClosed = event.status?.toLowerCase() === 'closed' ||
-          event.status?.toLowerCase() === 'complete';
-        const isGlobal = event.eventType === "Global Events" ||
-          event.isGlobal === true ||
-          event.eventTypeName === "Global Events";
-        const isNotCell = event.eventType?.toLowerCase() !== 'cell';
-        const didMeet = event.status?.toLowerCase() !== 'cancelled' &&
-          event.status?.toLowerCase() !== 'did_not_meet';
+const closedEvents = events.filter(event => {
+        const status = event.status?.toLowerCase() || '';
+        const isClosed = status === 'closed' || status === 'complete';
+        const didMeet = status !== 'cancelled' && status !== 'did_not_meet';
 
-        return isClosed && isGlobal && isNotCell && didMeet;
+        // Always exclude cells regardless of isGlobal
+        const typeName = (event.eventType || event.eventTypeName || '').toLowerCase();
+        if (typeName === 'cells' || typeName === 'all cells' || typeName === 'cell') return false;
+
+        // Only show events where isGlobal is explicitly true
+        if (event.isGlobal !== true) return false;
+
+        return isClosed && didMeet;
       });
 
       console.log('Found closed events:', closedEvents.length);
@@ -1042,7 +979,6 @@ const handleCloseContextMenu = () => {
           }),
         }
       );
-      // a comment just
 
       if (response.ok) {
         const data = await response.json();
@@ -1115,41 +1051,39 @@ const handleCloseContextMenu = () => {
     }
   };
 
-const handleFinishConsolidation = async (task) => {
-  if (!currentEventId) return;
-  const fullName = task.recipientName || `${task.person_name || ''} ${task.person_surname || ''}`.trim() || 'Unknown Person';
+  const handleFinishConsolidation = async (task) => {
+    if (!currentEventId) return;
+    const fullName = task.recipientName || `${task.person_name || ''} ${task.person_surname || ''}`.trim() || 'Unknown Person';
 
-  console.log("Recording consolidation in UI for:", fullName);
-  console.log("Consolidation result from modal:", task);
+    console.log("Recording consolidation in UI for:", fullName);
+    console.log("Consolidation result from modal:", task);
 
-  try {
-    setConsolidationOpen(false);
-    toast.success(`${fullName} consolidated successfully`);
+    try {
+      setConsolidationOpen(false);
+      toast.success(`${fullName} consolidated successfully`);
 
-    const freshData = await fetchRealTimeEventData(currentEventId);
-    if (freshData) {
-      setRealTimeData(freshData);
-      console.log("Consolidation data refreshed from backend");
-    }
-
-    if (notifyTaskUpdate) {
-      notifyTaskUpdate();
-    }
-    
-    window.dispatchEvent(new CustomEvent('taskUpdated', { 
-      detail: { 
-        action: 'consolidationCreated',
-        task: task
+      const freshData = await fetchRealTimeEventData(currentEventId);
+      if (freshData) {
+        setRealTimeData(freshData);
+        console.log("Consolidation data refreshed from backend");
       }
-    }));
 
-  } catch (error) {
-    console.error("Error recording consolidation in UI:", error);
-    toast.error("Consolidation created but failed to update display");
-  }
-};
+      if (notifyTaskUpdate) {
+        notifyTaskUpdate();
+      }
 
+      window.dispatchEvent(new CustomEvent('taskUpdated', {
+        detail: {
+          action: 'consolidationCreated',
+          task: task
+        }
+      }));
 
+    } catch (error) {
+      console.error("Error recording consolidation in UI:", error);
+      toast.error("Consolidation created but failed to update display");
+    }
+  };
 
   const handleSaveAndCloseEvent = async () => {
     if (!currentEventId) {
@@ -1190,13 +1124,6 @@ const handleFinishConsolidation = async (task) => {
         event.id === currentEventId ? { ...event, status: "complete" } : event
       ));
 
-
-      if (eventsCache) {
-        eventsCache = eventsCache.map(event =>
-          event.id === currentEventId ? { ...event, status: "complete" } : event
-        );
-      }
-
       if (result.closed_by && result.closed_at) {
         setEvents(prev => prev.map(event =>
           event.id === currentEventId ? {
@@ -1228,40 +1155,40 @@ const handleFinishConsolidation = async (task) => {
     }
   };
 
-const handleUnsaveEvent = async (event) => {
-  try {
-    console.log("Calling API to unsave event:", event.eventName);
-    
-    const response = await authFetch(
-      `${BASE_URL}/events/${event.id || event._id}/toggle-status`,
-      { method: "PATCH" }
-    );
+  const handleUnsaveEvent = async (event) => {
+    try {
+      console.log("Calling API to unsave event:", event.eventName);
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      const response = await authFetch(
+        `${BASE_URL}/events/${event.id || event._id}/toggle-status`,
+        { method: "PATCH" }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success) {
+        toast.success(`Event "${event.eventName}" has been reopened!`);
+
+        // Update events list
+        setEvents(prev => prev.map(ev =>
+          (ev.id === event.id || ev._id === event._id)
+            ? { ...ev, status: "incomplete" }
+            : ev
+        ));
+
+        // Refresh events
+        setTimeout(() => fetchEvents(true), 500);
+      }
+    } catch (error) {
+      console.error("Error:", error);
+      toast.error(error.message || "Failed to reopen event");
     }
-
-    const result = await response.json();
-
-    if (result.success) {
-      toast.success(`Event "${event.eventName}" has been reopened!`);
-      
-      // Update events list
-      setEvents(prev => prev.map(ev =>
-        (ev.id === event.id || ev._id === event._id)
-          ? { ...ev, status: "incomplete" }
-          : ev
-      ));
-
-      // Refresh events
-      setTimeout(() => fetchEvents(true), 500);
-    }
-  } catch (error) {
-    console.error("Error:", error);
-    toast.error(error.message || "Failed to reopen event");
-  }
-};
+  };
 
   const handleConsolidationClick = () => {
     if (!currentEventId) {
@@ -1346,79 +1273,79 @@ const handleUnsaveEvent = async (event) => {
   };
 
   const exportToExcel = (data, filename = "export") => {
-  if (!data || data.length === 0) {
-    toast.error("No data to export");
-    return;
-  }
+    if (!data || data.length === 0) {
+      toast.error("No data to export");
+      return;
+    }
 
-  const headers = [
-    "Name", "Surname", "Email", "Phone",
-    "Leader @1", "Leader @12", "Leader @144",
-    "CheckIn_Time", "Status"
-  ];
+    const headers = [
+      "Name", "Surname", "Email", "Phone",
+      "Leader @1", "Leader @12", "Leader @144",
+      "CheckIn_Time", "Status"
+    ];
 
-  const worksheetData = data.map(row => {
-    const ordered = {};
-    headers.forEach(h => ordered[h] = row[h] ?? '');
-    return ordered;
-  });
-
-  const ws = XLSX.utils.json_to_sheet(worksheetData, { header: headers });
-
-  ws['!cols'] = headers.map((h, i) => {
-    let maxw = h.length;
-    worksheetData.forEach(row => {
-      const val = String(row[h] || '');
-      if (val.length > maxw) maxw = val.length;
-    });
-    return { wch: maxw + 3 };
-  });
-
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Present Attendees");
-
-  const today = new Date().toISOString().split('T')[0];
-  const fullFilename = `${filename}_${today}.xlsx`;
-
-  try {
-    const wbout = XLSX.write(wb, {
-      bookType: 'xlsx',
-      type: 'binary',
-      compression: true   
+    const worksheetData = data.map(row => {
+      const ordered = {};
+      headers.forEach(h => ordered[h] = row[h] ?? '');
+      return ordered;
     });
 
-    const buf = s2ab(wbout);
+    const ws = XLSX.utils.json_to_sheet(worksheetData, { header: headers });
 
-    const blob = new Blob([buf], {
-      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    ws['!cols'] = headers.map((h, i) => {
+      let maxw = h.length;
+      worksheetData.forEach(row => {
+        const val = String(row[h] || '');
+        if (val.length > maxw) maxw = val.length;
+      });
+      return { wch: maxw + 3 };
     });
 
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fullFilename;
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Present Attendees");
 
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    const today = new Date().toISOString().split('T')[0];
+    const fullFilename = `${filename}_${today}.xlsx`;
 
-    toast.success(`Exported ${data.length} records`);
-  } catch (err) {
-    console.error("Excel export failed:", err);
-    toast.error("Failed to create Excel file – check console");
+    try {
+      const wbout = XLSX.write(wb, {
+        bookType: 'xlsx',
+        type: 'binary',
+        compression: true
+      });
+
+      const buf = s2ab(wbout);
+
+      const blob = new Blob([buf], {
+        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      });
+
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fullFilename;
+      link.style.display = 'none';
+      document.body.appendChild(link);
+      link.click();
+
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      toast.success(`Exported ${data.length} records`);
+    } catch (err) {
+      console.error("Excel export failed:", err);
+      toast.error("Failed to create Excel file – check console");
+    }
+  };
+
+  function s2ab(s) {
+    const buf = new ArrayBuffer(s.length);
+    const view = new Uint8Array(buf);
+    for (let i = 0; i < s.length; i++) {
+      view[i] = s.charCodeAt(i) & 0xff;
+    }
+    return buf;
   }
-};
-
-function s2ab(s) {
-  const buf = new ArrayBuffer(s.length);
-  const view = new Uint8Array(buf);
-  for (let i = 0; i < s.length; i++) {
-    view[i] = s.charCodeAt(i) & 0xff;
-  }
-  return buf;
-}
 
   const handleAddPersonClick = () => {
     if (!currentEventId) {
@@ -2205,55 +2132,55 @@ function s2ab(s) {
   };
 
 
-const NewPersonCard = ({ person, showNumber, index }) => (
-  <Card
-    variant="outlined"
-    sx={{
-      mb: 1,
-      boxShadow: 2,
-      minHeight: '140px',
-      display: 'flex',
-      flexDirection: 'column',
-      justifyContent: 'space-between',
-      "&:last-child": { mb: 0 },
-      border: `2px solid ${theme.palette.success.main}`,
-      backgroundColor: isDarkMode
-        ? theme.palette.success.dark + "1a"
-        : theme.palette.success.light + "0a",
-    }}
-    onContextMenu={(e) => handleContextMenu(e, person, 'new_person')}
-  >
-    <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-      <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
-        <Box flex={1}>
-          <Typography variant="subtitle2" fontWeight={600}>
-            {showNumber && `${index}. `}{person.name} {person.surname}
-          </Typography>
-          {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
-          {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
-          {person.gender && (
-            <Chip
-              label={person.gender}
+  const NewPersonCard = ({ person, showNumber, index }) => (
+    <Card
+      variant="outlined"
+      sx={{
+        mb: 1,
+        boxShadow: 2,
+        minHeight: '140px',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'space-between',
+        "&:last-child": { mb: 0 },
+        border: `2px solid ${theme.palette.success.main}`,
+        backgroundColor: isDarkMode
+          ? theme.palette.success.dark + "1a"
+          : theme.palette.success.light + "0a",
+      }}
+      onContextMenu={(e) => handleContextMenu(e, person, 'new_person')}
+    >
+      <CardContent sx={{ p: 2, flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+          <Box flex={1}>
+            <Typography variant="subtitle2" fontWeight={600}>
+              {showNumber && `${index}. `}{person.name} {person.surname}
+            </Typography>
+            {person.email && <Typography variant="body2" color="text.secondary">{person.email}</Typography>}
+            {person.phone && <Typography variant="body2" color="text.secondary">{person.phone}</Typography>}
+            {person.gender && (
+              <Chip
+                label={person.gender}
+                size="small"
+                variant="outlined"
+                sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }}
+              />
+            )}
+          </Box>
+          <Tooltip title="Remove from new people">
+            <IconButton
               size="small"
-              variant="outlined"
-              sx={{ mt: 0.5, fontSize: "0.7rem", height: 20 }}
-            />
-          )}
+              color="error"
+              onClick={() => handleRemoveNewPerson(person)}
+              sx={{ ml: 1 }}
+            >
+              <DeleteForeverIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
-        <Tooltip title="Remove from new people">
-          <IconButton
-            size="small"
-            color="error"
-            onClick={() => handleRemoveNewPerson(person)}
-            sx={{ ml: 1 }}
-          >
-            <DeleteForeverIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      </Box>
-    </CardContent>
-  </Card>
-);
+      </CardContent>
+    </Card>
+  );
 
 
   const ConsolidatedPersonCard = ({ person, showNumber, index }) => {
@@ -2490,49 +2417,6 @@ const NewPersonCard = ({ person, showNumber, index }) => (
     </Box>
   );
 
-
-useEffect(() => {
-  if (currentEventId) {
-    const loadRealTimeData = async () => {
-      console.log("Event changed, loading fresh data from database...");
-      const data = await fetchRealTimeEventData(currentEventId);
-      if (data) {
-        setRealTimeData(data);
-        console.log("Loaded fresh data from DB:", {
-          present: data.present_count,
-          new: data.new_people_count,
-          consolidations: data.consolidation_count
-        });
-      }
-    };
-
-    loadRealTimeData();
-  } else {
-    setRealTimeData(null);
-  }
-}, [currentEventId]); 
-
-
-  useEffect(() => {
-    if (!currentEventId) return;
-
-
-    const loadData = async () => {
-      const data = await fetchRealTimeEventData(currentEventId);
-      if (data) {
-        setRealTimeData(data);
-      }
-    };
-
-    loadData();
-
-
-    const interval = setInterval(loadData, 3000);
-
-    return () => clearInterval(interval);
-  }, [currentEventId]);
-
-
   const hasInitialized = useRef(false);
 
   useEffect(() => {
@@ -2575,6 +2459,33 @@ useEffect(() => {
     }
   }, [attendees, search]);
 
+  useEffect(() => {
+    if (!currentEventId) {
+      setRealTimeData(null);
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadRealTimeData = async () => {
+      const data = await fetchRealTimeEventData(currentEventId);
+      if (data && isMounted) setRealTimeData(data);
+    };
+
+    loadRealTimeData();
+
+    const attendeeInterval = setInterval(loadRealTimeData, 3000);
+
+    const eventsInterval = setInterval(async () => {
+      if (isMounted) await fetchEvents();
+    }, 10 * 1000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(attendeeInterval);
+      clearInterval(eventsInterval);
+    };
+  }, [currentEventId]);
 
   if ((!hasDataLoaded && isLoadingPeople) || (attendees.length === 0 && isLoadingPeople)) {
     return <SkeletonLoader />;
@@ -2932,7 +2843,7 @@ useEffect(() => {
                     width: '8px !important',
                   },
                   '& .MuiTablePagination-root .MuiTablePagination-selectLabel': {
-                    display: 'block !important',  
+                    display: 'block !important',
                   },
                   '& .MuiTablePagination-root .MuiTablePagination-select': {
                     display: 'inline-flex !important',
@@ -2941,14 +2852,14 @@ useEffect(() => {
                   //make the whole pagination more mobile-friendly
                   '& .MuiTablePagination-root': {
                     flexWrap: 'wrap',
-                    justifyContent: 'center',     
+                    justifyContent: 'center',
                     padding: '8px 4px',
                     fontSize: '0.75rem',
                   },
 
                   '& .MuiTablePagination-select': {
                     minWidth: 'auto !important',
-                    paddingRight: '20px !important', 
+                    paddingRight: '20px !important',
                   },
                   ...(isSmDown && {
                     '& .MuiDataGrid-columnHeader': {
@@ -2985,7 +2896,8 @@ useEffect(() => {
               onUnsaveEvent={handleUnsaveEvent}
               events={getFilteredClosedEvents()}
               searchTerm={eventSearch}
-              isLoading={isLoadingEvents}
+              // isLoading={isLoadingEvents}
+              isLoading={isLoadingEvents && events.length === 0}
               onRefresh={() => {
                 console.log('Refreshing event history...');
                 fetchEvents(true);
@@ -3271,63 +3183,63 @@ useEffect(() => {
                   )}
                 </Box>
               ) : (
-<Table size="small" stickyHeader>
-  <TableHead>
-    <TableRow>
-      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
-      <TableCell sx={{ fontWeight: 600, width: '80px' }}>Actions</TableCell>
-    </TableRow>
-  </TableHead>
-  <TableBody>
-    {newPeoplePaginatedList.map((a, idx) => {
-      const mappedPerson = {
-        ...a,
-        name: a.name || '',
-        surname: a.surname || '',
-        phone: a.phone || '',
-        email: a.email || '',
-        gender: a.gender || '',
-        invitedBy: a.invitedBy || '',
-      };
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: '80px' }}>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {newPeoplePaginatedList.map((a, idx) => {
+                      const mappedPerson = {
+                        ...a,
+                        name: a.name || '',
+                        surname: a.surname || '',
+                        phone: a.phone || '',
+                        email: a.email || '',
+                        gender: a.gender || '',
+                        invitedBy: a.invitedBy || '',
+                      };
 
-      return (
-        <TableRow 
-          key={a.id || a._id} 
-          hover
-          onContextMenu={(e) => handleContextMenu(e, a, 'new_person')}
-        >
-          <TableCell>{newPeoplePage * newPeopleRowsPerPage + idx + 1}</TableCell>
-          <TableCell>
-            <Typography variant="body2" fontWeight="medium">
-              {mappedPerson.name} {mappedPerson.surname}
-            </Typography>
-          </TableCell>
-          <TableCell>{mappedPerson.phone || "—"}</TableCell>
-          <TableCell>{mappedPerson.email || "—"}</TableCell>
-          <TableCell>{mappedPerson.gender || "—"}</TableCell>
-          <TableCell>{mappedPerson.invitedBy || "—"}</TableCell>
-          <TableCell>
-            <Tooltip title="Remove from new people">
-              <IconButton
-                size="small"
-                color="error"
-                onClick={() => handleRemoveNewPerson(a)}
-                sx={{ padding: '4px' }}
-              >
-                <DeleteForeverIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </TableCell>
-        </TableRow>
-      );
-    })}
-  </TableBody>
-</Table>
+                      return (
+                        <TableRow
+                          key={a.id || a._id}
+                          hover
+                          onContextMenu={(e) => handleContextMenu(e, a, 'new_person')}
+                        >
+                          <TableCell>{newPeoplePage * newPeopleRowsPerPage + idx + 1}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="medium">
+                              {mappedPerson.name} {mappedPerson.surname}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>{mappedPerson.phone || "—"}</TableCell>
+                          <TableCell>{mappedPerson.email || "—"}</TableCell>
+                          <TableCell>{mappedPerson.gender || "—"}</TableCell>
+                          <TableCell>{mappedPerson.invitedBy || "—"}</TableCell>
+                          <TableCell>
+                            <Tooltip title="Remove from new people">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveNewPerson(a)}
+                                sx={{ padding: '4px' }}
+                              >
+                                <DeleteForeverIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               )}
 
               <Box mt={1}>
@@ -3407,83 +3319,83 @@ useEffect(() => {
                   )}
                 </Box>
               ) : (
-<Table size="small" stickyHeader>
-  <TableHead>
-    <TableRow>
-      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Contact</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
-      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-      <TableCell sx={{ fontWeight: 600, width: '80px' }}>Actions</TableCell>
-    </TableRow>
-  </TableHead>
-  <TableBody>
-    {consolidatedPaginatedList.map((person, idx) => {
-      const mappedPerson = {
-        ...person,
-        person_name: person.person_name || '',
-        person_surname: person.person_surname || '',
-        person_email: person.person_email || '',
-        person_phone: person.person_phone || '',
-        decision_type: person.decision_type || 'Commitment',
-        assigned_to: person.assigned_to || 'Not assigned',
-        created_at: person.created_at || '',
-      };
+                <Table size="small" stickyHeader>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Contact</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
+                      <TableCell sx={{ fontWeight: 600, width: '80px' }}>Actions</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {consolidatedPaginatedList.map((person, idx) => {
+                      const mappedPerson = {
+                        ...person,
+                        person_name: person.person_name || '',
+                        person_surname: person.person_surname || '',
+                        person_email: person.person_email || '',
+                        person_phone: person.person_phone || '',
+                        decision_type: person.decision_type || 'Commitment',
+                        assigned_to: person.assigned_to || 'Not assigned',
+                        created_at: person.created_at || '',
+                      };
 
-      return (
-        <TableRow 
-          key={person.id || person._id || idx} 
-          hover
-          onContextMenu={(e) => handleContextMenu(e, person, 'consolidation')}
-        >
-          <TableCell>{consolidatedPage * consolidatedRowsPerPage + idx + 1}</TableCell>
-          <TableCell>
-            <Typography variant="body2" fontWeight="medium">
-              {mappedPerson.person_name} {mappedPerson.person_surname}
-            </Typography>
-          </TableCell>
-          <TableCell>
-            <Box>
-              {mappedPerson.person_email && (
-                <Typography variant="body2">{mappedPerson.person_email}</Typography>
-              )}
-              {mappedPerson.person_phone && (
-                <Typography variant="body2" color="text.secondary">{mappedPerson.person_phone}</Typography>
-              )}
-              {!mappedPerson.person_email && !mappedPerson.person_phone && "—"}
-            </Box>
-          </TableCell>
-          <TableCell>
-            <Chip
-              label={mappedPerson.decision_type}
-              size="small"
-              color={mappedPerson.decision_type === 'Recommitment' ? 'primary' : 'secondary'}
-              variant="filled"
-            />
-          </TableCell>
-          <TableCell>{mappedPerson.assigned_to}</TableCell>
-          <TableCell>
-            {mappedPerson.created_at ? new Date(mappedPerson.created_at).toLocaleDateString() : '—'}
-          </TableCell>
-          <TableCell>
-            <Tooltip title="Remove consolidation">
-              <IconButton
-                size="small"
-                color="error"
-                onClick={() => handleRemoveConsolidation(person)}
-                sx={{ padding: '4px' }}
-              >
-                <DeleteForeverIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          </TableCell>
-        </TableRow>
-      );
-    })}
-  </TableBody>
-</Table>
+                      return (
+                        <TableRow
+                          key={person.id || person._id || idx}
+                          hover
+                          onContextMenu={(e) => handleContextMenu(e, person, 'consolidation')}
+                        >
+                          <TableCell>{consolidatedPage * consolidatedRowsPerPage + idx + 1}</TableCell>
+                          <TableCell>
+                            <Typography variant="body2" fontWeight="medium">
+                              {mappedPerson.person_name} {mappedPerson.person_surname}
+                            </Typography>
+                          </TableCell>
+                          <TableCell>
+                            <Box>
+                              {mappedPerson.person_email && (
+                                <Typography variant="body2">{mappedPerson.person_email}</Typography>
+                              )}
+                              {mappedPerson.person_phone && (
+                                <Typography variant="body2" color="text.secondary">{mappedPerson.person_phone}</Typography>
+                              )}
+                              {!mappedPerson.person_email && !mappedPerson.person_phone && "—"}
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            <Chip
+                              label={mappedPerson.decision_type}
+                              size="small"
+                              color={mappedPerson.decision_type === 'Recommitment' ? 'primary' : 'secondary'}
+                              variant="filled"
+                            />
+                          </TableCell>
+                          <TableCell>{mappedPerson.assigned_to}</TableCell>
+                          <TableCell>
+                            {mappedPerson.created_at ? new Date(mappedPerson.created_at).toLocaleDateString() : '—'}
+                          </TableCell>
+                          <TableCell>
+                            <Tooltip title="Remove consolidation">
+                              <IconButton
+                                size="small"
+                                color="error"
+                                onClick={() => handleRemoveConsolidation(person)}
+                                sx={{ padding: '4px' }}
+                              >
+                                <DeleteForeverIcon fontSize="small" />
+                              </IconButton>
+                            </Tooltip>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
               )}
 
               <Box mt={1}>
@@ -3522,8 +3434,8 @@ useEffect(() => {
           </Button>
         </DialogActions>
       </Dialog>
-   
-           <EventHistoryModal
+
+      <EventHistoryModal
         open={eventHistoryModal.open}
         onClose={() => setEventHistoryModal({ open: false, event: null, type: null, data: [] })}
         event={eventHistoryModal.event}
@@ -3539,8 +3451,8 @@ useEffect(() => {
         consolidatedPeople={filteredConsolidatedPeople}
         currentEventId={currentEventId}
       />
-      
-      
+
+
     </Box>
   );
 }

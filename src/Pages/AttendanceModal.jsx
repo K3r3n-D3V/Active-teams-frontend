@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useContext, useMemo } from "react";
 import { toast } from "react-toastify";
 import {
@@ -1597,23 +1598,50 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
       console.log("No Check-ins to load");
     }
   };
-  const loadPersistentAttendees = async (eventId) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await authFetch(
-        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        const allAttendees = data.persistent_attendees || [];
-        setPersistentCommonAttendees(allAttendees);
-      }
-    } catch (error) {
-      console.error("Error loading attendees:", error);
+const loadPersistentAttendees = async (eventId) => {
+  try {
+    // check if event already has persistent_attendees loaded
+    if (event?.persistent_attendees && Array.isArray(event.persistent_attendees) && event.persistent_attendees.length > 0) {
+      console.log("Loading persistent attendees from event object:", event.persistent_attendees.length);
+      
+      const formatted = event.persistent_attendees.map(p => ({
+        id: p.id || p._id || "",
+        fullName: p.fullName || p.name || "",
+        email: p.email || "",
+        leader12: p.leader12 || "",
+        leader144: p.leader144 || "",
+        phone: p.phone || "",
+      })).filter(p => p.id); // filter out any without id
+      
+      setPersistentCommonAttendees(formatted);
+      return; 
     }
-  };
+
+    const token = localStorage.getItem("token");
+    const response = await authFetch(
+      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      const allAttendees = data.persistent_attendees || [];
+      
+      const formatted = allAttendees.map(p => ({
+        id: p.id || p._id || "",
+        fullName: p.fullName || p.name || "",
+        email: p.email || "",
+        leader12: p.leader12 || "",
+        leader144: p.leader144 || "",
+        phone: p.phone || "",
+      })).filter(p => p.id);
+      
+      setPersistentCommonAttendees(formatted);
+    }
+  } catch (error) {
+    console.error("Error loading persistent attendees:", error);
+  }
+};
 
   const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
@@ -2047,7 +2075,6 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
 
     } catch (error) {
       console.error(" Failed to save:", error);
-      toast.error("Failed to save attendees list");
       return false;
     }
   };
