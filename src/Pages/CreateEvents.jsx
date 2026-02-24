@@ -1045,7 +1045,8 @@ const CreateEvents = ({
                         {locationLoading ? <CircularProgress color="inherit" size={18} /> : null}
                         {params.InputProps.endAdornment}
                       </>
-                    ),
+                    )
+                    
                   }}
                 />
               )}
