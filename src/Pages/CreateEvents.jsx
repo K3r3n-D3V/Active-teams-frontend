@@ -776,7 +776,7 @@ const CreateEvents = ({
             { headers },
           );
 
-      console.log("Response:", response.data);
+      console.log("Response:", response.data.success);
 
       toast.success(
         eventId ? "Event updated successfully!" : "Event created successfully!",
@@ -785,7 +785,7 @@ const CreateEvents = ({
       if (!eventId) resetForm();
 
       setTimeout(() => {
-        if (isModal && typeof onClose === "function") {
+        if (isModal && onClose) {
           onClose(true);
         } else {
           navigate("/events", {
