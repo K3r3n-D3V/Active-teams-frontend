@@ -748,16 +748,20 @@ const CreateEvents = ({
           })
         : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
 
-      console.log("Response:", response.data);
+      console.log("Response:", response.data.success);
 
-      toast.success(
-        eventId ? "Event updated successfully!" : "Event created successfully!"
-      );
+      if (response.data.success) {
+        console.log("[222] → about to show success toast");
+        toast.success(
+          eventId ? "Event updated successfully!" : "Event created successfully!"
+        );
+        console.log("[222] → success toast shown:", eventId);
+      }
 
       if (!eventId) resetForm();
 
       setTimeout(() => {
-        if (isModal && typeof onClose === "function") {
+        if (isModal && onClose) {
           onClose(true);
         } else {
           navigate("/events", {
