@@ -2416,59 +2416,52 @@ const handleSave = async () => {
     }
 
     if (!eventId) {
-      alert("Event ID is missing, cannot submit attendance."); 
+      alert("Event ID is missing, cannot submit attendance.");
       return;
     }
 
-    const selectedAttendees = attendeesList
-      .map((id) => {
-        const person = allPeople.find((p) => p && p.id === id);
-        if (!person) return null;
-
-        const attendee = {
-          id: person.id,
-          name: person.fullName || "",
-          email: person.email || "",
-          fullName: person.fullName || "",
-          leader12: person.leader12 || "",
-          leader144: person.leader144 || "",
-          phone: person.phone || "",
-          time: new Date().toISOString(),
-          decision: decisions[id] ? decisionTypes[id] || "" : "",
-          checked_in: true,
-          isPersistent: true,
-        };
-
-        if (isTicketedEvent) {
-          attendee.priceTier = priceTiers[id]?.name || "";
-          attendee.price = priceTiers[id]?.price || 0;
-          attendee.ageGroup = priceTiers[id]?.ageGroup || "";
-          attendee.memberType = priceTiers[id]?.memberType || "";
-          attendee.paymentMethod = paymentMethods[id] || "";
-          attendee.paid = paidAmounts[id] || 0;
-          attendee.owing = calculateOwing(id);
-        }
-
-        return attendee;
+    // Get checked in attendees directly
+    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+    
+    // Create attendees array directly without using allPeople
+    const selectedAttendees = attendeesList.map((id) => ({
+      id: id,
+      name: checkedIn[id]?.fullName || "",
+      fullName: checkedIn[id]?.fullName || "",
+      email: checkedIn[id]?.email || "",
+      leader12: checkedIn[id]?.leader12 || "",
+      leader144: checkedIn[id]?.leader144 || "",
+      phone: checkedIn[id]?.phone || "",
+      time: new Date().toISOString(),
+      decision: decisions[id] ? decisionTypes[id] || "" : "",
+      checked_in: true,
+      isPersistent: true,
+      ...(isTicketedEvent && {
+        priceTier: priceTiers[id]?.name || "",
+        price: priceTiers[id]?.price || 0,
+        ageGroup: priceTiers[id]?.ageGroup || "",
+        memberType: priceTiers[id]?.memberType || "",
+        paymentMethod: paymentMethods[id] || "",
+        paid: paidAmounts[id] || 0,
+        owing: calculateOwing(id)
       })
-      .filter((attendee) => attendee !== null);
+    }));
 
     const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0;
 
+    // Use persistentCommonAttendees directly instead of allPeople
     const payload = {
       attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
-      persistent_attendees: allPeople.map((p) => ({
+      persistent_attendees: persistentCommonAttendees.map((p) => ({
         id: p.id,
-        name: p.fullName,
         fullName: p.fullName,
-        email: p.email,
-        leader12: p.leader12,
-        leader144: p.leader144,
-        phone: p.phone,
+        email: p.email || "",
+        leader12: p.leader12 || "",
+        leader144: p.leader144 || "",
+        phone: p.phone || "",
       })),
       leaderEmail: currentUser?.email || "",
-      leaderName:
-        `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
       did_not_meet: shouldMarkAsDidNotMeet,
       isTicketed: isTicketedEvent,
       week: get_current_week_identifier(),
@@ -2495,25 +2488,21 @@ const handleSave = async () => {
       );
       
       if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `HTTP error! status: ${response.status}, details: ${errorText}`
-        );
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       result = await response.json();
     }
 
     if (result && result.success) {
-      alert("Attendance saved successfully!");
-      
-      // Refresh data once
-      if (typeof onAttendanceSubmitted === "function") {
-        await onAttendanceSubmitted();
-      }
-      
+      // Close modal immediately without waiting for refresh
       if (typeof onClose === "function") {
         onClose();
+      }
+      
+      // Refresh data in background (don't await)
+      if (typeof onAttendanceSubmitted === "function") {
+        onAttendanceSubmitted().catch(console.error);
       }
     } else {
       throw new Error(result?.message || "Failed to save attendance");
@@ -2707,20 +2696,19 @@ const confirmDidNotMeet = async () => {
       return;
     }
 
-    const allPeople = getAllCommonAttendees();
+    // Simplified payload
     const payload = {
       attendees: [],
-      persistent_attendees: allPeople.map((p) => ({
+      persistent_attendees: persistentCommonAttendees.map((p) => ({
         id: p.id,
         fullName: p.fullName,
-        email: p.email,
-        leader12: p.leader12,
-        leader144: p.leader144,
-        phone: p.phone,
+        email: p.email || "",
+        leader12: p.leader12 || "",
+        leader144: p.leader144 || "",
+        phone: p.phone || "",
       })),
       leaderEmail: currentUser?.email || "",
-      leaderName:
-        `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
       did_not_meet: true,
       isTicketed: isTicketedEvent,
       week: get_current_week_identifier(),
@@ -2747,33 +2735,18 @@ const confirmDidNotMeet = async () => {
       );
       
       result = await response.json();
-      result.success = response.ok;
     }
 
     if (result?.success) {
-      alert("Event marked as Did Not Meet");
-      
-      setDidNotMeet(true);
-      setCheckedIn({});
-      setDecisions({});
-      setDecisionTypes({});
-      setPriceTiers({});
-      setPaymentMethods({});
-      setPaidAmounts({});
-      
-      if (typeof onAttendanceSubmitted === "function") {
-        await onAttendanceSubmitted();
-      }
-      
+      // Close modal immediately
       if (typeof onClose === "function") {
         onClose();
       }
-    } else {
-      alert(
-        result?.message ||
-          result?.detail ||
-          "Failed to mark event as 'Did Not Meet'."
-      );
+      
+      // Refresh data in background
+      if (typeof onAttendanceSubmitted === "function") {
+        onAttendanceSubmitted().catch(console.error);
+      }
     }
   } catch (error) {
     console.error("Error marking event as 'Did Not Meet':", error);
