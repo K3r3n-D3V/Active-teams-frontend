@@ -7,6 +7,7 @@ import {
   ChevronDown,
   X,
   Menu,
+   User
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
@@ -158,8 +159,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     setSelectedAddress(null);
     setShowAddressDropdown(true);
 
-    if (attemptedSubmit && value.trim() !== "") {
-    }
+
   };
 
   const handleAddressSelect = (option) => {
@@ -1089,7 +1089,7 @@ const LeaderSelectionModal = ({
           [leaderField]: filteredFromCache.slice(0, 15),
         }));
       } else {
-        const token = localStorage.getItem("token");
+        const token = localStorage.getItem("access_token");
         const headers = { Authorization: `Bearer ${token}` };
 
         const params = new URLSearchParams();
@@ -1433,6 +1433,7 @@ const AttendanceModal = ({
     [],
   );
   const [preloadedPeople, setPreloadedPeople] = useState([]);
+    const [isSearchingPeople, setIsSearchingPeople] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -1797,7 +1798,6 @@ const AttendanceModal = ({
   };
   const loadPersistentAttendees = async (eventId) => {
     try {
-      // check if event already has persistent_attendees loaded
       if (
         event?.persistent_attendees &&
         Array.isArray(event.persistent_attendees) &&
@@ -1823,7 +1823,7 @@ const AttendanceModal = ({
         return;
       }
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const response = await authFetch(
         `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
         { headers: { Authorization: `Bearer ${token}` } },
@@ -1851,325 +1851,213 @@ const AttendanceModal = ({
     }
   };
 
-  const loadPreloadedPeople = async (forceRefresh = false) => {
-    const now = Date.now();
+const loadPreloadedPeople = async (forceRefresh = false) => {
+  const now = Date.now();
+  const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-    if (
-      !forceRefresh &&
-      typeof window !== "undefined" &&
-      window.globalPeopleCache &&
-      window.globalPeopleCache.data?.length > 0 &&
-      window.globalPeopleCache.timestamp &&
-      now - window.globalPeopleCache.timestamp <
-        (window.globalPeopleCache.expiry || 5 * 60 * 1000)
-    ) {
-      console.log("Using cached people data in AttendanceModal");
-      setPreloadedPeople(window.globalPeopleCache.data);
+  if (
+    !forceRefresh &&
+    typeof window !== "undefined" &&
+    window.globalPeopleCache &&
+    window.globalPeopleCache.data?.length > 0 &&
+    window.globalPeopleCache.timestamp &&
+    now - window.globalPeopleCache.timestamp < CACHE_DURATION
+  ) {
+    console.log("Using cached people data in AttendanceModal");
+    setPreloadedPeople(window.globalPeopleCache.data);
 
-      if (activeTab === 1 && !associateSearch.trim()) {
-        setPeople(window.globalPeopleCache.data.slice(0, 50));
-      }
-      return;
+    if (activeTab === 1 && !associateSearch.trim()) {
+      setPeople(window.globalPeopleCache.data.slice(0, 50));
     }
+    return;
+  }
 
-    try {
-      const token = localStorage.getItem("token");
-      const headers = { Authorization: `Bearer ${token}` };
+  try {
+    const token = localStorage.getItem("access_token");
+    const headers = { Authorization: `Bearer ${token}` };
 
-      const params = new URLSearchParams();
-      params.append("perPage", "100");
-      params.append("page", "1");
+    const params = new URLSearchParams();
+    params.append("perPage", "200"); 
+    params.append("page", "1");
 
-      const res = await authFetch(
-        `${BACKEND_URL}/people?${params.toString()}`,
-        {
-          headers,
-        },
-      );
-
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-
-      const data = await res.json();
-      const peopleArray = data.people || data.results || [];
-
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName:
-          `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1:
-          p["Leader @1"] ||
-          p["Leader at 1"] ||
-          p.leader1 ||
-          p.leaders?.[0] ||
-          "",
-        leader12:
-          p["Leader @12"] ||
-          p["Leader at 12"] ||
-          p.leader12 ||
-          p.leaders?.[1] ||
-          "",
-        leader144:
-          p["Leader @144"] ||
-          p["Leader at 144"] ||
-          p.leader144 ||
-          p.leaders?.[2] ||
-          "",
-        phone: p.Number || p.Phone || p.phone || "",
-        searchText:
-          `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase(),
-      }));
-
-      window.globalPeopleCache = {
-        data: formatted,
-        timestamp: now,
-        expiry: 5 * 60 * 1000,
-      };
-
-      setPreloadedPeople(formatted);
-      console.log(
-        `Pre-loaded ${formatted.length} people into AttendanceModal cache`,
-      );
-
-      if (activeTab === 1 && !associateSearch.trim()) {
-        setPeople(formatted.slice(0, 50));
+    const res = await authFetch(
+      `${BACKEND_URL}/people?${params.toString()}`,
+      {
+        headers,
       }
-    } catch (err) {
-      console.error("Error pre-loading people in AttendanceModal:", err);
+    );
+
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+
+    const data = await res.json();
+    const peopleArray = data.people || data.results || [];
+
+    const formatted = peopleArray.map((p) => ({
+      id: p._id,
+      fullName:
+        `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader1:
+        p["Leader @1"] ||
+        p["Leader at 1"] ||
+        p.leader1 ||
+        p.leaders?.[0] ||
+        "",
+      leader12:
+        p["Leader @12"] ||
+        p["Leader at 12"] ||
+        p.leader12 ||
+        p.leaders?.[1] ||
+        "",
+      leader144:
+        p["Leader @144"] ||
+        p["Leader at 144"] ||
+        p.leader144 ||
+        p.leaders?.[2] ||
+        "",
+      phone: p.Number || p.Phone || p.phone || "",
+      searchText:
+        `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase(),
+    }));
+
+    // Update cache
+    window.globalPeopleCache = {
+      data: formatted,
+      timestamp: now,
+      expiry: CACHE_DURATION,
+    };
+
+    setPreloadedPeople(formatted);
+    console.log(
+      `Pre-loaded ${formatted.length} people into AttendanceModal cache`
+    );
+
+    if (activeTab === 1 && !associateSearch.trim()) {
+      setPeople(formatted.slice(0, 50));
     }
-  };
-  useEffect(() => {
-    if (isOpen && event) {
-      let eventId = event._id || event.id;
-      if (eventId && eventId.includes("_")) {
-        eventId = eventId.split("_")[0];
-      }
-      console.log(" Opening modal for event:", eventId, "Date:", event.date);
+  } catch (err) {
+    console.error("Error pre-loading people in AttendanceModal:", err);
+  }
+};
 
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-      setCheckedIn({});
-      setDecisions({});
-      setDecisionTypes({});
-      setPriceTiers({});
-      setPaymentMethods({});
-      setPaidAmounts({});
-      setDidNotMeet(false);
+useEffect(() => {
+  if (isOpen && event) {
+    let eventId = event._id || event.id;
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
+    }
+    console.log(" Opening modal for event:", eventId, "Date:", event.date);
 
-      const loadAllData = async () => {
-        console.log(" Loading all data...");
+    setSearchName("");
+    setAssociateSearch("");
+    setActiveTab(0);
+    setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setPriceTiers({});
+    setPaymentMethods({});
+    setPaidAmounts({});
+    setDidNotMeet(false);
 
-        await loadPersistentAttendees(eventId);
-
-        await loadEventStatistics();
-
-        loadWeeklyCheckins();
-      };
-
-      loadAllData();
-      fetchPeople("");
+    const loadAllData = async () => {
+      console.log(" Loading all data...");
+      
+      await Promise.all([
+        loadPersistentAttendees(eventId),
+        loadEventStatistics(),
+        loadPreloadedPeople()
+      ]);
+      
+      loadWeeklyCheckins();
 
       const attendanceData = event.attendance || {};
       const eventDate = event.date;
       const weekAttendance = attendanceData[eventDate] || {};
-
+      
       setDidNotMeet(weekAttendance?.status === "did_not_meet" || false);
-    }
-  }, [isOpen, event]);
+    };
 
-  const fetchPeople = async (q) => {
+    loadAllData();
+  }
+}, [isOpen, event]);
+
+const fetchPeople = async (q) => {
+  setIsSearchingPeople(true);
+  
+  try {
     if (!q.trim()) {
       if (preloadedPeople.length > 0) {
         setPeople(preloadedPeople.slice(0, 50));
       } else {
         setPeople([]);
       }
+      setIsSearchingPeople(false);
       return;
     }
 
     const query = q.trim();
     const queryLower = query.toLowerCase();
 
-    try {
-      if (preloadedPeople.length > 0) {
-        const cachedResults = preloadedPeople.filter((person) => {
-          const fullNameLower = person.fullName.toLowerCase();
-          const emailLower = person.email.toLowerCase();
-          const searchWordsArray = queryLower
-            .split(/\s+/)
-            .filter((word) => word.length > 0);
-          const nameParts = fullNameLower.split(/\s+/);
-          if (emailLower.includes(queryLower)) return true;
-          const allWordsMatch = searchWordsArray.every((searchWord) =>
-            nameParts.some((namePart) => namePart.includes(searchWord)),
-          );
-
-          if (allWordsMatch) return true;
-          return nameParts.some((namePart) => namePart.startsWith(queryLower));
-        });
-
-        if (cachedResults.length > 0) {
-          console.log(`Found ${cachedResults.length} results in cache`);
-          setPeople(cachedResults);
-          return;
-        }
-      }
-      console.log("Searching API for:", query);
-
-      const searchTerms = query.split(/\s+/).filter((word) => word.length > 0);
-      let results = [];
-
-      if (searchTerms.length === 1) {
-        const singleWord = searchTerms[0];
-
-        let res = await authFetch(
-          `${BACKEND_URL}/people?name=${encodeURIComponent(singleWord)}`,
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          results = data?.results || data?.people || [];
-        }
-
-        if (results.length === 0) {
-          res = await authFetch(`${BACKEND_URL}/people?perPage=100`);
-          if (res.ok) {
-            const data = await res.json();
-            const allResults = data?.results || data?.people || [];
-            results = allResults.filter((p) => {
-              const name = (p.Name || "").toLowerCase();
-              const surname = (p.Surname || "").toLowerCase();
-              return (
-                name.includes(singleWord.toLowerCase()) ||
-                surname.includes(singleWord.toLowerCase())
-              );
-            });
-          }
-        }
-      } else {
-        let res = await authFetch(
-          `${BACKEND_URL}/people?name=${encodeURIComponent(query)}`,
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          results = data?.results || data?.people || [];
-        }
-        if (results.length === 0 && searchTerms.length > 0) {
-          const firstName = searchTerms[0];
-          res = await authFetch(
-            `${BACKEND_URL}/people?name=${encodeURIComponent(firstName)}`,
-          );
-
-          if (res.ok) {
-            const data = await res.json();
-            const nameResults = data?.results || data?.people || [];
-            if (nameResults.length > 0 && searchTerms.length > 1) {
-              const surnameSearch = searchTerms
-                .slice(1)
-                .join(" ")
-                .toLowerCase();
-              results = nameResults.filter((p) =>
-                (p.Surname || "").toLowerCase().includes(surnameSearch),
-              );
-            } else {
-              results = nameResults;
-            }
-          }
-        }
-
-        if (results.length === 0) {
-          res = await authFetch(`${BACKEND_URL}/people?perPage=100`);
-          if (res.ok) {
-            const data = await res.json();
-            const allResults = data?.results || data?.people || [];
-
-            const searchTermsLower = searchTerms.map((term) =>
-              term.toLowerCase(),
-            );
-            results = allResults.filter((p) => {
-              const fullName =
-                `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
-
-              return searchTermsLower.every((term) => fullName.includes(term));
-            });
-          }
-        }
-      }
-
-      console.log(`API returned ${results.length} results`);
-
-      const formatted = results.map((p) => ({
-        id: p._id,
-        fullName:
-          `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1:
-          p["Leader @1"] ||
-          p["Leader at 1"] ||
-          p["Leader @ 1"] ||
-          p.leader1 ||
-          (p.leaders && p.leaders[0]) ||
-          "",
-        leader12:
-          p["Leader @12"] ||
-          p["Leader at 12"] ||
-          p["Leader @ 12"] ||
-          p.leader12 ||
-          (p.leaders && p.leaders[1]) ||
-          "",
-        leader144:
-          p["Leader @144"] ||
-          p["Leader at 144"] ||
-          p["Leader @ 144"] ||
-          p.leader144 ||
-          (p.leaders && p.leaders[2]) ||
-          "",
-        phone: p.Number || p.Phone || p.phone || "",
-        searchText:
-          `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase(),
-      }));
-
-      const searchTermsLower = queryLower
-        .split(/\s+/)
-        .filter((word) => word.length > 0);
-      const finalFiltered = formatted.filter((person) => {
+    // First try cache
+    if (preloadedPeople.length > 0) {
+      const searchTerms = queryLower.split(/\s+/).filter(word => word.length > 0);
+      
+      const cachedResults = preloadedPeople.filter((person) => {
         const fullNameLower = person.fullName.toLowerCase();
-
-        return searchTermsLower.every((term) => fullNameLower.includes(term));
+        const emailLower = person.email.toLowerCase();
+        
+        if (emailLower.includes(queryLower)) return true;
+        return searchTerms.every(term => fullNameLower.includes(term));
       });
 
-      console.log(`Formatted ${finalFiltered.length} results after filtering`);
-
-      if (finalFiltered.length === 0) {
-        console.log("No results found for query:", query);
-      }
-
-      setPeople(finalFiltered);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      toast.error(err.message);
-
-      if (preloadedPeople.length > 0) {
-        const searchTermsLower = queryLower
-          .split(/\s+/)
-          .filter((word) => word.length > 0);
-        const fallbackResults = preloadedPeople.filter((person) => {
-          const fullNameLower = person.fullName.toLowerCase();
-          return searchTermsLower.every((term) => fullNameLower.includes(term));
-        });
-
-        setPeople(fallbackResults);
-      } else {
-        setPeople([]);
+      if (cachedResults.length > 0) {
+        console.log(`Found ${cachedResults.length} results in cache for "${query}"`);
+        setPeople(cachedResults);
+        setIsSearchingPeople(false);
+        return;
       }
     }
-  };
-
+    
+    console.log("Searching API for:", query);
+    
+    const token = localStorage.getItem("access_token");
+    const headers = { Authorization: `Bearer ${token}` };
+    
+    const response = await authFetch(
+      `${BACKEND_URL}/people/search?query=${encodeURIComponent(query)}&limit=50`,
+      { headers }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Search failed: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    console.log("Search API response:", data); 
+    
+    const results = data.results || [];
+    
+    const formatted = results.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader12: p["Leader @12"] || p.leader12 || p.leaders?.[1] || "",
+      leader144: p["Leader @144"] || p.leader144 || p.leaders?.[2] || "",
+      phone: p.Number || p.Phone || p.phone || "",
+    }));
+    
+    setPeople(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    toast.error("Failed to search people");
+    setPeople([]);
+  } finally {
+    setIsSearchingPeople(false);
+  }
+};
   const fetchCommonAttendees = async (cellId) => {
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const headers = { Authorization: `Bearer ${token}` };
 
       const res = await authFetch(
@@ -2229,19 +2117,25 @@ const AttendanceModal = ({
     }
   }, [isOpen]);
 
-  useEffect(() => {
-    const delay = setTimeout(() => {
-      if (isOpen && activeTab === 1) {
-        if (associateSearch.trim()) {
-          fetchPeople(associateSearch);
+useEffect(() => {
+  // Clear previous timeout
+  const timeoutId = setTimeout(() => {
+    if (isOpen && activeTab === 1) {
+      if (associateSearch.trim()) {
+        fetchPeople(associateSearch);
+      } else {
+        // Use cached/preloaded people when no search term
+        if (preloadedPeople.length > 0) {
+          setPeople(preloadedPeople.slice(0, 50));
         } else {
           fetchPeople("");
         }
       }
-    }, 300);
+    }
+  }, 500);
 
-    return () => clearTimeout(delay);
-  }, [associateSearch, isOpen, activeTab, preloadedPeople]);
+  return () => clearTimeout(timeoutId);
+}, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
   const handleCheckIn = (id) => {
     setCheckedIn((prev) => {
@@ -2316,7 +2210,7 @@ const AttendanceModal = ({
     }
 
     try {
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const response = await authFetch(
         `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
         {
@@ -2526,8 +2420,10 @@ const handleSave = async () => {
       return;
     }
 
+    // Get checked in attendees directly
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
     
+    // Create attendees array directly without using allPeople
     const selectedAttendees = attendeesList.map((id) => ({
       id: id,
       name: checkedIn[id]?.fullName || "",
@@ -2553,6 +2449,7 @@ const handleSave = async () => {
 
     const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0;
 
+    // Use persistentCommonAttendees directly instead of allPeople
     const payload = {
       attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
       persistent_attendees: persistentCommonAttendees.map((p) => ({
@@ -2603,9 +2500,12 @@ const handleSave = async () => {
         onClose();
       }
       
+      // Refresh data in background (don't await)
       if (typeof onAttendanceSubmitted === "function") {
         onAttendanceSubmitted().catch(console.error);
       }
+    } else {
+      throw new Error(result?.message || "Failed to save attendance");
     }
   } catch (error) {
     console.error("[SAVE] Error saving attendance:", error);
@@ -2853,7 +2753,6 @@ const confirmDidNotMeet = async () => {
     alert("Something went wrong while marking event as 'Did Not Meet'.");
   }
 };
-
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
   };
@@ -4029,193 +3928,246 @@ const confirmDidNotMeet = async () => {
               </>
             )}
 
-            {activeTab === 1 && (
-              <>
-                <div style={styles.searchBox}>
-                  <Search size={20} style={styles.searchIcon} />
-                  <input
-                    type="text"
-                    placeholder="Search to add person to common attendees..."
-                    value={associateSearch}
-                    onChange={(e) => setAssociateSearch(e.target.value)}
-                    style={{
-                      width: "100%",
-                      padding: "14px 14px 14px 45px",
-                      fontSize: 16,
-                      borderRadius: 8,
-                      border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
-                      backgroundColor: isDarkMode
-                        ? theme.palette.background.default
-                        : theme.palette.background.paper,
-                      color: isDarkMode ? theme.palette.text.primary : "#000",
-                      outline: "none",
-                      boxSizing: "border-box",
-                    }}
-                    onFocus={(e) => {
-                      e.target.style.backgroundColor = isDarkMode
-                        ? theme.palette.action.hover
-                        : theme.palette.background.default;
-                      e.target.style.borderColor = isDarkMode ? "#777" : "#999";
-                    }}
-                    onBlur={(e) => {
-                      e.target.style.backgroundColor = isDarkMode
-                        ? theme.palette.background.default
-                        : theme.palette.background.paper;
-                      e.target.style.borderColor = isDarkMode ? "#555" : "#ccc";
-                    }}
-                  />
+       {activeTab === 1 && (
+  <>
+    <div style={styles.searchBox}>
+      <Search size={20} style={styles.searchIcon} />
+      <input
+        type="text"
+        placeholder="Search to add person to common attendees..."
+        value={associateSearch}
+        onChange={(e) => setAssociateSearch(e.target.value)}
+        style={{
+          width: "100%",
+          padding: "14px 14px 14px 45px",
+          fontSize: 16,
+          borderRadius: 8,
+          border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
+          backgroundColor: isDarkMode
+            ? theme.palette.background.default
+            : theme.palette.background.paper,
+          color: isDarkMode ? theme.palette.text.primary : "#000",
+          outline: "none",
+          boxSizing: "border-box",
+        }}
+        onFocus={(e) => {
+          e.target.style.backgroundColor = isDarkMode
+            ? theme.palette.action.hover
+            : theme.palette.background.default;
+          e.target.style.borderColor = isDarkMode ? "#777" : "#999";
+        }}
+        onBlur={(e) => {
+          e.target.style.backgroundColor = isDarkMode
+            ? theme.palette.background.default
+            : theme.palette.background.paper;
+          e.target.style.borderColor = isDarkMode ? "#555" : "#ccc";
+        }}
+      />
+    </div>
+    
+    {isMobile ? (
+      <div>
+        {/* Loading State for Mobile */}
+        {isSearchingPeople && (
+          <div style={{ 
+            textAlign: "center", 
+            padding: "40px 20px",
+            color: theme.palette.text.secondary 
+          }}>
+            <div style={{ marginBottom: "16px" }}>
+              <div className="spinner" style={{
+                width: "40px",
+                height: "40px",
+                border: `3px solid ${theme.palette.divider}`,
+                borderTopColor: theme.palette.primary.main,
+                borderRadius: "50%",
+                animation: "spin 1s linear infinite",
+                margin: "0 auto"
+              }}></div>
+            </div>
+            <div>Searching for people...</div>
+          </div>
+        )}
+        
+        {/* Results for Mobile */}
+        {!isSearchingPeople && (
+          <>
+            {people.length === 0 && (
+              <div
+                style={{
+                  textAlign: "center",
+                  padding: "40px 20px",
+                  color: theme.palette.text.secondary,
+                }}
+              >
+                <User size={40} style={{ marginBottom: "16px", opacity: 0.5 }} />
+                <div style={{ fontSize: "16px", marginBottom: "8px" }}>
+                  Loading People
                 </div>
-                {isMobile ? (
-                  <div>
-                    {loading && (
-                      <div style={{ textAlign: "center", padding: "20px" }}>
-                        Loading...
-                      </div>
-                    )}
-                    {!loading && filteredPeople.length === 0 && (
-                      <div
-                        style={{
-                          textAlign: "center",
-                          padding: "20px",
-                          color: "#666",
-                        }}
-                      >
-                        No people found.
-                      </div>
-                    )}
-                    {filteredPeople.map((person) => {
-                      const isAlreadyAdded = persistentCommonAttendees.some(
-                        (p) => p.id === person.id,
-                      );
-
-                      return (
-                        <div key={person.id} style={styles.mobileAttendeeCard}>
-                          <div style={styles.mobileCardRow}>
-                            <div style={styles.mobileCardInfo}>
-                              <div style={styles.mobileCardName}>
-                                {person.fullName}
-                              </div>
-                              <div style={styles.mobileCardEmail}>
-                                {person.email}
-                              </div>
-                              <div style={{ fontSize: "12px", color: "#666" }}>
-                                Leader @12: {person.leader12}
-                              </div>
-                              <div style={{ fontSize: "12px", color: "#666" }}>
-                                Phone: {person.phone}
-                              </div>
-                            </div>
-                            <button
-                              style={{
-                                ...styles.iconButton,
-                                color: isAlreadyAdded ? "#dc3545" : "#6366f1",
-                                cursor: isAlreadyAdded
-                                  ? "not-allowed"
-                                  : "pointer",
-                                opacity: isAlreadyAdded ? 0.3 : 1,
-                              }}
-                              onClick={() => handleAssociatePerson(person)}
-                              disabled={isAlreadyAdded}
-                              title={
-                                isAlreadyAdded
-                                  ? "Already added"
-                                  : "Add to common attendees"
-                              }
-                            >
-                              <UserPlus size={20} />
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div style={styles.tableContainer}>
-                    <table style={styles.table}>
-                      <thead>
-                        <tr>
-                          <th style={styles.th}>Name</th>
-                          <th style={styles.th}>Email</th>
-                          <th style={styles.th}>Leader @12</th>
-                          <th style={styles.th}>Leader @144</th>
-                          <th style={styles.th}>Phone</th>
-                          <th style={{ ...styles.th, textAlign: "center" }}>
-                            Add
-                          </th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loading && (
-                          <tr>
-                            <td
-                              colSpan="6"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              Loading...
-                            </td>
-                          </tr>
-                        )}
-                        {!loading && filteredPeople.length === 0 && (
-                          <tr>
-                            <td
-                              colSpan="6"
-                              style={{ ...styles.td, textAlign: "center" }}
-                            >
-                              No people found.
-                            </td>
-                          </tr>
-                        )}
-                        {filteredPeople.map((person) => {
-                          const isAlreadyAdded = persistentCommonAttendees.some(
-                            (p) => p.id === person.id,
-                          );
-
-                          return (
-                            <tr key={person.id}>
-                              <td style={styles.td}>
-                                {person.fullName}
-                                {isAlreadyAdded && (
-                                  <span style={styles.persistentBadge}>
-                                    ADDED
-                                  </span>
-                                )}
-                              </td>
-                              <td style={styles.td}>{person.email}</td>
-                              <td style={styles.td}>{person.leader12}</td>
-                              <td style={styles.td}>{person.leader144}</td>
-                              <td style={styles.td}>{person.phone}</td>
-                              <td style={{ ...styles.td, textAlign: "center" }}>
-                                <button
-                                  style={{
-                                    ...styles.iconButton,
-                                    color: isAlreadyAdded
-                                      ? "#dc3545"
-                                      : "#6366f1",
-                                    cursor: isAlreadyAdded
-                                      ? "not-allowed"
-                                      : "pointer",
-                                    opacity: isAlreadyAdded ? 0.3 : 1,
-                                  }}
-                                  onClick={() => handleAssociatePerson(person)}
-                                  disabled={isAlreadyAdded}
-                                  title={
-                                    isAlreadyAdded
-                                      ? "Already added"
-                                      : "Add to common attendees"
-                                  }
-                                >
-                                  <UserPlus size={20} />
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-              </>
+             
+              </div>
             )}
+            
+            {people.map((person) => {
+              const isAlreadyAdded = persistentCommonAttendees.some(
+                (p) => p.id === person.id,
+              );
+
+              return (
+                <div key={person.id} style={styles.mobileAttendeeCard}>
+                  <div style={styles.mobileCardRow}>
+                    <div style={styles.mobileCardInfo}>
+                      <div style={styles.mobileCardName}>
+                        {person.fullName}
+                      </div>
+                      <div style={styles.mobileCardEmail}>
+                        {person.email}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#666" }}>
+                        Leader @12: {person.leader12}
+                      </div>
+                      <div style={{ fontSize: "12px", color: "#666" }}>
+                        Phone: {person.phone}
+                      </div>
+                    </div>
+                    <button
+                      style={{
+                        ...styles.iconButton,
+                        color: isAlreadyAdded ? "#dc3545" : "#6366f1",
+                        cursor: isAlreadyAdded
+                          ? "not-allowed"
+                          : "pointer",
+                        opacity: isAlreadyAdded ? 0.3 : 1,
+                      }}
+                      onClick={() => handleAssociatePerson(person)}
+                      disabled={isAlreadyAdded}
+                      title={
+                        isAlreadyAdded
+                          ? "Already added"
+                          : "Add to common attendees"
+                      }
+                    >
+                      <UserPlus size={20} />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </>
+        )}
+      </div>
+    ) : (
+      <div style={styles.tableContainer}>
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.th}>Name</th>
+              <th style={styles.th}>Email</th>
+              <th style={styles.th}>Leader @12</th>
+              <th style={styles.th}>Leader @144</th>
+              <th style={styles.th}>Phone</th>
+              <th style={{ ...styles.th, textAlign: "center" }}>
+                Add
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {/* Loading State for Desktop */}
+            {isSearchingPeople && (
+              <tr>
+                <td colSpan="6" style={{ ...styles.td, textAlign: "center", padding: "40px 20px" }}>
+                  <div style={{ 
+                    display: "flex", 
+                    flexDirection: "column", 
+                    alignItems: "center",
+                    gap: "16px"
+                  }}>
+                    <div className="spinner" style={{
+                      width: "40px",
+                      height: "40px",
+                      border: `3px solid ${theme.palette.divider}`,
+                      borderTopColor: theme.palette.primary.main,
+                      borderRadius: "50%",
+                      animation: "spin 1s linear infinite"
+                    }}></div>
+                    <div style={{ color: theme.palette.text.secondary }}>
+                      Searching for people...
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            )}
+            
+            {/* No Results State */}
+            {!isSearchingPeople && people.length === 0 && (
+              <tr>
+                <td colSpan="6" style={{ ...styles.td, textAlign: "center", padding: "40px 20px" }}>
+                  <div style={{ 
+                    display: "flex", 
+                    flexDirection: "column", 
+                    alignItems: "center",
+                    gap: "8px"
+                  }}>
+                    <User size={40} style={{ opacity: 0.5, color: theme.palette.text.secondary }} />
+                    <div style={{ fontSize: "16px", fontWeight: 500, color: theme.palette.text.primary }}>
+                      Loading People
+                    </div>
+                    <div style={{ fontSize: "14px", color: theme.palette.text.secondary }}>
+                      Try searching with a different name or email
+                    </div>
+                  </div>
+                </td>
+              </tr>
+            )}
+            
+            {/* Results */}
+            {!isSearchingPeople && people.map((person) => {
+              const isAlreadyAdded = persistentCommonAttendees.some(
+                (p) => p.id === person.id,
+              );
+
+              return (
+                <tr key={person.id}>
+                  <td style={styles.td}>
+                    {person.fullName}
+                    {isAlreadyAdded && (
+                      <span style={styles.persistentBadge}>
+                        ADDED
+                      </span>
+                    )}
+                  </td>
+                  <td style={styles.td}>{person.email}</td>
+                  <td style={styles.td}>{person.leader12}</td>
+                  <td style={styles.td}>{person.leader144}</td>
+                  <td style={styles.td}>{person.phone}</td>
+                  <td style={{ ...styles.td, textAlign: "center" }}>
+                    <button
+                      style={{
+                        ...styles.iconButton,
+                        color: isAlreadyAdded ? "#dc3545" : "#6366f1",
+                        cursor: isAlreadyAdded ? "not-allowed" : "pointer",
+                        opacity: isAlreadyAdded ? 0.3 : 1,
+                      }}
+                      onClick={() => handleAssociatePerson(person)}
+                      disabled={isAlreadyAdded}
+                      title={
+                        isAlreadyAdded
+                          ? "Already added"
+                          : "Add to common attendees"
+                      }
+                    >
+                      <UserPlus size={20} />
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    )}
+  </>
+)}
           </div>
 
           <div style={styles.footer}>
@@ -4316,22 +4268,26 @@ const confirmDidNotMeet = async () => {
         onPersonAdded={handlePersonAdded}
         event={event}
       />
-
-      <style>
-        {`
-  input[type="text"]:focus,
-  input[type="text"]:active,
-  input[type="text"]:-webkit-autofill,
-  input[type="text"]:-webkit-autofill:hover,
-  input[type="text"]:-webkit-autofill:focus,
-  input[type="text"]:-webkit-autofill:active {
-    -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
-    box-shadow: 0 0 0 1000px transparent inset !important;
-    background-color: transparent !important;
-    background: transparent !important;
-  }
-`}
-      </style>
+<style>
+  {`
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    input[type="text"]:focus,
+    input[type="text"]:active,
+    input[type="text"]:-webkit-autofill,
+    input[type="text"]:-webkit-autofill:hover,
+    input[type="text"]:-webkit-autofill:focus,
+    input[type="text"]:-webkit-autofill:active {
+      -webkit-box-shadow: 0 0 0 1000px transparent inset !important;
+      box-shadow: 0 0 0 1000px transparent inset !important;
+      background-color: transparent !important;
+      background: transparent !important;
+    }
+  `}
+</style>
     </>
   );
 };
