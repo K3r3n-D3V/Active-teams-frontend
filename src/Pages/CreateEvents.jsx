@@ -81,13 +81,13 @@ const CreateEvents = ({
   const { id: eventId } = useParams();
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
-
+  const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   const [eventTypeFlags, setEventTypeFlags] = useState({
     isGlobal: false,
     isTicketed: false,
     hasPersonSteps: false,
   });
-
+  const [peopleReady, setPeopleReady] = useState(false);
   const {
     isGlobal: isGlobalEvent,
     isTicketed: isTicketedEvent,
@@ -96,7 +96,7 @@ const CreateEvents = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
-  const [loadingPeople, setLoadingPeople] = useState(false);
+  const [loadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
 
   const isAdmin = user?.role === "admin";
@@ -132,7 +132,7 @@ const CreateEvents = ({
 
   // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
-
+  const searchDebounceRef = useRef(null);
   useEffect(() => {
     if (!navigator.geolocation) return;
 
@@ -146,7 +146,7 @@ const CreateEvents = ({
       () => {
         setBiasLonLat(null);
       },
-      { enableHighAccuracy: true, timeout: 8000 }
+      { enableHighAccuracy: true, timeout: 8000 },
     );
   }, []);
 
@@ -164,7 +164,7 @@ const CreateEvents = ({
   useEffect(() => {
     if (!GEOAPIFY_API_KEY) {
       setLocationError(
-        "Missing Geoapify API key. Please set VITE_GEOAPIFY_API_KEY in your .env file."
+        "Missing Geoapify API key. Please set VITE_GEOAPIFY_API_KEY in your .env file.",
       );
       return;
     }
@@ -186,7 +186,7 @@ const CreateEvents = ({
 
         const biasParam = biasLonLat
           ? `&bias=proximity:${encodeURIComponent(
-              biasLonLat.lon
+              biasLonLat.lon,
             )},${encodeURIComponent(biasLonLat.lat)}`
           : "";
 
@@ -225,7 +225,7 @@ const CreateEvents = ({
       } catch (e) {
         if (e?.name === "AbortError") return;
         setLocationError(
-          "Could not load location suggestions. Please type manually."
+          "Could not load location suggestions. Please type manually.",
         );
         setLocationOptions([]);
       } finally {
@@ -266,7 +266,8 @@ const CreateEvents = ({
       if (selectedEventTypeObj) {
         console.log("Using selectedEventTypeObj:", selectedEventTypeObj);
         return {
-          eventType: selectedEventTypeObj.name || selectedEventTypeObj.displayName || "",
+          eventType:
+            selectedEventTypeObj.name || selectedEventTypeObj.displayName || "",
           isGlobal: !!selectedEventTypeObj.isGlobal,
           isTicketed: !!selectedEventTypeObj.isTicketed,
           hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps,
@@ -276,8 +277,13 @@ const CreateEvents = ({
       if (selectedEventType) {
         console.log("Looking for event type:", selectedEventType);
         // Handle "all" and convert to "CELLS" - FIXED: Always set hasPersonSteps to true for CELLS
-        if (selectedEventType === "all" || selectedEventType.toUpperCase() === "ALL CELLS") {
-          console.log("Detected ALL CELLS - converting to CELLS with personal steps");
+        if (
+          selectedEventType === "all" ||
+          selectedEventType.toUpperCase() === "ALL CELLS"
+        ) {
+          console.log(
+            "Detected ALL CELLS - converting to CELLS with personal steps",
+          );
           return {
             eventType: "CELLS",
             isGlobal: false,
@@ -300,7 +306,10 @@ const CreateEvents = ({
         if (foundEventType) {
           console.log("Found event type:", foundEventType);
           return {
-            eventType: foundEventType.name || foundEventType.displayName || selectedEventType,
+            eventType:
+              foundEventType.name ||
+              foundEventType.displayName ||
+              selectedEventType,
             isGlobal: !!foundEventType.isGlobal,
             isTicketed: !!foundEventType.isTicketed,
             hasPersonSteps: !!foundEventType.hasPersonSteps,
@@ -325,7 +334,8 @@ const CreateEvents = ({
       };
     };
 
-    const { eventType, isGlobal, isTicketed, hasPersonSteps } = determineEventType();
+    const { eventType, isGlobal, isTicketed, hasPersonSteps } =
+      determineEventType();
 
     console.log("Final event type settings:", {
       eventType,
@@ -387,53 +397,42 @@ const CreateEvents = ({
     }
   }, [isTicketedEvent]);
 
-  // Add to your component state
-  const [allPeopleCache, setAllPeopleCache] = useState([]);
-
-  // Fetch all people once on component mount
-  useEffect(() => {
-    const fetchAllPeople = async () => {
-      try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(`${BACKEND_URL}/people?perPage=0`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const formatted = (data?.results || []).map((p) => ({
-            id: p._id,
-            fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-            email: p.Email || "",
-            leader1: p["Leader @1"] || "",
-            leader12: p["Leader @12"] || "",
-          }));
-          setAllPeopleCache(formatted);
-        }
-      } catch (err) {
-        console.error("Error caching people:", err);
-      }
-    };
-
-    fetchAllPeople();
-  }, []);
-
   // Updated fetchPeople function
-  const fetchPeople = (q) => {
-    if (!q.trim()) {
-      setPeopleData([]);
-      return;
-    }
+  const fetchPeople = async (q) => {
+  if (!q.trim() || q.trim().length < 2) {
+    setPeopleData([]);
+    return;
+  }
 
-    const searchLower = q.toLowerCase().trim();
-    const filtered = allPeopleCache.filter((person) => {
-      const fullName = person.fullName.toLowerCase();
-      // Simple: just check if full name contains the search
-      return fullName.includes(searchLower);
-    });
+  try {
+    setIsSearchingPeople(true);
+    const token = localStorage.getItem("token");
+    const res = await fetch(
+      `${BACKEND_URL}/people?name=${encodeURIComponent(q.trim())}&perPage=10`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-    setPeopleData(filtered.slice(0, 10));
-  };
+    if (!res.ok) throw new Error("Search failed");
+
+    const data = await res.json();
+    const results = data?.results || [];
+
+    const formatted = results.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+      email: p.Email || "",
+      leader1: p["Leader @1"] || "",
+      leader12: p["Leader @12"] || "",
+    }));
+
+    setPeopleData(formatted);
+  } catch (err) {
+    console.error("Search error:", err);
+    setPeopleData([]);
+  } finally {
+    setIsSearchingPeople(false);
+  }
+};
 
   useEffect(() => {
     if (!eventId) return;
@@ -470,7 +469,10 @@ const CreateEvents = ({
         }
 
         if (data.isTicketed) {
-          console.log("Setting price tiers for ticketed event:", data.priceTiers);
+          console.log(
+            "Setting price tiers for ticketed event:",
+            data.priceTiers,
+          );
           if (
             data.priceTiers &&
             Array.isArray(data.priceTiers) &&
@@ -553,6 +555,7 @@ const CreateEvents = ({
       eventLeaderEmail: person.email,
     }));
   };
+  console.log("Leader select debug:", handleLeaderSelect);
 
   const handleRemovePriceTier = (index) => {
     setPriceTiers((prev) => prev.filter((_, i) => i !== index));
@@ -582,8 +585,10 @@ const CreateEvents = ({
     if (!formData.eventType) newErrors.eventType = "Event type is required";
     if (!formData.eventName) newErrors.eventName = "Event name is required";
     if (!formData.location) newErrors.location = "Location is required";
-    if (!formData.eventLeader) newErrors.eventLeader = "Event leader is required";
-    if (!formData.description) newErrors.description = "Description is required";
+    if (!formData.eventLeader)
+      newErrors.eventLeader = "Event leader is required";
+    if (!formData.description)
+      newErrors.description = "Description is required";
     if (!formData.date) newErrors.date = "Date is required";
     if (!formData.time) newErrors.time = "Time is required";
 
@@ -597,18 +602,27 @@ const CreateEvents = ({
         if (!formData.time) newErrors.time = "Time is required";
       }
 
-      if (isTicketedEvent && !isGlobalEvent) {
+      if (isTicketedEvent) {
         if (priceTiers.length === 0) {
-          newErrors.priceTiers = "Add at least one price tier for ticketed events";
+          newErrors.priceTiers =
+            "Add at least one price tier for ticketed events";
         } else {
           priceTiers.forEach((tier, index) => {
-            if (!tier.name) newErrors[`tier_${index}_name`] = "Price name is required";
-            if (tier.price === "" || isNaN(Number(tier.price)) || Number(tier.price) < 0)
+            if (!tier.name)
+              newErrors[`tier_${index}_name`] = "Price name is required";
+            if (
+              tier.price === "" ||
+              isNaN(Number(tier.price)) ||
+              Number(tier.price) < 0
+            )
               newErrors[`tier_${index}_price`] = "Valid price is required";
-            if (!tier.ageGroup) newErrors[`tier_${index}_ageGroup`] = "Age group is required";
-            if (!tier.memberType) newErrors[`tier_${index}_memberType`] = "Member type is required";
+            if (!tier.ageGroup)
+              newErrors[`tier_${index}_ageGroup`] = "Age group is required";
+            if (!tier.memberType)
+              newErrors[`tier_${index}_memberType`] = "Member type is required";
             if (!tier.paymentMethod)
-              newErrors[`tier_${index}_paymentMethod`] = "Payment method is required";
+              newErrors[`tier_${index}_paymentMethod`] =
+                "Payment method is required";
           });
         }
       }
@@ -653,8 +667,14 @@ const CreateEvents = ({
 
     try {
       let eventTypeToSend =
-        selectedEventTypeObj?.name || selectedEventType || formData.eventType || "";
-      if (eventTypeToSend === "all" || eventTypeToSend.toLowerCase() === "all cells") {
+        selectedEventTypeObj?.name ||
+        selectedEventType ||
+        formData.eventType ||
+        "";
+      if (
+        eventTypeToSend === "all" ||
+        eventTypeToSend.toLowerCase() === "all cells"
+      ) {
         eventTypeToSend = "CELLS";
       }
 
@@ -713,7 +733,7 @@ const CreateEvents = ({
           .padStart(2, "0")}:${minutes.toString().padStart(2, "0")}`;
       }
 
-      if (isTicketedEvent && !isGlobalEvent) {
+      if (isTicketedEvent) {
         if (priceTiers.length > 0) {
           payload.priceTiers = priceTiers.map((tier) => ({
             name: tier.name || "",
@@ -743,20 +763,24 @@ const CreateEvents = ({
       };
 
       const response = eventId
-        ? await axios.put(`${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`, payload, {
-            headers,
-          })
-        : await axios.post(`${BACKEND_URL.replace(/\/$/, "")}/events`, payload, { headers });
+        ? await axios.put(
+            `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`,
+            payload,
+            {
+              headers,
+            },
+          )
+        : await axios.post(
+            `${BACKEND_URL.replace(/\/$/, "")}/events`,
+            payload,
+            { headers },
+          );
 
       console.log("Response:", response.data.success);
 
-      if (response.data.success) {
-        console.log("[222] → about to show success toast");
-        toast.success(
-          eventId ? "Event updated successfully!" : "Event created successfully!"
-        );
-        console.log("[222] → success toast shown:", eventId);
-      }
+      toast.success(
+        eventId ? "Event updated successfully!" : "Event created successfully!",
+      );
 
       if (!eventId) resetForm();
 
@@ -1010,7 +1034,9 @@ const CreateEvents = ({
               fontWeight="bold"
               textAlign="center"
               mb={4}
-              sx={{ color: isDarkMode ? "#ffffff" : theme.palette.primary.main }}
+              sx={{
+                color: isDarkMode ? "#ffffff" : theme.palette.primary.main,
+              }}
             >
               {eventId ? "Edit Event" : "Create New Event"}
             </Typography>
@@ -1035,7 +1061,9 @@ const CreateEvents = ({
               onChange={(e) => {
                 const selectedName = e.target.value;
 
-                const selectedObj = eventTypes.find((et) => et.name === selectedName);
+                const selectedObj = eventTypes.find(
+                  (et) => et.name === selectedName,
+                );
 
                 setFormData((prev) => ({
                   ...prev,
@@ -1070,7 +1098,7 @@ const CreateEvents = ({
               helperText={errors.eventName}
             />
 
-            {isTicketedEvent && !isGlobalEvent && (
+            {isTicketedEvent && (
               <Box sx={{ mb: 3 }}>
                 <Box
                   sx={{
@@ -1095,7 +1123,11 @@ const CreateEvents = ({
                 {errors.priceTiers && (
                   <Typography
                     variant="caption"
-                    sx={{ ...darkModeStyles.errorText, mb: 1, display: "block" }}
+                    sx={{
+                      ...darkModeStyles.errorText,
+                      mb: 1,
+                      display: "block",
+                    }}
                   >
                     {errors.priceTiers}
                   </Typography>
@@ -1138,7 +1170,9 @@ const CreateEvents = ({
                     <TextField
                       label="Price Name *"
                       value={tier.name}
-                      onChange={(e) => handlePriceTierChange(index, "name", e.target.value)}
+                      onChange={(e) =>
+                        handlePriceTierChange(index, "name", e.target.value)
+                      }
                       fullWidth
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
@@ -1150,7 +1184,9 @@ const CreateEvents = ({
                       label="Price (R) *"
                       type="number"
                       value={tier.price}
-                      onChange={(e) => handlePriceTierChange(index, "price", e.target.value)}
+                      onChange={(e) =>
+                        handlePriceTierChange(index, "price", e.target.value)
+                      }
                       fullWidth
                       size="small"
                       inputProps={{ min: 0, step: "0.01" }}
@@ -1162,7 +1198,9 @@ const CreateEvents = ({
                     <TextField
                       label="Age Group *"
                       value={tier.ageGroup}
-                      onChange={(e) => handlePriceTierChange(index, "ageGroup", e.target.value)}
+                      onChange={(e) =>
+                        handlePriceTierChange(index, "ageGroup", e.target.value)
+                      }
                       fullWidth
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
@@ -1173,7 +1211,13 @@ const CreateEvents = ({
                     <TextField
                       label="Member Type *"
                       value={tier.memberType}
-                      onChange={(e) => handlePriceTierChange(index, "memberType", e.target.value)}
+                      onChange={(e) =>
+                        handlePriceTierChange(
+                          index,
+                          "memberType",
+                          e.target.value,
+                        )
+                      }
                       fullWidth
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
@@ -1184,7 +1228,13 @@ const CreateEvents = ({
                     <TextField
                       label="Payment Method *"
                       value={tier.paymentMethod}
-                      onChange={(e) => handlePriceTierChange(index, "paymentMethod", e.target.value)}
+                      onChange={(e) =>
+                        handlePriceTierChange(
+                          index,
+                          "paymentMethod",
+                          e.target.value,
+                        )
+                      }
                       fullWidth
                       size="small"
                       sx={{ ...darkModeStyles.textField }}
@@ -1196,7 +1246,12 @@ const CreateEvents = ({
               </Box>
             )}
 
-            <Box display="flex" gap={2} flexDirection={{ xs: "column", sm: "row" }} mb={3}>
+            <Box
+              display="flex"
+              gap={2}
+              flexDirection={{ xs: "column", sm: "row" }}
+              mb={3}
+            >
               <TextField
                 label="Date *"
                 type="date"
@@ -1224,20 +1279,42 @@ const CreateEvents = ({
             </Box>
 
             <Box mb={3}>
-              <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
+              <Typography
+                fontWeight="bold"
+                mb={1}
+                sx={darkModeStyles.sectionTitle}
+              >
                 Is Recurring?{" "}
-                {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
+                {hasPersonSteps && !isGlobalEvent && (
+                  <span style={{ color: "red" }}>*</span>
+                )}
               </Typography>
               <FormControlLabel
-                control={<Checkbox checked={isRecurring} onChange={handleIsRecurringChange} />}
+                control={
+                  <Checkbox
+                    checked={isRecurring}
+                    onChange={handleIsRecurringChange}
+                  />
+                }
                 label="Yes"
               />
 
-              <Typography fontWeight="bold" mb={1} sx={darkModeStyles.sectionTitle}>
+              <Typography
+                fontWeight="bold"
+                mb={1}
+                sx={darkModeStyles.sectionTitle}
+              >
                 Recurring Days{" "}
-                {hasPersonSteps && !isGlobalEvent && <span style={{ color: "red" }}>*</span>}
+                {hasPersonSteps && !isGlobalEvent && (
+                  <span style={{ color: "red" }}>*</span>
+                )}
               </Typography>
-              <Box display="flex" flexWrap="wrap" gap={2} sx={darkModeStyles.daysContainer}>
+              <Box
+                display="flex"
+                flexWrap="wrap"
+                gap={2}
+                sx={darkModeStyles.daysContainer}
+              >
                 {days.map((day) => (
                   <FormControlLabel
                     key={day}
@@ -1274,7 +1351,9 @@ const CreateEvents = ({
                   typeof newValue === "string"
                     ? newValue
                     : newValue?.formatted || newValue?.label || "";
-                setSelectedLocation(typeof newValue === "string" ? null : newValue);
+                setSelectedLocation(
+                  typeof newValue === "string" ? null : newValue,
+                );
                 handleChange("location", formatted);
               }}
               getOptionLabel={(option) =>
@@ -1288,7 +1367,9 @@ const CreateEvents = ({
                 <Paper
                   sx={{
                     width: "100%", //keeps the paper inside popper at same width
-                    bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+                    bgcolor: isDarkMode
+                      ? theme.palette.background.paper
+                      : "#fff",
                     border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
                   }}
                 >
@@ -1329,12 +1410,23 @@ const CreateEvents = ({
                 />
               )}
               renderOption={(props, option) => (
-                <li {...props} key={`${option.lon ?? ""}-${option.lat ?? ""}-${option.label}`}>
+                <li
+                  {...props}
+                  key={`${option.lon ?? ""}-${option.lat ?? ""}-${option.label}`}
+                >
                   <Box>
                     <Typography variant="body1">{option.label}</Typography>
-                    {(option.suburb || option.city || option.state || option.postcode) && (
+                    {(option.suburb ||
+                      option.city ||
+                      option.state ||
+                      option.postcode) && (
                       <Typography variant="caption" color="text.secondary">
-                        {[option.suburb, option.city, option.state, option.postcode]
+                        {[
+                          option.suburb,
+                          option.city,
+                          option.state,
+                          option.postcode,
+                        ]
                           .filter(Boolean)
                           .join(" • ")}
                       </Typography>
@@ -1349,12 +1441,18 @@ const CreateEvents = ({
               <TextField
                 label="Event Leader *"
                 value={formData.eventLeader}
+                // ✅ Fixed onChange with 250ms debounce
                 onChange={(e) => {
-                  handleChange("eventLeader", e.target.value);
-                  if (e.target.value.trim().length >= 1) {
-                    fetchPeople(e.target.value);
-                  } else {
-                    setPeopleData([]);
+                  const value = e.target.value;
+                  handleChange("eventLeader", value);
+                  setPeopleData([]);
+                  if (searchDebounceRef.current)
+                    clearTimeout(searchDebounceRef.current);
+
+                  if (value.trim().length >= 2) {
+                    searchDebounceRef.current = setTimeout(() => {
+                      fetchPeople(value);
+                    }, 200); // 200ms feels responsive for a real API call
                   }
                 }}
                 onFocus={() => {
@@ -1370,7 +1468,12 @@ const CreateEvents = ({
                 size="small"
                 sx={darkModeStyles.textField}
                 error={!!errors.eventLeader}
-                helperText={errors.eventLeader || "Type name and surname to search..."}
+                helperText={
+                  errors.eventLeader ||
+                  (isSearchingPeople
+                    ? "Searching..."
+                    : "Type at least 2 characters to search")
+                }
                 InputProps={{
                   startAdornment: (
                     <InputAdornment position="start">
@@ -1389,7 +1492,9 @@ const CreateEvents = ({
                     left: 0,
                     right: 0,
                     zIndex: 1000,
-                    backgroundColor: isDarkMode ? theme.palette.background.paper : "#fff",
+                    backgroundColor: isDarkMode
+                      ? theme.palette.background.paper
+                      : "#fff",
                     border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
                     borderRadius: "4px",
                     boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
@@ -1416,27 +1521,27 @@ const CreateEvents = ({
                           borderBottom: "none",
                         },
                       }}
-                      onClick={() => {
-                        const selectedName = person.fullName;
-                        const selectedEmail = person.email;
-                        if (hasPersonSteps && !isGlobalEvent) {
-                          setFormData((prev) => ({
-                            ...prev,
-                            eventLeader: selectedName,
-                            eventLeaderEmail: selectedEmail.toLowerCase(),
-                            leader1: person.leader1 || "",
-                            leader12: person.leader12 || "",
-                          }));
-                        } else {
-                          setFormData((prev) => ({
-                            ...prev,
-                            eventLeader: selectedName,
-                            eventLeaderEmail: selectedEmail.toLowerCase(),
-                          }));
-                        }
-
-                        setPeopleData([]);
-                      }}
+                      onMouseDown={(e) => {
+  e.preventDefault(); // prevents the input from losing focus and hiding dropdown
+  const selectedName = person.fullName;
+  const selectedEmail = person.email;
+  if (hasPersonSteps && !isGlobalEvent) {
+    setFormData((prev) => ({
+      ...prev,
+      eventLeader: selectedName,
+      eventLeaderEmail: selectedEmail.toLowerCase(),
+      leader1: person.leader1 || "",
+      leader12: person.leader12 || "",
+    }));
+  } else {
+    setFormData((prev) => ({
+      ...prev,
+      eventLeader: selectedName,
+      eventLeaderEmail: selectedEmail.toLowerCase(),
+    }));
+  }
+  setPeopleData([]);
+}}
                     >
                       <Typography variant="body1" fontWeight="500">
                         {person.fullName}
@@ -1454,7 +1559,10 @@ const CreateEvents = ({
                 </Box>
               )}
               {loadingPeople && (
-                <Typography variant="body2" sx={{ color: "text.secondary", mt: 0.5 }}>
+                <Typography
+                  variant="body2"
+                  sx={{ color: "text.secondary", mt: 0.5 }}
+                >
                   Searching...
                 </Typography>
               )}
@@ -1481,7 +1589,9 @@ const CreateEvents = ({
                   size="small"
                   sx={{ mb: 2, ...darkModeStyles.textField }}
                   error={!!errors.leader1}
-                  helperText={errors.leader1 || "Enter the Leader @1 for this cell"}
+                  helperText={
+                    errors.leader1 || "Enter the Leader @1 for this cell"
+                  }
                 />
 
                 <TextField
@@ -1492,18 +1602,24 @@ const CreateEvents = ({
                   size="small"
                   sx={{ mb: 2, ...darkModeStyles.textField }}
                   error={!!errors.leader12}
-                  helperText={errors.leader12 || "Enter the Leader @12 for this cell"}
+                  helperText={
+                    errors.leader12 || "Enter the Leader @12 for this cell"
+                  }
                 />
               </>
             )}
 
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
-              {isTicketedEvent && !isGlobalEvent && (
+              {isTicketedEvent && (
                 <Chip label="Ticketed Event" color="warning" size="small" />
               )}
               {isGlobalEvent && null}
               {hasPersonSteps && !isGlobalEvent && (
-                <Chip label="Personal Steps Event" color="secondary" size="small" />
+                <Chip
+                  label="Personal Steps Event"
+                  color="secondary"
+                  size="small"
+                />
               )}
             </Box>
 
@@ -1557,8 +1673,8 @@ const CreateEvents = ({
                     ? "Updating..."
                     : "Creating..."
                   : eventId
-                  ? "Update Event"
-                  : "Create Event"}
+                    ? "Update Event"
+                    : "Create Event"}
               </Button>
             </Box>
           </form>

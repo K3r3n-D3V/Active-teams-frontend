@@ -322,13 +322,9 @@ function ServiceCheckIn() {
 
     const attendeeInterval = setInterval(loadData, 3000);
 
-    const eventsInterval = setInterval(() => {
-      fetchEvents(true); // forceRefresh = true bypasses cache
-    }, 30 * 1000);
 
     return () => {
       clearInterval(attendeeInterval);
-      clearInterval(eventsInterval);
     };
   }, [currentEventId]);
 
@@ -514,7 +510,10 @@ function ServiceCheckIn() {
   };
 
   const fetchEvents = async (forceRefresh = false) => {
-    setIsLoadingEvents(true);
+    if (!forceRefresh && events.length > 0) {
+      setIsLoadingEvents(true);
+      return;
+    }
     try {
       const response = await authFetch(`${BASE_URL}/events/eventsdata`);
 
@@ -651,13 +650,13 @@ function ServiceCheckIn() {
           console.error('Error transforming event:', error, event);
           return null;
         }
-      }).filter(Boolean); // remove any nulls from errors
+      }).filter(Boolean);
 
-      const validEvents = transformedEvents.filter(event => {
+const validEvents = transformedEvents.filter(event => {
         if (!event || event.status === "error") return false;
         const typeName = (event.eventType || '').toLowerCase();
         if (typeName === 'cells' || typeName === 'all cells' || typeName === 'cell') return false;
-        if (event.isGlobal !== true) return false;  
+        if (event.isGlobal !== true) return false;
         return true;
       });
 
@@ -680,41 +679,44 @@ function ServiceCheckIn() {
   };
 
 
-  const getFilteredEvents = (eventsList = events) => {
-    const today = new Date();
-    const todayDateString = today.toISOString().split('T')[0];
+const getFilteredEvents = (eventsList = events) => {
+  const today = new Date();
+  const todayDateString = today.toISOString().split('T')[0];
 
-    return eventsList.filter(event => {
-      // Must be a global event
-      if (event.isGlobal !== true) return false;
+  return eventsList.filter(event => {
+    // Exclude cells always, regardless of isGlobal
+    const typeName = (event.eventType || event.eventTypeName || '').toLowerCase();
+    if (typeName === 'cells' || typeName === 'all cells' || typeName === 'cell') return false;
 
-      // Exclude cells
-      const typeName = (event.eventType || event.eventTypeName || '').toLowerCase();
-      if (typeName === 'cells' || typeName === 'all cells' || typeName === 'cell') return false;
+    // Show any event type as long as isGlobal is true
+    if (event.isGlobal !== true) return false;
 
-      // Exclude closed/cancelled
-      const eventStatus = event.status?.toLowerCase() || '';
-      if (eventStatus === 'complete' || eventStatus === 'closed') return false;
-      if (eventStatus === 'cancelled' || eventStatus === 'did_not_meet') return false;
+    // Exclude closed/cancelled
+    const eventStatus = event.status?.toLowerCase() || '';
+    if (eventStatus === 'complete' || eventStatus === 'closed') return false;
+    if (eventStatus === 'cancelled' || eventStatus === 'did_not_meet') return false;
 
-      // Only show today's events
-      if (!event.date) return false;
-      const eventDateString = new Date(event.date).toISOString().split('T')[0];
-      return eventDateString === todayDateString;
-    });
-  };
+    // Only show today's events
+    if (!event.date) return false;
+    const eventDateString = new Date(event.date).toISOString().split('T')[0];
+    return eventDateString === todayDateString;
+  });
+};
 
   const getFilteredClosedEvents = () => {
     try {
-      const closedEvents = events.filter(event => {
+const closedEvents = events.filter(event => {
         const status = event.status?.toLowerCase() || '';
         const isClosed = status === 'closed' || status === 'complete';
         const didMeet = status !== 'cancelled' && status !== 'did_not_meet';
 
-        if (event.isGlobal !== true) return false;
-
+        // Always exclude cells regardless of isGlobal
         const typeName = (event.eventType || event.eventTypeName || '').toLowerCase();
         if (typeName === 'cells' || typeName === 'all cells' || typeName === 'cell') return false;
+
+        // Only show events where isGlobal is explicitly true
+        if (event.isGlobal !== true) return false;
+
         return isClosed && didMeet;
       });
 
@@ -977,7 +979,6 @@ function ServiceCheckIn() {
           }),
         }
       );
-      // a comment just
 
       if (response.ok) {
         const data = await response.json();
@@ -2895,7 +2896,8 @@ function ServiceCheckIn() {
               onUnsaveEvent={handleUnsaveEvent}
               events={getFilteredClosedEvents()}
               searchTerm={eventSearch}
-              isLoading={isLoadingEvents}
+              // isLoading={isLoadingEvents}
+              isLoading={isLoadingEvents && events.length === 0}
               onRefresh={() => {
                 console.log('Refreshing event history...');
                 fetchEvents(true);

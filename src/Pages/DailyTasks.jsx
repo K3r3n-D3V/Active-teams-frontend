@@ -61,6 +61,24 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
   );
 }
 
+// Spinner component
+function Spinner({ size = 16, color = "#6b7280" }) {
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        border: `2px solid transparent`,
+        borderTop: `2px solid ${color}`,
+        borderRight: `2px solid ${color}`,
+        borderRadius: "50%",
+        animation: "spin 0.6s linear infinite",
+        flexShrink: 0,
+      }}
+    />
+  );
+}
+
 export default function DailyTasks() {
   if (!window.globalPeopleCache) window.globalPeopleCache = [];
   if (!window.globalCacheTimestamp) window.globalCacheTimestamp = 0;
@@ -552,17 +570,17 @@ export default function DailyTasks() {
   );
 
   useEffect(() => {
-  if (!user) return;
-  if (window.globalPeopleCache?.length > 0 && allPeople.length === 0) {
-    setAllPeople(window.globalPeopleCache);
-  }
-  if (
-    (!window.globalPeopleCache || window.globalPeopleCache.length === 0) &&
-    !isFetchingRef.current
-  ) {
-    fetchAllPeople(false).catch(() => {});
-  }
-}, [user, fetchAllPeople]);
+    if (!user) return;
+    if (window.globalPeopleCache?.length > 0 && allPeople.length === 0) {
+      setAllPeople(window.globalPeopleCache);
+    }
+    if (
+      (!window.globalPeopleCache || window.globalPeopleCache.length === 0) &&
+      !isFetchingRef.current
+    ) {
+      fetchAllPeople(false).catch(() => {});
+    }
+  }, [user, fetchAllPeople]);
 
   const searchPeople = useCallback(
     (peopleList, searchValue, field = "name") => {
@@ -603,9 +621,9 @@ export default function DailyTasks() {
       setIsSearching(true);
 
       const localSource =
-  window.globalPeopleCache?.length > 0
-    ? window.globalPeopleCache
-    : allPeople;
+        window.globalPeopleCache?.length > 0
+          ? window.globalPeopleCache
+          : allPeople;
       if (localSource && localSource.length > 0) {
         try {
           const quick = searchPeople(localSource, query, "name");
@@ -642,9 +660,9 @@ export default function DailyTasks() {
       const query = q.trim();
 
       const localSource =
-  window.globalPeopleCache?.length > 0
-    ? window.globalPeopleCache
-    : allPeople;
+        window.globalPeopleCache?.length > 0
+          ? window.globalPeopleCache
+          : allPeople;
       if (localSource && localSource.length > 0) {
         try {
           const quick = searchPeople(localSource, query, "name");
@@ -670,25 +688,36 @@ export default function DailyTasks() {
 
   const handleRecipientInput = useCallback(
     (value) => {
-      
       setTaskData((prev) => ({
         ...prev,
         recipientDisplay: value,
         recipient: null,
       }));
 
+      if (!value.trim()) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+
+      // Immediately search local cache — shows results right away
       const localSource =
-  window.globalPeopleCache?.length > 0
-    ? window.globalPeopleCache
-    : allPeople;
+        window.globalPeopleCache?.length > 0
+          ? window.globalPeopleCache
+          : allPeople;
+
       if (localSource && localSource.length > 0) {
         try {
           const quick = searchPeople(localSource, value, "name");
           setSearchResults(quick.slice(0, 50));
+          setIsSearching(false); // already have results, no spinner needed
         } catch (e) {
           setSearchResults([]);
+          setIsSearching(true); // will fetch remotely
         }
       } else {
+        // No cache yet — show spinner while we fetch
+        setIsSearching(true);
         setSearchResults([]);
       }
 
@@ -1007,10 +1036,6 @@ export default function DailyTasks() {
         return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
       });
 
-      let colWidthsXml = columnWidths
-        .map((width) => `<x:Width>${width}</x:Width>`)
-        .join("\n                  ");
-
       let html = `
         <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
           <head>
@@ -1143,6 +1168,11 @@ export default function DailyTasks() {
       window.removeEventListener("taskUpdated", handleTaskUpdated);
     };
   }, [user]);
+
+  // Whether people are still being loaded for the first time
+  const peopleNotLoadedYet =
+    (!window.globalPeopleCache || window.globalPeopleCache.length === 0) &&
+    allPeople.length === 0;
 
   return (
     <div
@@ -1481,7 +1511,6 @@ export default function DailyTasks() {
                     }}
                     onClick={() => handleEdit(task)}
                   >
-                    {/* Recipient Name */}
                     <p
                       style={{
                         fontWeight: "700",
@@ -1496,7 +1525,6 @@ export default function DailyTasks() {
                       {recipientName || "No recipient"}
                     </p>
 
-                    {/* Assigned To - EXACTLY as shown in modal */}
                     <p
                       style={{
                         fontSize: "13px",
@@ -1510,7 +1538,6 @@ export default function DailyTasks() {
                       {assignedDisplay || "Not assigned"}
                     </p>
 
-                    {/* Consolidation Source Badge */}
                     {isConsolidation &&
                       sourceDisplay &&
                       sourceDisplay !== "Manual" && (
@@ -1543,7 +1570,6 @@ export default function DailyTasks() {
                         </span>
                       )}
 
-                    {/* Recurring Badge */}
                     {task.isRecurring && (
                       <span
                         style={{
@@ -1664,7 +1690,6 @@ export default function DailyTasks() {
               position: "relative",
             }}
           >
-            {/* Debug banner so you know it's really the edit modal */}
             <div
               style={{
                 background: "#fef3c7",
@@ -1782,7 +1807,7 @@ export default function DailyTasks() {
                 fontSize: "13px",
                 fontWeight: "600",
                 color: isDarkMode ? "#fff" : "#1a1a24",
-                marginBottom:"13px",
+                marginBottom: "13px",
               }}
             >
               Task Type
@@ -1813,7 +1838,6 @@ export default function DailyTasks() {
                 ))}
               </select>
 
-              {/* ADMIN semicolon */}
               {isAdmin && (
                 <div style={{ position: "relative" }}>
                   <button
@@ -1826,46 +1850,20 @@ export default function DailyTasks() {
 
                       const selectedValue = taskData.taskType.trim();
 
-                      console.log(
-                        "Looking for task type with value:",
-                        selectedValue,
-                      );
-                      console.log(
-                        "All available taskTypes:",
-                        taskTypes.map((t) => ({
-                          id: t._id || t.id,
-                          name: t.name,
-                        })),
-                      );
-
-                      console.log("Selected value from form:", selectedValue);
-
-                      
                       let selected = taskTypes.find(
                         (t) => String(t._id || t.id) === selectedValue,
                       );
 
-                      
                       if (!selected) {
-                        console.warn(
-                          "No match by ID — trying to match by name",
-                        );
                         selected = taskTypes.find(
                           (t) => t.name === selectedValue,
                         );
                       }
 
                       if (!selected) {
-                        console.error("Still no match for:", selectedValue);
-                        console.log("Available types:", taskTypes);
                         toast.error("Cannot find the selected task type");
                         return;
                       }
-
-                      console.log("Found task type to manage:", {
-                        id: selected._id || selected.id,
-                        name: selected.name,
-                      });
 
                       setSelectedTypeToManage(selected);
                       setTypeMenuOpen(true);
@@ -1885,7 +1883,6 @@ export default function DailyTasks() {
                     :
                   </button>
 
-                  {/* Popup menu */}
                   {typeMenuOpen && selectedTypeToManage && (
                     <div
                       style={{
@@ -1906,28 +1903,10 @@ export default function DailyTasks() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!selectedTypeToManage) {
-                            console.warn(
-                              "No selectedTypeToManage when clicking Edit",
-                            );
-                            return;
-                          }
-
-                          console.log(
-                            "EDIT button clicked → opening edit modal",
-                          );
-                          console.log(
-                            "Current selected name:",
-                            selectedTypeToManage.name,
-                          );
-                          console.log(
-                            "Current selected ID:",
-                            selectedTypeToManage._id || selectedTypeToManage.id,
-                          );
-
+                          if (!selectedTypeToManage) return;
                           setEditTaskTypeName(selectedTypeToManage.name || "");
                           setIsEditTypeModalOpen(true);
-                          setTypeMenuOpen(false); 
+                          setTypeMenuOpen(false);
                         }}
                         style={{
                           width: "100%",
@@ -1946,24 +1925,13 @@ export default function DailyTasks() {
                       <button
                         type="button"
                         onClick={() => {
-                          console.log(
-                            "Delete button clicked → current selectedTypeToManage:",
-                            selectedTypeToManage,
-                          );
-
                           const id =
                             selectedTypeToManage?._id ||
                             selectedTypeToManage?.id;
                           if (!id) {
                             toast.error("Cannot delete — missing task type ID");
-                            console.warn(
-                              "No valid ID found in selectedTypeToManage",
-                              selectedTypeToManage,
-                            );
                             return;
                           }
-
-                          console.log("Proceeding to delete with ID:", id);
                           deleteTaskType(id);
                         }}
                         disabled={deletingTaskType || !selectedTypeToManage}
@@ -1987,6 +1955,7 @@ export default function DailyTasks() {
             </div>
           </div>
 
+          {/* Recipient field with loading state */}
           <div style={{ position: "relative" }}>
             <label
               style={{
@@ -1999,6 +1968,29 @@ export default function DailyTasks() {
             >
               Recipient
             </label>
+
+            {/* Banner shown when people haven't loaded yet */}
+            {isLoadingPeople && peopleNotLoadedYet && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  backgroundColor: isDarkMode ? "#2d2d2d" : "#f0f9ff",
+                  border: `1px solid ${isDarkMode ? "#444" : "#bae6fd"}`,
+                  borderRadius: "8px",
+                  padding: "8px 12px",
+                  marginBottom: "8px",
+                  fontSize: "12px",
+                  color: isDarkMode ? "#93c5fd" : "#0369a1",
+                  fontWeight: "500",
+                }}
+              >
+                <Spinner size={13} color={isDarkMode ? "#93c5fd" : "#0369a1"} />
+                Loading people data, please wait…
+              </div>
+            )}
+
             <div style={{ position: "relative" }}>
               <input
                 type="text"
@@ -2010,18 +2002,24 @@ export default function DailyTasks() {
                 style={{
                   width: "100%",
                   padding: "10px 12px",
-                  paddingRight:
-                    isSearching || isLoadingPeople ? "36px" : "12px",
+                  paddingRight: isSearching ? "40px" : "12px",
                   borderRadius: "10px",
                   border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
                   fontSize: "14px",
                   backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
                   color: isDarkMode ? "#fff" : "#1a1a24",
                   outline: "none",
+                  boxSizing: "border-box",
                 }}
-                placeholder="Enter recipient name"
+                placeholder={
+                  isLoadingPeople && peopleNotLoadedYet
+                    ? "Loading people…"
+                    : "Enter recipient name"
+                }
               />
-              {(isSearching || isLoadingPeople) && (
+
+              {/* Spinner inside input when actively searching */}
+              {isSearching && (
                 <div
                   style={{
                     position: "absolute",
@@ -2031,10 +2029,16 @@ export default function DailyTasks() {
                     display: "flex",
                     alignItems: "center",
                   }}
-                ></div>
+                >
+                  <Spinner
+                    size={15}
+                    color={isDarkMode ? "#aaaaaa" : "#6b7280"}
+                  />
+                </div>
               )}
-        
             </div>
+
+            {/* Search results dropdown */}
             {searchResults.length > 0 && (
               <ul
                 style={{
@@ -2097,6 +2101,23 @@ export default function DailyTasks() {
                 ))}
               </ul>
             )}
+
+            {/* No results message */}
+            {!isSearching &&
+              taskData.recipientDisplay?.trim().length > 0 &&
+              searchResults.length === 0 &&
+              taskData.recipient === null &&
+              !isLoadingPeople && (
+                <p
+                  style={{
+                    fontSize: "12px",
+                    color: isDarkMode ? "#aaa" : "#6b7280",
+                    margin: "6px 0 0 2px",
+                  }}
+                >
+                  No matching people found.
+                </p>
+              )}
           </div>
 
           <div style={{ position: "relative" }}>
@@ -2324,7 +2345,7 @@ export default function DailyTasks() {
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
-            zIndex: 2000, 
+            zIndex: 2000,
           }}
         >
           <div
@@ -2423,12 +2444,8 @@ export default function DailyTasks() {
 
       <style>{`
         @keyframes spin {
-          from {
-            transform: rotate(0deg);
-          }
-          to {
-            transform: rotate(360deg);
-          }
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
