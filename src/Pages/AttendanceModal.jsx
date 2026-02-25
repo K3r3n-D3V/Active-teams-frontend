@@ -2402,11 +2402,14 @@ useEffect(() => {
       person.email.toLowerCase().includes(searchName.toLowerCase()),
   );
 
+  const filteredPeople = people.filter(
+    (person) =>
+      person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
+      person.email.toLowerCase().includes(associateSearch.toLowerCase()),
+  );
+
 const handleSave = async () => {
   try {
-    const allPeople = getAllCommonAttendees();
-    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-
     let eventId = event?.id || event?._id;
     if (eventId && eventId.includes("_")) {
       eventId = eventId.split("_")[0];
