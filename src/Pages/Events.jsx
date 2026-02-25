@@ -813,6 +813,7 @@ const normalizeEventAttendance = (event) => {
     "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
   }));
 };
+
   const fetchEventFull = async (event) => {
 
     try {
@@ -835,19 +836,37 @@ const normalizeEventAttendance = (event) => {
   };
 
   const downloadEventAttendance = async (event) => {
+    const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
     try {
-      const fullEvent = await fetchEventFull(event);
+      toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
+
+      // Prefer local attendees/attendance already present on the event object
+      const hasLocalAttendance =
+        (event?.attendees && event.attendees.length > 0) ||
+        (event?.attendance && Object.keys(event.attendance).length > 0) ||
+        (event?.attendance_data && Array.isArray(event.attendance_data.attendees) && event.attendance_data.attendees.length > 0) ||
+        (event?.checked_in_count && event.checked_in_count > 0) ||
+        (event?.persistent_attendees && event.persistent_attendees.length > 0);
+
+      const fullEvent = hasLocalAttendance ? event : await fetchEventFull(event);
+
       const rows = normalizeEventAttendance(fullEvent);
       if (!rows || rows.length === 0) {
+        toast.dismiss(TOAST_ID);
         toast.info("No attendees found for this event.");
         return;
       }
+
       buildXlsFromRows(
         rows,
         `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
       );
+
+      toast.dismiss(TOAST_ID);
+      toast.success(`Downloaded attendance of ${rows.length} members `);
     } catch (err) {
       console.error("Download event attendance failed:", err);
+      toast.dismiss(TOAST_ID);
       toast.error("Failed to download event attendance");
     }
   };
@@ -1198,6 +1217,53 @@ ${xmlCols}
       hasPersonSteps: false,
     };
   };
+const fetchInBatches = async (items, fn, batchSize = 6) => {
+    const results = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      // run the batch in parallel
+      // eslint-disable-next-line no-await-in-loop
+      const res = await Promise.all(batch.map((it) => fn(it)));
+      results.push(...res);
+    }
+    return results;
+  };
+
+const downloadEventAttendance = async (event) => {
+    const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
+    try {
+      toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
+
+      // Prefer local attendees/attendance already present on the event object
+      const hasLocalAttendance =
+        (event?.attendees && event.attendees.length > 0) ||
+        (event?.attendance && Object.keys(event.attendance).length > 0) ||
+        (event?.attendance_data && Array.isArray(event.attendance_data.attendees) && event.attendance_data.attendees.length > 0) ||
+        (event?.checked_in_count && event.checked_in_count > 0) ||
+        (event?.persistent_attendees && event.persistent_attendees.length > 0);
+
+      const fullEvent = hasLocalAttendance ? event : await fetchEventFull(event);
+
+      const rows = normalizeEventAttendance(fullEvent);
+      if (!rows || rows.length === 0) {
+        toast.dismiss(TOAST_ID);
+        toast.info("No attendees found for this event.");
+        return;
+      }
+
+      buildXlsFromRows(
+        rows,
+        `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
+      );
+
+      toast.dismiss(TOAST_ID);
+      toast.success(`Downloaded ${rows.length} attendance rows`);
+    } catch (err) {
+      console.error("Download event attendance failed:", err);
+      toast.dismiss(TOAST_ID);
+      toast.error("Failed to download event attendance");
+    }
+  };
 
 const normalizeEventAttendance = (event) => {
   if (!event) return [];
@@ -1257,23 +1323,6 @@ const normalizeEventAttendance = (event) => {
     }
   };
 
-  const downloadEventAttendance = async (event) => {
-    try {
-      const fullEvent = await fetchEventFull(event);
-      const rows = normalizeEventAttendance(fullEvent);
-      if (!rows || rows.length === 0) {
-        toast.info("No attendees found for this event.");
-        return;
-      }
-      buildXlsFromRows(
-        rows,
-        `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
-      );
-    } catch (err) {
-      console.error("Download event attendance failed:", err);
-      toast.error("Failed to download event attendance");
-    }
-  };
 
   const isDateInWeek = (dateStr, which = "current") => {
     if (!dateStr) return false;
@@ -1307,55 +1356,62 @@ const normalizeEventAttendance = (event) => {
   };
 
   const downloadEventsByStatus = async (status, period = "current") => {
+    const TOAST_ID = `download-status-${status}-${period}`;
     try {
       if (!status || (status !== "complete" && status !== "did_not_meet")) {
-        toast.info(
-          "Download is available only for 'complete' and 'did_not_meet' statuses.",
-        );
+        toast.info("Download is available only for 'complete' and 'did_not_meet' statuses.");
         return;
       }
 
-      // Normalize helper
-      const normalizeStatus = (val) =>
-        String(val || "")
-          .toLowerCase()
-          .trim()
-          .replace(/\s+/g, "_");
+      toast.info("Preparing export — fetching events...", { toastId: TOAST_ID, autoClose: false });
 
-      const eventsToExport = events.filter((ev) => {
-        // filter by selected period first (if event has a date)
-        const eventDate =
-          ev.date || ev.EventDate || ev.event_date || ev.displayDate;
-        if (!isDateInWeek(eventDate, period)) {
-          return false;
+      // Prefer local cached source (eventsCache / allCurrentEvents / events)
+      const cacheKey = `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
+      let sourceEvents =
+        (eventsCache.current && eventsCache.current[cacheKey]) ||
+        (allCurrentEvents && allCurrentEvents.length ? allCurrentEvents : null) ||
+        (events && events.length ? events : null) ||
+        [];
+
+      if (!sourceEvents || sourceEvents.length === 0) {
+        try {
+          await fetchAllCurrentEvents();
+          sourceEvents =
+            (eventsCache.current && eventsCache.current[cacheKey]) ||
+            (allCurrentEvents && allCurrentEvents.length ? allCurrentEvents : []) ||
+            (events && events.length ? events : []);
+        } catch (e) {
+          console.error("Failed to preload events for download:", e);
         }
+      }
 
+      const normalizeStatus = (val) =>
+        String(val || "").toLowerCase().trim().replace(/\s/g, "_");
+
+      const eventsToExport = (sourceEvents || []).filter((ev) => {
+        const eventDate = ev.date || ev.EventDate || ev.event_date || ev.displayDate;
+        if (!isDateInWeek(eventDate, period)) return false;
         const s = normalizeStatus(ev.status || ev.Status);
-
         const boolDidNot =
-          ev.did_not_meet === true ||
-          String(ev.did_not_meet).toLowerCase() === "true";
-
+          ev.did_not_meet === true || String(ev.did_not_meet || "").toLowerCase() === "true";
         const isDidNotMeet =
           boolDidNot ||
           s === "did_not_meet" ||
           s === "didnotmeet" ||
           (s.includes("did") && s.includes("meet")) ||
           s === "did not meet";
-        const isComplete =
-          s === "complete" || s === "completed" || s === "closed";
-
+        const isComplete = s === "complete" || s === "completed" || s === "closed";
         return status === "did_not_meet" ? isDidNotMeet : isComplete;
       });
 
       if (!eventsToExport.length) {
+        toast.dismiss(TOAST_ID);
         toast.info("No events with the selected status in the selected week.");
         return;
       }
 
-      const fullEvents = await Promise.all(
-        eventsToExport.map((ev) => fetchEventFull(ev)),
-      );
+      // Fetch full events in small batches to speed up and avoid too many parallel requests
+      const fullEvents = await fetchInBatches(eventsToExport, fetchEventFull, 6);
 
       const allRows = [];
       for (const ev of fullEvents) {
@@ -1372,12 +1428,7 @@ const normalizeEventAttendance = (event) => {
             "Event Date": formatDate(ev.date),
             Name: "",
             Email: "",
-            "Event Leader Name ":
-              ev.eventLeaderName ||
-              ev.leaderName ||
-              ev.eventLeader ||
-              ev.leader ||
-              "",
+            "Event Leader Name ": ev.eventLeaderName || ev.leaderName || ev.eventLeader || ev.leader || "",
             "Leader @12": ev.leader12 || "",
             "Leader @144": ev.leader144 || "",
             Phone: "",
@@ -1393,14 +1444,18 @@ const normalizeEventAttendance = (event) => {
       }
 
       if (!allRows.length) {
+        toast.dismiss(TOAST_ID);
         toast.info("No attendees found for selected events.");
         return;
       }
 
       buildXlsFromRows(allRows, `events_${status}_${period}`);
+      toast.dismiss(TOAST_ID);
+      toast.success(`Downloaded ${allRows.length} rows for ${status} (${period})`);
     } catch (err) {
       console.error("Download events by status failed:", err);
       toast.error("Failed to download events for selected status");
+      toast.dismiss(TOAST_ID);
     }
   };
   const paginatedEvents = useMemo(() => events, [events]);
