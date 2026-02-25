@@ -2759,96 +2759,120 @@ const normalizeEventAttendance = (event) => {
     ],
   );
 
-  const handleCloseEditModal = useCallback(
-    async (shouldRefresh = false, updatedEventData = null) => {
-      setEditModalOpen(false);
-      setSelectedEvent(null);
-      if (shouldRefresh) {
-        clearCache();
+const handleCloseEditModal = useCallback(
+  async (shouldRefresh = false, updatedEventData = null) => {
+    setEditModalOpen(false);
 
-        if (updatedEventData) {
-          const originalDay = selectedEvent?.Day || selectedEvent?.day;
-          const newDay = updatedEventData.Day || updatedEventData.day;
+    if (shouldRefresh) {
+      // Read selectedEvent BEFORE clearing it
+      const originalDay = selectedEvent?.Day || selectedEvent?.day;
+      const newDay = updatedEventData?.Day || updatedEventData?.day;
 
-          if (originalDay && newDay && originalDay !== newDay) {
-            toast.info(
-              `Cell moved from ${originalDay} to ${newDay}!\n\nNote: The cell has been updated but may not appear in the current view. Check the ${newDay} filter to see it.`,
-              {
-                autoClose: 8000,
-                position: "top-center",
-              },
-            );
-          }
-        }
-
-        const refreshParams = {
-          page: currentPage,
-          limit: rowsPerPage,
-          start_date: DEFAULT_API_START_DATE,
-          _t: Date.now(),
-          status: selectedStatus !== "all" ? selectedStatus : undefined,
-          event_type:
-            selectedEventTypeFilter === "all"
-              ? "CELLS"
-              : selectedEventTypeFilter,
-        };
-
-        if (searchQuery && searchQuery.trim()) {
-          refreshParams.search = searchQuery.trim();
-        }
-
-        // Add role-specific filters
-        if (
-          selectedEventTypeFilter === "all" ||
-          selectedEventTypeFilter === "CELLS"
-        ) {
-          if (isLeaderAt12) {
-            refreshParams.leader_at_12_view = true;
-            refreshParams.include_subordinate_cells = true;
-
-            if (currentUserLeaderAt1) {
-              refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
-            }
-
-            if (viewFilter === "personal") {
-              refreshParams.show_personal_cells = true;
-              refreshParams.personal = true;
-            } else {
-              refreshParams.show_all_authorized = true;
-            }
-          } else if (isAdmin && viewFilter === "personal") {
-            refreshParams.personal = true;
-          }
-        }
-
-        Object.keys(refreshParams).forEach(
-          (key) =>
-            (refreshParams[key] === undefined || refreshParams[key] === "") &&
-            delete refreshParams[key],
+      if (originalDay && newDay && originalDay !== newDay) {
+        toast.info(
+          `Cell moved from ${originalDay} to ${newDay}!\n\nNote: The cell has been updated but may not appear in the current view. Check the ${newDay} filter to see it.`,
+          {
+            autoClose: 8000,
+            position: "top-center",
+          },
         );
-
-        await fetchEvents(refreshParams, true);
-
-        setTimeout(() => {
-          fetchEvents({ ...refreshParams, _t: Date.now() }, false);
-        }, 300);
       }
-    },
-    [
-      clearCache,
-      currentPage,
-      rowsPerPage,
-      selectedStatus,
-      searchQuery,
-      selectedEventTypeFilter,
-      fetchEvents,
-      DEFAULT_API_START_DATE,
-      isLeaderAt12,
-      currentUserLeaderAt1,
-      viewFilter,
-      isAdmin,
-    ],
-  );
+
+      // NOW clear selectedEvent
+      setSelectedEvent(null);
+
+      // Optimistically update the event in the local state so UI reflects changes immediately
+      if (updatedEventData) {
+        setEvents((prev) =>
+          prev.map((ev) => {
+            const evId = ev._id?.includes("_") ? ev._id.split("_")[0] : ev._id;
+            const updatedId = updatedEventData._id?.includes("_")
+              ? updatedEventData._id.split("_")[0]
+              : updatedEventData._id;
+            if (evId === updatedId) {
+              return { ...ev, ...updatedEventData };
+            }
+            return ev;
+          }),
+        );
+      }
+
+      // Clear ALL caches to force fresh data
+      eventsCache.current = {};
+      if (cacheRef.current) {
+        cacheRef.current.data.clear();
+        cacheRef.current.timestamp.clear();
+      }
+
+      // Build refresh parameters
+      const refreshParams = {
+        page: currentPage,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        _t: Date.now(),
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter === "all"
+            ? "CELLS"
+            : selectedEventTypeFilter,
+      };
+
+      if (searchQuery && searchQuery.trim()) {
+        refreshParams.search = searchQuery.trim();
+      }
+
+      if (
+        selectedEventTypeFilter === "all" ||
+        selectedEventTypeFilter === "CELLS"
+      ) {
+        if (isLeaderAt12) {
+          refreshParams.leader_at_12_view = true;
+          refreshParams.include_subordinate_cells = true;
+
+          if (currentUserLeaderAt1) {
+            refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+          }
+
+          if (viewFilter === "personal") {
+            refreshParams.show_personal_cells = true;
+            refreshParams.personal = true;
+          } else {
+            refreshParams.show_all_authorized = true;
+          }
+        } else if (isAdmin && viewFilter === "personal") {
+          refreshParams.personal = true;
+        }
+      }
+
+      // Remove undefined/empty values
+      Object.keys(refreshParams).forEach(
+        (key) =>
+          (refreshParams[key] === undefined || refreshParams[key] === "") &&
+          delete refreshParams[key],
+      );
+
+      // Fetch fresh data from server
+      await fetchEvents(refreshParams, true);
+    } else {
+      // No refresh needed, just clear selectedEvent
+      setSelectedEvent(null);
+    }
+  },
+  [
+    selectedEvent, // <-- IMPORTANT: selectedEvent must be in deps so we read it before clearing
+    currentPage,
+    rowsPerPage,
+    selectedStatus,
+    searchQuery,
+    selectedEventTypeFilter,
+    fetchEvents,
+    DEFAULT_API_START_DATE,
+    isLeaderAt12,
+    currentUserLeaderAt1,
+    viewFilter,
+    isAdmin,
+  ],
+);
 
   const handleCloseEventTypesModal = useCallback(() => {
     setEventTypesModalOpen(false);
@@ -5892,15 +5916,14 @@ allFetched.sort((a, b) => {
           </Box>
         </Box>
       )}
-
-      <EditEventModal
-        isOpen={editModalOpen}
-        onClose={(shouldRefresh = false) => {
-          handleCloseEditModal(shouldRefresh);
-        }}
-        event={selectedEvent}
-        token={token}
-      />
+<EditEventModal
+  isOpen={editModalOpen}
+  onClose={(shouldRefresh = false, updatedEventData = null) => {
+    handleCloseEditModal(shouldRefresh, updatedEventData);
+  }}
+  event={selectedEvent}
+  token={token}
+/>
 
       <Dialog
         open={confirmDeleteOpen}
