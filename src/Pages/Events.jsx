@@ -515,31 +515,10 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     },
   };
 
-  // RECURRING column
-  const recurringCol = {
-    field: "recurring_info",
-    headerName: "Recurring",
-    flex: 0.8,
-    minWidth: 120,
-    renderCell: (params) => {
-      if (!params?.row) return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
-      const row = params.row;
-      const isRecurring =
-        row.is_recurring ||
-        (row.recurring_days && Array.isArray(row.recurring_days) && row.recurring_days.length > 0);
-      return (
-        <Box sx={{ color: isRecurring ? "#2196f3" : "#6c757d", fontSize: "0.95rem", fontWeight: isRecurring ? "bold" : "normal", textAlign: "center", width: "100%" }}>
-          {isRecurring ? "True" : "False"}
-        </Box>
-      );
-    },
-  };
-
   // NON-CELLS columns
   if (!isCellType) {
     return [
       statusCol,
-      recurringCol,
       {
         field: "eventName",
         headerName: "Event Name",
@@ -635,7 +614,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     return !(exactMatch || caseInsensitiveMatch || containsOverdue || containsDisplayDate || containsOriginated || containsLeader12 || shouldExcludeLeader1 || containsPersonSteps);
   });
 
-  const columns = [statusCol, recurringCol];
+  const columns = [statusCol];
   columns.push(
     ...filteredFields.map((key) => ({
       field: key,
