@@ -68,8 +68,12 @@ const Login = ({ mode, setMode }) => {
       setSuccess("Login successful!");
       
       // The protected route will automatically navigate to home
-    } catch (err) {
-      setError("Please Signup if you don't have an account!");
+    }catch (err) {
+      console.error("Login error:", err);          // ← Add this
+      const msg = err.response?.data?.message || err.message || "Login failed. Check console for details.";
+      setError(msg.includes("not found") || msg.includes("no account") 
+        ? "Invalid email or password. Please try again or sign up." 
+        : msg);
     } finally {
       setLoading(false);
     }
@@ -103,10 +107,9 @@ const Login = ({ mode, setMode }) => {
     },
     "& .MuiInputBase-input": {
       color: isDark ? "#ffffff" : "#000000",
-      bgcolor: "transparent !important",
-      "&:-webkit-autofill": {
-        WebkitBoxShadow: isDark ? "0 0 0 100px #1a1a1a inset !important" : "0 0 0 100px #f8f9fa inset !important",
-        WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
+    "&:-webkit-autofill": {
+      WebkitBoxShadow: "0 0 0 1000px inherit inset !important",
+      WebkitTextFillColor: "inherit !important",
         transition: "background-color 5000s ease-in-out 0s",
       },
       "&:focus": {
