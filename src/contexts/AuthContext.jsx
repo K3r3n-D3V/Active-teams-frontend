@@ -445,7 +445,7 @@ export const AuthProvider = ({ children }) => {
     //   // Silently fail - don't throw, don't logout
     //   console.error('Role sync failed:', err);
     // }
-  }, [authFetch]);
+  // }, [authFetch]);
   
   // useEffect(() => {
   //   // Only poll when actually logged in
