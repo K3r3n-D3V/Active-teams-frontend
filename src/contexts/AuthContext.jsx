@@ -423,37 +423,37 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Role sync
-  const fetchCurrentUser = useCallback(async () => {
-    // Don't poll if not authenticated
-    if (!localStorage.getItem('access_token')) return;
+  // const fetchCurrentUser = useCallback(async () => {
+  //   // Don't poll if not authenticated
+  //   if (!localStorage.getItem('access_token')) return;
     
-    try {
-      const response = await authFetch(`${BACKEND_URL}/updated-role`);
-      if (response.ok) {
-        const freshUser = await response.json();
-        setUser(prev => {
-          if (!prev || prev.role !== freshUser.role) {
-            console.log(`Role updated: ${prev?.role} → ${freshUser.role}`);
-            const updated = ensureUserWithAvatar({ ...prev, ...freshUser });
-            persistUser(updated);
-            return updated;
-          }
-          return prev;
-        });
-      }
-    } catch (err) {
-      // Silently fail - don't throw, don't logout
-      console.error('Role sync failed:', err);
-    }
-  }, [authFetch]);
+  //   try {
+  //     const response = await authFetch(`${BACKEND_URL}/updated-role`);
+  //     if (response.ok) {
+  //       const freshUser = await response.json();
+  //       setUser(prev => {
+  //         if (!prev || prev.role !== freshUser.role) {
+  //           console.log(`Role updated: ${prev?.role} → ${freshUser.role}`);
+  //           const updated = ensureUserWithAvatar({ ...prev, ...freshUser });
+  //           persistUser(updated);
+  //           return updated;
+  //         }
+  //         return prev;
+  //       });
+  //     }
+  //   } catch (err) {
+  //     // Silently fail - don't throw, don't logout
+  //     console.error('Role sync failed:', err);
+  //   }
+  // }, [authFetch]);
   
-  useEffect(() => {
-    // Only poll when actually logged in
-    if (!user?.id || !isAuthenticated) return;
+  // useEffect(() => {
+  //   // Only poll when actually logged in
+  //   if (!user?.id || !isAuthenticated) return;
   
-    const interval = setInterval(fetchCurrentUser, 1_000);
-    return () => clearInterval(interval);  
-  }, [user?.id, isAuthenticated, fetchCurrentUser]); 
+  //   const interval = setInterval(fetchCurrentUser, 1_000);
+  //   return () => clearInterval(interval);  
+  // }, [user?.id, isAuthenticated, fetchCurrentUser]); 
 
   const requestPasswordReset = async (email) => {
     try {

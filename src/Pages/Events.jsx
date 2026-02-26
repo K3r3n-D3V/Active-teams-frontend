@@ -2303,10 +2303,28 @@ const normalizeEventAttendance = (event) => {
   }, [selectedEventTypeFilter, selectedStatus, viewFilter]);
 
 
-  const handleCaptureClick = useCallback((event) => {
+const handleCaptureClick = useCallback(async (event) => {
+  try {
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(`${BACKEND_URL}/events/${event._id || event.id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const fullEvent = await response.json();
+    
+    console.log("Full event with priceTiers:", fullEvent);
+    console.log("Price tiers:", fullEvent?.priceTiers);
+    
+    // Set the FULL event data BEFORE opening the modal
+    setSelectedEvent(fullEvent);
+    // Then open the modal
+    setAttendanceModalOpen(true);
+  } catch (err) {
+    console.error("Failed to fetch full event:", err);
+    // Fall back to original event if fetch fails
     setSelectedEvent(event);
     setAttendanceModalOpen(true);
-  }, []);
+  }
+}, [BACKEND_URL]);
 
   const handleCloseCreateEventModal = useCallback(
     (shouldRefresh = false) => {

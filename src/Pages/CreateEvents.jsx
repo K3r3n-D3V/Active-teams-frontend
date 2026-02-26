@@ -1047,13 +1047,14 @@ const CreateEvents = ({
               fullWidth
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
-            >
+              >
               {eventTypes.map((et) => (
                 <MenuItem key={et.id} value={et.name}>
                   {et.name}
-                </MenuItem>
+                </MenuItem>                  
               ))}
             </TextField>
+              {/* console.log("Selected event type:", setIsGlobalEvent, setIsTicketedEvent, setHasPersonSteps);  */}
 
             <TextField
               label="Event Name *"

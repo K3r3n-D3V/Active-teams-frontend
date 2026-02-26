@@ -1268,8 +1268,9 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [showDidNotMeetConfirm, setShowDidNotMeetConfirm] = useState(false);
   const [persistentCommonAttendees, setPersistentCommonAttendees] = useState([]);
   const [preloadedPeople, setPreloadedPeople] = useState([]);
-  const [showTicketSelectionModal, setShowTicketSelectionModal] = useState(false);
-  const [selectedPersonForTicket, setSelectedPersonForTicket] = useState(null);
+  // Removed showTicketSelectionModal and selectedPersonForTicket states
+    const [, setSelectedEvent] = useState(null);
+  
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -1280,6 +1281,12 @@ const handleOpenAttendanceModal = async (event) => {
       headers: { Authorization: `Bearer ${token}` }
     });
     const fullEvent = await response.json();
+    
+    // ADD THESE
+    console.log("Full event from API:", fullEvent);
+    console.log("priceTiers from API:", fullEvent?.priceTiers);
+    console.log("isTicketed from API:", fullEvent?.isTicketed);
+    
     setSelectedEvent(fullEvent);
     setShowAttendanceModal(true);
   } catch (err) {
@@ -1316,6 +1323,16 @@ const eventPriceTiers =
       recommitment: 0
     }
   });
+
+  // // Payment method options
+  // const paymentMethodOptions = [
+  //   "Cash",
+  //   "Card",
+  //   "EFT",
+  //   "SnapScan",
+  //   "Zapper",
+  //   "Free"
+  // ];
 
   const clearGlobalPeopleCache = () => {
     try {
@@ -1484,169 +1501,90 @@ const eventPriceTiers =
     }
   };
 
-  const loadWeeklyCheckins = () => {
-    if (!event) {
-      setCheckedIn({});
-      setManualHeadcount("0");
-      setDidNotMeet(false);
-      return;
-    }
-
+const loadWeeklyCheckins = () => {
+  if (!event) {
     setCheckedIn({});
-    setDecisions({});
-    setDecisionTypes({});
-    setAttendeeTicketInfo({});
     setManualHeadcount("0");
     setDidNotMeet(false);
+    return;
+  }
 
-    if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
-      console.log("Loading checkins from direct event.attendees:", event.attendees.length);
+  setCheckedIn({});
+  setDecisions({});
+  setDecisionTypes({});
+  setAttendeeTicketInfo({});
+  setManualHeadcount("0");
+  setDidNotMeet(false);
 
-      const newCheckedIn = {};
-      const newDecisions = {};
-      const newDecisionTypes = {};
-      const newTicketInfo = {};
+  // Helper function to process attendees
+  const processAttendees = (attendees) => {
+    const newCheckedIn = {};
+    const newDecisions = {};
+    const newDecisionTypes = {};
+    const newTicketInfo = {};
 
-      event.attendees.forEach(att => {
-        if (att.id) {
-          newCheckedIn[att.id] = true;
+    attendees.forEach(att => {
+      if (att.id) {
+        newCheckedIn[att.id] = att.checked_in || false;
 
-          if (att.decision) {
-            newDecisions[att.id] = true;
-            newDecisionTypes[att.id] = att.decision;
-          }
-
-          if (isTicketedEvent && att.priceName) {
-            newTicketInfo[att.id] = {
-              priceName: att.priceName || "",
-              price: att.price || 0,
-              ageGroup: att.ageGroup || "",
-              paymentMethod: att.paymentMethod || ""
-            };
-          }
+        if (att.decision) {
+          newDecisions[att.id] = true;
+          newDecisionTypes[att.id] = att.decision;
         }
-      });
 
-      setCheckedIn(newCheckedIn);
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-      setAttendeeTicketInfo(newTicketInfo);
-
-      if (event.total_headcounts) {
-        setManualHeadcount(event.total_headcounts.toString());
-      }
-
-      return;
-    }
-
-    if (event.attendance_data && event.attendance_data.attendees) {
-      const newCheckedIn = {};
-      const newDecisions = {};
-      const newDecisionTypes = {};
-      const newTicketInfo = {};
-
-      event.attendance_data.attendees.forEach(att => {
-        if (att.id) {
-          newCheckedIn[att.id] = true;
-
-          if (att.decision) {
-            newDecisions[att.id] = true;
-            newDecisionTypes[att.id] = att.decision;
-          }
-
-          if (isTicketedEvent && att.priceName) {
-            newTicketInfo[att.id] = {
-              priceName: att.priceName || "",
-              price: att.price || 0,
-              ageGroup: att.ageGroup || "",
-              paymentMethod: att.paymentMethod || ""
-            };
-          }
-        }
-      });
-
-      setCheckedIn(newCheckedIn);
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-      setAttendeeTicketInfo(newTicketInfo);
-
-      if (event.attendance_data.total_headcounts) {
-        setManualHeadcount(event.attendance_data.total_headcounts.toString());
-      }
-
-      return;
-    }
-
-    const attendanceData = event.attendance || {};
-    console.log("Loading checkins from attendance:", attendanceData);
-
-    let weekAttendance = {};
-
-    if (attendanceData.status === "complete") {
-      weekAttendance = attendanceData;
-      console.log("Found checkin data directly");
-    } else {
-      const possibleKeys = Object.keys(attendanceData).filter(key =>
-        typeof attendanceData[key] === 'object'
-      );
-
-      for (const key of possibleKeys) {
-        const data = attendanceData[key];
-        if (data && data.status === "complete") {
-          weekAttendance = data;
-          console.log(`Found checkins in key: "${key}"`);
-          break;
+        // Always load ticket info for ticketed events
+        if (isTicketedEvent) {
+          newTicketInfo[att.id] = {
+            priceName: att.priceName || (eventPriceTiers?.[0]?.name) || "",
+            price: att.price || (eventPriceTiers?.[0]?.price) || 0,
+            ageGroup: att.ageGroup || (eventPriceTiers?.[0]?.ageGroup) || "",
+            paymentMethod: att.paymentMethod || "Cash"
+          };
         }
       }
-    }
+    });
 
-    const isCompleted = weekAttendance?.status === "complete";
-
-    if (isCompleted) {
-      console.log("Loading completed week checkins");
-
-      const attendees = weekAttendance.attendees || [];
-
-      if (attendees.length > 0) {
-        const newCheckedIn = {};
-        const newDecisions = {};
-        const newDecisionTypes = {};
-        const newTicketInfo = {};
-
-        attendees.forEach(att => {
-          if (att.id) {
-            newCheckedIn[att.id] = true;
-
-            if (att.decision) {
-              newDecisions[att.id] = true;
-              newDecisionTypes[att.id] = att.decision;
-            }
-
-            if (isTicketedEvent && att.priceName) {
-              newTicketInfo[att.id] = {
-                priceName: att.priceName || "",
-                price: att.price || 0,
-                ageGroup: att.ageGroup || "",
-                paymentMethod: att.paymentMethod || ""
-              };
-            }
-          }
-        });
-
-        console.log("Setting", attendees.length, "checkins");
-        setCheckedIn(newCheckedIn);
-        setDecisions(newDecisions);
-        setDecisionTypes(newDecisionTypes);
-        setAttendeeTicketInfo(newTicketInfo);
-      }
-
-      const headcount = weekAttendance.total_headcounts || 0;
-      setManualHeadcount(headcount.toString());
-
-    } else {
-      console.log("No checkins to load");
-    }
+    setCheckedIn(newCheckedIn);
+    setDecisions(newDecisions);
+    setDecisionTypes(newDecisionTypes);
+    setAttendeeTicketInfo(newTicketInfo);
   };
+
+  // Check multiple possible locations for attendees
+  if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
+    console.log("Loading checkins from direct event.attendees:", event.attendees.length);
+    processAttendees(event.attendees);
+    
+    if (event.total_headcounts) {
+      setManualHeadcount(event.total_headcounts.toString());
+    }
+    return;
+  }
+
+  if (event.attendance_data && event.attendance_data.attendees) {
+    console.log("Loading checkins from attendance_data");
+    processAttendees(event.attendance_data.attendees);
+    
+    if (event.attendance_data.total_headcounts) {
+      setManualHeadcount(event.attendance_data.total_headcounts.toString());
+    }
+    return;
+  }
+
+  // Check nested attendance object
+  const attendanceData = event.attendance || {};
+  const eventDate = event.date;
+  const weekAttendance = attendanceData[eventDate] || attendanceData;
+
+  if (weekAttendance?.attendees?.length > 0) {
+    console.log("Loading checkins from attendance by date");
+    processAttendees(weekAttendance.attendees);
+    
+    if (weekAttendance.total_headcounts) {
+      setManualHeadcount(weekAttendance.total_headcounts.toString());
+    }
+  }
+};
 
   const loadPersistentAttendees = async (eventId) => {
     try {
@@ -1991,19 +1929,28 @@ const eventPriceTiers =
     setOpenDecisionDropdown(null);
   };
 
-  const handlePriceTierSelect = (personId, tier) => {
+
+  // Handle manual payment method change
+  const handlePaymentMethodChange = (personId, method) => {
     setAttendeeTicketInfo(prev => ({
       ...prev,
       [personId]: {
-        priceName: tier.name,
-        price: tier.price,
-        ageGroup: tier.ageGroup,
-        paymentMethod: tier.paymentMethod
+        ...prev[personId],
+        paymentMethod: method
       }
     }));
-    setOpenPriceTierDropdown(null);
   };
-  console.log("price tier select", handlePriceTierSelect);
+
+  // Handle manual price change (if needed)
+  const handlePriceChange = (personId, price) => {
+    setAttendeeTicketInfo(prev => ({
+      ...prev,
+      [personId]: {
+        ...prev[personId],
+        price: parseFloat(price) || 0
+      }
+    }));
+  };
 
   const saveAllAttendeesToDatabase = async (attendees) => {
     if (!event) return false;
@@ -2041,32 +1988,23 @@ const eventPriceTiers =
     }
   };
 
-  const handleAssociatePerson = async (person) => {
-    const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
+const handleAssociatePerson = async (person) => {
+  const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
 
-    if (isAlreadyAdded) {
-      toast.info(`${person.fullName} is already in attendees list`);
-      return;
-    }
+  if (isAlreadyAdded) {
+    toast.info(`${person.fullName} is already in attendees list`);
+    return;
+  }
 
-    if (isTicketedEvent) {
-      setSelectedPersonForTicket(person);
-      setShowTicketSelectionModal(true);
-    } else {
-      const updated = [...persistentCommonAttendees, person];
-      setPersistentCommonAttendees(updated);
-      await saveAllAttendeesToDatabase(updated);
-      toast.success(`${person.fullName} added to attendees list`);
-    }
-  };
-
-  const addPersonWithTicket = async (person, ticketTier) => {
+  // For ticketed events, always add with default first tier
+  if (isTicketedEvent && eventPriceTiers && eventPriceTiers.length > 0) {
+    const defaultTier = eventPriceTiers[0];
     const personWithTicket = {
       ...person,
-      priceName: ticketTier.name,
-      price: ticketTier.price,
-      ageGroup: ticketTier.ageGroup,
-      paymentMethod: ticketTier.paymentMethod
+      priceName: defaultTier.name,
+      price: defaultTier.price,
+      ageGroup: defaultTier.ageGroup,
+      paymentMethod: defaultTier.paymentMethod || "Cash"
     };
 
     const updated = [...persistentCommonAttendees, personWithTicket];
@@ -2076,15 +2014,22 @@ const eventPriceTiers =
     setAttendeeTicketInfo(prev => ({
       ...prev,
       [person.id]: {
-        priceName: ticketTier.name,
-        price: ticketTier.price,
-        ageGroup: ticketTier.ageGroup,
-        paymentMethod: ticketTier.paymentMethod
+        priceName: defaultTier.name,
+        price: defaultTier.price,
+        ageGroup: defaultTier.ageGroup,
+        paymentMethod: defaultTier.paymentMethod || "Cash"
       }
     }));
 
-    toast.success(`${person.fullName} added with ${ticketTier.name} ticket`);
-  };
+    toast.success(`${person.fullName} added with ${defaultTier.name} ticket`);
+  } else {
+    // For non-ticketed events
+    const updated = [...persistentCommonAttendees, person];
+    setPersistentCommonAttendees(updated);
+    await saveAllAttendeesToDatabase(updated);
+    toast.success(`${person.fullName} added to attendees list`);
+  }
+};
 
   const handleRemoveAttendee = async (personId, personName) => {
     try {
@@ -2559,7 +2504,7 @@ const eventPriceTiers =
               <div style={{ fontSize: "12px", color: theme.palette.text.secondary, marginTop: "4px" }}>
                 {attendeeTicketInfo[person.id]?.priceName || person.priceName || "No ticket selected"}
                 {(attendeeTicketInfo[person.id]?.price || person.price) &&
-                  ` - ${(attendeeTicketInfo[person.id]?.price || person.price)}`
+                  ` - R${(attendeeTicketInfo[person.id]?.price || person.price)}`
                 }
               </div>
             )}
@@ -2732,6 +2677,45 @@ const eventPriceTiers =
       padding: "10px 12px", cursor: "pointer", fontSize: 14,
       color: theme.palette.text.primary, transition: "background 0.15s",
     },
+    // New styles for price tier dropdown
+    priceTierDropdown: { position: "relative", display: "inline-block" },
+    priceTierButton: {
+      display: "flex", alignItems: "center", gap: 4, padding: "6px 10px",
+      background: theme.palette.action.hover, border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 4, cursor: "pointer", fontSize: 13, color: theme.palette.text.primary,
+      minWidth: 120, justifyContent: "space-between",
+    },
+    priceTierMenu: {
+      position: "absolute", top: "100%", left: "0", marginTop: 2,
+      background: theme.palette.background.paper, border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 4, boxShadow: theme.shadows[4], zIndex: 10000,
+      minWidth: 180, maxHeight: 250, overflowY: "auto",
+    },
+    priceTierMenuItem: {
+      padding: "8px 12px", cursor: "pointer", fontSize: 13,
+      color: theme.palette.text.primary, borderBottom: `1px solid ${theme.palette.divider}`,
+      "&:hover": { background: theme.palette.action.hover },
+      "&:last-child": { borderBottom: "none" },
+    },
+    paymentMethodSelect: {
+      padding: "6px 8px",
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 4,
+      fontSize: 13,
+      color: theme.palette.text.primary,
+      cursor: "pointer",
+      minWidth: 100,
+    },
+    priceInput: {
+      padding: "6px 8px",
+      background: theme.palette.background.paper,
+      border: `1px solid ${theme.palette.divider}`,
+      borderRadius: 4,
+      fontSize: 13,
+      color: theme.palette.text.primary,
+      width: 80,
+    },
     statsContainer: { display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" },
     statBox: {
       flex: "1 1 calc(25% - 15px)", background: theme.palette.background.default,
@@ -2823,26 +2807,6 @@ const eventPriceTiers =
       fontSize: 12, color: theme.palette.text.secondary, marginBottom: 4, display: "block", fontWeight: 600,
     },
     inputGroup: { position: "relative" },
-    ticketModalOverlay: {
-      position: "fixed", top: 0, left: 0, right: 0, bottom: 0,
-      background: isDarkMode ? "rgba(0,0,0,0.7)" : "rgba(0,0,0,0.5)",
-      display: "flex", justifyContent: "center", alignItems: "center", zIndex: 10001, padding: 20,
-    },
-    ticketModal: {
-      background: theme.palette.background.paper, borderRadius: 12, padding: 24,
-      maxWidth: 500, width: "100%", maxHeight: "80vh", overflowY: "auto",
-      border: `1px solid ${theme.palette.divider}`,
-    },
-    ticketModalTitle: { fontSize: 20, fontWeight: 600, marginBottom: 8, color: theme.palette.text.primary },
-    ticketModalSubtitle: { fontSize: 14, color: theme.palette.text.secondary, marginBottom: 20 },
-    ticketOption: {
-      padding: 16, marginBottom: 12, border: `2px solid ${theme.palette.divider}`,
-      borderRadius: 8, cursor: "pointer", transition: "all 0.2s", background: theme.palette.background.paper,
-    },
-    ticketOptionName: { fontWeight: 600, fontSize: 16, color: theme.palette.text.primary, marginBottom: 8 },
-    ticketOptionDetails: {
-      fontSize: 14, color: theme.palette.text.secondary, display: "flex", flexWrap: "wrap", gap: "12px",
-    },
   };
 
   if (!isOpen) return null;
@@ -2955,94 +2919,157 @@ const eventPriceTiers =
                             </td>
                           </tr>
                         )}
-                        {filteredCommonAttendees.map((person) => (
-                          <tr key={person.id}>
-                            <td style={styles.td}>{person.fullName || "Unknown Name"}</td>
-                            <td style={styles.td}>{person.email || "No email"}</td>
-                            <td style={styles.td}>{person.leader12 || ""}</td>
-                            <td style={styles.td}>{person.leader144 || ""}</td>
-                            <td style={styles.td}>{person.phone || ""}</td>
+                        {filteredCommonAttendees.map((person) => {
+                          const ticketInfo = attendeeTicketInfo[person.id] || person;
+                          
+                          return (
+                            <tr key={person.id}>
+                              <td style={styles.td}>{person.fullName || "Unknown Name"}</td>
+                              <td style={styles.td}>{person.email || "No email"}</td>
+                              <td style={styles.td}>{person.leader12 || ""}</td>
+                              <td style={styles.td}>{person.leader144 || ""}</td>
+                              <td style={styles.td}>{person.phone || ""}</td>
 
-                            {isTicketedEvent && (
-                              <>
-                                <td style={styles.td}>
-                                  {attendeeTicketInfo[person.id]?.priceName || person.priceName || "-"}
-                                </td>
-                                <td style={styles.td}>
-                                  {(attendeeTicketInfo[person.id]?.price || person.price)
-                                    ? `R${(attendeeTicketInfo[person.id]?.price || person.price)}`
-                                    : "-"}
-                                </td>
-                                <td style={styles.td}>
-                                  {attendeeTicketInfo[person.id]?.ageGroup || person.ageGroup || "-"}
-                                </td>
-                                <td style={styles.td}>
-                                  {attendeeTicketInfo[person.id]?.paymentMethod || person.paymentMethod || "-"}
-                                </td>
-                              </>
-                            )}
 
-                            <td style={{ ...styles.td, ...styles.radioCell }}>
-                              <button
-                                style={{ ...styles.radioButton, ...(checkedIn[person.id] ? styles.radioButtonChecked : {}) }}
-                                onClick={() => handleCheckIn(person.id, person.fullName || "Unknown")}
-                              >
-                                {checkedIn[person.id] && <span style={styles.radioButtonInner}>✓</span>}
-                              </button>
-                            </td>
+{isTicketedEvent && (
+  <>
+    {/* Price Name Dropdown - Always visible */}
+    <td style={styles.td}>
+      <div style={styles.priceTierDropdown}>
+        <button
+          style={styles.priceTierButton}
+          onClick={() => setOpenPriceTierDropdown(openPriceTierDropdown === person.id ? null : person.id)}
+        >
+          <span>{ticketInfo.priceName || "Select Tier"}</span>
+          <ChevronDown size={14} />
+        </button>
+        {openPriceTierDropdown === person.id && eventPriceTiers && eventPriceTiers.length > 0 && (
+          <div style={styles.priceTierMenu}>
+            {eventPriceTiers.map((tier, index) => (
+              <div
+                key={index}
+                style={styles.priceTierMenuItem}
+                onClick={() => {
+                  // Update ticket info when tier is selected - use tier's payment method
+                  setAttendeeTicketInfo(prev => ({
+                    ...prev,
+                    [person.id]: {
+                      priceName: tier.name,
+                      price: tier.price,
+                      ageGroup: tier.ageGroup,
+                      paymentMethod: tier.paymentMethod || "Cash" // Use payment method from the tier
+                    }
+                  }));
+                  setOpenPriceTierDropdown(null);
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = theme.palette.action.hover)}
+                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+              >
+                <div style={{ fontWeight: 500 }}>{tier.name}</div>
+                <div style={{ fontSize: 11, color: theme.palette.text.secondary }}>
+                  R{tier.price} • {tier.ageGroup} • {tier.paymentMethod || "Cash"}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {openPriceTierDropdown === person.id && (!eventPriceTiers || eventPriceTiers.length === 0) && (
+          <div style={styles.priceTierMenu}>
+            <div style={{ ...styles.priceTierMenuItem, color: theme.palette.text.secondary }}>
+              No price tiers available
+            </div>
+          </div>
+        )}
+      </div>
+    </td>
 
-                            {!isTicketedEvent && (
+    {/* Price (R) - Display only, no input */}
+    <td style={styles.td}>
+      <span style={{ 
+        color: theme.palette.text.primary,
+        fontWeight: 500 
+      }}>
+        {ticketInfo.price ? `R${ticketInfo.price}` : "-"}
+      </span>
+    </td>
+
+    {/* Age Group - Display only */}
+    <td style={styles.td}>
+      <span style={{ color: theme.palette.text.secondary }}>
+        {ticketInfo.ageGroup || "-"}
+      </span>
+    </td>
+
+    <td style={styles.td}>
+      <span style={{ color: theme.palette.text.secondary }}>
+        {ticketInfo.paymentMethod || "-"}
+      </span>
+    </td>
+  </>
+)}
+
                               <td style={{ ...styles.td, ...styles.radioCell }}>
-                                {checkedIn[person.id] ? (
-                                  <div style={styles.decisionDropdown}>
-                                    <button
-                                      style={styles.decisionButton}
-                                      onClick={() => setOpenDecisionDropdown(openDecisionDropdown === person.id ? null : person.id)}
-                                    >
-                                      <span>
-                                        {decisionTypes[person.id]
-                                          ? decisionOptions.find((opt) => opt.value === decisionTypes[person.id])?.label
-                                          : "Select Decision"}
-                                      </span>
-                                      <ChevronDown size={16} />
-                                    </button>
-                                    {openDecisionDropdown === person.id && (
-                                      <div style={styles.decisionMenu}>
-                                        {decisionOptions.map((option) => (
-                                          <div
-                                            key={option.value}
-                                            style={styles.decisionMenuItem}
-                                            onClick={() => handleDecisionTypeSelect(person.id, option.value)}
-                                            onMouseEnter={(e) => (e.currentTarget.style.background = theme.palette.action.hover)}
-                                            onMouseLeave={(e) => (e.target.style.background = "transparent")}
-                                          >
-                                            {option.label}
-                                          </div>
-                                        ))}
-                                      </div>
-                                    )}
-                                  </div>
-                                ) : (
-                                  <button style={{ ...styles.radioButton, opacity: 0.3, cursor: "not-allowed" }} disabled />
-                                )}
+                                <button
+                                  style={{ ...styles.radioButton, ...(checkedIn[person.id] ? styles.radioButtonChecked : {}) }}
+                                  onClick={() => handleCheckIn(person.id, person.fullName || "Unknown")}
+                                >
+                                  {checkedIn[person.id] && <span style={styles.radioButtonInner}>✓</span>}
+                                </button>
                               </td>
-                            )}
 
-                            <td style={{ ...styles.td, textAlign: "center" }}>
-                              <button
-                                onClick={() => handleRemoveAttendee(person.id, person.fullName || "Unknown")}
-                                style={{
-                                  background: "none", border: "none", cursor: "pointer", padding: "4px",
-                                  borderRadius: "4px", color: theme.palette.error.main,
-                                  display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto",
-                                }}
-                                title="Remove from attendees"
-                              >
-                                <X size={18} />
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
+                              {!isTicketedEvent && (
+                                <td style={{ ...styles.td, ...styles.radioCell }}>
+                                  {checkedIn[person.id] ? (
+                                    <div style={styles.decisionDropdown}>
+                                      <button
+                                        style={styles.decisionButton}
+                                        onClick={() => setOpenDecisionDropdown(openDecisionDropdown === person.id ? null : person.id)}
+                                      >
+                                        <span>
+                                          {decisionTypes[person.id]
+                                            ? decisionOptions.find((opt) => opt.value === decisionTypes[person.id])?.label
+                                            : "Select Decision"}
+                                        </span>
+                                        <ChevronDown size={16} />
+                                      </button>
+                                      {openDecisionDropdown === person.id && (
+                                        <div style={styles.decisionMenu}>
+                                          {decisionOptions.map((option) => (
+                                            <div
+                                              key={option.value}
+                                              style={styles.decisionMenuItem}
+                                              onClick={() => handleDecisionTypeSelect(person.id, option.value)}
+                                              onMouseEnter={(e) => (e.currentTarget.style.background = theme.palette.action.hover)}
+                                              onMouseLeave={(e) => (e.target.style.background = "transparent")}
+                                            >
+                                              {option.label}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <button style={{ ...styles.radioButton, opacity: 0.3, cursor: "not-allowed" }} disabled />
+                                  )}
+                                </td>
+                              )}
+
+                              <td style={{ ...styles.td, textAlign: "center" }}>
+                                <button
+                                  onClick={() => handleRemoveAttendee(person.id, person.fullName || "Unknown")}
+                                  style={{
+                                    background: "none", border: "none", cursor: "pointer", padding: "4px",
+                                    borderRadius: "4px", color: theme.palette.error.main,
+                                    display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto",
+                                  }}
+                                  title="Remove from attendees"
+                                >
+                                  <X size={18} />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
@@ -3248,64 +3275,6 @@ const eventPriceTiers =
               <button style={styles.confirmCancelBtn} onClick={cancelDidNotMeet}>Cancel</button>
               <button style={styles.confirmProceedBtn} onClick={confirmDidNotMeet}>Mark as Did Not Meet</button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {showTicketSelectionModal && selectedPersonForTicket && (
-        <div style={styles.ticketModalOverlay}>
-          <div style={styles.ticketModal}>
-            <h3 style={styles.ticketModalTitle}>Select Ticket Tier</h3>
-            <p style={styles.ticketModalSubtitle}>
-              Choose a ticket for {selectedPersonForTicket.fullName}
-            </p>
-
-            <div>
-              {eventPriceTiers && eventPriceTiers.length > 0 ? (
-                eventPriceTiers.map((tier, index) => (
-                  <div
-                    key={index}
-                    onClick={() => {
-                      addPersonWithTicket(selectedPersonForTicket, tier);
-                      setShowTicketSelectionModal(false);
-                      setSelectedPersonForTicket(null);
-                    }}
-                    style={styles.ticketOption}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = theme.palette.primary.main;
-                      e.currentTarget.style.backgroundColor = theme.palette.action.hover;
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = theme.palette.divider;
-                      e.currentTarget.style.backgroundColor = theme.palette.background.paper;
-                    }}
-                  >
-                    <div style={styles.ticketOptionName}>{tier.name}</div>
-                    <div style={styles.ticketOptionDetails}>
-                      <span>Price: {tier.price}</span>
-                      <span>•</span>
-                      <span>Age: {tier.ageGroup}</span>
-                      <span>•</span>
-                      <span>Payment: {tier.paymentMethod}</span>
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <div style={{ textAlign: "center", padding: "20px", color: theme.palette.text.secondary }}>
-                  No price tiers available for this event
-                </div>
-              )}
-            </div>
-
-            <button
-              onClick={() => {
-                setShowTicketSelectionModal(false);
-                setSelectedPersonForTicket(null);
-              }}
-              style={{ ...styles.confirmCancelBtn, width: "100%", marginTop: "20px" }}
-            >
-              Cancel
-            </button>
           </div>
         </div>
       )}
