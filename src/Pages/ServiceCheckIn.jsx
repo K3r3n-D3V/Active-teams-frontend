@@ -67,9 +67,6 @@ import { useTaskUpdate } from "../contexts/TaskUpdateContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
-// ─────────────────────────────────────────────
-// FIX #7 + #2: Memoised filter/search helpers (outside component so they're stable)
-// ─────────────────────────────────────────────
 function buildSearchableText(person) {
   return [
     person.name || "",
@@ -119,11 +116,11 @@ function getSearchPriorityScore(attendee, searchTermLower) {
   return 90;
 }
 
-// ─────────────────────────────────────────────
-// FIX #5: Unified sort comparator (stable reference)
-// ─────────────────────────────────────────────
 function createLeaderSortComparator(leaderField) {
-  return (v1, v2, row1, row2) => {
+  return (v1, v2, cellParams1, cellParams2) => {
+    const row1 = cellParams1?.api?.getRow(cellParams1.id) || {};
+    const row2 = cellParams2?.api?.getRow(cellParams2.id) || {};
+
     const fn1 = (row1.name || "").toLowerCase().trim();
     const fn2 = (row2.name || "").toLowerCase().trim();
     const sn1 = (row1.surname || "").toLowerCase().trim();
@@ -137,12 +134,13 @@ function createLeaderSortComparator(leaderField) {
     if (row1.isNew && !row2.isNew) return -1;
     if (!row1.isNew && row2.isNew) return 1;
 
-    const hl1 = Boolean(row1[leaderField]?.trim());
-    const hl2 = Boolean(row2[leaderField]?.trim());
+    const hl1 = Boolean((row1[leaderField] || "").trim());
+    const hl2 = Boolean((row2[leaderField] || "").trim());
     if (hl1 && !hl2) return -1;
     if (!hl1 && hl2) return 1;
 
-    return (row1[leaderField] || "").toLowerCase().localeCompare((row2[leaderField] || "").toLowerCase());
+    return (row1[leaderField] || "").toLowerCase()
+      .localeCompare((row2[leaderField] || "").toLowerCase());
   };
 }
 
@@ -196,14 +194,10 @@ const emptyForm = {
   address: "",
 };
 
-// ─────────────────────────────────────────────
-// Main component
-// ─────────────────────────────────────────────
 function ServiceCheckIn() {
   const { authFetch } = useContext(AuthContext);
   const { notifyTaskUpdate } = useTaskUpdate();
 
-  // ── Core state ──
   const [attendees, setAttendees] = useState([]);
   const [currentEventId, setCurrentEventId] = useState("");
   const [eventSearch, setEventSearch] = useState("");
@@ -217,10 +211,7 @@ function ServiceCheckIn() {
   const [consolidatedModalOpen, setConsolidatedModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
   const [consolidationOpen, setConsolidationOpen] = useState(false);
-  const [sortModel, setSortModel] = useState([
-    { field: "isNew", sort: "desc" },
-    { field: "name", sort: "asc" },
-  ]);
+  const [sortModel, setSortModel] = useState([]);
   const [realTimeData, setRealTimeData] = useState(null);
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
@@ -258,7 +249,6 @@ function ServiceCheckIn() {
     type: null,
   });
 
-  // ── Responsive helpers ──
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
@@ -278,18 +268,12 @@ function ServiceCheckIn() {
   const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
   const cardSpacing = getResponsiveValue(0.5, 1, 1.5, 2, 2);
 
-  // ─────────────────────────────────────────────
-  // FIX #3: Build a stable person-lookup map to avoid O(n²) find() in renders
-  // ─────────────────────────────────────────────
   const attendeeMap = useMemo(() => {
     const map = new Map();
     attendees.forEach((a) => map.set(a._id, a));
     return map;
   }, [attendees]);
 
-  // ─────────────────────────────────────────────
-  // Data fetching (useCallback so deps don't rebuild every render)
-  // ─────────────────────────────────────────────
   const fetchRealTimeEventData = useCallback(
     async (eventId) => {
       if (!eventId) return null;
@@ -308,7 +292,6 @@ function ServiceCheckIn() {
     [authFetch]
   );
 
-  // Shared people-fetch so both people list and events only download /cache/people ONCE
   const fetchAllPeople = useCallback(async () => {
     setIsLoadingPeople(true);
     try {
@@ -318,7 +301,7 @@ function ServiceCheckIn() {
       if (data.success && data.cached_data) {
         setAttendees(data.cached_data.map(normalisePerson));
         setHasDataLoaded(true);
-        return data.cached_data; // return raw list so fetchEvents can reuse it
+        return data.cached_data;
       }
     } catch (err) {
       toast.error("Failed to load people data. Please refresh the page.");
@@ -328,19 +311,15 @@ function ServiceCheckIn() {
     return [];
   }, [authFetch]);
 
-  // fetchEvents accepts an optional pre-loaded peopleList to avoid double-fetching
   const fetchEvents = useCallback(
     async (forceRefresh = false, sharedPeopleList = null) => {
-      if (!forceRefresh && events.length > 0) return;
-      setIsLoadingEvents(true);
       try {
-        // Only fetch people if we weren't given a shared list
         const [evResponse, peopleResponse] = sharedPeopleList
           ? [await authFetch(`${BASE_URL}/events/eventsdata`), null]
           : await Promise.all([
-              authFetch(`${BASE_URL}/events/eventsdata`),
-              authFetch(`${BASE_URL}/cache/people`),
-            ]);
+            authFetch(`${BASE_URL}/events/eventsdata`),
+            authFetch(`${BASE_URL}/cache/people`),
+          ]);
 
         if (!evResponse.ok) throw new Error(`HTTP error! status: ${evResponse.status}`);
         const data = await evResponse.json();
@@ -352,7 +331,6 @@ function ServiceCheckIn() {
           if (pd.success && pd.cached_data) peopleList = pd.cached_data;
         }
 
-        // FIX #3: Build lookup map once
         const peopleById = new Map();
         const peopleByEmail = new Map();
         peopleList.forEach((p) => {
@@ -458,7 +436,7 @@ function ServiceCheckIn() {
         const validEvents = transformedEvents.filter((event) => {
           if (!event || event.status === "error") return false;
           const typeName = (event.eventType || "").toLowerCase();
-          if (typeName === "cells" || typeName === "all cells" || typeName === "cell") return false;
+          if (typeName === "cells" || typeName === "all cells" || typeName === "trainingl") return false;
           if (event.isGlobal !== true) return false;
           return true;
         });
@@ -469,24 +447,20 @@ function ServiceCheckIn() {
           const filtered = getFilteredEvents(validEvents);
           if (filtered.length > 0) setCurrentEventId(filtered[0].id);
         }
-      } catch {
-        toast.error("Failed to fetch events. Please try again.");
+      } catch (err) {
+        toast.error(err, "Failed to fetch events. Please try again.");
       } finally {
         setIsLoadingEvents(false);
       }
     },
-    [authFetch, currentEventId, events.length]
+    [authFetch, currentEventId]
   );
 
-  // ─────────────────────────────────────────────
-  // FIX #1: Polling - single interval, longer cadence for events
-  // ─────────────────────────────────────────────
   const hasInitialized = useRef(false);
   useEffect(() => {
     if (hasInitialized.current) return;
     hasInitialized.current = true;
 
-    // Bootstrap: single parallel fetch — /cache/people downloaded ONCE, shared with events
     (async () => {
       try {
         const [evResponse, peopleResponse] = await Promise.all([
@@ -494,7 +468,6 @@ function ServiceCheckIn() {
           authFetch(`${BASE_URL}/cache/people`),
         ]);
 
-        // Resolve people first — grid becomes interactive immediately
         let rawPeople = [];
         if (peopleResponse.ok) {
           const pd = await peopleResponse.json();
@@ -506,7 +479,6 @@ function ServiceCheckIn() {
           }
         }
 
-        // Then process events reusing the already-downloaded people list
         if (evResponse.ok) {
           const evData = await evResponse.json();
           const eventsData = evData.events || [];
@@ -606,7 +578,7 @@ function ServiceCheckIn() {
           const validEvents = transformedEvents.filter((event) => {
             if (!event || event.status === "error") return false;
             const typeName = (event.eventType || "").toLowerCase();
-            if (["cells", "all cells", "cell"].includes(typeName)) return false;
+            if (["cells", "all cells", "cell", "training"].includes(typeName)) return false;
             if (event.isGlobal !== true) return false;
             return true;
           });
@@ -614,7 +586,6 @@ function ServiceCheckIn() {
           setEvents(validEvents);
           setIsLoadingEvents(false);
 
-          // Auto-select today's open event
           const todayStr = new Date().toISOString().split("T")[0];
           const todayOpen = validEvents.filter((e) => {
             const typeName = (e.eventType || "").toLowerCase();
@@ -634,7 +605,7 @@ function ServiceCheckIn() {
         setIsLoadingEvents(false);
       }
     })();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); 
 
   useEffect(() => {
     if (!currentEventId) {
@@ -650,7 +621,6 @@ function ServiceCheckIn() {
 
     loadRT();
 
-    // FIX #1: Poll real-time data every 5s (was 3s) — events every 30s (was 10s)
     const rtInterval = setInterval(loadRT, 5000);
     const evInterval = setInterval(() => fetchEvents(), 30_000);
 
@@ -661,9 +631,6 @@ function ServiceCheckIn() {
     };
   }, [currentEventId, fetchRealTimeEventData, fetchEvents]);
 
-  // ─────────────────────────────────────────────
-  // Event filter helpers (memoised)
-  // ─────────────────────────────────────────────
   const getFilteredEvents = useCallback((eventsList = events) => {
     const todayStr = new Date().toISOString().split("T")[0];
     return eventsList.filter((event) => {
@@ -679,16 +646,16 @@ function ServiceCheckIn() {
 
   const getFilteredClosedEvents = useCallback(() => {
     const closed = events.filter((event) => {
-      const status = event.status?.toLowerCase() || "";
-      const typeName = (event.eventType || "").toLowerCase();
-      if (typeName === "cells" || typeName === "all cells" || typeName === "cell") return false;
       if (event.isGlobal !== true) return false;
-      if (!["closed", "complete"].includes(status)) return false;
-      if (["cancelled", "did_not_meet"].includes(status)) return false;
+      const typeName = (event.eventType || event.eventTypeName || "").toLowerCase();
+      if (["cells", "all cells", "cell"].includes(typeName)) return false;
+      const status = (event.status || "").toLowerCase();
+      if (status !== "closed" && status !== "complete") return false;
       return true;
     });
 
     if (!eventSearch.trim()) return closed;
+
     const q = eventSearch.toLowerCase();
     return closed.filter(
       (e) =>
@@ -709,9 +676,6 @@ function ServiceCheckIn() {
     return list;
   }, [events, currentEventId, getFilteredEvents]);
 
-  // ─────────────────────────────────────────────
-  // FIX #3 + #7: Memoised derived attendee lists
-  // ─────────────────────────────────────────────
   const presentIds = useMemo(() => {
     const ids = new Set();
     (realTimeData?.present_attendees || []).forEach((a) => ids.add(a.id || a._id));
@@ -734,7 +698,6 @@ function ServiceCheckIn() {
     [attendees, presentIds, newPeopleIds]
   );
 
-  // FIX #7: Memoised search — only recompute when deps change
   const filteredAttendees = useMemo(() => {
     if (!search.trim()) return attendeesWithStatus;
     const terms = search.toLowerCase().trim().split(/\s+/);
@@ -752,7 +715,6 @@ function ServiceCheckIn() {
     return filtered;
   }, [attendeesWithStatus, search]);
 
-  // FIX #5: Sort and paginate from the SAME array
   const sortedFilteredAttendees = useMemo(() => {
     const result = [...filteredAttendees];
     if (sortModel?.length > 0) {
@@ -764,7 +726,8 @@ function ServiceCheckIn() {
         });
       } else if (field && field !== "actions") {
         result.sort((a, b) => {
-          const cmp = (a[field] || "").toString().toLowerCase().localeCompare((b[field] || "").toString().toLowerCase());
+          const cmp = (a[field] || "").toString().toLowerCase()
+            .localeCompare((b[field] || "").toString().toLowerCase());
           return sort === "desc" ? -cmp : cmp;
         });
       }
@@ -778,13 +741,11 @@ function ServiceCheckIn() {
     return result;
   }, [filteredAttendees, sortModel]);
 
-  // FIX #5: Paginate sortedFilteredAttendees (was paginating unsorted filteredAttendees)
   const paginatedAttendees = useMemo(
     () => sortedFilteredAttendees.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage),
     [sortedFilteredAttendees, page, rowsPerPage]
   );
 
-  // Modal present-attendees list (memoised + map-based lookup)
   const modalFilteredAttendees = useMemo(() => {
     const full = (realTimeData?.present_attendees || []).map((a) => {
       const fp = attendeeMap.get(a.id || a._id) || {};
@@ -816,7 +777,6 @@ function ServiceCheckIn() {
     [modalFilteredAttendees, modalPage, modalRowsPerPage]
   );
 
-  // New-people list (memoised)
   const newPeopleFilteredList = useMemo(() => {
     const full = (realTimeData?.new_people || []).map((np) => {
       const fp = attendeeMap.get(np.id || np._id) || {};
@@ -848,7 +808,6 @@ function ServiceCheckIn() {
     [newPeopleFilteredList, newPeoplePage, newPeopleRowsPerPage]
   );
 
-  // Consolidated list (memoised)
   const filteredConsolidatedPeople = useMemo(() => {
     const full = (realTimeData?.consolidations || []).map((cons) => {
       const fp =
@@ -886,11 +845,7 @@ function ServiceCheckIn() {
   const newPeopleCount = realTimeData?.new_people_count ?? 0;
   const consolidationCount = realTimeData?.consolidation_count ?? 0;
 
-  // ─────────────────────────────────────────────
-  // Handlers (useCallback for stable refs)
-  // ─────────────────────────────────────────────
 
-  // FIX #2: handleFullRefresh properly resets dialog state
   const handleFullRefresh = useCallback(async () => {
     if (!currentEventId) {
       toast.error("Please select an event first");
@@ -898,11 +853,10 @@ function ServiceCheckIn() {
     }
     setIsRefreshing(true);
 
-    // FIX #2: Clear any open dialog / editing state on refresh
     setOpenDialog(false);
     setEditingPerson(null);
     setFormData(emptyForm);
-    setSearch(""); // FIX #3: Clear search bar
+    setSearch("");
 
     try {
       await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" });
@@ -972,7 +926,6 @@ function ServiceCheckIn() {
       const fullName = `${attendee.name} ${attendee.surname}`.trim();
       const isCurrentlyPresent = presentIds.has(attendee._id);
 
-      // ── Optimistic update: flip the UI immediately, revert on failure ──
       const personId = attendee._id;
       const optimisticEntry = {
         id: personId,
@@ -989,7 +942,6 @@ function ServiceCheckIn() {
       setRealTimeData((prev) => {
         if (!prev) return prev;
         if (!isCurrentlyPresent) {
-          // Add to present_attendees immediately
           const alreadyThere = (prev.present_attendees || []).some((a) => a.id === personId || a._id === personId);
           if (alreadyThere) return prev;
           return {
@@ -998,7 +950,6 @@ function ServiceCheckIn() {
             present_count: (prev.present_count || 0) + 1,
           };
         } else {
-          // Remove from present_attendees immediately
           const filtered = (prev.present_attendees || []).filter((a) => a.id !== personId && a._id !== personId);
           return { ...prev, present_attendees: filtered, present_count: filtered.length };
         }
@@ -1022,7 +973,7 @@ function ServiceCheckIn() {
               success = true;
             } else if (data.message?.includes("already checked in")) {
               toast.warning(`${fullName} is already checked in`);
-              success = true; // Already there — optimistic state is correct
+              success = true;
             }
           }
         } else {
@@ -1040,28 +991,23 @@ function ServiceCheckIn() {
         }
 
         if (!success) {
-          // Revert optimistic update on failure
           setRealTimeData((prev) => {
             if (!prev) return prev;
             if (!isCurrentlyPresent) {
-              // We added them — remove again
               const filtered = (prev.present_attendees || []).filter((a) => a.id !== personId && a._id !== personId);
               return { ...prev, present_attendees: filtered, present_count: filtered.length };
             } else {
-              // We removed them — add back
               return { ...prev, present_attendees: [...(prev.present_attendees || []), optimisticEntry], present_count: (prev.present_count || 0) + 1 };
             }
           });
           toast.error(`Failed to update check-in for ${fullName}`);
         }
 
-        // Background sync — don't await, let polling handle it
         fetchRealTimeEventData(currentEventId).then((freshData) => {
           if (freshData) setRealTimeData(freshData);
         });
 
       } catch (err) {
-        // Revert on error
         setRealTimeData((prev) => {
           if (!prev) return prev;
           if (!isCurrentlyPresent) {
@@ -1084,36 +1030,34 @@ function ServiceCheckIn() {
       if (!currentEventId) { toast.error("Please select an event first before adding people"); return; }
       try {
         if (editingPerson) {
-          // AddPersonDialog already did the PATCH and returns normalised data via responseData.
-          // Strip the internal flag before using.
           const { __updatedNewPerson, ...normalizedUpdate } = responseData;
-
           const personId = editingPerson._id;
+
           toast.success(`${normalizedUpdate.name} ${normalizedUpdate.surname} updated successfully`);
 
-          // 1. Update the main attendees list
-          setAttendees((prev) =>
-            prev.map((p) => (p._id === personId ? { ...p, ...normalizedUpdate } : p))
-          );
+          setAttendees((prev) => [
+            ...prev.map((p) =>
+              p._id === personId
+                ? { ...p, ...normalizedUpdate, _id: personId, id: personId }
+                : p
+            ),
+          ]);
 
-          // 2. Update present_attendees AND new_people inside realTimeData
           setRealTimeData((prev) => {
             if (!prev) return prev;
             const patch = (list) =>
               (list || []).map((entry) =>
                 entry.id === personId || entry._id === personId
                   ? {
-                      ...entry,
-                      ...normalizedUpdate,
-                      // keep the id field consistent with how realTimeData stores it
-                      id: personId,
-                      _id: personId,
-                      // new_people specific fields
-                      person_name: normalizedUpdate.name,
-                      person_surname: normalizedUpdate.surname,
-                      person_email: normalizedUpdate.email,
-                      person_phone: normalizedUpdate.phone || normalizedUpdate.number,
-                    }
+                    ...entry,
+                    ...normalizedUpdate,
+                    id: personId,
+                    _id: personId,
+                    person_name: normalizedUpdate.name,
+                    person_surname: normalizedUpdate.surname,
+                    person_email: normalizedUpdate.email,
+                    person_phone: normalizedUpdate.phone || normalizedUpdate.number,
+                  }
                   : entry
               );
             return {
@@ -1126,10 +1070,15 @@ function ServiceCheckIn() {
           setOpenDialog(false);
           setEditingPerson(null);
           setFormData(emptyForm);
+
+          fetchRealTimeEventData(currentEventId).then((freshData) => {
+            if (freshData) setRealTimeData(freshData);
+          });
+
+          authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }).catch(() => { });
           return;
         }
 
-        // New person
         const newPersonData = responseData.person || responseData;
         const fullName = `${formData.name} ${formData.surname}`.trim();
         const response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
@@ -1157,7 +1106,7 @@ function ServiceCheckIn() {
             setOpenDialog(false);
             setEditingPerson(null);
             setFormData(emptyForm);
-            setSearch(""); // FIX #3
+            setSearch("");
 
             const newPersonForGrid = {
               _id: newPersonData._id,
@@ -1183,7 +1132,7 @@ function ServiceCheckIn() {
 
             try {
               await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" });
-            } catch {}
+            } catch { }
 
             const freshData = await fetchRealTimeEventData(currentEventId);
             if (freshData) setRealTimeData(freshData);
@@ -1284,7 +1233,6 @@ function ServiceCheckIn() {
     setOpenDialog(true);
   }, []);
 
-  // FIX #4: Handle both _id and id when deleting
   const handleDelete = useCallback(
     async (personId, personName) => {
       setIsDeleting(true);
@@ -1292,7 +1240,6 @@ function ServiceCheckIn() {
         const res = await authFetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
         if (!res.ok) { const e = await res.json(); toast.error(`Delete failed: ${e.detail}`); return; }
 
-        // FIX #4: Remove by both _id and id
         setAttendees((prev) => prev.filter((p) => p._id !== personId && p.id !== personId));
         setRealTimeData((prev) => {
           if (!prev) return prev;
@@ -1308,7 +1255,7 @@ function ServiceCheckIn() {
           };
         });
 
-        try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch {}
+        try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch { }
         toast.success(`"${personName}" deleted successfully`);
       } catch {
         toast.error("An error occurred while deleting the person");
@@ -1324,7 +1271,6 @@ function ServiceCheckIn() {
     async (person) => {
       if (!currentEventId) { toast.error("Please select an event first"); return; }
       try {
-        // FIX #4: Use both id and _id
         const personId = person.id || person._id;
         const response = await authFetch(`${BASE_URL}/service-checkin/remove`, {
           method: "DELETE",
@@ -1375,8 +1321,8 @@ function ServiceCheckIn() {
 
   const handleAddPersonClick = useCallback(() => {
     if (!currentEventId) { toast.error("Please select an event first before adding people"); return; }
-    setEditingPerson(null); // FIX #2: always reset
-    setFormData(emptyForm); // FIX #2: always reset
+    setEditingPerson(null);
+    setFormData(emptyForm);
     setOpenDialog(true);
   }, [currentEventId]);
 
@@ -1390,9 +1336,6 @@ function ServiceCheckIn() {
     setEventHistoryModal({ open: true, event, type: "consolidated", data: data || [] });
   }, []);
 
-  // ─────────────────────────────────────────────
-  // Column definitions (memoised — only rebuild on responsive breakpoints)
-  // ─────────────────────────────────────────────
   const mainColumns = useMemo(() => {
     const base = [
       {
@@ -1417,31 +1360,31 @@ function ServiceCheckIn() {
       },
       ...(!isSmDown
         ? [
-            {
-              field: "phone",
-              headerName: "Phone",
-              flex: 0.8,
-              minWidth: 100,
-              sortable: true,
-              renderCell: (params) => (
-                <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", fontSize: "0.9rem", width: "100%" }}>
-                  {params.row.number || "—"}
-                </Typography>
-              ),
-            },
-            {
-              field: "email",
-              headerName: "Email",
-              flex: 1,
-              minWidth: 120,
-              sortable: true,
-              renderCell: (params) => (
-                <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", fontSize: "0.9rem", width: "100%" }}>
-                  {params.row.email || "—"}
-                </Typography>
-              ),
-            },
-          ]
+          {
+            field: "phone",
+            headerName: "Phone",
+            flex: 0.8,
+            minWidth: 100,
+            sortable: true,
+            renderCell: (params) => (
+              <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", fontSize: "0.9rem", width: "100%" }}>
+                {params.row.number || "—"}
+              </Typography>
+            ),
+          },
+          {
+            field: "email",
+            headerName: "Email",
+            flex: 1,
+            minWidth: 120,
+            sortable: true,
+            renderCell: (params) => (
+              <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", fontSize: "0.9rem", width: "100%" }}>
+                {params.row.email || "—"}
+              </Typography>
+            ),
+          },
+        ]
         : []),
       {
         field: "leader1",
@@ -1547,9 +1490,6 @@ function ServiceCheckIn() {
     return base;
   }, [isXsDown, isSmDown, currentEventId, checkInLoading, handleEditClick, handleToggleCheckIn]);
 
-  // ─────────────────────────────────────────────
-  // Sub-components (memoised)
-  // ─────────────────────────────────────────────
   const StatsCard = useCallback(
     ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
       <Paper
@@ -1572,11 +1512,6 @@ function ServiceCheckIn() {
     [getResponsiveValue]
   );
 
-  // No full-page skeleton gate — render the shell immediately, stream data in
-
-  // ─────────────────────────────────────────────
-  // Render
-  // ─────────────────────────────────────────────
   return (
     <Box p={containerPadding} sx={{ width: "100%", margin: "0 auto", mt: 6, minHeight: "100vh", maxWidth: "100vw", overflowX: "hidden" }}>
       <ToastContainer position={isSmDown ? "top-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} style={{ marginTop: isSmDown ? "0px" : "20px", zIndex: 9999 }} />
@@ -1665,6 +1600,7 @@ function ServiceCheckIn() {
             <DataGrid
               rows={sortedFilteredAttendees}
               columns={mainColumns}
+              sortingMode="server"
               loading={isLoadingPeople}
               pagination
               paginationModel={{ page, pageSize: rowsPerPage }}
@@ -1712,13 +1648,14 @@ function ServiceCheckIn() {
       {/* Add/Edit Person Dialog */}
       <AddPersonDialog
         open={openDialog}
-        onClose={() => { setOpenDialog(false); setEditingPerson(null); setFormData(emptyForm); }} // FIX #2
+        onClose={() => { setOpenDialog(false); setEditingPerson(null); setFormData(emptyForm); }}
         onSave={handlePersonSave}
         formData={formData}
         setFormData={setFormData}
         isEdit={Boolean(editingPerson)}
         personId={editingPerson?._id || null}
         currentEventId={currentEventId}
+        preloadedPeople={attendees}
       />
 
       {/* Present Attendees Modal */}
@@ -1780,6 +1717,7 @@ function ServiceCheckIn() {
           <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>Close</Button>
         </DialogActions>
       </Dialog>
+
 
       {/* New People Modal */}
       <Dialog open={newPeopleModalOpen} onClose={() => setNewPeopleModalOpen(false)} fullWidth maxWidth="md" PaperProps={{ sx: { boxShadow: 6, ...(isSmDown && { margin: 2, maxHeight: "80vh", width: "calc(100% - 32px)" }) } }}>
