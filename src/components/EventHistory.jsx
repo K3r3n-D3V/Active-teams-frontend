@@ -310,7 +310,7 @@ const EventHistory = React.memo(function EventHistory({
                   </IconButton>
                 </span>
               </Tooltip>
-              <Tooltip title={canUnsave ? 'Reopen event' : "Only today's events can be reopened"}>
+              <Tooltip title={canUnsave ? 'Unsave event' : "Only today's events can be unsaved"}>
                 <span>
                   <IconButton
                     size="small"
@@ -388,7 +388,7 @@ const EventHistory = React.memo(function EventHistory({
                 </Button>
               </span>
             </Tooltip>
-            <Tooltip title={canUnsave ? 'Reopen this event' : "Only today's events can be reopened"}>
+            <Tooltip title={canUnsave ? 'Unsave this event' : "Only today's events can be unsaved"}>
               <span>
                 <Button
                   size="small"
@@ -404,7 +404,7 @@ const EventHistory = React.memo(function EventHistory({
                     opacity: !canUnsave ? 0.3 : 1,
                   }}
                 >
-                  Reopen
+                  Unsave
                 </Button>
               </span>
             </Tooltip>
