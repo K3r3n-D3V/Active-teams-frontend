@@ -446,22 +446,22 @@ export default function AddPersonDialog({
         (l) => l.trim() !== ""
       );
 
-const payload = {
-  invitedBy: formData.invitedBy,
-  name: formData.name,
-  surname: formData.surname,
-  gender: formData.gender,
-  email: formData.email,
-  number: formData.number,
-  phone: formData.number,
-  dob: formData.dob.replace(/-/g, "/"),
-  address: formData.address,
-  leaders,
-  leader1: formData.leader1 || "",
-  leader12: formData.leader12 || "",
-  leader144: formData.leader144 || "",
-  stage: formData.stage || "Win",
-};
+      const payload = {
+        invitedBy: formData.invitedBy,
+        name: formData.name,
+        surname: formData.surname,
+        gender: formData.gender,
+        email: formData.email,
+        number: formData.number,
+        phone: formData.number,
+        dob: formData.dob.replace(/-/g, "/"),
+        address: formData.address,
+        leaders,
+        leader1: formData.leader1 || "",
+        leader12: formData.leader12 || "",
+        leader144: formData.leader144 || "",
+        stage: formData.stage || "Win",
+      };
 
       let response;
 
@@ -471,28 +471,28 @@ const payload = {
           body: JSON.stringify(payload),
         });
 
-if (response.ok) {
-  const data = await response.json();
+        if (response.ok) {
+          const data = await response.json();
 
-  const normalizedData = {
-    _id: personId,
-    name: data.Name || payload.name,
-    surname: data.Surname || payload.surname,
-    email: data.Email || payload.email,
-    number: data.Number || payload.phone,
-    phone: data.Number || payload.phone,
-    gender: data.Gender || payload.gender,
-    address: data.Address || payload.address,
-    birthday: data.Birthday || payload.dob,
-    invitedBy: data.InvitedBy || payload.invitedBy || formData.invitedBy,
-    leader1: data["Leader @1"] ?? data.leader1 ?? formData.leader1 ?? "",
-    leader12: data["Leader @12"] ?? data.leader12 ?? formData.leader12 ?? "",
-    leader144: data["Leader @144"] ?? data.leader144 ?? formData.leader144 ?? "",
-    stage: data.Stage || payload.stage || "Win",
-    fullName: `${data.Name || payload.name} ${data.Surname || payload.surname}`.trim(),
-  };
+          const normalizedData = {
+            _id: personId,
+            name: data.Name || payload.name,
+            surname: data.Surname || payload.surname,
+            email: data.Email || payload.email,
+            number: data.Number || payload.phone,
+            phone: data.Number || payload.phone,
+            gender: data.Gender || payload.gender,
+            address: data.Address || payload.address,
+            birthday: data.Birthday || payload.dob,
+            invitedBy: data.InvitedBy || payload.invitedBy || formData.invitedBy,
+            leader1: data["Leader @1"] ?? data.leader1 ?? formData.leader1 ?? "",
+            leader12: data["Leader @12"] ?? data.leader12 ?? formData.leader12 ?? "",
+            leader144: data["Leader @144"] ?? data.leader144 ?? formData.leader144 ?? "",
+            stage: data.Stage || payload.stage || "Win",
+            fullName: `${data.Name || payload.name} ${data.Surname || payload.surname}`.trim(),
+          };
 
-  onSave({ ...normalizedData, __updatedNewPerson: true });
+          onSave({ ...normalizedData, __updatedNewPerson: true });
         } else {
           const errorData = await response.json();
           throw new Error(errorData.detail || "Update failed");

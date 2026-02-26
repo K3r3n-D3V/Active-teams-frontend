@@ -605,7 +605,7 @@ function ServiceCheckIn() {
         setIsLoadingEvents(false);
       }
     })();
-  }, []); 
+  }, []);
 
   useEffect(() => {
     if (!currentEventId) {

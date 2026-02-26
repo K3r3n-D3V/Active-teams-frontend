@@ -144,10 +144,10 @@ const EventHistory = React.memo(function EventHistory({
         const eventName = event.eventName || 'Unnamed Event';
         const eventDate = event.date
           ? new Date(event.date).toLocaleDateString('en-ZA', {
-              year: 'numeric',
-              month: isSmDown ? 'short' : 'long',
-              day: 'numeric',
-            })
+            year: 'numeric',
+            month: isSmDown ? 'short' : 'long',
+            day: 'numeric',
+          })
           : 'No date';
 
         return (
