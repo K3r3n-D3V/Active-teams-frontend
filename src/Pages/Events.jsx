@@ -846,7 +846,7 @@ const normalizeEventAttendance = (event) => {
       );
 
       toast.dismiss(TOAST_ID);
-      toast.success(`Downloaded attendance of ${rows.length} members `);
+      toast.success(`Downloaded attendance of ${rows.length} members`);
     } catch (err) {
       console.error("Download event attendance failed:", err);
       toast.dismiss(TOAST_ID);
@@ -1240,7 +1240,7 @@ const downloadEventAttendance = async (event) => {
       );
 
       toast.dismiss(TOAST_ID);
-      toast.success(`Downloaded ${rows.length} attendance rows`);
+      toast.success(`Downloaded attendance of ${rows.length} members`);
     } catch (err) {
       console.error("Download event attendance failed:", err);
       toast.dismiss(TOAST_ID);
