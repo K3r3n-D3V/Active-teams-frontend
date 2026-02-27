@@ -154,14 +154,14 @@ const { user, loading } = React.useContext(AuthContext);
         position="top-right"
         autoClose={5000}
         hideProgressBar={false}
-        newestOnTop={false}
+        newestOnTop={true}          // ← changed to true
         closeOnClick
         rtl={false}
         pauseOnFocusLoss
         draggable
         pauseOnHover
-        // theme={mode}          
-        limit={4}            
+        limit={4}
+        style={{ zIndex: 9999 }}          
       />
     </ThemeProvider>
   );

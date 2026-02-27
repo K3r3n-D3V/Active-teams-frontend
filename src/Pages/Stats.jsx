@@ -417,6 +417,15 @@ const isOverdue = useCallback((cell) => {
     fetchStats(false);
   }, [period, fetchOverdueCells, fetchStats]);
 
+  useEffect(() => {
+  setTimeout(() => {
+    toast.success("Test toast from StatsDashboard — should show on mount", {
+      position: "top-center",
+      autoClose: 8000,
+    });
+  }, 500);
+}, []);
+
   const filteredOverdueCells = useMemo(() => {
     return [...cells].sort((a, b) => {
       const dateA = a.date ? new Date(a.date).getTime() : Number.MAX_SAFE_INTEGER;
@@ -1910,7 +1919,7 @@ useEffect(() => {
         onClose={(success) => {
           if (success) {
             // Refresh data after successful creation
-            toast.success(`Event "${newEventData.eventName}" created successfully!`);
+            toast.success(`Event created successfully!`);
             fetchStats(true);
             fetchOverdueCells(true);
           }
