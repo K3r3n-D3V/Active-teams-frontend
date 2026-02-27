@@ -44,11 +44,6 @@ const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
 ).toLowerCase();
 
-/**
- * Popper that forces the dropdown (autocomplete suggestions) to:
- * - match the input width exactly
- * - have a high z-index (so it shows over modals)
- */
 const SameWidthPopper = (props) => {
   const { anchorEl } = props;
 
@@ -63,7 +58,7 @@ const SameWidthPopper = (props) => {
       placement="bottom-start"
       style={{
         zIndex: 20000,
-        width, //match input width
+        width, 
       }}
     />
   );
@@ -96,8 +91,9 @@ const CreateEvents = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
-  const [loadingPeople, setLoadingPeople] = useState(false);
+  const [loadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
+  const [allPeopleCache, setAllPeopleCache] = useState([]);
 
   const isAdmin = user?.role === "admin";
   console.log("view role", isAdmin);
@@ -262,9 +258,7 @@ const CreateEvents = ({
     });
 
     const determineEventType = () => {
-      // If we have a selectedEventTypeObj, use its properties
       if (selectedEventTypeObj) {
-        console.log("Using selectedEventTypeObj:", selectedEventTypeObj);
         return {
           eventType: selectedEventTypeObj.name || selectedEventTypeObj.displayName || "",
           isGlobal: !!selectedEventTypeObj.isGlobal,
@@ -272,20 +266,17 @@ const CreateEvents = ({
           hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps,
         };
       }
-      // If we have a selectedEventType string, find the matching object
       if (selectedEventType) {
         console.log("Looking for event type:", selectedEventType);
-        // Handle "all" and convert to "CELLS" - FIXED: Always set hasPersonSteps to true for CELLS
+        // Handle "all" and convert to "CELLS" - Always set hasPersonSteps to true for CELLS
         if (selectedEventType === "all" || selectedEventType.toUpperCase() === "ALL CELLS") {
-          console.log("Detected ALL CELLS - converting to CELLS with personal steps");
           return {
             eventType: "CELLS",
             isGlobal: false,
             isTicketed: false,
-            hasPersonSteps: true, // FIXED: This was the issue - always true for CELLS
+            hasPersonSteps: true, 
           };
         }
-        // Try to find the full event type object
         const foundEventType = eventTypes.find((et) => {
           const etName = et.name || et.displayName || "";
           const searchName = selectedEventType;
@@ -313,7 +304,7 @@ const CreateEvents = ({
             eventType: selectedEventType,
             isGlobal: false,
             isTicketed: false,
-            hasPersonSteps: isCellsType, // FIXED: Set to true only for CELLS type
+            hasPersonSteps: isCellsType,
           };
         }
       }
@@ -387,10 +378,7 @@ const CreateEvents = ({
     }
   }, [isTicketedEvent]);
 
-  // Add to your component state
-  const [allPeopleCache, setAllPeopleCache] = useState([]);
 
-  // Fetch all people once on component mount
   useEffect(() => {
     const fetchAllPeople = async () => {
       try {
@@ -418,7 +406,6 @@ const CreateEvents = ({
     fetchAllPeople();
   }, []);
 
-  // Updated fetchPeople function
   const fetchPeople = (q) => {
     if (!q.trim()) {
       setPeopleData([]);
@@ -428,7 +415,6 @@ const CreateEvents = ({
     const searchLower = q.toLowerCase().trim();
     const filtered = allPeopleCache.filter((person) => {
       const fullName = person.fullName.toLowerCase();
-      // Simple: just check if full name contains the search
       return fullName.includes(searchLower);
     });
 
@@ -553,6 +539,7 @@ const CreateEvents = ({
       eventLeaderEmail: person.email,
     }));
   };
+console.log("view leadersgip fields", handleLeaderSelect )
 
   const handleRemovePriceTier = (index) => {
     setPriceTiers((prev) => prev.filter((_, i) => i !== index));
@@ -870,7 +857,6 @@ const CreateEvents = ({
         },
       },
 
-      // Make date/time picker icons white in dark mode
       "& .MuiInputAdornment-root .MuiSvgIcon-root": {
         color: isDarkMode ? "#fff" : theme.palette.text.secondary,
       },
@@ -1039,9 +1025,11 @@ const CreateEvents = ({
                 }));
 
                 if (selectedObj) {
-                  setIsGlobalEvent(selectedObj.isGlobal);
-                  setIsTicketedEvent(selectedObj.isTicketed);
-                  setHasPersonSteps(selectedObj.hasPersonSteps);
+              setEventTypeFlags({
+  isGlobal: !!selectedObj.isGlobal,
+  isTicketed: !!selectedObj.isTicketed,
+  hasPersonSteps: !!selectedObj.hasPersonSteps,
+});
                 }
               }}
               fullWidth
@@ -1279,12 +1267,12 @@ const CreateEvents = ({
               }
               filterOptions={(x) => x}
               loading={locationLoading}
-              PopperComponent={SameWidthPopper} // this makes dropdown same width
+              PopperComponent={SameWidthPopper} 
               ListboxProps={{ sx: darkModeStyles.autocompleteListbox }}
               PaperComponent={({ children }) => (
                 <Paper
                   sx={{
-                    width: "100%", //keeps the paper inside popper at same width
+                    width: "100%", 
                     bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
                     border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
                   }}
@@ -1360,7 +1348,6 @@ const CreateEvents = ({
                   }
                 }}
                 onBlur={() => {
-                  // Delay hiding dropdown to allow for selection
                   setTimeout(() => setPeopleData([]), 200);
                 }}
                 fullWidth

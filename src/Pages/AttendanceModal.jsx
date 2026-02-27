@@ -1268,39 +1268,32 @@ const AttendanceModal = ({ isOpen, onClose, onSubmit, event, onAttendanceSubmitt
   const [showDidNotMeetConfirm, setShowDidNotMeetConfirm] = useState(false);
   const [persistentCommonAttendees, setPersistentCommonAttendees] = useState([]);
   const [preloadedPeople, setPreloadedPeople] = useState([]);
-  // Removed showTicketSelectionModal and selectedPersonForTicket states
-    const [, setSelectedEvent] = useState(null);
-  
-
+  const [, setSelectedEvent] = useState(null);
+  const [, setShowAttendanceModal] = useState(false);  
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
-const handleOpenAttendanceModal = async (event) => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await fetch(`${BACKEND_URL}/events/${event._id || event.id}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    const fullEvent = await response.json();
-    
-    // ADD THESE
-    console.log("Full event from API:", fullEvent);
-    console.log("priceTiers from API:", fullEvent?.priceTiers);
-    console.log("isTicketed from API:", fullEvent?.isTicketed);
-    
-    setSelectedEvent(fullEvent);
-    setShowAttendanceModal(true);
-  } catch (err) {
-    console.error("Failed to fetch full event:", err);
-    setSelectedEvent(event);
-    setShowAttendanceModal(true);
-  }
-};
+  const handleOpenAttendanceModal = async (event) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await fetch(`${BACKEND_URL}/events/${event._id || event.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const fullEvent = await response.json();
 
-const isTicketedEvent = event?.isTicketed || false;
-const eventPriceTiers = 
-  event?.priceTiers || 
-  event?.formData?.priceTiers || 
-  [];
+      setSelectedEvent(fullEvent);
+      setShowAttendanceModal(true);
+    } catch (err) {
+      console.error("Failed to fetch full event:", err);
+      setSelectedEvent(event);
+      setShowAttendanceModal(true);
+    }
+  };
+
+  const isTicketedEvent = event?.isTicketed || false;
+  const eventPriceTiers =
+    event?.priceTiers ||
+    event?.formData?.priceTiers ||
+    [];
 
   const theme = useTheme();
 
@@ -1323,17 +1316,6 @@ const eventPriceTiers =
       recommitment: 0
     }
   });
-
-  // // Payment method options
-  // const paymentMethodOptions = [
-  //   "Cash",
-  //   "Card",
-  //   "EFT",
-  //   "SnapScan",
-  //   "Zapper",
-  //   "Free"
-  // ];
-
   const clearGlobalPeopleCache = () => {
     try {
       if (typeof window !== "undefined") {
@@ -1501,108 +1483,124 @@ const eventPriceTiers =
     }
   };
 
-const loadWeeklyCheckins = () => {
-  if (!event) {
+  const loadWeeklyCheckins = () => {
+    if (!event) {
+      setCheckedIn({});
+      setManualHeadcount("0");
+      setDidNotMeet(false);
+      return;
+    }
+
     setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setAttendeeTicketInfo({});
     setManualHeadcount("0");
     setDidNotMeet(false);
-    return;
-  }
 
-  setCheckedIn({});
-  setDecisions({});
-  setDecisionTypes({});
-  setAttendeeTicketInfo({});
-  setManualHeadcount("0");
-  setDidNotMeet(false);
+    // Helper function to process attendees
+    const processAttendees = (attendees) => {
+      const newCheckedIn = {};
+      const newDecisions = {};
+      const newDecisionTypes = {};
+      const newTicketInfo = {};
 
-  // Helper function to process attendees
-  const processAttendees = (attendees) => {
-    const newCheckedIn = {};
-    const newDecisions = {};
-    const newDecisionTypes = {};
-    const newTicketInfo = {};
+      attendees.forEach(att => {
+        if (att.id) {
+          newCheckedIn[att.id] = att.checked_in || false;
 
-    attendees.forEach(att => {
-      if (att.id) {
-        newCheckedIn[att.id] = att.checked_in || false;
+          if (att.decision) {
+            newDecisions[att.id] = true;
+            newDecisionTypes[att.id] = att.decision;
+          }
 
-        if (att.decision) {
-          newDecisions[att.id] = true;
-          newDecisionTypes[att.id] = att.decision;
+          // Always load ticket info for ticketed events
+          if (isTicketedEvent) {
+            newTicketInfo[att.id] = {
+              priceName: att.priceName || (eventPriceTiers?.[0]?.name) || "",
+              price: att.price || (eventPriceTiers?.[0]?.price) || 0,
+              ageGroup: att.ageGroup || (eventPriceTiers?.[0]?.ageGroup) || "",
+              paymentMethod: att.paymentMethod || "Cash"
+            };
+          }
         }
+      });
 
-        // Always load ticket info for ticketed events
-        if (isTicketedEvent) {
-          newTicketInfo[att.id] = {
-            priceName: att.priceName || (eventPriceTiers?.[0]?.name) || "",
-            price: att.price || (eventPriceTiers?.[0]?.price) || 0,
-            ageGroup: att.ageGroup || (eventPriceTiers?.[0]?.ageGroup) || "",
-            paymentMethod: att.paymentMethod || "Cash"
-          };
-        }
+      setCheckedIn(newCheckedIn);
+      setDecisions(newDecisions);
+      setDecisionTypes(newDecisionTypes);
+      setAttendeeTicketInfo(newTicketInfo);
+    };
+
+    // Check multiple possible locations for attendees
+    if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
+      console.log("Loading checkins from direct event.attendees:", event.attendees.length);
+      processAttendees(event.attendees);
+
+      if (event.total_headcounts) {
+        setManualHeadcount(event.total_headcounts.toString());
       }
-    });
+      return;
+    }
 
-    setCheckedIn(newCheckedIn);
-    setDecisions(newDecisions);
-    setDecisionTypes(newDecisionTypes);
-    setAttendeeTicketInfo(newTicketInfo);
+    if (event.attendance_data && event.attendance_data.attendees) {
+      console.log("Loading checkins from attendance_data");
+      processAttendees(event.attendance_data.attendees);
+
+      if (event.attendance_data.total_headcounts) {
+        setManualHeadcount(event.attendance_data.total_headcounts.toString());
+      }
+      return;
+    }
+
+    // Check nested attendance object
+    const attendanceData = event.attendance || {};
+    const eventDate = event.date;
+    const weekAttendance = attendanceData[eventDate] || attendanceData;
+
+    if (weekAttendance?.attendees?.length > 0) {
+      console.log("Loading checkins from attendance by date");
+      processAttendees(weekAttendance.attendees);
+
+      if (weekAttendance.total_headcounts) {
+        setManualHeadcount(weekAttendance.total_headcounts.toString());
+      }
+    }
   };
 
-  // Check multiple possible locations for attendees
-  if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
-    console.log("Loading checkins from direct event.attendees:", event.attendees.length);
-    processAttendees(event.attendees);
-    
-    if (event.total_headcounts) {
-      setManualHeadcount(event.total_headcounts.toString());
-    }
-    return;
-  }
+const loadPersistentAttendees = async (eventId) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await authFetch(
+      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-  if (event.attendance_data && event.attendance_data.attendees) {
-    console.log("Loading checkins from attendance_data");
-    processAttendees(event.attendance_data.attendees);
-    
-    if (event.attendance_data.total_headcounts) {
-      setManualHeadcount(event.attendance_data.total_headcounts.toString());
+    if (response.ok) {
+      const data = await response.json();
+      const allAttendees = data.persistent_attendees || [];
+      
+      // Log to verify we're getting all attendees
+      console.log(`Loaded ${allAttendees.length} persistent attendees from database`);
+      
+      setPersistentCommonAttendees(allAttendees);
+      
+      // Initialize checkedIn state for all loaded attendees (default to false)
+      // But preserve any existing checked-in states
+      setCheckedIn(prev => {
+        const newCheckedIn = { ...prev };
+        allAttendees.forEach(attendee => {
+          if (attendee.id && newCheckedIn[attendee.id] === undefined) {
+            newCheckedIn[attendee.id] = false;
+          }
+        });
+        return newCheckedIn;
+      });
     }
-    return;
-  }
-
-  // Check nested attendance object
-  const attendanceData = event.attendance || {};
-  const eventDate = event.date;
-  const weekAttendance = attendanceData[eventDate] || attendanceData;
-
-  if (weekAttendance?.attendees?.length > 0) {
-    console.log("Loading checkins from attendance by date");
-    processAttendees(weekAttendance.attendees);
-    
-    if (weekAttendance.total_headcounts) {
-      setManualHeadcount(weekAttendance.total_headcounts.toString());
-    }
+  } catch (error) {
+    console.error("Error loading attendees:", error);
   }
 };
-
-  const loadPersistentAttendees = async (eventId) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await authFetch(
-        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-
-      if (response.ok) {
-        const data = await response.json();
-        const allAttendees = data.persistent_attendees || [];
-        setPersistentCommonAttendees(allAttendees);
-      }
-    } catch (error) {
-      console.error("Error loading attendees:", error);
-    }
-  };
 
   const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
@@ -1930,7 +1928,6 @@ const loadWeeklyCheckins = () => {
   };
 
 
-  // Handle manual payment method change
   const handlePaymentMethodChange = (personId, method) => {
     setAttendeeTicketInfo(prev => ({
       ...prev,
@@ -1941,7 +1938,6 @@ const loadWeeklyCheckins = () => {
     }));
   };
 
-  // Handle manual price change (if needed)
   const handlePriceChange = (personId, price) => {
     setAttendeeTicketInfo(prev => ({
       ...prev,
@@ -1996,7 +1992,7 @@ const handleAssociatePerson = async (person) => {
     return;
   }
 
-  // For ticketed events, always add with default first tier
+  // Update UI immediately
   if (isTicketedEvent && eventPriceTiers && eventPriceTiers.length > 0) {
     const defaultTier = eventPriceTiers[0];
     const personWithTicket = {
@@ -2007,10 +2003,9 @@ const handleAssociatePerson = async (person) => {
       paymentMethod: defaultTier.paymentMethod || "Cash"
     };
 
-    const updated = [...persistentCommonAttendees, personWithTicket];
-    setPersistentCommonAttendees(updated);
-    await saveAllAttendeesToDatabase(updated);
-
+    // Optimistic UI update
+    setPersistentCommonAttendees(prev => [...prev, personWithTicket]);
+    setCheckedIn(prev => ({ ...prev, [person.id]: false }));
     setAttendeeTicketInfo(prev => ({
       ...prev,
       [person.id]: {
@@ -2021,13 +2016,27 @@ const handleAssociatePerson = async (person) => {
       }
     }));
 
+    // Show success immediately
     toast.success(`${person.fullName} added with ${defaultTier.name} ticket`);
+
+    // Save to database in background (don't await)
+    const updated = [...persistentCommonAttendees, personWithTicket];
+    saveAllAttendeesToDatabase(updated).catch(error => {
+      console.error("Background save failed:", error);
+      toast.error("Failed to save to database, but person is added locally");
+    });
+    
   } else {
-    // For non-ticketed events
-    const updated = [...persistentCommonAttendees, person];
-    setPersistentCommonAttendees(updated);
-    await saveAllAttendeesToDatabase(updated);
+    setPersistentCommonAttendees(prev => [...prev, person]);
+    setCheckedIn(prev => ({ ...prev, [person.id]: false }));
+
     toast.success(`${person.fullName} added to attendees list`);
+
+    const updated = [...persistentCommonAttendees, person];
+    saveAllAttendeesToDatabase(updated).catch(error => {
+      console.error("Background save failed:", error);
+      toast.error("Failed to save to database, but person is added locally");
+    });
   }
 };
 
@@ -2144,6 +2153,7 @@ const handleAssociatePerson = async (person) => {
   const attendeesCount = Object.keys(checkedIn).filter((id) => checkedIn[id]).length;
   console.log("Attendees checked in:", attendeesCount);
   const decisionsCount = Object.keys(decisions).filter((id) => decisions[id]).length;
+  console.log("Total decisions made:", decisionsCount);
   const firstTimeCount = Object.values(decisionTypes).filter((type) => type === "first-time").length;
   console.log("First-time decisions count:", firstTimeCount);
   const reCommitmentCount = Object.values(decisionTypes).filter((type) => type === "re-commitment").length;
@@ -2159,123 +2169,131 @@ const handleAssociatePerson = async (person) => {
     person.email.toLowerCase().includes(associateSearch.toLowerCase())
   );
 
-  const handleSave = async () => {
-    const allPeople = getAllCommonAttendees();
-    const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
+const handleSave = async () => {
+  const allPeople = getAllCommonAttendees(); 
+  const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
+  const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
-    let eventId = event?.id || event?._id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
+  let eventId = event?.id || event?._id;
+  if (eventId && eventId.includes("_")) {
+    eventId = eventId.split("_")[0];
+  }
 
-    if (!eventId) {
-      toast.error("Event ID is missing, cannot submit attendance.");
-      return;
-    }
+  if (!eventId) {
+    toast.error("Event ID is missing, cannot submit attendance.");
+    return;
+  }
 
-    try {
-      const selectedAttendees = attendeesList.map((id) => {
-        const person = allPeople.find((p) => p && p.id === id);
+  try {
+    const selectedAttendees = attendeesList.map((id) => {
+      const person = allPeople.find((p) => p && p.id === id);
 
-        if (!person) {
-          console.warn(`Person with id ${id} not found in allPeople`);
-          return null;
-        }
+      if (!person) {
+        console.warn(`Person with id ${id} not found in allPeople`);
+        return null;
+      }
 
-        const attendee = {
-          id: person.id,
-          name: person.fullName || "",
-          email: person.email || "",
-          fullName: person.fullName || "",
-          leader12: person.leader12 || "",
-          leader144: person.leader144 || "",
-          phone: person.phone || "",
-          time: new Date().toISOString(),
-          decision: decisions[id] ? decisionTypes[id] || "" : "",
-          checked_in: true,
-          isPersistent: true
-        };
-
-        if (isTicketedEvent) {
-          const ticketInfo = attendeeTicketInfo[id] || person;
-          attendee.priceName = ticketInfo.priceName || "";
-          attendee.price = ticketInfo.price || 0;
-          attendee.ageGroup = ticketInfo.ageGroup || "";
-          attendee.paymentMethod = ticketInfo.paymentMethod || "";
-        }
-
-        return attendee;
-      }).filter(attendee => attendee !== null);
-
-      const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
-
-      const payload = {
-        attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
-        persistent_attendees: allPeople.map(p => ({
-          id: p.id,
-          name: p.fullName,
-          fullName: p.fullName,
-          email: p.email,
-          leader12: p.leader12,
-          leader144: p.leader144,
-          phone: p.phone,
-          ...(isTicketedEvent && {
-            priceName: p.priceName || "",
-            price: p.price || 0,
-            ageGroup: p.ageGroup || "",
-            paymentMethod: p.paymentMethod || ""
-          })
-        })),
-        leaderEmail: currentUser?.email || "",
-        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-        did_not_meet: shouldMarkAsDidNotMeet,
-        isTicketed: isTicketedEvent,
-        week: get_current_week_identifier(),
-        headcount: finalHeadcount
+      const attendee = {
+        id: person.id,
+        name: person.fullName || "",
+        email: person.email || "",
+        fullName: person.fullName || "",
+        leader12: person.leader12 || "",
+        leader144: person.leader144 || "",
+        phone: person.phone || "",
+        time: new Date().toISOString(),
+        decision: decisions[id] ? decisionTypes[id] || "" : "",
+        checked_in: true,
+        isPersistent: true
       };
 
-      let result;
-
-      if (typeof onSubmit === "function") {
-        result = await onSubmit(payload);
-      } else {
-        const token = localStorage.getItem("token");
-        const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(payload),
-        });
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
-        }
-
-        result = await response.json();
+      if (isTicketedEvent) {
+        const ticketInfo = attendeeTicketInfo[id] || person;
+        attendee.priceName = ticketInfo.priceName || "";
+        attendee.price = ticketInfo.price || 0;
+        attendee.ageGroup = ticketInfo.ageGroup || "";
+        attendee.paymentMethod = ticketInfo.paymentMethod || "";
       }
 
-      if (result && result.success) {
-        await loadEventStatistics();
+      return attendee;
+    }).filter(attendee => attendee !== null);
 
-        if (typeof onAttendanceSubmitted === "function") {
-          await onAttendanceSubmitted();
-        }
+    const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
 
-        if (typeof onClose === "function") {
-          onClose();
-        }
-      } else {
-        throw new Error(result?.message || "Failed to save attendance");
+    // IMPORTANT: Use persistentCommonAttendees directly, NOT allPeople
+    // This ensures we keep ALL associated people, not just the ones currently in the UI
+    const payload = {
+      attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
+      persistent_attendees: persistentCommonAttendees.map(p => ({
+        id: p.id,
+        name: p.fullName,
+        fullName: p.fullName,
+        email: p.email,
+        leader12: p.leader12,
+        leader144: p.leader144,
+        phone: p.phone,
+        ...(isTicketedEvent && {
+          priceName: p.priceName || "",
+          price: p.price || 0,
+          ageGroup: p.ageGroup || "",
+          paymentMethod: p.paymentMethod || ""
+        })
+      })),
+      leaderEmail: currentUser?.email || "",
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      did_not_meet: shouldMarkAsDidNotMeet,
+      isTicketed: isTicketedEvent,
+      week: get_current_week_identifier(),
+      headcount: finalHeadcount
+    };
+
+    console.log("Saving payload with persistent attendees:", payload.persistent_attendees.length);
+
+    let result;
+
+    if (typeof onSubmit === "function") {
+      result = await onSubmit(payload);
+    } else {
+      const token = localStorage.getItem("token");
+      const response = await authFetch(`${BACKEND_URL}/submit-attendance/${eventId}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
       }
 
-    } catch (error) {
-      console.error("Error saving attendance:", error);
-      toast.error(error.message || "Failed to save attendance. Please try again.");
+      result = await response.json();
     }
-  };
+
+    if (result && result.success) {
+      // After successful save, reload the persistent attendees to ensure sync
+      await loadPersistentAttendees(eventId);
+      await loadEventStatistics();
+
+      if (typeof onAttendanceSubmitted === "function") {
+        await onAttendanceSubmitted();
+      }
+
+      if (typeof onClose === "function") {
+        onClose();
+      }
+      
+      toast.success(`Attendance saved successfully with ${persistentCommonAttendees.length} associated people`);
+    } else {
+      throw new Error(result?.message || "Failed to save attendance");
+    }
+
+  } catch (error) {
+    console.error("Error saving attendance:", error);
+    toast.error(error.message || "Failed to save attendance. Please try again.");
+  }
+};
 
   const downloadAttendanceData = () => {
     try {
@@ -2921,7 +2939,7 @@ const handleAssociatePerson = async (person) => {
                         )}
                         {filteredCommonAttendees.map((person) => {
                           const ticketInfo = attendeeTicketInfo[person.id] || person;
-                          
+
                           return (
                             <tr key={person.id}>
                               <td style={styles.td}>{person.fullName || "Unknown Name"}</td>
@@ -2931,82 +2949,82 @@ const handleAssociatePerson = async (person) => {
                               <td style={styles.td}>{person.phone || ""}</td>
 
 
-{isTicketedEvent && (
-  <>
-    {/* Price Name Dropdown - Always visible */}
-    <td style={styles.td}>
-      <div style={styles.priceTierDropdown}>
-        <button
-          style={styles.priceTierButton}
-          onClick={() => setOpenPriceTierDropdown(openPriceTierDropdown === person.id ? null : person.id)}
-        >
-          <span>{ticketInfo.priceName || "Select Tier"}</span>
-          <ChevronDown size={14} />
-        </button>
-        {openPriceTierDropdown === person.id && eventPriceTiers && eventPriceTiers.length > 0 && (
-          <div style={styles.priceTierMenu}>
-            {eventPriceTiers.map((tier, index) => (
-              <div
-                key={index}
-                style={styles.priceTierMenuItem}
-                onClick={() => {
-                  // Update ticket info when tier is selected - use tier's payment method
-                  setAttendeeTicketInfo(prev => ({
-                    ...prev,
-                    [person.id]: {
-                      priceName: tier.name,
-                      price: tier.price,
-                      ageGroup: tier.ageGroup,
-                      paymentMethod: tier.paymentMethod || "Cash" // Use payment method from the tier
-                    }
-                  }));
-                  setOpenPriceTierDropdown(null);
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = theme.palette.action.hover)}
-                onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
-              >
-                <div style={{ fontWeight: 500 }}>{tier.name}</div>
-                <div style={{ fontSize: 11, color: theme.palette.text.secondary }}>
-                  R{tier.price} • {tier.ageGroup} • {tier.paymentMethod || "Cash"}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {openPriceTierDropdown === person.id && (!eventPriceTiers || eventPriceTiers.length === 0) && (
-          <div style={styles.priceTierMenu}>
-            <div style={{ ...styles.priceTierMenuItem, color: theme.palette.text.secondary }}>
-              No price tiers available
-            </div>
-          </div>
-        )}
-      </div>
-    </td>
+                              {isTicketedEvent && (
+                                <>
+                                  {/* Price Name Dropdown - Always visible */}
+                                  <td style={styles.td}>
+                                    <div style={styles.priceTierDropdown}>
+                                      <button
+                                        style={styles.priceTierButton}
+                                        onClick={() => setOpenPriceTierDropdown(openPriceTierDropdown === person.id ? null : person.id)}
+                                      >
+                                        <span>{ticketInfo.priceName || "Select Tier"}</span>
+                                        <ChevronDown size={14} />
+                                      </button>
+                                      {openPriceTierDropdown === person.id && eventPriceTiers && eventPriceTiers.length > 0 && (
+                                        <div style={styles.priceTierMenu}>
+                                          {eventPriceTiers.map((tier, index) => (
+                                            <div
+                                              key={index}
+                                              style={styles.priceTierMenuItem}
+                                              onClick={() => {
+                                                // Update ticket info when tier is selected - use tier's payment method
+                                                setAttendeeTicketInfo(prev => ({
+                                                  ...prev,
+                                                  [person.id]: {
+                                                    priceName: tier.name,
+                                                    price: tier.price,
+                                                    ageGroup: tier.ageGroup,
+                                                    paymentMethod: tier.paymentMethod || "Cash" // Use payment method from the tier
+                                                  }
+                                                }));
+                                                setOpenPriceTierDropdown(null);
+                                              }}
+                                              onMouseEnter={(e) => (e.currentTarget.style.background = theme.palette.action.hover)}
+                                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+                                            >
+                                              <div style={{ fontWeight: 500 }}>{tier.name}</div>
+                                              <div style={{ fontSize: 11, color: theme.palette.text.secondary }}>
+                                                R{tier.price} • {tier.ageGroup} • {tier.paymentMethod || "Cash"}
+                                              </div>
+                                            </div>
+                                          ))}
+                                        </div>
+                                      )}
+                                      {openPriceTierDropdown === person.id && (!eventPriceTiers || eventPriceTiers.length === 0) && (
+                                        <div style={styles.priceTierMenu}>
+                                          <div style={{ ...styles.priceTierMenuItem, color: theme.palette.text.secondary }}>
+                                            No price tiers available
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
 
-    {/* Price (R) - Display only, no input */}
-    <td style={styles.td}>
-      <span style={{ 
-        color: theme.palette.text.primary,
-        fontWeight: 500 
-      }}>
-        {ticketInfo.price ? `R${ticketInfo.price}` : "-"}
-      </span>
-    </td>
+                                  {/* Price (R) - Display only, no input */}
+                                  <td style={styles.td}>
+                                    <span style={{
+                                      color: theme.palette.text.primary,
+                                      fontWeight: 500
+                                    }}>
+                                      {ticketInfo.price ? `R${ticketInfo.price}` : "-"}
+                                    </span>
+                                  </td>
 
-    {/* Age Group - Display only */}
-    <td style={styles.td}>
-      <span style={{ color: theme.palette.text.secondary }}>
-        {ticketInfo.ageGroup || "-"}
-      </span>
-    </td>
+                                  {/* Age Group - Display only */}
+                                  <td style={styles.td}>
+                                    <span style={{ color: theme.palette.text.secondary }}>
+                                      {ticketInfo.ageGroup || "-"}
+                                    </span>
+                                  </td>
 
-    <td style={styles.td}>
-      <span style={{ color: theme.palette.text.secondary }}>
-        {ticketInfo.paymentMethod || "-"}
-      </span>
-    </td>
-  </>
-)}
+                                  <td style={styles.td}>
+                                    <span style={{ color: theme.palette.text.secondary }}>
+                                      {ticketInfo.paymentMethod || "-"}
+                                    </span>
+                                  </td>
+                                </>
+                              )}
 
                               <td style={{ ...styles.td, ...styles.radioCell }}>
                                 <button

@@ -790,7 +790,6 @@ const normalizeEventAttendance = (event) => {
     }
   }
 
-  // Fall back to top-level attendees
   if (attendees.length === 0) {
     attendees = event.attendees || [];
   }
@@ -1073,10 +1072,6 @@ const Events = () => {
     cacheRef.current.timestamp.clear();
   }, []);
   const eventsCache = useRef({});
-
-  const getCacheKey = useCallback(() => {
-    return `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
-  }, [selectedEventTypeFilter, selectedStatus, viewFilter]);
 
   const escapeHtml = (s) =>
     String(s || "")
@@ -2314,13 +2309,10 @@ const handleCaptureClick = useCallback(async (event) => {
     console.log("Full event with priceTiers:", fullEvent);
     console.log("Price tiers:", fullEvent?.priceTiers);
     
-    // Set the FULL event data BEFORE opening the modal
     setSelectedEvent(fullEvent);
-    // Then open the modal
     setAttendanceModalOpen(true);
   } catch (err) {
     console.error("Failed to fetch full event:", err);
-    // Fall back to original event if fetch fails
     setSelectedEvent(event);
     setAttendanceModalOpen(true);
   }
@@ -4380,28 +4372,6 @@ allFetched.sort((a, b) => {
                   },
                 }}
               />
-
-              {/* <Button
-                variant="contained"
-                onClick={debounce(() => {
-                  const value = e.target.value;
-                  setSearchQuery(value);
-                  setIsSearching(true);
-                  handleSearchSubmit(value);
-                })}
-                disabled={loading}
-                sx={{
-                  padding: isMobileView ? "0.6rem 1rem" : "0.75rem 1.5rem",
-                  fontSize: isMobileView ? "14px" : "0.95rem",
-                  whiteSpace: "nowrap",
-                  backgroundColor: "#007bff",
-                  "&:hover": {
-                    backgroundColor: "#0056b3",
-                  },
-                }}
-              >
-                {loading ? "⏳" : "SEARCH"}
-              </Button> */}
 
               <Button
                 variant="outlined"
