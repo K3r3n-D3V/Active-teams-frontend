@@ -1909,6 +1909,8 @@ useEffect(() => {
         isModal={true}
         onClose={(success) => {
           if (success) {
+            // Refresh data after successful creation
+            toast.success(`Event "${newEventData.eventName}" created successfully!`);
             fetchStats(true);
             fetchOverdueCells(true);
           }
