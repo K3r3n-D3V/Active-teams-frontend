@@ -2594,85 +2594,84 @@ const AttendanceModal = ({
     setShowDidNotMeetConfirm(true);
   };
 
-  const confirmDidNotMeet = async () => {
-    setShowDidNotMeetConfirm(false);
-    setDidNotMeet(true);
-    setCheckedIn({});
-    setDecisions({});
-    setManualHeadcount("");
-    setAttendeeTicketInfo({});
+const confirmDidNotMeet = async () => {
+  setShowDidNotMeetConfirm(false);
+  setDidNotMeet(true);
+  setCheckedIn({});
+  setDecisions({});
+  setManualHeadcount("");
+  setAttendeeTicketInfo({});
 
-    let eventId = event?.id || event?._id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
+  let eventId = event?.id || event?._id;
+  if (eventId && eventId.includes("_")) {
+    eventId = eventId.split("_")[0];
+  }
 
-    if (!eventId) {
-      toast.error("Event ID is missing, cannot mark as 'Did Not Meet'.");
-      return;
-    }
+  if (!eventId) {
+    return;
+  }
 
-    try {
-      const allPeople = getAllCommonAttendees();
-      const payload = {
-        attendees: [],
-        persistent_attendees: allPeople.map(p => ({
-          id: p.id,
-          fullName: p.fullName,
-          email: p.email,
-          leader12: p.leader12,
-          leader144: p.leader144,
-          phone: p.phone,
-          ...(isTicketedEvent && {
-            priceName: p.priceName || "",
-            price: p.price || 0,
-            ageGroup: p.ageGroup || "",
-            paymentMethod: p.paymentMethod || ""
-          })
-        })),
-        leaderEmail: currentUser?.email || "",
-        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-        did_not_meet: true,
-        isTicketed: isTicketedEvent,
-        week: get_current_week_identifier()
-      };
+  try {
+    const payload = {
+      attendees: [],
+      persistent_attendees: persistentCommonAttendees.map((p) => ({
+        id: p.id,
+        fullName: p.fullName,
+        email: p.email || "",
+        leader12: p.leader12 || "",
+        leader144: p.leader144 || "",
+        phone: p.phone || "",
+        ...(isTicketedEvent && {
+          priceName: p.priceName || "",
+          price: p.price || 0,
+          ageGroup: p.ageGroup || "",
+          paymentMethod: p.paymentMethod || ""
+        })
+      })),
+      leaderEmail: currentUser?.email || "",
+      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+      did_not_meet: true,
+      isTicketed: isTicketedEvent,
+      week: get_current_week_identifier(),
+    };
 
-      let result;
+    let result;
 
-      if (typeof onSubmit === "function") {
-        result = await onSubmit(payload);
-      } else {
-        const token = localStorage.getItem("token");
-        const response = await authFetch(
-          `${BACKEND_URL}/submit-attendance/${eventId}`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-            body: JSON.stringify(payload),
-          }
-        );
-        result = await response.json();
-        result.success = response.ok;
-      }
-
-      if (result?.success) {
-        // Close modal immediately
-        if (typeof onClose === "function") {
-          onClose();
+    if (typeof onSubmit === "function") {
+      result = await onSubmit(payload);
+    } else {
+      const token = localStorage.getItem("token");
+      const response = await authFetch(
+        `${BACKEND_URL}/submit-attendance/${eventId}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(payload),
         }
-        
-        // Refresh data in background
-        if (typeof onAttendanceSubmitted === "function") {
-          onAttendanceSubmitted().catch(console.error);
-        }
-      } else {
-        toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
-      }
-    } catch (error) {
-      console.error("Error marking event as 'Did Not Meet':", error);
-      toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+      );
+      result = await response.json();
+      result.success = response.ok;
     }
-  };
+
+    if (result?.success) {
+      // Close modal immediately
+      if (typeof onClose === "function") {
+        onClose();
+      }
+      
+      if (typeof onAttendanceSubmitted === "function") {
+        onAttendanceSubmitted().catch(console.error);
+      }
+      
+      toast.success("Event marked as 'Did Not Meet' successfully!");
+    } else {
+      toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+    }
+  } catch (error) {
+    console.error("Error marking event as 'Did Not Meet':", error);
+    toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+  }
+};
   
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);

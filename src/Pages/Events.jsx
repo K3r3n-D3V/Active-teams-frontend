@@ -818,7 +818,6 @@ const normalizeEventAttendance = (event) => {
     try {
       toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
 
-      // Prefer local attendees/attendance already present on the event object
       const hasLocalAttendance =
         (event?.attendees && event.attendees.length > 0) ||
         (event?.attendance && Object.keys(event.attendance).length > 0) ||
@@ -1195,8 +1194,7 @@ const fetchInBatches = async (items, fn, batchSize = 6) => {
     const results = [];
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
-      // run the batch in parallel
-      // eslint-disable-next-line no-await-in-loop
+  
       const res = await Promise.all(batch.map((it) => fn(it)));
       results.push(...res);
     }
@@ -1450,7 +1448,6 @@ const normalizeEventAttendance = (event) => {
   }, [eventTypes]);
 
   const fetchEventsFilters = (filters) => {
-    //function to determine filters to query by depending on user status
     const params = {
       page: filters.page || currentPage,
       limit: filters.limit || rowsPerPage,
@@ -2786,7 +2783,6 @@ const handleCloseEditModal = useCallback(
         );
       }
 
-      // Clear ALL caches to force fresh data
       eventsCache.current = {};
       if (cacheRef.current) {
         cacheRef.current.data.clear();
@@ -2833,22 +2829,19 @@ const handleCloseEditModal = useCallback(
         }
       }
 
-      // Remove undefined/empty values
       Object.keys(refreshParams).forEach(
         (key) =>
           (refreshParams[key] === undefined || refreshParams[key] === "") &&
           delete refreshParams[key],
       );
 
-      // Fetch fresh data from server
       await fetchEvents(refreshParams, true);
     } else {
-      // No refresh needed, just clear selectedEvent
       setSelectedEvent(null);
     }
   },
   [
-    selectedEvent, // <-- IMPORTANT: selectedEvent must be in deps so we read it before clearing
+    selectedEvent,
     currentPage,
     rowsPerPage,
     selectedStatus,
@@ -3404,7 +3397,7 @@ allFetched.sort((a, b) => {
         setTotalEvents(allFetched.length);
         setTotalPages(Math.ceil(allFetched.length / rowsPerPage) || 1);
         setCurrentPage(1);
-        setEvents(allFetched.slice(0, rowsPerPage)); // show first page
+        setEvents(allFetched.slice(0, rowsPerPage)); 
       } catch (error) {
         console.error("Fetch error:", error);
         setEvents([]);

@@ -82,7 +82,7 @@ const CreateEvents = ({
     isTicketed: false,
     hasPersonSteps: false,
   });
-  const [peopleReady, setPeopleReady] = useState(false);
+  // const [peopleReady, setPeopleReady] = useState(false);
   const {
     isGlobal: isGlobalEvent,
     isTicketed: isTicketedEvent,
@@ -129,6 +129,7 @@ const CreateEvents = ({
   // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
   const searchDebounceRef = useRef(null);
+  
   useEffect(() => {
     if (!navigator.geolocation) return;
 
@@ -411,54 +412,54 @@ const CreateEvents = ({
     fetchAllPeople();
   }, []);
 
-const fetchPeople = async (q) => {
-  if (!q.trim()) {
-    setPeopleData([]);
-    return;
-  }
+  const fetchPeople = async (q) => {
+    if (!q.trim()) {
+      setPeopleData([]);
+      return;
+    }
 
-  const searchLower = q.toLowerCase().trim();
-  
-  //  try to filter from cache
-  const filtered = allPeopleCache.filter((person) => {
-    const fullName = person.fullName.toLowerCase();
-    return fullName.includes(searchLower);
-  });
-
-  if (filtered.length > 0) {
-    setPeopleData(filtered);
-    return;
-  }
-
-  // If not found in cache, search API
-  try {
-    setIsSearchingPeople(true);
-    const token = localStorage.getItem("token");
-    const res = await fetch(`${BACKEND_URL}/people/search?query=${encodeURIComponent(q)}`, {
-      headers: { Authorization: `Bearer ${token}` },
+    const searchLower = q.toLowerCase().trim();
+    
+    // try to filter from cache
+    const filtered = allPeopleCache.filter((person) => {
+      const fullName = person.fullName.toLowerCase();
+      return fullName.includes(searchLower);
     });
 
-    if (!res.ok) throw new Error("Search failed");
+    if (filtered.length > 0) {
+      setPeopleData(filtered);
+      return;
+    }
 
-    const data = await res.json();
-    const results = data?.results || [];
+    // If not found in cache, search API
+    try {
+      setIsSearchingPeople(true);
+      const token = localStorage.getItem("token");
+      const res = await fetch(`${BACKEND_URL}/people/search?query=${encodeURIComponent(q)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-    const formatted = results.map((p) => ({
-      id: p._id,
-      fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-      email: p.Email || "",
-      leader1: p["Leader @1"] || "",
-      leader12: p["Leader @12"] || "",
-    }));
+      if (!res.ok) throw new Error("Search failed");
 
-    setPeopleData(formatted);
-  } catch (err) {
-    console.error("Search error:", err);
-    setPeopleData([]);
-  } finally {
-    setIsSearchingPeople(false);
-  }
-};
+      const data = await res.json();
+      const results = data?.results || [];
+
+      const formatted = results.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+        email: p.Email || "",
+        leader1: p["Leader @1"] || "",
+        leader12: p["Leader @12"] || "",
+      }));
+
+      setPeopleData(formatted);
+    } catch (err) {
+      console.error("Search error:", err);
+      setPeopleData([]);
+    } finally {
+      setIsSearchingPeople(false);
+    }
+  };
 
   useEffect(() => {
     if (!eventId) return;
@@ -535,7 +536,7 @@ const fetchPeople = async (q) => {
     };
 
     fetchEventData();
-  }, [eventId, BACKEND_URL]);
+  }, [eventId]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => {
@@ -581,7 +582,8 @@ const fetchPeople = async (q) => {
       eventLeaderEmail: person.email,
     }));
   };
-console.log("view leadersgip fields", handleLeaderSelect )
+  
+  console.log("view leadersgip fields", handleLeaderSelect);
 
   const handleRemovePriceTier = (index) => {
     setPriceTiers((prev) => prev.filter((_, i) => i !== index));
@@ -1096,24 +1098,23 @@ console.log("view leadersgip fields", handleLeaderSelect )
                 }));
 
                 if (selectedObj) {
-              setEventTypeFlags({
-  isGlobal: !!selectedObj.isGlobal,
-  isTicketed: !!selectedObj.isTicketed,
-  hasPersonSteps: !!selectedObj.hasPersonSteps,
-});
+                  setEventTypeFlags({
+                    isGlobal: !!selectedObj.isGlobal,
+                    isTicketed: !!selectedObj.isTicketed,
+                    hasPersonSteps: !!selectedObj.hasPersonSteps,
+                  });
                 }
               }}
               fullWidth
               size="small"
               sx={{ mb: 3, ...darkModeStyles.textField }}
-              >
+            >
               {eventTypes.map((et) => (
                 <MenuItem key={et.id} value={et.name}>
                   {et.name}
                 </MenuItem>                  
               ))}
             </TextField>
-              {/* console.log("Selected event type:", setIsGlobalEvent, setIsTicketedEvent, setHasPersonSteps);  */}
 
             <TextField
               label="Event Name *"
@@ -1467,7 +1468,6 @@ console.log("view leadersgip fields", handleLeaderSelect )
               <TextField
                 label="Event Leader *"
                 value={formData.eventLeader}
-                // ✅ Fixed onChange with 250ms debounce
                 onChange={(e) => {
                   const value = e.target.value;
                   handleChange("eventLeader", value);
@@ -1478,7 +1478,7 @@ console.log("view leadersgip fields", handleLeaderSelect )
                   if (value.trim().length >= 2) {
                     searchDebounceRef.current = setTimeout(() => {
                       fetchPeople(value);
-                    }, 200); // 200ms feels responsive for a real API call
+                    }, 200);
                   }
                 }}
                 onFocus={() => {
@@ -1547,26 +1547,26 @@ console.log("view leadersgip fields", handleLeaderSelect )
                         },
                       }}
                       onMouseDown={(e) => {
-  e.preventDefault(); // prevents the input from losing focus and hiding dropdown
-  const selectedName = person.fullName;
-  const selectedEmail = person.email;
-  if (hasPersonSteps && !isGlobalEvent) {
-    setFormData((prev) => ({
-      ...prev,
-      eventLeader: selectedName,
-      eventLeaderEmail: selectedEmail.toLowerCase(),
-      leader1: person.leader1 || "",
-      leader12: person.leader12 || "",
-    }));
-  } else {
-    setFormData((prev) => ({
-      ...prev,
-      eventLeader: selectedName,
-      eventLeaderEmail: selectedEmail.toLowerCase(),
-    }));
-  }
-  setPeopleData([]);
-}}
+                        e.preventDefault();
+                        const selectedName = person.fullName;
+                        const selectedEmail = person.email;
+                        if (hasPersonSteps && !isGlobalEvent) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            eventLeader: selectedName,
+                            eventLeaderEmail: selectedEmail.toLowerCase(),
+                            leader1: person.leader1 || "",
+                            leader12: person.leader12 || "",
+                          }));
+                        } else {
+                          setFormData((prev) => ({
+                            ...prev,
+                            eventLeader: selectedName,
+                            eventLeaderEmail: selectedEmail.toLowerCase(),
+                          }));
+                        }
+                        setPeopleData([]);
+                      }}
                     >
                       <Typography variant="body1" fontWeight="500">
                         {person.fullName}
