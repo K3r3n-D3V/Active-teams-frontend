@@ -1690,17 +1690,6 @@ export default function DailyTasks() {
               position: "relative",
             }}
           >
-            <div
-              style={{
-                background: "#fef3c7",
-                color: "#92400e",
-                padding: "8px 12px",
-                borderRadius: "8px",
-                marginBottom: "16px",
-                fontWeight: "bold",
-                textAlign: "center",
-              }}
-            ></div>
 
             <h2 style={{ margin: "0 0 24px 0", textAlign: "center" }}>
               Edit Task Type
