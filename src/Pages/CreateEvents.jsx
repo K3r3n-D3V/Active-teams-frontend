@@ -777,7 +777,6 @@ const CreateEvents = ({
           );
 
       console.log("Response:", response.data);
-
       toast.success(
         eventId ? "Event updated successfully!" : "Event created successfully!",
       );

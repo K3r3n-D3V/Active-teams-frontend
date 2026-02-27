@@ -1909,7 +1909,6 @@ useEffect(() => {
         isModal={true}
         onClose={(success) => {
           if (success) {
-            // Refresh data after successful creation
             fetchStats(true);
             fetchOverdueCells(true);
           }
