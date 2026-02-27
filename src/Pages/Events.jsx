@@ -515,31 +515,10 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     },
   };
 
-  // RECURRING column
-  const recurringCol = {
-    field: "recurring_info",
-    headerName: "Recurring",
-    flex: 0.8,
-    minWidth: 120,
-    renderCell: (params) => {
-      if (!params?.row) return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
-      const row = params.row;
-      const isRecurring =
-        row.is_recurring ||
-        (row.recurring_days && Array.isArray(row.recurring_days) && row.recurring_days.length > 0);
-      return (
-        <Box sx={{ color: isRecurring ? "#2196f3" : "#6c757d", fontSize: "0.95rem", fontWeight: isRecurring ? "bold" : "normal", textAlign: "center", width: "100%" }}>
-          {isRecurring ? "True" : "False"}
-        </Box>
-      );
-    },
-  };
-
   // NON-CELLS columns
   if (!isCellType) {
     return [
       statusCol,
-      recurringCol,
       {
         field: "eventName",
         headerName: "Event Name",
@@ -635,7 +614,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     return !(exactMatch || caseInsensitiveMatch || containsOverdue || containsDisplayDate || containsOriginated || containsLeader12 || shouldExcludeLeader1 || containsPersonSteps);
   });
 
-  const columns = [statusCol, recurringCol];
+  const columns = [statusCol];
   columns.push(
     ...filteredFields.map((key) => ({
       field: key,
@@ -812,6 +791,7 @@ const normalizeEventAttendance = (event) => {
     "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
   }));
 };
+
   const fetchEventFull = async (event) => {
 
     try {
@@ -834,19 +814,37 @@ const normalizeEventAttendance = (event) => {
   };
 
   const downloadEventAttendance = async (event) => {
+    const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
     try {
-      const fullEvent = await fetchEventFull(event);
+      toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
+
+      // Prefer local attendees/attendance already present on the event object
+      const hasLocalAttendance =
+        (event?.attendees && event.attendees.length > 0) ||
+        (event?.attendance && Object.keys(event.attendance).length > 0) ||
+        (event?.attendance_data && Array.isArray(event.attendance_data.attendees) && event.attendance_data.attendees.length > 0) ||
+        (event?.checked_in_count && event.checked_in_count > 0) ||
+        (event?.persistent_attendees && event.persistent_attendees.length > 0);
+
+      const fullEvent = hasLocalAttendance ? event : await fetchEventFull(event);
+
       const rows = normalizeEventAttendance(fullEvent);
       if (!rows || rows.length === 0) {
+        toast.dismiss(TOAST_ID);
         toast.info("No attendees found for this event.");
         return;
       }
+
       buildXlsFromRows(
         rows,
         `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
       );
+
+      toast.dismiss(TOAST_ID);
+      toast.success(`Downloaded attendance of ${rows.length} members `);
     } catch (err) {
       console.error("Download event attendance failed:", err);
+      toast.dismiss(TOAST_ID);
       toast.error("Failed to download event attendance");
     }
   };
@@ -1193,6 +1191,53 @@ ${xmlCols}
       hasPersonSteps: false,
     };
   };
+const fetchInBatches = async (items, fn, batchSize = 6) => {
+    const results = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      const batch = items.slice(i, i + batchSize);
+      // run the batch in parallel
+      // eslint-disable-next-line no-await-in-loop
+      const res = await Promise.all(batch.map((it) => fn(it)));
+      results.push(...res);
+    }
+    return results;
+  };
+
+const downloadEventAttendance = async (event) => {
+    const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
+    try {
+      toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
+
+      // Prefer local attendees/attendance already present on the event object
+      const hasLocalAttendance =
+        (event?.attendees && event.attendees.length > 0) ||
+        (event?.attendance && Object.keys(event.attendance).length > 0) ||
+        (event?.attendance_data && Array.isArray(event.attendance_data.attendees) && event.attendance_data.attendees.length > 0) ||
+        (event?.checked_in_count && event.checked_in_count > 0) ||
+        (event?.persistent_attendees && event.persistent_attendees.length > 0);
+
+      const fullEvent = hasLocalAttendance ? event : await fetchEventFull(event);
+
+      const rows = normalizeEventAttendance(fullEvent);
+      if (!rows || rows.length === 0) {
+        toast.dismiss(TOAST_ID);
+        toast.info("No attendees found for this event.");
+        return;
+      }
+
+      buildXlsFromRows(
+        rows,
+        `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
+      );
+
+      toast.dismiss(TOAST_ID);
+      toast.success(`Downloaded ${rows.length} attendance rows`);
+    } catch (err) {
+      console.error("Download event attendance failed:", err);
+      toast.dismiss(TOAST_ID);
+      toast.error("Failed to download event attendance");
+    }
+  };
 
 const normalizeEventAttendance = (event) => {
   if (!event) return [];
@@ -1252,23 +1297,6 @@ const normalizeEventAttendance = (event) => {
     }
   };
 
-  const downloadEventAttendance = async (event) => {
-    try {
-      const fullEvent = await fetchEventFull(event);
-      const rows = normalizeEventAttendance(fullEvent);
-      if (!rows || rows.length === 0) {
-        toast.info("No attendees found for this event.");
-        return;
-      }
-      buildXlsFromRows(
-        rows,
-        `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
-      );
-    } catch (err) {
-      console.error("Download event attendance failed:", err);
-      toast.error("Failed to download event attendance");
-    }
-  };
 
   const isDateInWeek = (dateStr, which = "current") => {
     if (!dateStr) return false;
@@ -1302,55 +1330,62 @@ const normalizeEventAttendance = (event) => {
   };
 
   const downloadEventsByStatus = async (status, period = "current") => {
+    const TOAST_ID = `download-status-${status}-${period}`;
     try {
       if (!status || (status !== "complete" && status !== "did_not_meet")) {
-        toast.info(
-          "Download is available only for 'complete' and 'did_not_meet' statuses.",
-        );
+        toast.info("Download is available only for 'complete' and 'did_not_meet' statuses.");
         return;
       }
 
-      // Normalize helper
-      const normalizeStatus = (val) =>
-        String(val || "")
-          .toLowerCase()
-          .trim()
-          .replace(/\s+/g, "_");
+      toast.info("Preparing export — fetching events...", { toastId: TOAST_ID, autoClose: false });
 
-      const eventsToExport = events.filter((ev) => {
-        // filter by selected period first (if event has a date)
-        const eventDate =
-          ev.date || ev.EventDate || ev.event_date || ev.displayDate;
-        if (!isDateInWeek(eventDate, period)) {
-          return false;
+      // Prefer local cached source (eventsCache / allCurrentEvents / events)
+      const cacheKey = `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
+      let sourceEvents =
+        (eventsCache.current && eventsCache.current[cacheKey]) ||
+        (allCurrentEvents && allCurrentEvents.length ? allCurrentEvents : null) ||
+        (events && events.length ? events : null) ||
+        [];
+
+      if (!sourceEvents || sourceEvents.length === 0) {
+        try {
+          await fetchAllCurrentEvents();
+          sourceEvents =
+            (eventsCache.current && eventsCache.current[cacheKey]) ||
+            (allCurrentEvents && allCurrentEvents.length ? allCurrentEvents : []) ||
+            (events && events.length ? events : []);
+        } catch (e) {
+          console.error("Failed to preload events for download:", e);
         }
+      }
 
+      const normalizeStatus = (val) =>
+        String(val || "").toLowerCase().trim().replace(/\s/g, "_");
+
+      const eventsToExport = (sourceEvents || []).filter((ev) => {
+        const eventDate = ev.date || ev.EventDate || ev.event_date || ev.displayDate;
+        if (!isDateInWeek(eventDate, period)) return false;
         const s = normalizeStatus(ev.status || ev.Status);
-
         const boolDidNot =
-          ev.did_not_meet === true ||
-          String(ev.did_not_meet).toLowerCase() === "true";
-
+          ev.did_not_meet === true || String(ev.did_not_meet || "").toLowerCase() === "true";
         const isDidNotMeet =
           boolDidNot ||
           s === "did_not_meet" ||
           s === "didnotmeet" ||
           (s.includes("did") && s.includes("meet")) ||
           s === "did not meet";
-        const isComplete =
-          s === "complete" || s === "completed" || s === "closed";
-
+        const isComplete = s === "complete" || s === "completed" || s === "closed";
         return status === "did_not_meet" ? isDidNotMeet : isComplete;
       });
 
       if (!eventsToExport.length) {
+        toast.dismiss(TOAST_ID);
         toast.info("No events with the selected status in the selected week.");
         return;
       }
 
-      const fullEvents = await Promise.all(
-        eventsToExport.map((ev) => fetchEventFull(ev)),
-      );
+      // Fetch full events in small batches to speed up and avoid too many parallel requests
+      const fullEvents = await fetchInBatches(eventsToExport, fetchEventFull, 6);
 
       const allRows = [];
       for (const ev of fullEvents) {
@@ -1367,12 +1402,7 @@ const normalizeEventAttendance = (event) => {
             "Event Date": formatDate(ev.date),
             Name: "",
             Email: "",
-            "Event Leader Name ":
-              ev.eventLeaderName ||
-              ev.leaderName ||
-              ev.eventLeader ||
-              ev.leader ||
-              "",
+            "Event Leader Name ": ev.eventLeaderName || ev.leaderName || ev.eventLeader || ev.leader || "",
             "Leader @12": ev.leader12 || "",
             "Leader @144": ev.leader144 || "",
             Phone: "",
@@ -1388,14 +1418,18 @@ const normalizeEventAttendance = (event) => {
       }
 
       if (!allRows.length) {
+        toast.dismiss(TOAST_ID);
         toast.info("No attendees found for selected events.");
         return;
       }
 
       buildXlsFromRows(allRows, `events_${status}_${period}`);
+      toast.dismiss(TOAST_ID);
+      toast.success(`Downloaded ${allRows.length} rows for ${status} (${period})`);
     } catch (err) {
       console.error("Download events by status failed:", err);
       toast.error("Failed to download events for selected status");
+      toast.dismiss(TOAST_ID);
     }
   };
   const paginatedEvents = useMemo(() => events, [events]);
@@ -2714,96 +2748,120 @@ const handleCaptureClick = useCallback(async (event) => {
     ],
   );
 
-  const handleCloseEditModal = useCallback(
-    async (shouldRefresh = false, updatedEventData = null) => {
-      setEditModalOpen(false);
-      setSelectedEvent(null);
-      if (shouldRefresh) {
-        clearCache();
+const handleCloseEditModal = useCallback(
+  async (shouldRefresh = false, updatedEventData = null) => {
+    setEditModalOpen(false);
 
-        if (updatedEventData) {
-          const originalDay = selectedEvent?.Day || selectedEvent?.day;
-          const newDay = updatedEventData.Day || updatedEventData.day;
+    if (shouldRefresh) {
+      // Read selectedEvent BEFORE clearing it
+      const originalDay = selectedEvent?.Day || selectedEvent?.day;
+      const newDay = updatedEventData?.Day || updatedEventData?.day;
 
-          if (originalDay && newDay && originalDay !== newDay) {
-            toast.info(
-              `Cell moved from ${originalDay} to ${newDay}!\n\nNote: The cell has been updated but may not appear in the current view. Check the ${newDay} filter to see it.`,
-              {
-                autoClose: 8000,
-                position: "top-center",
-              },
-            );
-          }
-        }
-
-        const refreshParams = {
-          page: currentPage,
-          limit: rowsPerPage,
-          start_date: DEFAULT_API_START_DATE,
-          _t: Date.now(),
-          status: selectedStatus !== "all" ? selectedStatus : undefined,
-          event_type:
-            selectedEventTypeFilter === "all"
-              ? "CELLS"
-              : selectedEventTypeFilter,
-        };
-
-        if (searchQuery && searchQuery.trim()) {
-          refreshParams.search = searchQuery.trim();
-        }
-
-        // Add role-specific filters
-        if (
-          selectedEventTypeFilter === "all" ||
-          selectedEventTypeFilter === "CELLS"
-        ) {
-          if (isLeaderAt12) {
-            refreshParams.leader_at_12_view = true;
-            refreshParams.include_subordinate_cells = true;
-
-            if (currentUserLeaderAt1) {
-              refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
-            }
-
-            if (viewFilter === "personal") {
-              refreshParams.show_personal_cells = true;
-              refreshParams.personal = true;
-            } else {
-              refreshParams.show_all_authorized = true;
-            }
-          } else if (isAdmin && viewFilter === "personal") {
-            refreshParams.personal = true;
-          }
-        }
-
-        Object.keys(refreshParams).forEach(
-          (key) =>
-            (refreshParams[key] === undefined || refreshParams[key] === "") &&
-            delete refreshParams[key],
+      if (originalDay && newDay && originalDay !== newDay) {
+        toast.info(
+          `Cell moved from ${originalDay} to ${newDay}!\n\nNote: The cell has been updated but may not appear in the current view. Check the ${newDay} filter to see it.`,
+          {
+            autoClose: 8000,
+            position: "top-center",
+          },
         );
-
-        await fetchEvents(refreshParams, true);
-
-        setTimeout(() => {
-          fetchEvents({ ...refreshParams, _t: Date.now() }, false);
-        }, 300);
       }
-    },
-    [
-      clearCache,
-      currentPage,
-      rowsPerPage,
-      selectedStatus,
-      searchQuery,
-      selectedEventTypeFilter,
-      fetchEvents,
-      DEFAULT_API_START_DATE,
-      isLeaderAt12,
-      currentUserLeaderAt1,
-      viewFilter,
-      isAdmin,
-    ],
-  );
+
+      // NOW clear selectedEvent
+      setSelectedEvent(null);
+
+      // Optimistically update the event in the local state so UI reflects changes immediately
+      if (updatedEventData) {
+        setEvents((prev) =>
+          prev.map((ev) => {
+            const evId = ev._id?.includes("_") ? ev._id.split("_")[0] : ev._id;
+            const updatedId = updatedEventData._id?.includes("_")
+              ? updatedEventData._id.split("_")[0]
+              : updatedEventData._id;
+            if (evId === updatedId) {
+              return { ...ev, ...updatedEventData };
+            }
+            return ev;
+          }),
+        );
+      }
+
+      // Clear ALL caches to force fresh data
+      eventsCache.current = {};
+      if (cacheRef.current) {
+        cacheRef.current.data.clear();
+        cacheRef.current.timestamp.clear();
+      }
+
+      // Build refresh parameters
+      const refreshParams = {
+        page: currentPage,
+        limit: rowsPerPage,
+        start_date: DEFAULT_API_START_DATE,
+        _t: Date.now(),
+        status: selectedStatus !== "all" ? selectedStatus : undefined,
+        event_type:
+          selectedEventTypeFilter === "all"
+            ? "CELLS"
+            : selectedEventTypeFilter,
+      };
+
+      if (searchQuery && searchQuery.trim()) {
+        refreshParams.search = searchQuery.trim();
+      }
+
+      if (
+        selectedEventTypeFilter === "all" ||
+        selectedEventTypeFilter === "CELLS"
+      ) {
+        if (isLeaderAt12) {
+          refreshParams.leader_at_12_view = true;
+          refreshParams.include_subordinate_cells = true;
+
+          if (currentUserLeaderAt1) {
+            refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+          }
+
+          if (viewFilter === "personal") {
+            refreshParams.show_personal_cells = true;
+            refreshParams.personal = true;
+          } else {
+            refreshParams.show_all_authorized = true;
+          }
+        } else if (isAdmin && viewFilter === "personal") {
+          refreshParams.personal = true;
+        }
+      }
+
+      // Remove undefined/empty values
+      Object.keys(refreshParams).forEach(
+        (key) =>
+          (refreshParams[key] === undefined || refreshParams[key] === "") &&
+          delete refreshParams[key],
+      );
+
+      // Fetch fresh data from server
+      await fetchEvents(refreshParams, true);
+    } else {
+      // No refresh needed, just clear selectedEvent
+      setSelectedEvent(null);
+    }
+  },
+  [
+    selectedEvent, // <-- IMPORTANT: selectedEvent must be in deps so we read it before clearing
+    currentPage,
+    rowsPerPage,
+    selectedStatus,
+    searchQuery,
+    selectedEventTypeFilter,
+    fetchEvents,
+    DEFAULT_API_START_DATE,
+    isLeaderAt12,
+    currentUserLeaderAt1,
+    viewFilter,
+    isAdmin,
+  ],
+);
 
   const handleCloseEventTypesModal = useCallback(() => {
     setEventTypesModalOpen(false);
@@ -3286,7 +3344,7 @@ const handleCaptureClick = useCallback(async (event) => {
     console.log("Fetching from server for:", cacheKey);
     const fetchParams = {
       page: 1,
-      limit: 1000,
+      limit: 100,
       must_paginate: false,
       start_date: DEFAULT_API_START_DATE,
       status: selectedStatus || "incomplete",
@@ -5825,15 +5883,14 @@ allFetched.sort((a, b) => {
           </Box>
         </Box>
       )}
-
-      <EditEventModal
-        isOpen={editModalOpen}
-        onClose={(shouldRefresh = false) => {
-          handleCloseEditModal(shouldRefresh);
-        }}
-        event={selectedEvent}
-        token={token}
-      />
+<EditEventModal
+  isOpen={editModalOpen}
+  onClose={(shouldRefresh = false, updatedEventData = null) => {
+    handleCloseEditModal(shouldRefresh, updatedEventData);
+  }}
+  event={selectedEvent}
+  token={token}
+/>
 
       <Dialog
         open={confirmDeleteOpen}

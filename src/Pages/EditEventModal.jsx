@@ -119,8 +119,22 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
 
       const initialData = {};
       Object.keys(cleanEvent).forEach(key => {
-        const systemFields = ['_id', '__v', 'id', 'UUID', 'created_at', 'updated_at',
-          'persistent_attendees', 'attendees', 'total_attendance', 'isEventType', 'eventTypeId', 'last_updated'];
+        const systemFields = [
+  '_id', '__v', 'id', 'UUID', 'created_at', 'updated_at',
+  'persistent_attendees', 'attendees', 'total_attendance',
+  'isEventType', 'eventTypeId', 'last_updated',
+  'attendance', 'attendance_data',
+  'checked_in_count', 'decisions', 'total_associated',
+  'total_associated_count', 'last_attendance_count',
+  'last_decisions_count', 'last_attendance_breakdown',
+  'last_attendance_data', 'last_headcount', 'last_status',
+  'last_attendance_date', 'last_updated_by',
+  'priceTiers', 'price_tiers',
+  'new_people', 'consolidations',
+  'is_new_event', 'updatedAt', 'Date Of Event',
+  'total_headcounts', 'deactivation_start', 'deactivation_end',
+  'deactivation_reason', 'is_active'
+];
 
         if (!systemFields.includes(key)) {
           let value = cleanEvent[key] ?? '';
@@ -240,7 +254,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       setDeactivationReason('');
       setDeactivationWeeks(2);
 
-      if (refreshEvents) await refreshEvents(); //
+      if (refreshEvents) await refreshEvents(); 
 
 
     } catch (error) {
@@ -472,7 +486,7 @@ const handleSubmit = async (e, isDeactivating = false) => {
 
     if (editScope === 'single') {
       let identifier = event.UUID || event._id || event.id || event.original_event_id;
-            if (identifier?.includes?.('_')) {
+      if (identifier?.includes?.('_')) {
         identifier = identifier.split('_')[0];
       }
 
@@ -482,14 +496,14 @@ const handleSubmit = async (e, isDeactivating = false) => {
         return;
       }
 
-      console.log("Using identifier for update:", identifier); 
-      
+      console.log("Using identifier for update:", identifier);
+
       if (isCellEvent) {
         endpoint = `/events/cells/${identifier}`;
       } else {
         endpoint = `/events/${identifier}`;
       }
-      
+
       method = 'PUT';
       body = JSON.stringify(updateData);
 
@@ -604,16 +618,13 @@ const handleSubmit = async (e, isDeactivating = false) => {
         toast.warning(result.message || "Update completed with warnings");
       }
     } else {
-      // Handle single event update response
       if (result.sync_info) {
-        // This is from the generic endpoint
         if (result.sync_info.status_updated) {
           toast.success(`Status updated to ${result.sync_info.new_status}`);
         } else {
           toast.success('Event updated successfully');
         }
       } else if (result.success) {
-        // This is from the cells endpoint
         if (result.modified) {
           toast.success('Event updated successfully');
         } else {
@@ -628,10 +639,26 @@ const handleSubmit = async (e, isDeactivating = false) => {
       await refreshEvents();
     }
 
+    // FIXED: Pass full formData back so optimistic update has all fields
     onClose(true, {
+      ...formData,
+      _id: event._id,
+      UUID: event.UUID,
       Day: formData.Day || formData.day,
       day: formData.Day || formData.day,
       date: formData.date,
+      recurring_day: formData.recurring_day,
+      eventName: formData.eventName || formData['Event Name'],
+      'Event Name': formData.eventName || formData['Event Name'],
+      status: formData.status || formData.Status,
+      Status: formData.status || formData.Status,
+      eventLeader: formData.eventLeader || formData.Leader,
+      eventLeaderName: formData.eventLeader || formData.Leader,
+      Leader: formData.eventLeader || formData.Leader,
+      eventLeaderEmail: formData.eventLeaderEmail || formData.Email,
+      Email: formData.eventLeaderEmail || formData.Email,
+      location: formData.location || formData.Address,
+      Address: formData.location || formData.Address,
     });
 
   } catch (error) {
