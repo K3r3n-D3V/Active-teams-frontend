@@ -1684,41 +1684,27 @@ const AttendanceModal = ({
     setManualHeadcount("0");
     setDidNotMeet(false);
 
-    // Helper function to process attendees
-    const processAttendees = (attendees) => {
-      const newCheckedIn = {};
-      const newDecisions = {};
-      const newDecisionTypes = {};
-      const newTicketInfo = {};
 
-      attendees.forEach(att => {
-        if (att.id) {
-          newCheckedIn[att.id] = att.checked_in || false;
+const processAttendees = (attendees) => {
+  const newCheckedIn = {};
+  const newDecisions = {};
+  const newDecisionTypes = {};
 
-          if (att.decision) {
-            newDecisions[att.id] = true;
-            newDecisionTypes[att.id] = att.decision;
-          }
+  attendees.forEach(att => {
+    if (att.id) {
+      newCheckedIn[att.id] = att.checked_in || false;
 
-          // Always load ticket info for ticketed events
-          if (isTicketedEvent) {
-            newTicketInfo[att.id] = {
-              priceName: att.priceName || (eventPriceTiers?.[0]?.name) || "",
-              price: att.price || (eventPriceTiers?.[0]?.price) || 0,
-              ageGroup: att.ageGroup || (eventPriceTiers?.[0]?.ageGroup) || "",
-              paymentMethod: att.paymentMethod || "Cash"
-            };
-          }
-        }
-      });
+      if (att.decision) {
+        newDecisions[att.id] = true;
+        newDecisionTypes[att.id] = att.decision;
+      }
+    }
+  });
 
-      setCheckedIn(newCheckedIn);
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-      setAttendeeTicketInfo(newTicketInfo);
-    };
-
-    // Check multiple possible locations for attendees
+  setCheckedIn(newCheckedIn);
+  setDecisions(newDecisions);
+  setDecisionTypes(newDecisionTypes);
+};
     if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
       console.log("Loading checkins from direct event.attendees:", event.attendees.length);
       processAttendees(event.attendees);
@@ -1739,7 +1725,6 @@ const AttendanceModal = ({
       return;
     }
 
-    // Check nested attendance object
     const attendanceData = event.attendance || {};
     const eventDate = event.date;
     const weekAttendance = attendanceData[eventDate] || attendanceData;
@@ -1754,39 +1739,91 @@ const AttendanceModal = ({
     }
   };
 
-  const loadPersistentAttendees = async (eventId) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await authFetch(
-        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+const loadPersistentAttendees = async (eventId) => {
+  try {
+    const token = localStorage.getItem("token");
+    const response = await authFetch(
+      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
 
-      if (response.ok) {
-        const data = await response.json();
-        const allAttendees = data.persistent_attendees || [];
-        
-        // Log to verify we're getting all attendees
-        console.log(`Loaded ${allAttendees.length} persistent attendees from database`);
-        
-        setPersistentCommonAttendees(allAttendees);
-        
-        // Initialize checkedIn state for all loaded attendees (default to false)
-        // But preserve any existing checked-in states
-        setCheckedIn(prev => {
-          const newCheckedIn = { ...prev };
-          allAttendees.forEach(attendee => {
-            if (attendee.id && newCheckedIn[attendee.id] === undefined) {
-              newCheckedIn[attendee.id] = false;
-            }
-          });
-          return newCheckedIn;
-        });
-      }
-    } catch (error) {
-      console.error("Error loading attendees:", error);
+    if (!response.ok) {
+      console.error("Failed to load persistent attendees:", response.status);
+      return;
     }
-  };
+
+    const data = await response.json();
+    const persistentList = data.persistent_attendees || [];
+    const checkedInList = data.checked_in_attendees || [];
+
+    setPersistentCommonAttendees(persistentList);
+
+    const newCheckedIn = {};
+    persistentList.forEach(att => {
+      if (att.id) newCheckedIn[att.id] = false;
+    });
+    checkedInList.forEach(att => {
+      if (att.id) newCheckedIn[att.id] = true;
+    });
+    setCheckedIn(newCheckedIn);
+
+    // Decisions
+    const newDecisions = {};
+    const newDecisionTypes = {};
+    checkedInList.forEach(att => {
+      if (att.id && att.decision) {
+        newDecisions[att.id] = true;
+        newDecisionTypes[att.id] = att.decision;
+      }
+    });
+    setDecisions(newDecisions);
+    setDecisionTypes(newDecisionTypes);
+
+    if (isTicketedEvent) {
+      const newTicketInfo = {};
+
+      // Seed from persistent list (what was last saved)
+      persistentList.forEach(att => {
+        if (att.id && att.priceName && att.priceName.trim() !== "") {
+          newTicketInfo[att.id] = {
+            priceName: att.priceName,
+            price: att.price != null ? att.price : 0,
+            ageGroup: att.ageGroup || "",
+            paymentMethod: att.paymentMethod || "",
+          };
+        }
+      });
+
+      checkedInList.forEach(att => {
+        if (att.id && att.priceName && att.priceName.trim() !== "") {
+          newTicketInfo[att.id] = {
+            priceName: att.priceName,
+            price: att.price != null ? att.price : 0,
+            ageGroup: att.ageGroup || "",
+            paymentMethod: att.paymentMethod || "",
+          };
+        }
+      });
+
+      console.log("ticket info seeded for", Object.keys(newTicketInfo).length, "people");
+      setAttendeeTicketInfo(newTicketInfo);
+    }
+
+    // Headcount and did-not-meet
+    if (data.attendance_status === "did_not_meet") {
+      setDidNotMeet(true);
+      setManualHeadcount("0");
+    } else {
+      setDidNotMeet(false);
+      if (data.total_headcounts > 0) {
+        setManualHeadcount(data.total_headcounts.toString());
+      }
+    }
+
+  } catch (error) {
+    console.error("Error loading persistent attendees:", error);
+  }
+};
 
   const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
@@ -1852,41 +1889,31 @@ const AttendanceModal = ({
     }
   };
 
-  useEffect(() => {
-    if (isOpen && event) {
-      let eventId = event._id || event.id;
-      if (eventId && eventId.includes("_")) {
-        eventId = eventId.split("_")[0];
-      }
-      console.log("Opening modal for event:", eventId, "Date:", event.date);
-
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-      setCheckedIn({});
-      setDecisions({});
-      setDecisionTypes({});
-      setAttendeeTicketInfo({});
-      setManualHeadcount("0");
-      setDidNotMeet(false);
-
-      const loadAllData = async () => {
-        console.log("Loading all data...");
-
-        await loadPersistentAttendees(eventId);
-        await loadEventStatistics();
-        loadWeeklyCheckins();
-      };
-
-      loadAllData();
-
-      const attendanceData = event.attendance || {};
-      const eventDate = event.date;
-      const weekAttendance = attendanceData[eventDate] || {};
-      
-      setDidNotMeet(weekAttendance?.status === "did_not_meet" || false);
+ useEffect(() => {
+  if (isOpen && event) {
+    let eventId = event._id || event.id;
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
     }
-  }, [isOpen, event]);
+
+    setSearchName("");
+    setAssociateSearch("");
+    setActiveTab(0);
+    setCheckedIn({});
+    setDecisions({});
+    setDecisionTypes({});
+    setAttendeeTicketInfo({});
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+
+    const loadAllData = async () => {
+      await loadPersistentAttendees(eventId);
+      await loadEventStatistics();
+    };
+
+    loadAllData();
+  }
+}, [isOpen, event?._id, event?.id]);
 
   const fetchPeople = async (q) => {
     if (!q || !q.trim()) {
@@ -2096,24 +2123,46 @@ const AttendanceModal = ({
     return () => clearTimeout(timeoutId);
   }, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
-  const handleCheckIn = (id) => {
-    setCheckedIn((prev) => {
-      const isNowChecked = !prev[id];
-      const newState = { ...prev, [id]: isNowChecked };
-      if (isNowChecked) {
-        toast.success("Person checked in for this week");
-      } else {
-        setDecisions((prevDec) => ({ ...prevDec, [id]: false }));
-        setDecisionTypes((prevTypes) => {
-          const updated = { ...prevTypes };
-          delete updated[id];
-          return updated;
+const handleCheckIn = (id) => {
+  setCheckedIn((prev) => {
+    const isNowChecked = !prev[id];
+    const newState = { ...prev, [id]: isNowChecked };
+
+    if (isNowChecked) {
+      // ✅ When checking in, if no ticket info exists yet,
+      // seed from the person object (which has tier from persistent list)
+      if (isTicketedEvent) {
+        setAttendeeTicketInfo(prevTicket => {
+          if (!prevTicket[id] || !prevTicket[id].priceName) {
+            const person = getAllCommonAttendees().find(p => p.id === id);
+            if (person && person.priceName) {
+              return {
+                ...prevTicket,
+                [id]: {
+                  priceName: person.priceName,
+                  price: person.price || 0,
+                  ageGroup: person.ageGroup || "",
+                  paymentMethod: person.paymentMethod || "Cash",
+                }
+              };
+            }
+          }
+          return prevTicket;
         });
-        toast.warning("Person unchecked for this week");
       }
-      return newState;
-    });
-  };
+      toast.success("Person checked in for this week");
+    } else {
+      setDecisions((prevDec) => ({ ...prevDec, [id]: false }));
+      setDecisionTypes((prevTypes) => {
+        const updated = { ...prevTypes };
+        delete updated[id];
+        return updated;
+      });
+      toast.warning("Person unchecked for this week");
+    }
+    return newState;
+  });
+};
 
   const handleDecisionTypeSelect = (id, type) => {
     setDecisionTypes((prev) => ({ ...prev, [id]: type }));
@@ -2121,16 +2170,6 @@ const AttendanceModal = ({
     setOpenDecisionDropdown(null);
   };
 
-
-  const handlePaymentMethodChange = (personId, method) => {
-    setAttendeeTicketInfo(prev => ({
-      ...prev,
-      [personId]: {
-        ...prev[personId],
-        paymentMethod: method
-      }
-    }));
-  };
 
   const handlePriceChange = (personId, price) => {
     setAttendeeTicketInfo(prev => ({
@@ -2142,96 +2181,95 @@ const AttendanceModal = ({
     }));
   };
 
-  const saveAllAttendeesToDatabase = async (attendees) => {
-    if (!event) return false;
+const saveAllAttendeesToDatabase = async (attendees, ticketInfoOverride = null) => {
+  if (!event) return false;
 
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
+  let eventId = event._id || event.id;
+  if (eventId && eventId.includes("_")) {
+    eventId = eventId.split("_")[0];
+  }
 
-    try {
-      const token = localStorage.getItem("access_token");
-      const response = await authFetch(
-        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ persistent_attendees: attendees }),
-        }
-      );
+  // Use override if provided (avoids stale closure on attendeeTicketInfo)
+  const ticketInfoToUse = ticketInfoOverride ?? attendeeTicketInfo;
 
-      if (!response.ok) {
-        throw new Error(`Save failed: ${response.status}`);
+  const enriched = isTicketedEvent
+    ? attendees.map(p => {
+        const ticketOverride = ticketInfoToUse[p.id] || {};
+        return {
+          ...p,
+          priceName: ticketOverride.priceName || p.priceName || "",
+          price: ticketOverride.price != null && ticketOverride.price !== ""
+            ? ticketOverride.price
+            : (p.price || 0),
+          ageGroup: ticketOverride.ageGroup || p.ageGroup || "",
+          paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
+        };
+      })
+    : attendees;
+
+  try {
+    const token = localStorage.getItem("access_token");
+    const response = await authFetch(
+      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ persistent_attendees: enriched }),
       }
+    );
 
-      console.log(`Saved ${attendees.length} attendees to database`);
-      return true;
-    } catch (error) {
-      console.error("Failed to save:", error);
-      toast.error("Failed to save attendees list");
-      return false;
-    }
-  };
-
-  const handleAssociatePerson = async (person) => {
-    const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
-
-    if (isAlreadyAdded) {
-      toast.info(`${person.fullName} is already in attendees list`);
-      return;
+    if (!response.ok) {
+      throw new Error(`Save failed: ${response.status}`);
     }
 
-    // Update UI immediately
-    if (isTicketedEvent && eventPriceTiers && eventPriceTiers.length > 0) {
-      const defaultTier = eventPriceTiers[0];
-      const personWithTicket = {
-        ...person,
-        priceName: defaultTier.name,
-        price: defaultTier.price,
-        ageGroup: defaultTier.ageGroup,
-        paymentMethod: defaultTier.paymentMethod || "Cash"
-      };
+    console.log(`Saved ${enriched.length} attendees to database`);
+    return true;
+  } catch (error) {
+    console.error("Failed to save:", error);
+    toast.error("Failed to save attendees list");
+    return false;
+  }
+};
 
-      // Optimistic UI update
-      setPersistentCommonAttendees(prev => [...prev, personWithTicket]);
-      setCheckedIn(prev => ({ ...prev, [person.id]: false }));
-      setAttendeeTicketInfo(prev => ({
-        ...prev,
-        [person.id]: {
-          priceName: defaultTier.name,
-          price: defaultTier.price,
-          ageGroup: defaultTier.ageGroup,
-          paymentMethod: defaultTier.paymentMethod || "Cash"
-        }
-      }));
+const handleAssociatePerson = async (person) => {
+  const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
 
-      // Show success immediately
-      toast.success(`${person.fullName} added with ${defaultTier.name} ticket`);
+  if (isAlreadyAdded) {
+    toast.info(`${person.fullName} is already in attendees list`);
+    return;
+  }
 
-      // Save to database in background (don't await)
-      const updated = [...persistentCommonAttendees, personWithTicket];
-      saveAllAttendeesToDatabase(updated).catch(error => {
-        console.error("Background save failed:", error);
-        toast.error("Failed to save to database, but person is added locally");
-      });
-      
-    } else {
-      setPersistentCommonAttendees(prev => [...prev, person]);
-      setCheckedIn(prev => ({ ...prev, [person.id]: false }));
+  if (isTicketedEvent) {
+    const personWithTicket = { ...person, priceName: "", price: 0, ageGroup: "", paymentMethod: "" };
+    const updated = [...persistentCommonAttendees, personWithTicket];
 
-      toast.success(`${person.fullName} added to attendees list`);
+    setPersistentCommonAttendees(updated);
+    setCheckedIn(prev => ({ ...prev, [person.id]: false }));
 
-      const updated = [...persistentCommonAttendees, person];
-      saveAllAttendeesToDatabase(updated).catch(error => {
-        console.error("Background save failed:", error);
-        toast.error("Failed to save to database, but person is added locally");
-      });
-    }
-  };
+    toast.success(`${person.fullName} added — please assign a price tier`);
+
+    saveAllAttendeesToDatabase(updated, attendeeTicketInfo).catch(error => {
+      console.error("Background save failed:", error);
+      toast.error("Failed to save to database, but person is added locally");
+    });
+
+  } else {
+    const updated = [...persistentCommonAttendees, person];
+
+    setPersistentCommonAttendees(updated);
+    setCheckedIn(prev => ({ ...prev, [person.id]: false }));
+
+    toast.success(`${person.fullName} added to attendees list`);
+
+    saveAllAttendeesToDatabase(updated, attendeeTicketInfo).catch(error => {
+      console.error("Background save failed:", error);
+      toast.error("Failed to save to database, but person is added locally");
+    });
+  }
+};
 
   const handleRemoveAttendee = async (personId, personName) => {
     try {
@@ -2420,25 +2458,30 @@ const AttendanceModal = ({
 
       const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
 
-      // IMPORTANT: Use persistentCommonAttendees directly, NOT allPeople
-      // This ensures we keep ALL associated people, not just the ones currently in the UI
+
       const payload = {
         attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
-        persistent_attendees: persistentCommonAttendees.map(p => ({
-          id: p.id,
-          name: p.fullName,
-          fullName: p.fullName,
-          email: p.email,
-          leader12: p.leader12,
-          leader144: p.leader144,
-          phone: p.phone,
-          ...(isTicketedEvent && {
-            priceName: p.priceName || "",
-            price: p.price || 0,
-            ageGroup: p.ageGroup || "",
-            paymentMethod: p.paymentMethod || ""
-          })
-        })),
+     persistent_attendees: persistentCommonAttendees.map(p => {
+  // on top of whatever is stored on the person object.
+  const ticketOverride = isTicketedEvent ? (attendeeTicketInfo[p.id] || {}) : {};
+  return {
+    id: p.id,
+    name: p.fullName,
+    fullName: p.fullName,
+    email: p.email,
+    leader12: p.leader12,
+    leader144: p.leader144,
+    phone: p.phone,
+    ...(isTicketedEvent && {
+      priceName: ticketOverride.priceName || p.priceName || "",
+      price: ticketOverride.price != null && ticketOverride.price !== ""
+        ? ticketOverride.price
+        : (p.price || 0),
+      ageGroup: ticketOverride.ageGroup || p.ageGroup || "",
+      paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
+    }),
+  };
+}),
         leaderEmail: currentUser?.email || "",
         leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
         did_not_meet: shouldMarkAsDidNotMeet,
@@ -2614,20 +2657,25 @@ const confirmDidNotMeet = async () => {
   try {
     const payload = {
       attendees: [],
-      persistent_attendees: persistentCommonAttendees.map((p) => ({
-        id: p.id,
-        fullName: p.fullName,
-        email: p.email || "",
-        leader12: p.leader12 || "",
-        leader144: p.leader144 || "",
-        phone: p.phone || "",
-        ...(isTicketedEvent && {
-          priceName: p.priceName || "",
-          price: p.price || 0,
-          ageGroup: p.ageGroup || "",
-          paymentMethod: p.paymentMethod || ""
-        })
-      })),
+  persistent_attendees: persistentCommonAttendees.map((p) => {
+  const ticketOverride = isTicketedEvent ? (attendeeTicketInfo[p.id] || {}) : {};
+  return {
+    id: p.id,
+    fullName: p.fullName,
+    email: p.email || "",
+    leader12: p.leader12 || "",
+    leader144: p.leader144 || "",
+    phone: p.phone || "",
+    ...(isTicketedEvent && {
+      priceName: ticketOverride.priceName || p.priceName || "",
+      price: ticketOverride.price != null && ticketOverride.price !== ""
+        ? ticketOverride.price
+        : (p.price || 0),
+      ageGroup: ticketOverride.ageGroup || p.ageGroup || "",
+      paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
+    }),
+  };
+}),
       leaderEmail: currentUser?.email || "",
       leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
       did_not_meet: true,
@@ -3178,8 +3226,15 @@ const confirmDidNotMeet = async () => {
                           </tr>
                         )}
                         {filteredCommonAttendees.map((person) => {
-                          const ticketInfo = attendeeTicketInfo[person.id] || person;
-
+const savedTicket = attendeeTicketInfo[person.id];
+const ticketInfo = {
+  priceName: savedTicket?.priceName || person.priceName || "",
+  price: savedTicket?.price != null && savedTicket?.price !== "" 
+    ? savedTicket.price 
+    : person.price,
+  ageGroup: savedTicket?.ageGroup || person.ageGroup || "",
+  paymentMethod: savedTicket?.paymentMethod || person.paymentMethod || ""
+};
                           return (
                             <tr key={person.id}>
                               <td style={styles.td}>{person.fullName || "Unknown Name"}</td>
@@ -3198,7 +3253,9 @@ const confirmDidNotMeet = async () => {
                                         style={styles.priceTierButton}
                                         onClick={() => setOpenPriceTierDropdown(openPriceTierDropdown === person.id ? null : person.id)}
                                       >
-                                        <span>{ticketInfo.priceName || "Select Tier"}</span>
+                                       <span style={ticketInfo.priceName ? {} : { color: theme.palette.text.disabled, fontStyle: "italic" }}>
+  {ticketInfo.priceName || "Select Tier"}
+</span>
                                         <ChevronDown size={14} />
                                       </button>
                                       {openPriceTierDropdown === person.id && eventPriceTiers && eventPriceTiers.length > 0 && (
