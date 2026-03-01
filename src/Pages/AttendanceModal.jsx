@@ -1503,12 +1503,10 @@ const AttendanceModal = ({
       let firstTimeCount = 0;
       let recommitmentCount = 0;
       let attendeesCount = 0;
-      let headcount = 0;
       let totalAssociated = 0;
 
-      if (event.checked_in_count !== undefined || event.total_headcounts !== undefined) {
+      if (event.checked_in_count !== undefined ) {
         attendeesCount = event.checked_in_count || 0;
-        headcount = event.total_headcounts || 0;
         totalAssociated = event.total_associated || persistentCommonAttendees.length || 0;
 
         if (event.decisions) {
@@ -1535,12 +1533,10 @@ const AttendanceModal = ({
         weekAttendance = {
           status: "complete",
           attendees: event.attendees || [],
-          total_headcounts: headcount,
           checked_in_count: attendeesCount,
           statistics: {
             total_associated: totalAssociated,
             weekly_attendance: attendeesCount,
-            total_headcounts: headcount,
             decisions: {
               first_time: firstTimeCount,
               recommitment: recommitmentCount,
@@ -1553,7 +1549,6 @@ const AttendanceModal = ({
 
         if (weekAttendance.statistics) {
           attendeesCount = weekAttendance.statistics.weekly_attendance || 0;
-          headcount = weekAttendance.statistics.total_headcounts || 0;
           firstTimeCount = weekAttendance.statistics.decisions?.first_time || 0;
           recommitmentCount =
             weekAttendance.statistics.decisions?.recommitment || 0;
@@ -1562,7 +1557,6 @@ const AttendanceModal = ({
             persistentCommonAttendees.length;
         } else {
           attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
-          headcount = weekAttendance.total_headcounts || 0;
           totalAssociated = persistentCommonAttendees.length;
 
           if (weekAttendance.attendees) {
@@ -1596,7 +1590,7 @@ const AttendanceModal = ({
           for (const key of possibleKeys) {
             const data = attendanceData[key];
 
-            if (data && (data.status === "complete" || data.attendees || data.total_headcounts)) {
+            if (data && (data.status === "complete" || data.attendees )) {
               const entryDate = data.event_date_iso || data.event_date_exact;
 
               if (
@@ -1616,7 +1610,6 @@ const AttendanceModal = ({
         if (weekAttendance.status === "complete") {
           const stats = weekAttendance.statistics || {};
           attendeesCount = weekAttendance.checked_in_count || weekAttendance.attendees?.length || 0;
-          headcount = weekAttendance.total_headcounts || 0;
           firstTimeCount = stats.decisions?.first_time || 0;
           recommitmentCount = stats.decisions?.recommitment || 0;
           totalAssociated =
@@ -1644,24 +1637,17 @@ const AttendanceModal = ({
         }
       }
 
-      console.log("Final statistics:", { attendeesCount, headcount, firstTimeCount, recommitmentCount, totalAssociated });
+      console.log("Final statistics:", { attendeesCount, firstTimeCount, recommitmentCount, totalAssociated });
 
       setEventStatistics({
         totalAssociated: totalAssociated,
         lastAttendanceCount: attendeesCount,
-        lastHeadcount: headcount,
         lastDecisionsCount: firstTimeCount + recommitmentCount,
         lastAttendanceBreakdown: {
           first_time: firstTimeCount,
           recommitment: recommitmentCount,
         },
       });
-
-      if (headcount > 0) {
-        setManualHeadcount(headcount.toString());
-      } else {
-        setManualHeadcount("0");
-      }
 
       window.__lastLoadedAttendance = weekAttendance;
     } catch (error) {
@@ -1723,19 +1709,12 @@ const AttendanceModal = ({
       console.log("Loading checkins from direct event.attendees:", event.attendees.length);
       processAttendees(event.attendees);
 
-      if (event.total_headcounts) {
-        setManualHeadcount(event.total_headcounts.toString());
-      }
       return;
     }
 
     if (event.attendance_data && event.attendance_data.attendees) {
       console.log("Loading checkins from attendance_data");
       processAttendees(event.attendance_data.attendees);
-
-      if (event.attendance_data.total_headcounts) {
-        setManualHeadcount(event.attendance_data.total_headcounts.toString());
-      }
       return;
     }
 
@@ -1747,10 +1726,6 @@ const AttendanceModal = ({
     if (weekAttendance?.attendees?.length > 0) {
       console.log("Loading checkins from attendance by date");
       processAttendees(weekAttendance.attendees);
-
-      if (weekAttendance.total_headcounts) {
-        setManualHeadcount(weekAttendance.total_headcounts.toString());
-      }
     }
   };
 
@@ -2444,7 +2419,6 @@ const AttendanceModal = ({
         did_not_meet: shouldMarkAsDidNotMeet,
         isTicketed: isTicketedEvent,
         week: get_current_week_identifier(),
-        headcount: finalHeadcount
       };
 
       console.log("Saving payload with persistent attendees:", payload.persistent_attendees.length);
@@ -2965,11 +2939,6 @@ const confirmDidNotMeet = async () => {
       position: "relative", display: "flex", flexDirection: "column",
       alignItems: "center", justifyContent: "center", minWidth: 120,
     },
-    headcountInput: {
-      fontSize: "clamp(20px, 3.5vw, 32px)", fontWeight: 700, color: theme.palette.info.main,
-      marginBottom: 8, border: "none", borderRadius: 8, padding: "4px 12px",
-      width: 100, textAlign: "center", background: "transparent", outline: "none",
-    },
     statNumber: {
       fontSize: "clamp(20px, 3.5vw, 32px)", fontWeight: 700, color: theme.palette.success.main, marginBottom: 8,
     },
@@ -3364,18 +3333,6 @@ const confirmDidNotMeet = async () => {
                       }
                     </div>
                     <div style={styles.statLabel}>Attendees</div>
-                  </div>
-
-                  <div style={styles.statBoxInput}>
-                    <input
-                      type="number"
-                      value={manualHeadcount}
-                      onChange={(e) => setManualHeadcount(e.target.value)}
-                      placeholder="0"
-                      style={styles.headcountInput}
-                      min="0"
-                    />
-                    <div style={styles.statLabel}>Total Headcounts</div>
                   </div>
 
                   {!isTicketedEvent && (
