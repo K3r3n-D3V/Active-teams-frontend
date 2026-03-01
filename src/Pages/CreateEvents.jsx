@@ -87,7 +87,6 @@ const CreateEvents = ({
     isTicketed: false,
     hasPersonSteps: false,
   });
-  const [peopleReady, setPeopleReady] = useState(false);
   const {
     isGlobal: isGlobalEvent,
     isTicketed: isTicketedEvent,
@@ -98,6 +97,9 @@ const CreateEvents = ({
   const [peopleData, setPeopleData] = useState([]);
   const [loadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
+
+  // Track whether the user is interacting with the dropdown
+  const isSelectingFromDropdown = useRef(false);
 
   const isAdmin = user?.role === "admin";
   console.log("view role", isAdmin);
@@ -397,42 +399,45 @@ const CreateEvents = ({
     }
   }, [isTicketedEvent]);
 
-  // Updated fetchPeople function
+  // fetchPeople uses the /people/search-fast endpoint which searches
+  // Name, Surname, Email AND full concatenated "Name Surname" — so typing
+  // "John Smith" works correctly out of the box.
   const fetchPeople = async (q) => {
-  if (!q.trim() || q.trim().length < 2) {
-    setPeopleData([]);
-    return;
-  }
+    if (!q.trim() || q.trim().length < 2) {
+      setPeopleData([]);
+      return;
+    }
 
-  try {
-    setIsSearchingPeople(true);
-    const token = localStorage.getItem("token");
-    const res = await fetch(
-      `${BACKEND_URL}/people?name=${encodeURIComponent(q.trim())}&perPage=10`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
+    try {
+      setIsSearchingPeople(true);
+      const token = localStorage.getItem("token");
 
-    if (!res.ok) throw new Error("Search failed");
+      const res = await fetch(
+        `${BACKEND_URL}/people/search-fast?query=${encodeURIComponent(q.trim())}&limit=10`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
 
-    const data = await res.json();
-    const results = data?.results || [];
+      if (!res.ok) throw new Error("Search failed");
 
-    const formatted = results.map((p) => ({
-      id: p._id,
-      fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-      email: p.Email || "",
-      leader1: p["Leader @1"] || "",
-      leader12: p["Leader @12"] || "",
-    }));
+      const data = await res.json();
+      const results = data?.results || [];
 
-    setPeopleData(formatted);
-  } catch (err) {
-    console.error("Search error:", err);
-    setPeopleData([]);
-  } finally {
-    setIsSearchingPeople(false);
-  }
-};
+      const formatted = results.map((p) => ({
+        id: p._id,
+        fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+        email: p.Email || "",
+        leader1: p["Leader @1"] || "",
+        leader12: p["Leader @12"] || "",
+      })).filter((p) => p.fullName);
+
+      setPeopleData(formatted);
+    } catch (err) {
+      console.error("Search error:", err);
+      setPeopleData([]);
+    } finally {
+      setIsSearchingPeople(false);
+    }
+  };
 
   useEffect(() => {
     if (!eventId) return;
@@ -1071,9 +1076,11 @@ const CreateEvents = ({
                 }));
 
                 if (selectedObj) {
-                  setIsGlobalEvent(selectedObj.isGlobal);
-                  setIsTicketedEvent(selectedObj.isTicketed);
-                  setHasPersonSteps(selectedObj.hasPersonSteps);
+                  setEventTypeFlags({
+                    isGlobal: !!selectedObj.isGlobal,
+                    isTicketed: !!selectedObj.isTicketed,
+                    hasPersonSteps: !!selectedObj.hasPersonSteps,
+                  });
                 }
               }}
               fullWidth
@@ -1441,7 +1448,6 @@ const CreateEvents = ({
               <TextField
                 label="Event Leader *"
                 value={formData.eventLeader}
-                // ✅ Fixed onChange with 250ms debounce
                 onChange={(e) => {
                   const value = e.target.value;
                   handleChange("eventLeader", value);
@@ -1452,17 +1458,23 @@ const CreateEvents = ({
                   if (value.trim().length >= 2) {
                     searchDebounceRef.current = setTimeout(() => {
                       fetchPeople(value);
-                    }, 200); // 200ms feels responsive for a real API call
+                    }, 300);
                   }
                 }}
                 onFocus={() => {
-                  if (formData.eventLeader.length >= 1) {
+                  if (formData.eventLeader.length >= 2) {
                     fetchPeople(formData.eventLeader);
                   }
                 }}
                 onBlur={() => {
-                  // Delay hiding dropdown to allow for selection
-                  setTimeout(() => setPeopleData([]), 200);
+                  // Only close dropdown if user is NOT actively clicking a result
+                  if (!isSelectingFromDropdown.current) {
+                    setTimeout(() => {
+                      if (!isSelectingFromDropdown.current) {
+                        setPeopleData([]);
+                      }
+                    }, 200);
+                  }
                 }}
                 fullWidth
                 size="small"
@@ -1484,6 +1496,8 @@ const CreateEvents = ({
                 placeholder="Type name and surname to search..."
                 autoComplete="off"
               />
+
+              {/* Dropdown results */}
               {peopleData.length > 0 && (
                 <Box
                   sx={{
@@ -1491,7 +1505,8 @@ const CreateEvents = ({
                     top: "100%",
                     left: 0,
                     right: 0,
-                    zIndex: 1000,
+                    // ✅ FIX: High z-index so it shows above modals and other elements
+                    zIndex: 20000,
                     backgroundColor: isDarkMode
                       ? theme.palette.background.paper
                       : "#fff",
@@ -1521,27 +1536,32 @@ const CreateEvents = ({
                           borderBottom: "none",
                         },
                       }}
-                      onMouseDown={(e) => {
-  e.preventDefault(); // prevents the input from losing focus and hiding dropdown
-  const selectedName = person.fullName;
-  const selectedEmail = person.email;
-  if (hasPersonSteps && !isGlobalEvent) {
-    setFormData((prev) => ({
-      ...prev,
-      eventLeader: selectedName,
-      eventLeaderEmail: selectedEmail.toLowerCase(),
-      leader1: person.leader1 || "",
-      leader12: person.leader12 || "",
-    }));
-  } else {
-    setFormData((prev) => ({
-      ...prev,
-      eventLeader: selectedName,
-      eventLeaderEmail: selectedEmail.toLowerCase(),
-    }));
-  }
-  setPeopleData([]);
-}}
+                      // ✅ FIX: Use onMouseDown to set a flag BEFORE onBlur fires,
+                      // preventing the dropdown from closing before the selection registers
+                      onMouseDown={() => {
+                        isSelectingFromDropdown.current = true;
+                      }}
+                      onMouseUp={() => {
+                        isSelectingFromDropdown.current = false;
+                        const selectedName = person.fullName;
+                        const selectedEmail = person.email;
+                        if (hasPersonSteps && !isGlobalEvent) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            eventLeader: selectedName,
+                            eventLeaderEmail: selectedEmail.toLowerCase(),
+                            leader1: person.leader1 || "",
+                            leader12: person.leader12 || "",
+                          }));
+                        } else {
+                          setFormData((prev) => ({
+                            ...prev,
+                            eventLeader: selectedName,
+                            eventLeaderEmail: selectedEmail.toLowerCase(),
+                          }));
+                        }
+                        setPeopleData([]);
+                      }}
                     >
                       <Typography variant="body1" fontWeight="500">
                         {person.fullName}
@@ -1558,6 +1578,7 @@ const CreateEvents = ({
                   ))}
                 </Box>
               )}
+
               {loadingPeople && (
                 <Typography
                   variant="body2"
