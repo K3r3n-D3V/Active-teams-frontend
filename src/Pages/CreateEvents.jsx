@@ -92,9 +92,6 @@ const CreateEvents = ({
   const [peopleData, setPeopleData] = useState([]);
   const [loadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
-  const [allPeopleCache, setAllPeopleCache] = useState([]);
-
-  // Track whether the user is interacting with the dropdown
   const isSelectingFromDropdown = useRef(false);
 
   const isAdmin = user?.role === "admin";
@@ -386,9 +383,6 @@ const CreateEvents = ({
     }
   }, [isTicketedEvent]);
 
-  // fetchPeople uses the /people/search-fast endpoint which searches
-  // Name, Surname, Email AND full concatenated "Name Surname" — so typing
-  // "John Smith" works correctly out of the box.
   const fetchPeople = async (q) => {
     if (!q.trim() || q.trim().length < 2) {
       setPeopleData([]);
@@ -1452,7 +1446,6 @@ const CreateEvents = ({
                   }
                 }}
                 onBlur={() => {
-                  // Only close dropdown if user is NOT actively clicking a result
                   if (!isSelectingFromDropdown.current) {
                     setTimeout(() => {
                       if (!isSelectingFromDropdown.current) {
@@ -1490,7 +1483,6 @@ const CreateEvents = ({
                     top: "100%",
                     left: 0,
                     right: 0,
-                    // ✅ FIX: High z-index so it shows above modals and other elements
                     zIndex: 20000,
                     backgroundColor: isDarkMode
                       ? theme.palette.background.paper
@@ -1521,8 +1513,6 @@ const CreateEvents = ({
                           borderBottom: "none",
                         },
                       }}
-                      // ✅ FIX: Use onMouseDown to set a flag BEFORE onBlur fires,
-                      // preventing the dropdown from closing before the selection registers
                       onMouseDown={() => {
                         isSelectingFromDropdown.current = true;
                       }}
