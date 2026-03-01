@@ -1521,7 +1521,6 @@ const CreateEvents = ({
                           borderBottom: "none",
                         },
                       }}
-<<<<<<< HEAD
                       // ✅ FIX: Use onMouseDown to set a flag BEFORE onBlur fires,
                       // preventing the dropdown from closing before the selection registers
                       onMouseDown={() => {
@@ -1529,10 +1528,6 @@ const CreateEvents = ({
                       }}
                       onMouseUp={() => {
                         isSelectingFromDropdown.current = false;
-=======
-                      onMouseDown={(e) => {
-                        e.preventDefault();
->>>>>>> eventPayment_obi
                         const selectedName = person.fullName;
                         const selectedEmail = person.email;
                         if (hasPersonSteps && !isGlobalEvent) {
