@@ -773,7 +773,6 @@ const normalizeEventAttendance = (event) => {
     }
   }
 
-  // Fall back to top-level attendees
   if (attendees.length === 0) {
     attendees = event.attendees || [];
   }
@@ -823,7 +822,6 @@ const normalizeEventAttendance = (event) => {
     try {
       toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
 
-      // Prefer local attendees/attendance already present on the event object
       const hasLocalAttendance =
         (event?.attendees && event.attendees.length > 0) ||
         (event?.attendance && Object.keys(event.attendance).length > 0) ||
@@ -1076,10 +1074,6 @@ const Events = () => {
   }, []);
   const eventsCache = useRef({});
 
-  const getCacheKey = useCallback(() => {
-    return `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
-  }, [selectedEventTypeFilter, selectedStatus, viewFilter]);
-
   const escapeHtml = (s) =>
     String(s || "")
       .replace(/&/g, "&amp;")
@@ -1204,8 +1198,7 @@ const fetchInBatches = async (items, fn, batchSize = 6) => {
     const results = [];
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
-      // run the batch in parallel
-      // eslint-disable-next-line no-await-in-loop
+  
       const res = await Promise.all(batch.map((it) => fn(it)));
       results.push(...res);
     }
@@ -1459,7 +1452,6 @@ const normalizeEventAttendance = (event) => {
   }, [eventTypes]);
 
   const fetchEventsFilters = (filters) => {
-    //function to determine filters to query by depending on user status
     const params = {
       page: filters.page || currentPage,
       limit: filters.limit || rowsPerPage,
@@ -2341,10 +2333,25 @@ const normalizeEventAttendance = (event) => {
   }, [selectedEventTypeFilter, selectedStatus, viewFilter]);
 
 
-  const handleCaptureClick = useCallback((event) => {
+const handleCaptureClick = useCallback(async (event) => {
+  try {
+    const token = localStorage.getItem("access_token");
+    const response = await fetch(`${BACKEND_URL}/events/${event._id || event.id}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    });
+    const fullEvent = await response.json();
+    
+    console.log("Full event with priceTiers:", fullEvent);
+    console.log("Price tiers:", fullEvent?.priceTiers);
+    
+    setSelectedEvent(fullEvent);
+    setAttendanceModalOpen(true);
+  } catch (err) {
+    console.error("Failed to fetch full event:", err);
     setSelectedEvent(event);
     setAttendanceModalOpen(true);
-  }, []);
+  }
+}, [BACKEND_URL]);
 
   const handleCloseCreateEventModal = useCallback(
     (shouldRefresh = false) => {
@@ -2780,7 +2787,6 @@ const handleCloseEditModal = useCallback(
         );
       }
 
-      // Clear ALL caches to force fresh data
       eventsCache.current = {};
       if (cacheRef.current) {
         cacheRef.current.data.clear();
@@ -2827,22 +2833,19 @@ const handleCloseEditModal = useCallback(
         }
       }
 
-      // Remove undefined/empty values
       Object.keys(refreshParams).forEach(
         (key) =>
           (refreshParams[key] === undefined || refreshParams[key] === "") &&
           delete refreshParams[key],
       );
 
-      // Fetch fresh data from server
       await fetchEvents(refreshParams, true);
     } else {
-      // No refresh needed, just clear selectedEvent
       setSelectedEvent(null);
     }
   },
   [
-    selectedEvent, // <-- IMPORTANT: selectedEvent must be in deps so we read it before clearing
+    selectedEvent,
     currentPage,
     rowsPerPage,
     selectedStatus,
@@ -3398,7 +3401,7 @@ allFetched.sort((a, b) => {
         setTotalEvents(allFetched.length);
         setTotalPages(Math.ceil(allFetched.length / rowsPerPage) || 1);
         setCurrentPage(1);
-        setEvents(allFetched.slice(0, rowsPerPage)); // show first page
+        setEvents(allFetched.slice(0, rowsPerPage)); 
       } catch (error) {
         console.error("Fetch error:", error);
         setEvents([]);
@@ -4424,28 +4427,6 @@ allFetched.sort((a, b) => {
                   },
                 }}
               />
-
-              {/* <Button
-                variant="contained"
-                onClick={debounce(() => {
-                  const value = e.target.value;
-                  setSearchQuery(value);
-                  setIsSearching(true);
-                  handleSearchSubmit(value);
-                })}
-                disabled={loading}
-                sx={{
-                  padding: isMobileView ? "0.6rem 1rem" : "0.75rem 1.5rem",
-                  fontSize: isMobileView ? "14px" : "0.95rem",
-                  whiteSpace: "nowrap",
-                  backgroundColor: "#007bff",
-                  "&:hover": {
-                    backgroundColor: "#0056b3",
-                  },
-                }}
-              >
-                {loading ? "⏳" : "SEARCH"}
-              </Button> */}
 
               <Button
                 variant="outlined"
