@@ -129,7 +129,8 @@ const ForgotPassword = ({ mode }) => {
           Forgot Password
         </Typography>
         <Typography variant="body2" mb={2} sx={{ textAlign: "left" }}>
-          Enter your email address to reset your password.
+          {/* Button */}
+          Please enter your email address to reset your password.
         </Typography>
 
         <TextField
