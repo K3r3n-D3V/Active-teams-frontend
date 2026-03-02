@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useContext, useMemo } from "react";
 import { toast } from "react-toastify";
 import {
@@ -1877,7 +1878,7 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
     const headers = { Authorization: `Bearer ${token}` };
 
     const params = new URLSearchParams();
-    params.append("perPage", "200"); 
+    params.append("perPage", "200");
     params.append("page", "1");
 
     const res = await authFetch(
@@ -1961,19 +1962,19 @@ useEffect(() => {
 
     const loadAllData = async () => {
       console.log(" Loading all data...");
-      
+     
       await Promise.all([
         loadPersistentAttendees(eventId),
         loadEventStatistics(),
         loadPreloadedPeople()
       ]);
-      
+     
       loadWeeklyCheckins();
 
       const attendanceData = event.attendance || {};
       const eventDate = event.date;
       const weekAttendance = attendanceData[eventDate] || {};
-      
+     
       setDidNotMeet(weekAttendance?.status === "did_not_meet" || false);
     };
 
@@ -1983,7 +1984,7 @@ useEffect(() => {
 
 const fetchPeople = async (q) => {
   setIsSearchingPeople(true);
-  
+ 
   try {
     if (!q.trim()) {
       if (preloadedPeople.length > 0) {
@@ -2001,11 +2002,11 @@ const fetchPeople = async (q) => {
     // First try cache
     if (preloadedPeople.length > 0) {
       const searchTerms = queryLower.split(/\s+/).filter(word => word.length > 0);
-      
+     
       const cachedResults = preloadedPeople.filter((person) => {
         const fullNameLower = person.fullName.toLowerCase();
         const emailLower = person.email.toLowerCase();
-        
+       
         if (emailLower.includes(queryLower)) return true;
         return searchTerms.every(term => fullNameLower.includes(term));
       });
@@ -2017,26 +2018,26 @@ const fetchPeople = async (q) => {
         return;
       }
     }
-    
+   
     console.log("Searching API for:", query);
-    
+   
     const token = localStorage.getItem("access_token");
     const headers = { Authorization: `Bearer ${token}` };
-    
+   
     const response = await authFetch(
       `${BACKEND_URL}/people/search?query=${encodeURIComponent(query)}&limit=50`,
       { headers }
     );
-    
+   
     if (!response.ok) {
       throw new Error(`Search failed: ${response.status}`);
     }
-    
+   
     const data = await response.json();
-    console.log("Search API response:", data); 
-    
+    console.log("Search API response:", data);
+   
     const results = data.results || [];
-    
+   
     const formatted = results.map((p) => ({
       id: p._id,
       fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
@@ -2045,7 +2046,7 @@ const fetchPeople = async (q) => {
       leader144: p["Leader @144"] || p.leader144 || p.leaders?.[2] || "",
       phone: p.Number || p.Phone || p.phone || "",
     }));
-    
+   
     setPeople(formatted);
   } catch (err) {
     console.error("Error fetching people:", err);
@@ -2422,7 +2423,7 @@ const handleSave = async () => {
 
     // Get checked in attendees directly
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
-    
+   
     // Create attendees array directly without using allPeople
     const selectedAttendees = attendeesList.map((id) => ({
       id: id,
@@ -2477,7 +2478,7 @@ const handleSave = async () => {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       };
-      
+     
       const response = await authFetch(
         `${BACKEND_URL}/submit-attendance/${eventId}`,
         {
@@ -2486,7 +2487,7 @@ const handleSave = async () => {
           body: JSON.stringify(payload),
         }
       );
-      
+     
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -2499,7 +2500,7 @@ const handleSave = async () => {
       if (typeof onClose === "function") {
         onClose();
       }
-      
+     
       // Refresh data in background (don't await)
       if (typeof onAttendanceSubmitted === "function") {
         onAttendanceSubmitted().catch(console.error);
@@ -2684,13 +2685,13 @@ const handleSave = async () => {
 
 const confirmDidNotMeet = async () => {
   setShowDidNotMeetConfirm(false);
-  
+ 
   try {
     let eventId = event?._id || event?.id;
     if (eventId && eventId.includes("_")) {
       eventId = eventId.split("_")[0];
     }
-    
+   
     if (!eventId) {
       alert("Event ID is missing, cannot submit attendance.");
       return;
@@ -2733,7 +2734,7 @@ const confirmDidNotMeet = async () => {
           body: JSON.stringify(payload),
         }
       );
-      
+     
       result = await response.json();
     }
 
@@ -2742,7 +2743,7 @@ const confirmDidNotMeet = async () => {
       if (typeof onClose === "function") {
         onClose();
       }
-      
+     
       // Refresh data in background
       if (typeof onAttendanceSubmitted === "function") {
         onAttendanceSubmitted().catch(console.error);
@@ -3964,15 +3965,15 @@ const confirmDidNotMeet = async () => {
         }}
       />
     </div>
-    
+   
     {isMobile ? (
       <div>
         {/* Loading State for Mobile */}
         {isSearchingPeople && (
-          <div style={{ 
-            textAlign: "center", 
+          <div style={{
+            textAlign: "center",
             padding: "40px 20px",
-            color: theme.palette.text.secondary 
+            color: theme.palette.text.secondary
           }}>
             <div style={{ marginBottom: "16px" }}>
               <div className="spinner" style={{
@@ -3988,7 +3989,7 @@ const confirmDidNotMeet = async () => {
             <div>Searching for people...</div>
           </div>
         )}
-        
+       
         {/* Results for Mobile */}
         {!isSearchingPeople && (
           <>
@@ -4007,7 +4008,7 @@ const confirmDidNotMeet = async () => {
              
               </div>
             )}
-            
+           
             {people.map((person) => {
               const isAlreadyAdded = persistentCommonAttendees.some(
                 (p) => p.id === person.id,
@@ -4076,9 +4077,9 @@ const confirmDidNotMeet = async () => {
             {isSearchingPeople && (
               <tr>
                 <td colSpan="6" style={{ ...styles.td, textAlign: "center", padding: "40px 20px" }}>
-                  <div style={{ 
-                    display: "flex", 
-                    flexDirection: "column", 
+                  <div style={{
+                    display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
                     gap: "16px"
                   }}>
@@ -4097,14 +4098,14 @@ const confirmDidNotMeet = async () => {
                 </td>
               </tr>
             )}
-            
+           
             {/* No Results State */}
             {!isSearchingPeople && people.length === 0 && (
               <tr>
                 <td colSpan="6" style={{ ...styles.td, textAlign: "center", padding: "40px 20px" }}>
-                  <div style={{ 
-                    display: "flex", 
-                    flexDirection: "column", 
+                  <div style={{
+                    display: "flex",
+                    flexDirection: "column",
                     alignItems: "center",
                     gap: "8px"
                   }}>
@@ -4119,7 +4120,7 @@ const confirmDidNotMeet = async () => {
                 </td>
               </tr>
             )}
-            
+           
             {/* Results */}
             {!isSearchingPeople && people.map((person) => {
               const isAlreadyAdded = persistentCommonAttendees.some(
@@ -4274,7 +4275,7 @@ const confirmDidNotMeet = async () => {
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-    
+   
     input[type="text"]:focus,
     input[type="text"]:active,
     input[type="text"]:-webkit-autofill,
@@ -4292,3 +4293,4 @@ const confirmDidNotMeet = async () => {
   );
 };
 export default AttendanceModal;
+
