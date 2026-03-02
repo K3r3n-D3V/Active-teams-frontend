@@ -7,7 +7,7 @@ import {
   ChevronDown,
   X,
   Menu,
-   User
+  User
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
@@ -100,8 +100,8 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
 
         const biasParam = biasLonLat
           ? `&bias=proximity:${encodeURIComponent(
-              biasLonLat.lon,
-            )},${encodeURIComponent(biasLonLat.lat)}`
+            biasLonLat.lon,
+          )},${encodeURIComponent(biasLonLat.lat)}`
           : "";
 
         const url =
@@ -697,12 +697,12 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                         style={styles.dropdownItem}
                         onClick={() => handleInviterSelect(person)}
                         onMouseEnter={(e) =>
-                          (e.target.style.background =
-                            theme.palette.action.hover)
+                        (e.target.style.background =
+                          theme.palette.action.hover)
                         }
                         onMouseLeave={(e) =>
-                          (e.target.style.background =
-                            theme.palette.background.paper)
+                        (e.target.style.background =
+                          theme.palette.background.paper)
                         }
                       >
                         <div style={{ fontWeight: "500", marginBottom: "4px" }}>
@@ -915,12 +915,12 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                           style={styles.dropdownItem}
                           onClick={() => handleAddressSelect(opt)}
                           onMouseEnter={(e) =>
-                            (e.currentTarget.style.background =
-                              theme.palette.action.hover)
+                          (e.currentTarget.style.background =
+                            theme.palette.action.hover)
                           }
                           onMouseLeave={(e) =>
-                            (e.currentTarget.style.background =
-                              theme.palette.background.paper)
+                          (e.currentTarget.style.background =
+                            theme.palette.background.paper)
                           }
                         >
                           <div
@@ -932,17 +932,17 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
                             opt.city ||
                             opt.state ||
                             opt.postcode) && (
-                            <div
-                              style={{
-                                fontSize: "12px",
-                                color: theme.palette.text.secondary,
-                              }}
-                            >
-                              {[opt.suburb, opt.city, opt.state, opt.postcode]
-                                .filter(Boolean)
-                                .join(" • ")}
-                            </div>
-                          )}
+                              <div
+                                style={{
+                                  fontSize: "12px",
+                                  color: theme.palette.text.secondary,
+                                }}
+                              >
+                                {[opt.suburb, opt.city, opt.state, opt.postcode]
+                                  .filter(Boolean)
+                                  .join(" • ")}
+                              </div>
+                            )}
                         </div>
                       ))
                     ) : addressError ? (
@@ -1418,7 +1418,7 @@ const AttendanceModal = ({
   const [attendeeTicketInfo, setAttendeeTicketInfo] = useState({});
   const [openPriceTierDropdown, setOpenPriceTierDropdown] = useState(null);
   const [people, setPeople] = useState([]);
-  const [, setCommonAttendees] = useState([]);
+  const [isSaving, setIsSaving] = useState(false);
   const [associateSearch, setAssociateSearch] = useState("");
   const [loading] = useState(false);
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
@@ -1431,27 +1431,7 @@ const AttendanceModal = ({
     [],
   );
   const [preloadedPeople, setPreloadedPeople] = useState([]);
-  const [, setSelectedEvent] = useState(null);
-  const [, setShowAttendanceModal] = useState(false);  
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
-
-  const handleOpenAttendanceModal = async (event) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await fetch(`${BACKEND_URL}/events/${event._id || event.id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      const fullEvent = await response.json();
-
-      setSelectedEvent(fullEvent);
-      setShowAttendanceModal(true);
-    } catch (err) {
-      console.error("Failed to fetch full event:", err);
-      setSelectedEvent(event);
-      setShowAttendanceModal(true);
-    }
-  };
-
   const isTicketedEvent = event?.isTicketed || false;
   const eventPriceTiers =
     event?.priceTiers ||
@@ -1669,161 +1649,102 @@ const AttendanceModal = ({
     }
   };
 
-  const loadWeeklyCheckins = () => {
-    if (!event) {
-      setCheckedIn({});
-      setManualHeadcount("0");
-      setDidNotMeet(false);
-      return;
-    }
+  //   const loadWeeklyCheckins = () => {
+  //     if (!event) {
+  //       setCheckedIn({});
+  //       setManualHeadcount("0");
+  //       setDidNotMeet(false);
+  //       return;
+  //     }
 
-    setCheckedIn({});
-    setDecisions({});
-    setDecisionTypes({});
-    setAttendeeTicketInfo({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
+  //     setCheckedIn({});
+  //     setDecisions({});
+  //     setDecisionTypes({});
+  //     setAttendeeTicketInfo({});
+  //     setManualHeadcount("0");
+  //     setDidNotMeet(false);
 
+  const loadPersistentAttendees = async (eventId) => {
+    try {
+      const token = localStorage.getItem("token");
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
 
-const processAttendees = (attendees) => {
-  const newCheckedIn = {};
-  const newDecisions = {};
-  const newDecisionTypes = {};
-
-  attendees.forEach(att => {
-    if (att.id) {
-      newCheckedIn[att.id] = att.checked_in || false;
-
-      if (att.decision) {
-        newDecisions[att.id] = true;
-        newDecisionTypes[att.id] = att.decision;
+      if (!response.ok) {
+        console.error("Failed to load persistent attendees:", response.status);
+        return;
       }
+
+      const data = await response.json();
+      const persistentList = data.persistent_attendees || [];
+      const checkedInList = data.checked_in_attendees || [];
+
+      setPersistentCommonAttendees(persistentList);
+
+      const newCheckedIn = {};
+      persistentList.forEach(att => {
+        if (att.id) newCheckedIn[att.id] = false;
+      });
+      checkedInList.forEach(att => {
+        if (att.id) newCheckedIn[att.id] = true;
+      });
+      setCheckedIn(newCheckedIn);
+
+      // Decisions
+      const newDecisions = {};
+      const newDecisionTypes = {};
+      checkedInList.forEach(att => {
+        if (att.id && att.decision) {
+          newDecisions[att.id] = true;
+          newDecisionTypes[att.id] = att.decision;
+        }
+      });
+      setDecisions(newDecisions);
+      setDecisionTypes(newDecisionTypes);
+
+     if (isTicketedEvent) {
+  const newTicketInfo = {};
+
+  persistentList.forEach(att => {
+    if (att.id && att.priceName && att.priceName.trim() !== "") {
+      newTicketInfo[att.id] = {
+        priceName: att.priceName,
+        price: att.price != null ? att.price : 0,
+        ageGroup: att.ageGroup || "",
+        paymentMethod: att.paymentMethod || "",
+      };
     }
   });
 
-  setCheckedIn(newCheckedIn);
-  setDecisions(newDecisions);
-  setDecisionTypes(newDecisionTypes);
-};
-    if (event.attendees && Array.isArray(event.attendees) && event.attendees.length > 0) {
-      console.log("Loading checkins from direct event.attendees:", event.attendees.length);
-      processAttendees(event.attendees);
-
-      if (event.total_headcounts) {
-        setManualHeadcount(event.total_headcounts.toString());
-      }
-      return;
+  checkedInList.forEach(att => {
+    if (att.id && att.priceName && att.priceName.trim() !== "") {
+      newTicketInfo[att.id] = {
+        priceName: att.priceName,
+        price: att.price != null ? att.price : 0,
+        ageGroup: att.ageGroup || "",
+        paymentMethod: att.paymentMethod || "",
+      };
     }
-
-    if (event.attendance_data && event.attendance_data.attendees) {
-      console.log("Loading checkins from attendance_data");
-      processAttendees(event.attendance_data.attendees);
-
-      if (event.attendance_data.total_headcounts) {
-        setManualHeadcount(event.attendance_data.total_headcounts.toString());
+  });
+  setAttendeeTicketInfo(prev => ({ ...newTicketInfo, ...prev }));
+}
+      // Headcount and did-not-meet
+      if (data.attendance_status === "did_not_meet") {
+        setDidNotMeet(true);
+        setManualHeadcount("0");
+      } else {
+        setDidNotMeet(false);
+        if (data.total_headcounts > 0) {
+          setManualHeadcount(data.total_headcounts.toString());
+        }
       }
-      return;
-    }
 
-    const attendanceData = event.attendance || {};
-    const eventDate = event.date;
-    const weekAttendance = attendanceData[eventDate] || attendanceData;
-
-    if (weekAttendance?.attendees?.length > 0) {
-      console.log("Loading checkins from attendance by date");
-      processAttendees(weekAttendance.attendees);
-
-      if (weekAttendance.total_headcounts) {
-        setManualHeadcount(weekAttendance.total_headcounts.toString());
-      }
+    } catch (error) {
+      console.error("Error loading persistent attendees:", error);
     }
   };
-
-const loadPersistentAttendees = async (eventId) => {
-  try {
-    const token = localStorage.getItem("token");
-    const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-
-    if (!response.ok) {
-      console.error("Failed to load persistent attendees:", response.status);
-      return;
-    }
-
-    const data = await response.json();
-    const persistentList = data.persistent_attendees || [];
-    const checkedInList = data.checked_in_attendees || [];
-
-    setPersistentCommonAttendees(persistentList);
-
-    const newCheckedIn = {};
-    persistentList.forEach(att => {
-      if (att.id) newCheckedIn[att.id] = false;
-    });
-    checkedInList.forEach(att => {
-      if (att.id) newCheckedIn[att.id] = true;
-    });
-    setCheckedIn(newCheckedIn);
-
-    // Decisions
-    const newDecisions = {};
-    const newDecisionTypes = {};
-    checkedInList.forEach(att => {
-      if (att.id && att.decision) {
-        newDecisions[att.id] = true;
-        newDecisionTypes[att.id] = att.decision;
-      }
-    });
-    setDecisions(newDecisions);
-    setDecisionTypes(newDecisionTypes);
-
-    if (isTicketedEvent) {
-      const newTicketInfo = {};
-
-      // Seed from persistent list (what was last saved)
-      persistentList.forEach(att => {
-        if (att.id && att.priceName && att.priceName.trim() !== "") {
-          newTicketInfo[att.id] = {
-            priceName: att.priceName,
-            price: att.price != null ? att.price : 0,
-            ageGroup: att.ageGroup || "",
-            paymentMethod: att.paymentMethod || "",
-          };
-        }
-      });
-
-      checkedInList.forEach(att => {
-        if (att.id && att.priceName && att.priceName.trim() !== "") {
-          newTicketInfo[att.id] = {
-            priceName: att.priceName,
-            price: att.price != null ? att.price : 0,
-            ageGroup: att.ageGroup || "",
-            paymentMethod: att.paymentMethod || "",
-          };
-        }
-      });
-
-      console.log("ticket info seeded for", Object.keys(newTicketInfo).length, "people");
-      setAttendeeTicketInfo(newTicketInfo);
-    }
-
-    // Headcount and did-not-meet
-    if (data.attendance_status === "did_not_meet") {
-      setDidNotMeet(true);
-      setManualHeadcount("0");
-    } else {
-      setDidNotMeet(false);
-      if (data.total_headcounts > 0) {
-        setManualHeadcount(data.total_headcounts.toString());
-      }
-    }
-
-  } catch (error) {
-    console.error("Error loading persistent attendees:", error);
-  }
-};
 
   const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
@@ -1851,7 +1772,7 @@ const loadPersistentAttendees = async (eventId) => {
       const headers = { Authorization: `Bearer ${token}` };
 
       const params = new URLSearchParams();
-      params.append("perPage", "200"); 
+      params.append("perPage", "200");
       params.append("page", "1");
 
       const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
@@ -1889,160 +1810,136 @@ const loadPersistentAttendees = async (eventId) => {
     }
   };
 
- useEffect(() => {
-  if (isOpen && event) {
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
+  useEffect(() => {
+    if (isOpen && event) {
+      let eventId = event._id || event.id;
+      if (eventId?.includes("_")) eventId = eventId.split("_")[0];
 
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
-    setCheckedIn({});
-    setDecisions({});
-    setDecisionTypes({});
-    setAttendeeTicketInfo({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
+      setSearchName("");
+      setAssociateSearch("");
+      setActiveTab(0);
+      setDecisions({});
+      setDecisionTypes({});
+      setAttendeeTicketInfo({});
+      setManualHeadcount("0");
+      setDidNotMeet(false);
 
-    const loadAllData = async () => {
-      await loadPersistentAttendees(eventId);
-      await loadEventStatistics();
-    };
-
-    loadAllData();
-  }
-}, [isOpen, event?._id, event?.id]);
-
-  const fetchPeople = async (q) => {
-    if (!q || !q.trim()) {
-      if (preloadedPeople.length > 0) {
-        setPeople(preloadedPeople.slice(0, 50));
+      const existingAttendees = event.persistent_attendees || [];
+      if (existingAttendees.length > 0) {
+        setPersistentCommonAttendees(existingAttendees);
+        const initialCheckedIn = {};
+        existingAttendees.forEach(att => {
+          if (att.id) initialCheckedIn[att.id] = false;
+        });
+        setCheckedIn(initialCheckedIn);
+        if (isTicketedEvent) {
+          const initialTicketInfo = {};
+          existingAttendees.forEach(att => {
+            if (att.id && att.priceName?.trim()) {
+              initialTicketInfo[att.id] = {
+                priceName: att.priceName,
+                price: att.price ?? 0,
+                ageGroup: att.ageGroup || "",
+                paymentMethod: att.paymentMethod || "",
+              };
+            }
+          });
+          setAttendeeTicketInfo(initialTicketInfo);
+        }
       } else {
-        setPeople([]);
+        setPersistentCommonAttendees([]);
+        setCheckedIn({});
       }
+
+      const loadAllData = async () => {
+        await loadPersistentAttendees(eventId);
+        await loadEventStatistics();
+      };
+      loadAllData();
+    }
+  }, [isOpen, event?._id, event?.id]);
+
+const fetchPeople = async (q) => {
+  if (!q || !q.trim()) {
+    if (preloadedPeople.length > 0) {
+      setPeople(preloadedPeople.slice(0, 50));
+    } else {
+      setPeople([]);
+    }
+    return;
+  }
+
+  const query = q.trim();
+  const queryLower = query.toLowerCase();
+  const searchWords = queryLower.split(/\s+/).filter(w => w.length > 0);
+
+  if (preloadedPeople.length > 0) {
+    const cachedResults = preloadedPeople.filter(person => {
+      const fullNameLower = person.fullName.toLowerCase();
+      const emailLower = person.email.toLowerCase();
+      if (emailLower.includes(queryLower)) return true;
+      return searchWords.every(word => fullNameLower.includes(word));
+    });
+
+    if (cachedResults.length > 0) {
+      setPeople(cachedResults);
       return;
     }
+  }
+  try {
+    let results = [];
+    // Try exact name search
+    let res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(query)}`);
+    if (res.ok) {
+      const data = await res.json();
+      results = data?.results || data?.people || [];
+    }
 
-    const query = q.trim();
-    const queryLower = query.toLowerCase();
-
-    try {
-      if (preloadedPeople.length > 0) {
-        const cachedResults = preloadedPeople.filter(person => {
-          const fullNameLower = person.fullName.toLowerCase();
-          const emailLower = person.email.toLowerCase();
-          const searchWordsArray = queryLower.split(/\s+/).filter(word => word.length > 0);
-          const nameParts = fullNameLower.split(/\s+/);
-          if (emailLower.includes(queryLower)) return true;
-          const allWordsMatch = searchWordsArray.every(searchWord =>
-            nameParts.some(namePart => namePart.includes(searchWord))
-          );
-
-          if (allWordsMatch) return true;
-          return nameParts.some(namePart => namePart.startsWith(queryLower));
+    // If multi-word and no results, try first word then filter
+    if (results.length === 0 && searchWords.length > 1) {
+      res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(searchWords[0])}`);
+      if (res.ok) {
+        const data = await res.json();
+        const all = data?.results || data?.people || [];
+        results = all.filter(p => {
+          const fullName = `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.toLowerCase();
+          return searchWords.every(word => fullName.includes(word));
         });
-
-        if (cachedResults.length > 0) {
-          console.log(`Found ${cachedResults.length} results in cache`);
-          setPeople(cachedResults);
-          return;
-        }
-      }
-      console.log("Searching API for:", query);
-
-      const searchTerms = query.split(/\s+/).filter(word => word.length > 0);
-      let results = [];
-
-      if (searchTerms.length === 1) {
-        const singleWord = searchTerms[0];
-
-        let res = await authFetch(
-          `${BACKEND_URL}/people?name=${encodeURIComponent(singleWord)}`
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          results = data?.results || data?.people || [];
-        }
-
-        if (results.length === 0) {
-          res = await authFetch(`${BACKEND_URL}/people?perPage=100`);
-          if (res.ok) {
-            const data = await res.json();
-            const allResults = data?.results || data?.people || [];
-            results = allResults.filter(p => {
-              const name = (p.Name || "").toLowerCase();
-              const surname = (p.Surname || "").toLowerCase();
-              return name.includes(singleWord.toLowerCase()) ||
-                surname.includes(singleWord.toLowerCase());
-            });
-          }
-        }
-      } else {
-        let res = await authFetch(
-          `${BACKEND_URL}/people?name=${encodeURIComponent(query)}`
-        );
-
-        if (res.ok) {
-          const data = await res.json();
-          results = data?.results || data?.people || [];
-        }
-
-        if (results.length === 0) {
-          res = await authFetch(`${BACKEND_URL}/people?perPage=100`);
-          if (res.ok) {
-            const data = await res.json();
-            const allResults = data?.results || data?.people || [];
-
-            const searchTermsLower = searchTerms.map(term => term.toLowerCase());
-            results = allResults.filter(p => {
-              const fullName = `${p.Name || ""} ${p.Surname || ""}`.toLowerCase();
-              return searchTermsLower.every(term => fullName.includes(term));
-            });
-          }
-        }
-      }
-
-      console.log(`API returned ${results.length} results`);
-
-      const formatted = results.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
-        leader144: p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
-        phone: p.Number || p.Phone || p.phone || "",
-        searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
-      }));
-
-      const searchTermsLower = queryLower.split(/\s+/).filter(word => word.length > 0);
-      const finalFiltered = formatted.filter(person => {
-        const fullNameLower = person.fullName.toLowerCase();
-        return searchTermsLower.every(term => fullNameLower.includes(term));
-      });
-
-      setPeople(finalFiltered);
-
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      toast.error(err.message);
-
-      if (preloadedPeople.length > 0) {
-        const searchTermsLower = queryLower.split(/\s+/).filter(word => word.length > 0);
-        const fallbackResults = preloadedPeople.filter(person => {
-          const fullNameLower = person.fullName.toLowerCase();
-          return searchTermsLower.every(term => fullNameLower.includes(term));
-        });
-        setPeople(fallbackResults);
-      } else {
-        setPeople([]);
       }
     }
-  };
-  
+
+    // Last resort — broad fetch and filter
+    if (results.length === 0) {
+      res = await authFetch(`${BACKEND_URL}/people?perPage=200`);
+      if (res.ok) {
+        const data = await res.json();
+        const all = data?.results || data?.people || [];
+        results = all.filter(p => {
+          const fullName = `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.toLowerCase();
+          return searchWords.every(word => fullName.includes(word));
+        });
+      }
+    }
+
+    const formatted = results.map((p) => ({
+      id: p._id,
+      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+      email: p.Email || p.email || "",
+      leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+      leader144: p["Leader @144"] || p["Leader at 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
+      phone: p.Number || p.Phone || p.phone || "",
+      searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
+    }));
+
+    setPeople(formatted);
+
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    toast.error("Search failed, please try again");
+    setPeople([]);
+  }
+};
+
   const fetchCommonAttendees = async (cellId) => {
     try {
       const token = localStorage.getItem("access_token");
@@ -2064,7 +1961,6 @@ const loadPersistentAttendees = async (eventId) => {
         phone: p.Number || p.Phone || p.phone || "",
       }));
 
-      setCommonAttendees(formatted);
     } catch (err) {
       console.error("Failed to fetch common attendees:", err);
     }
@@ -2104,7 +2000,6 @@ const loadPersistentAttendees = async (eventId) => {
   }, [isOpen]);
 
   useEffect(() => {
-    // Clear previous timeout
     const timeoutId = setTimeout(() => {
       if (isOpen && activeTab === 1) {
         if (associateSearch.trim()) {
@@ -2123,14 +2018,24 @@ const loadPersistentAttendees = async (eventId) => {
     return () => clearTimeout(timeoutId);
   }, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
-const handleCheckIn = (id) => {
-  setCheckedIn((prev) => {
-    const isNowChecked = !prev[id];
-    const newState = { ...prev, [id]: isNowChecked };
+  const handleCheckIn = (id) => {
+    setCheckedIn((prev) => {
+      const isNowChecked = !prev[id];
+      const newState = { ...prev, [id]: isNowChecked };
 
+      if (!isNowChecked) {
+        setDecisions((prevDec) => ({ ...prevDec, [id]: false }));
+        setDecisionTypes((prevTypes) => {
+          const updated = { ...prevTypes };
+          delete updated[id];
+          return updated;
+        });
+      }
+
+      return newState;
+    });
+    const isNowChecked = !checkedIn[id];
     if (isNowChecked) {
-      // ✅ When checking in, if no ticket info exists yet,
-      // seed from the person object (which has tier from persistent list)
       if (isTicketedEvent) {
         setAttendeeTicketInfo(prevTicket => {
           if (!prevTicket[id] || !prevTicket[id].priceName) {
@@ -2152,48 +2057,25 @@ const handleCheckIn = (id) => {
       }
       toast.success("Person checked in for this week");
     } else {
-      setDecisions((prevDec) => ({ ...prevDec, [id]: false }));
-      setDecisionTypes((prevTypes) => {
-        const updated = { ...prevTypes };
-        delete updated[id];
-        return updated;
-      });
       toast.warning("Person unchecked for this week");
     }
-    return newState;
-  });
-};
-
+  };
   const handleDecisionTypeSelect = (id, type) => {
     setDecisionTypes((prev) => ({ ...prev, [id]: type }));
     setDecisions((prev) => ({ ...prev, [id]: true }));
     setOpenDecisionDropdown(null);
   };
+  const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
+    if (!event) return false;
 
+    let eventId = event._id || event.id;
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
+    }
+    const ticketInfoToUse = ticketInfoOverride ?? attendeeTicketInfo;
 
-  const handlePriceChange = (personId, price) => {
-    setAttendeeTicketInfo(prev => ({
-      ...prev,
-      [personId]: {
-        ...prev[personId],
-        price: parseFloat(price) || 0
-      }
-    }));
-  };
-
-const saveAllAttendeesToDatabase = async (attendees, ticketInfoOverride = null) => {
-  if (!event) return false;
-
-  let eventId = event._id || event.id;
-  if (eventId && eventId.includes("_")) {
-    eventId = eventId.split("_")[0];
-  }
-
-  // Use override if provided (avoids stale closure on attendeeTicketInfo)
-  const ticketInfoToUse = ticketInfoOverride ?? attendeeTicketInfo;
-
-  const enriched = isTicketedEvent
-    ? attendees.map(p => {
+    const enriched = isTicketedEvent
+      ? attendees.map(p => {
         const ticketOverride = ticketInfoToUse[p.id] || {};
         return {
           ...p,
@@ -2205,71 +2087,70 @@ const saveAllAttendeesToDatabase = async (attendees, ticketInfoOverride = null) 
           paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
         };
       })
-    : attendees;
+      : attendees;
 
-  try {
-    const token = localStorage.getItem("access_token");
-    const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ persistent_attendees: enriched }),
+    try {
+      const token = localStorage.getItem("token");
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ persistent_attendees: enriched }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`Save failed: ${response.status}`);
       }
-    );
 
-    if (!response.ok) {
-      throw new Error(`Save failed: ${response.status}`);
+      console.log(`Saved ${enriched.length} attendees to database`);
+      return true;
+    } catch (error) {
+      console.error("Failed to save:", error);
+      toast.error("Failed to save attendees list");
+      return false;
+    }
+  };
+
+  const handleAssociatePerson = async (person) => {
+    const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
+
+    if (isAlreadyAdded) {
+      toast.info(`${person.fullName} is already in attendees list`);
+      return;
     }
 
-    console.log(`Saved ${enriched.length} attendees to database`);
-    return true;
-  } catch (error) {
-    console.error("Failed to save:", error);
-    toast.error("Failed to save attendees list");
-    return false;
-  }
-};
+    if (isTicketedEvent) {
+      const personWithTicket = { ...person, priceName: "", price: 0, ageGroup: "", paymentMethod: "" };
+      const updated = [...persistentCommonAttendees, personWithTicket];
 
-const handleAssociatePerson = async (person) => {
-  const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
+      setPersistentCommonAttendees(updated);
+      setCheckedIn(prev => ({ ...prev, [person.id]: false }));
 
-  if (isAlreadyAdded) {
-    toast.info(`${person.fullName} is already in attendees list`);
-    return;
-  }
+      toast.success(`${person.fullName} added — please assign a price tier`);
 
-  if (isTicketedEvent) {
-    const personWithTicket = { ...person, priceName: "", price: 0, ageGroup: "", paymentMethod: "" };
-    const updated = [...persistentCommonAttendees, personWithTicket];
+      saveAllAttendees(updated, attendeeTicketInfo).catch(err => {
+        console.error("Background save failed:", err);
+      });
 
-    setPersistentCommonAttendees(updated);
-    setCheckedIn(prev => ({ ...prev, [person.id]: false }));
+    } else {
+      const updated = [...persistentCommonAttendees, person];
 
-    toast.success(`${person.fullName} added — please assign a price tier`);
+      setPersistentCommonAttendees(updated);
+      setCheckedIn(prev => ({ ...prev, [person.id]: false }));
 
-    saveAllAttendeesToDatabase(updated, attendeeTicketInfo).catch(error => {
-      console.error("Background save failed:", error);
-      toast.error("Failed to save to database, but person is added locally");
-    });
+      toast.success(`${person.fullName} added to attendees list`);
 
-  } else {
-    const updated = [...persistentCommonAttendees, person];
-
-    setPersistentCommonAttendees(updated);
-    setCheckedIn(prev => ({ ...prev, [person.id]: false }));
-
-    toast.success(`${person.fullName} added to attendees list`);
-
-    saveAllAttendeesToDatabase(updated, attendeeTicketInfo).catch(error => {
-      console.error("Background save failed:", error);
-      toast.error("Failed to save to database, but person is added locally");
-    });
-  }
-};
+      saveAllAttendees(updated, attendeeTicketInfo).catch(error => {
+        console.error("Background save failed:", error);
+        toast.error("Failed to save to database, but person is added locally");
+      });
+    }
+  };
 
   const handleRemoveAttendee = async (personId, personName) => {
     try {
@@ -2305,7 +2186,7 @@ const handleAssociatePerson = async (person) => {
 
       setPersistentCommonAttendees(updatedAttendees);
 
-      const success = await saveAllAttendeesToDatabase(updatedAttendees);
+      const success = await saveAllAttendees(updatedAttendees);
 
       if (success) {
         toast.success(`${personName} removed from attendees`);
@@ -2401,14 +2282,14 @@ const handleAssociatePerson = async (person) => {
     person.email.toLowerCase().includes(searchName.toLowerCase())
   );
 
-  const filteredPeople = people.filter(
-    (person) =>
-      person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
-      person.email.toLowerCase().includes(associateSearch.toLowerCase()),
-  );
-
+const filteredPeople = people.filter(person =>
+  person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
+  person.email.toLowerCase().includes(associateSearch.toLowerCase())
+);
   const handleSave = async () => {
-    const allPeople = getAllCommonAttendees(); 
+    if (isSaving) return;
+    setIsSaving(true);
+    const allPeople = getAllCommonAttendees();
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
     const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
@@ -2455,33 +2336,29 @@ const handleAssociatePerson = async (person) => {
 
         return attendee;
       }).filter(attendee => attendee !== null);
-
       const shouldMarkAsDidNotMeet = didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
-
-
       const payload = {
         attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
-     persistent_attendees: persistentCommonAttendees.map(p => {
-  // on top of whatever is stored on the person object.
-  const ticketOverride = isTicketedEvent ? (attendeeTicketInfo[p.id] || {}) : {};
-  return {
-    id: p.id,
-    name: p.fullName,
-    fullName: p.fullName,
-    email: p.email,
-    leader12: p.leader12,
-    leader144: p.leader144,
-    phone: p.phone,
-    ...(isTicketedEvent && {
-      priceName: ticketOverride.priceName || p.priceName || "",
-      price: ticketOverride.price != null && ticketOverride.price !== ""
-        ? ticketOverride.price
-        : (p.price || 0),
-      ageGroup: ticketOverride.ageGroup || p.ageGroup || "",
-      paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
-    }),
-  };
-}),
+        persistent_attendees: persistentCommonAttendees.map(p => {
+          const ticketOverride = isTicketedEvent ? (attendeeTicketInfo[p.id] || {}) : {};
+          return {
+            id: p.id,
+            name: p.fullName,
+            fullName: p.fullName,
+            email: p.email,
+            leader12: p.leader12,
+            leader144: p.leader144,
+            phone: p.phone,
+            ...(isTicketedEvent && {
+              priceName: ticketOverride.priceName || p.priceName || "",
+              price: ticketOverride.price != null && ticketOverride.price !== ""
+                ? ticketOverride.price
+                : (p.price || 0),
+              ageGroup: ticketOverride.ageGroup || p.ageGroup || "",
+              paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
+            }),
+          };
+        }),
         leaderEmail: currentUser?.email || "",
         leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
         did_not_meet: shouldMarkAsDidNotMeet,
@@ -2513,21 +2390,15 @@ const handleAssociatePerson = async (person) => {
 
         result = await response.json();
       }
-
       if (result && result.success) {
-        // After successful save, reload the persistent attendees to ensure sync
-        await loadPersistentAttendees(eventId);
-        await loadEventStatistics();
-
+        setIsSaving(false);
+        if (typeof onClose === "function") onClose();
         if (typeof onAttendanceSubmitted === "function") {
-          await onAttendanceSubmitted();
+          onAttendanceSubmitted().catch(console.error);
         }
+        loadPersistentAttendees(eventId).catch(console.error);
+        loadEventStatistics().catch(console.error);
 
-        if (typeof onClose === "function") {
-          onClose();
-        }
-        
-        toast.success(`Attendance saved successfully with ${persistentCommonAttendees.length} associated people`);
       } else {
         throw new Error(result?.message || "Failed to save attendance");
       }
@@ -2535,6 +2406,8 @@ const handleAssociatePerson = async (person) => {
     } catch (error) {
       console.error("Error saving attendance:", error);
       toast.error(error.message || "Failed to save attendance. Please try again.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -2637,90 +2510,89 @@ const handleAssociatePerson = async (person) => {
     setShowDidNotMeetConfirm(true);
   };
 
-const confirmDidNotMeet = async () => {
-  setShowDidNotMeetConfirm(false);
-  setDidNotMeet(true);
-  setCheckedIn({});
-  setDecisions({});
-  setManualHeadcount("");
-  setAttendeeTicketInfo({});
+  const confirmDidNotMeet = async () => {
+    if (isSaving) return;
+    setIsSaving(true);
+    setShowDidNotMeetConfirm(false);
+    setDidNotMeet(true);
+    setCheckedIn({});
+    setDecisions({});
+    setManualHeadcount("");
+    setAttendeeTicketInfo({});
 
-  let eventId = event?.id || event?._id;
-  if (eventId && eventId.includes("_")) {
-    eventId = eventId.split("_")[0];
-  }
+    let eventId = event?.id || event?._id;
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
+    }
 
-  if (!eventId) {
-    return;
-  }
+    if (!eventId) {
+      setIsSaving(false);
+      return;
+    }
 
-  try {
-    const payload = {
-      attendees: [],
-  persistent_attendees: persistentCommonAttendees.map((p) => {
-  const ticketOverride = isTicketedEvent ? (attendeeTicketInfo[p.id] || {}) : {};
-  return {
-    id: p.id,
-    fullName: p.fullName,
-    email: p.email || "",
-    leader12: p.leader12 || "",
-    leader144: p.leader144 || "",
-    phone: p.phone || "",
-    ...(isTicketedEvent && {
-      priceName: ticketOverride.priceName || p.priceName || "",
-      price: ticketOverride.price != null && ticketOverride.price !== ""
-        ? ticketOverride.price
-        : (p.price || 0),
-      ageGroup: ticketOverride.ageGroup || p.ageGroup || "",
-      paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
-    }),
-  };
-}),
-      leaderEmail: currentUser?.email || "",
-      leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
-      did_not_meet: true,
-      isTicketed: isTicketedEvent,
-      week: get_current_week_identifier(),
-    };
+    try {
+      const payload = {
+        attendees: [],
+        persistent_attendees: persistentCommonAttendees.map((p) => {
+          const ticketOverride = isTicketedEvent ? (attendeeTicketInfo[p.id] || {}) : {};
+          return {
+            id: p.id,
+            fullName: p.fullName,
+            email: p.email || "",
+            leader12: p.leader12 || "",
+            leader144: p.leader144 || "",
+            phone: p.phone || "",
+            ...(isTicketedEvent && {
+              priceName: ticketOverride.priceName || p.priceName || "",
+              price: ticketOverride.price != null && ticketOverride.price !== ""
+                ? ticketOverride.price
+                : (p.price || 0),
+              ageGroup: ticketOverride.ageGroup || p.ageGroup || "",
+              paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
+            }),
+          };
+        }),
+        leaderEmail: currentUser?.email || "",
+        leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        did_not_meet: true,
+        isTicketed: isTicketedEvent,
+        week: get_current_week_identifier(),
+      };
 
-    let result;
+      let result;
 
-    if (typeof onSubmit === "function") {
-      result = await onSubmit(payload);
-    } else {
-      const token = localStorage.getItem("token");
-      const response = await authFetch(
-        `${BACKEND_URL}/submit-attendance/${eventId}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-          body: JSON.stringify(payload),
+      if (typeof onSubmit === "function") {
+        result = await onSubmit(payload);
+      } else {
+        const token = localStorage.getItem("token");
+        const response = await authFetch(
+          `${BACKEND_URL}/submit-attendance/${eventId}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+            body: JSON.stringify(payload),
+          }
+        );
+        result = await response.json();
+        result.success = response.ok;
+      }
+
+      if (result?.success) {
+        if (typeof onClose === "function") onClose();
+        if (typeof onAttendanceSubmitted === "function") {
+          onAttendanceSubmitted().catch(console.error);
         }
-      );
-      result = await response.json();
-      result.success = response.ok;
+      } else {
+        toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
+      }
+    } catch (error) {
+      console.error("Error marking event as 'Did Not Meet':", error);
+      toast.error("Something went wrong while marking event as 'Did Not Meet'.");
+    } finally {
+      setIsSaving(false);
     }
+  };
 
-    if (result?.success) {
-      // Close modal immediately
-      if (typeof onClose === "function") {
-        onClose();
-      }
-      
-      if (typeof onAttendanceSubmitted === "function") {
-        onAttendanceSubmitted().catch(console.error);
-      }
-      
-      toast.success("Event marked as 'Did Not Meet' successfully!");
-    } else {
-      toast.error(result?.message || result?.detail || "Failed to mark event as 'Did Not Meet'.");
-    }
-  } catch (error) {
-    console.error("Error marking event as 'Did Not Meet':", error);
-    toast.error("Something went wrong while marking event as 'Did Not Meet'.");
-  }
-};
-  
   const cancelDidNotMeet = () => {
     setShowDidNotMeetConfirm(false);
   };
@@ -2902,17 +2774,10 @@ const confirmDidNotMeet = async () => {
       position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)",
       color: theme.palette.text.secondary,
     },
-    // ── TABLE: horizontal scroll + generous spacing ──
     tableContainer: {
-      marginBottom: 16,
-      overflowX: "auto",
-      WebkitOverflowScrolling: "touch",
-      paddingBottom: 8,
+      marginBottom: 16,overflowX: "auto",WebkitOverflowScrolling: "touch",paddingBottom: 8,
     },
-    table: {
-      width: "100%",
-      borderCollapse: "collapse",
-      minWidth: isTicketedEvent ? 1100 : 780,
+    table: {width: "100%",borderCollapse: "collapse",minWidth: isTicketedEvent ? 1100 : 780,
     },
     th: {
       textAlign: "left",
@@ -2962,7 +2827,6 @@ const confirmDidNotMeet = async () => {
       padding: "10px 12px", cursor: "pointer", fontSize: 14,
       color: theme.palette.text.primary, transition: "background 0.15s",
     },
-    // New styles for price tier dropdown
     priceTierDropdown: { position: "relative", display: "inline-block" },
     priceTierButton: {
       display: "flex", alignItems: "center", gap: 4, padding: "6px 10px",
@@ -3226,15 +3090,15 @@ const confirmDidNotMeet = async () => {
                           </tr>
                         )}
                         {filteredCommonAttendees.map((person) => {
-const savedTicket = attendeeTicketInfo[person.id];
-const ticketInfo = {
-  priceName: savedTicket?.priceName || person.priceName || "",
-  price: savedTicket?.price != null && savedTicket?.price !== "" 
-    ? savedTicket.price 
-    : person.price,
-  ageGroup: savedTicket?.ageGroup || person.ageGroup || "",
-  paymentMethod: savedTicket?.paymentMethod || person.paymentMethod || ""
-};
+                          const savedTicket = attendeeTicketInfo[person.id];
+                          const ticketInfo = {
+                            priceName: savedTicket?.priceName || person.priceName || "",
+                            price: savedTicket?.price != null && savedTicket?.price !== ""
+                              ? savedTicket.price
+                              : person.price,
+                            ageGroup: savedTicket?.ageGroup || person.ageGroup || "",
+                            paymentMethod: savedTicket?.paymentMethod || person.paymentMethod || ""
+                          };
                           return (
                             <tr key={person.id}>
                               <td style={styles.td}>{person.fullName || "Unknown Name"}</td>
@@ -3253,9 +3117,9 @@ const ticketInfo = {
                                         style={styles.priceTierButton}
                                         onClick={() => setOpenPriceTierDropdown(openPriceTierDropdown === person.id ? null : person.id)}
                                       >
-                                       <span style={ticketInfo.priceName ? {} : { color: theme.palette.text.disabled, fontStyle: "italic" }}>
-  {ticketInfo.priceName || "Select Tier"}
-</span>
+                                        <span style={ticketInfo.priceName ? {} : { color: theme.palette.text.disabled, fontStyle: "italic" }}>
+                                          {ticketInfo.priceName || "Select Tier"}
+                                        </span>
                                         <ChevronDown size={14} />
                                       </button>
                                       {openPriceTierDropdown === person.id && eventPriceTiers && eventPriceTiers.length > 0 && (
@@ -3272,7 +3136,7 @@ const ticketInfo = {
                                                     priceName: tier.name,
                                                     price: tier.price,
                                                     ageGroup: tier.ageGroup,
-                                                    paymentMethod: tier.paymentMethod || "Cash" // Use payment method from the tier
+                                                    paymentMethod: tier.paymentMethod || " " 
                                                   }
                                                 }));
                                                 setOpenPriceTierDropdown(null);
@@ -3446,25 +3310,25 @@ const ticketInfo = {
                       <div style={styles.statLabel}>Decisions</div>
                       {Object.keys(decisions).filter((id) => decisions[id])
                         .length > 0 && (
-                        <div style={styles.decisionBreakdown}>
-                          <span>
-                            First-time:{" "}
-                            {
-                              Object.values(decisionTypes).filter(
-                                (type) => type === "first-time",
-                              ).length
-                            }
-                          </span>
-                          <span>
-                            Re-commitment:{" "}
-                            {
-                              Object.values(decisionTypes).filter(
-                                (type) => type === "re-commitment",
-                              ).length
-                            }
-                          </span>
-                        </div>
-                      )}
+                          <div style={styles.decisionBreakdown}>
+                            <span>
+                              First-time:{" "}
+                              {
+                                Object.values(decisionTypes).filter(
+                                  (type) => type === "first-time",
+                                ).length
+                              }
+                            </span>
+                            <span>
+                              Re-commitment:{" "}
+                              {
+                                Object.values(decisionTypes).filter(
+                                  (type) => type === "re-commitment",
+                                ).length
+                              }
+                            </span>
+                          </div>
+                        )}
                     </div>
                   )}
                 </div>
@@ -3502,7 +3366,11 @@ const ticketInfo = {
                   <div>
                     {loading && <div style={{ textAlign: "center", padding: "20px" }}>Loading...</div>}
                     {!loading && filteredPeople.length === 0 && (
-                      <div style={{ textAlign: "center", padding: "20px", color: "#666" }}>No people found.</div>
+                      <tr>
+                        <td colSpan="6" style={{ ...styles.td, textAlign: "center", color: theme.palette.text.secondary }}>
+                          {associateSearch.trim() ? "No people found." : "Loading users..."}
+                        </td>
+                      </tr>
                     )}
                     {filteredPeople.map((person) => {
                       const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
@@ -3544,7 +3412,9 @@ const ticketInfo = {
                       <tbody>
                         {loading && <tr><td colSpan="6" style={{ ...styles.td, textAlign: "center" }}>Loading...</td></tr>}
                         {!loading && filteredPeople.length === 0 && (
-                          <tr><td colSpan="6" style={{ ...styles.td, textAlign: "center" }}>No people found.</td></tr>
+                          <div style={{ textAlign: "center", padding: "20px", color: theme.palette.text.secondary }}>
+                            {associateSearch.trim() ? "No people found." : "Loading users..."}
+                          </div>
                         )}
                         {filteredPeople.map((person) => {
                           const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
@@ -3608,8 +3478,24 @@ const ticketInfo = {
             </button>
 
             <div style={{ display: "flex", gap: "12px", flex: isMobile ? "1 1 100%" : "none", flexWrap: isMobile ? "wrap" : "nowrap" }}>
-              <button style={styles.didNotMeetBtn} onClick={handleDidNotMeet}>DID NOT MEET</button>
-              <button style={styles.saveBtn} onClick={handleSave}>SAVE</button>
+              <button
+                style={styles.didNotMeetBtn}
+                onClick={handleDidNotMeet}
+                disabled={isSaving}
+              >
+                {isSaving ? "SAVING..." : "DID NOT MEET"}
+              </button>
+              <button
+                style={{
+                  ...styles.saveBtn,
+                  opacity: isSaving ? 0.7 : 1,
+                  cursor: isSaving ? "not-allowed" : "pointer",
+                }}
+                onClick={handleSave}
+                disabled={isSaving}
+              >
+                {isSaving ? "SAVING..." : "SAVE"}
+              </button>
             </div>
           </div>
         </div>
@@ -3631,7 +3517,17 @@ const ticketInfo = {
             </div>
             <div style={styles.confirmFooter}>
               <button style={styles.confirmCancelBtn} onClick={cancelDidNotMeet}>Cancel</button>
-              <button style={styles.confirmProceedBtn} onClick={confirmDidNotMeet}>Mark as Did Not Meet</button>
+              <button
+                style={{
+                  ...styles.confirmProceedBtn,
+                  opacity: isSaving ? 0.7 : 1,
+                  cursor: isSaving ? "not-allowed" : "pointer",
+                }}
+                onClick={confirmDidNotMeet}
+                disabled={isSaving}
+              >
+                {isSaving ? "Saving..." : "Did Not Meet"}
+              </button>
             </div>
           </div>
         </div>
