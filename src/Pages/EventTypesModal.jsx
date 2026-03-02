@@ -188,7 +188,7 @@ const EventTypesModal = ({
           />
 
           {/* Visibility Settings */}
-          <Box sx={{ mb: 3, p: 2, bgcolor: "rgba(0,0,0,0.02)", borderRadius: 1 }}>
+          <Box sx={{ mb: 3, p: 2, bgcolor: "rgba(0,0,0,0.01)", borderRadius: 1 }}>
 
             <Typography fontWeight={600} sx={{ mb: 2 }}>
 
