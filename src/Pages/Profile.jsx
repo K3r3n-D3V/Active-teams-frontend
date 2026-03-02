@@ -811,7 +811,7 @@ export default function Profile() {
     let value = e.target.value;
 
     if (field === "phone") {
-      value = value.replace(/\D/g, ""); // only numbers
+      value = value.replace(/\D/g, ""); //  Only numbers
 
       // Force the phone number to start with 0
       if (value.length > 0 && value[0] !== "0") {
