@@ -59,7 +59,7 @@ export const AuthProvider = ({ children }) => {
       const bufferTime = 60 * 1000;
       return payload.exp * 1000 < Date.now() + bufferTime;
     } catch (e) {
-      return true;
+      return true, e;
     }
   };
 
@@ -424,27 +424,8 @@ export const AuthProvider = ({ children }) => {
 
   // Role sync
   const fetchCurrentUser = useCallback(async () => {
-    // Don't poll if not authenticated
     if (!localStorage.getItem('access_token')) return;
-    
-    // try {
-    //   const response = await authFetch(`${BACKEND_URL}/updated-role`);
-    //   if (response.ok) {
-    //     const freshUser = await response.json();
-    //     setUser(prev => {
-    //       if (!prev || prev.role !== freshUser.role) {
-    //         console.log(`Role updated: ${prev?.role} → ${freshUser.role}`);
-    //         const updated = ensureUserWithAvatar({ ...prev, ...freshUser });
-    //         persistUser(updated);
-    //         return updated;
-    //       }
-    //       return prev;
-    //     });
-    //   }
-    // } catch (err) {
-    //   // Silently fail - don't throw, don't logout
-    //   console.error('Role sync failed:', err);
-    // }
+  
   }, [authFetch]);
   
   useEffect(() => {

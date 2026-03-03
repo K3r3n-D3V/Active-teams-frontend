@@ -44,11 +44,6 @@ const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
 ).toLowerCase();
 
-/**
- * Popper that forces the dropdown (autocomplete suggestions) to:
- * - match the input width exactly
- * - have a high z-index (so it shows over modals)
- */
 const SameWidthPopper = (props) => {
   const { anchorEl } = props;
 
@@ -63,7 +58,7 @@ const SameWidthPopper = (props) => {
       placement="bottom-start"
       style={{
         zIndex: 20000,
-        width, //match input width
+        width, 
       }}
     />
   );
@@ -98,7 +93,6 @@ const CreateEvents = ({
   const [loadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
 
-  // Track whether the user is interacting with the dropdown
   const isSelectingFromDropdown = useRef(false);
 
   const isAdmin = user?.role === "admin";
@@ -135,6 +129,7 @@ const CreateEvents = ({
   // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
   const searchDebounceRef = useRef(null);
+  
   useEffect(() => {
     if (!navigator.geolocation) return;
 
@@ -264,9 +259,7 @@ const CreateEvents = ({
     });
 
     const determineEventType = () => {
-      // If we have a selectedEventTypeObj, use its properties
       if (selectedEventTypeObj) {
-        console.log("Using selectedEventTypeObj:", selectedEventTypeObj);
         return {
           eventType:
             selectedEventTypeObj.name || selectedEventTypeObj.displayName || "",
@@ -275,25 +268,17 @@ const CreateEvents = ({
           hasPersonSteps: !!selectedEventTypeObj.hasPersonSteps,
         };
       }
-      // If we have a selectedEventType string, find the matching object
       if (selectedEventType) {
         console.log("Looking for event type:", selectedEventType);
-        // Handle "all" and convert to "CELLS" - FIXED: Always set hasPersonSteps to true for CELLS
-        if (
-          selectedEventType === "all" ||
-          selectedEventType.toUpperCase() === "ALL CELLS"
-        ) {
-          console.log(
-            "Detected ALL CELLS - converting to CELLS with personal steps",
-          );
+        // Handle "all" and convert to "CELLS" - Always set hasPersonSteps to true for CELLS
+        if (selectedEventType === "all" || selectedEventType.toUpperCase() === "ALL CELLS") {
           return {
             eventType: "CELLS",
             isGlobal: false,
             isTicketed: false,
-            hasPersonSteps: true, // FIXED: This was the issue - always true for CELLS
+            hasPersonSteps: true, 
           };
         }
-        // Try to find the full event type object
         const foundEventType = eventTypes.find((et) => {
           const etName = et.name || et.displayName || "";
           const searchName = selectedEventType;
@@ -324,7 +309,7 @@ const CreateEvents = ({
             eventType: selectedEventType,
             isGlobal: false,
             isTicketed: false,
-            hasPersonSteps: isCellsType, // FIXED: Set to true only for CELLS type
+            hasPersonSteps: isCellsType,
           };
         }
       }
@@ -399,9 +384,6 @@ const CreateEvents = ({
     }
   }, [isTicketedEvent]);
 
-  // fetchPeople uses the /people/search-fast endpoint which searches
-  // Name, Surname, Email AND full concatenated "Name Surname" — so typing
-  // "John Smith" works correctly out of the box.
   const fetchPeople = async (q) => {
     if (!q.trim() || q.trim().length < 2) {
       setPeopleData([]);
@@ -514,7 +496,7 @@ const CreateEvents = ({
     };
 
     fetchEventData();
-  }, [eventId, BACKEND_URL]);
+  }, [eventId]);
 
   const handleChange = (field, value) => {
     setFormData((prev) => {
@@ -560,7 +542,8 @@ const CreateEvents = ({
       eventLeaderEmail: person.email,
     }));
   };
-  console.log("Leader select debug:", handleLeaderSelect);
+  
+  console.log("view leadersgip fields", handleLeaderSelect);
 
   const handleRemovePriceTier = (index) => {
     setPriceTiers((prev) => prev.filter((_, i) => i !== index));
@@ -903,7 +886,6 @@ const CreateEvents = ({
         },
       },
 
-      // Make date/time picker icons white in dark mode
       "& .MuiInputAdornment-root .MuiSvgIcon-root": {
         color: isDarkMode ? "#fff" : theme.palette.text.secondary,
       },
@@ -1090,7 +1072,7 @@ const CreateEvents = ({
               {eventTypes.map((et) => (
                 <MenuItem key={et.id} value={et.name}>
                   {et.name}
-                </MenuItem>
+                </MenuItem>                  
               ))}
             </TextField>
 
@@ -1368,15 +1350,13 @@ const CreateEvents = ({
               }
               filterOptions={(x) => x}
               loading={locationLoading}
-              PopperComponent={SameWidthPopper} // this makes dropdown same width
+              PopperComponent={SameWidthPopper} 
               ListboxProps={{ sx: darkModeStyles.autocompleteListbox }}
               PaperComponent={({ children }) => (
                 <Paper
                   sx={{
-                    width: "100%", //keeps the paper inside popper at same width
-                    bgcolor: isDarkMode
-                      ? theme.palette.background.paper
-                      : "#fff",
+                    width: "100%", 
+                    bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
                     border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
                   }}
                 >
@@ -1505,7 +1485,6 @@ const CreateEvents = ({
                     top: "100%",
                     left: 0,
                     right: 0,
-                    // ✅ FIX: High z-index so it shows above modals and other elements
                     zIndex: 20000,
                     backgroundColor: isDarkMode
                       ? theme.palette.background.paper
@@ -1536,8 +1515,7 @@ const CreateEvents = ({
                           borderBottom: "none",
                         },
                       }}
-                      // ✅ FIX: Use onMouseDown to set a flag BEFORE onBlur fires,
-                      // preventing the dropdown from closing before the selection registers
+              
                       onMouseDown={() => {
                         isSelectingFromDropdown.current = true;
                       }}
