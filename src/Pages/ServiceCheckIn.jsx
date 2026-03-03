@@ -78,7 +78,7 @@ const CACHE_DURATION = 5 * 60 * 1000;
 function ServiceCheckIn() {
   const { authFetch } = useContext(AuthContext);
 
-const { notifyTaskUpdate } = useTaskUpdate();
+  const { notifyTaskUpdate } = useTaskUpdate();
 
 
   const [attendees, setAttendees] = useState([]);

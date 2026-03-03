@@ -1,11 +1,10 @@
-
-
 import React, { useContext, useEffect, useState } from "react";
 import { Phone, UserPlus, Plus } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
+import {useTaskUpdate} from "../contexts/TaskUpdateContext"
 
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
@@ -66,7 +65,7 @@ function Modal({ isOpen, onClose, children, isDarkMode }) {
 export default function DailyTasks() {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === 'dark';
-
+  const { notifyTaskUpdate } = useTaskUpdate();
   const { user, authFetch } = useContext(AuthContext);
 
   const [tasks, setTasks] = useState([]);
@@ -383,6 +382,8 @@ const fetchUserTasks = async () => {
           },
           ...prev,
         ]);
+        // notify stats that a new task exists
+        if (notifyTaskUpdate) notifyTaskUpdate();
       }
       return data;
     } catch (err) {
@@ -427,7 +428,9 @@ const fetchUserTasks = async () => {
         selectedTask?.is_consolidation_task;
 
       if (isConsolidationTask) {
-        // Preserve the original leader assignment
+        // Preserve the original leader assignment (backend will now
+        // happily accept these fields and will ignore any other UI-only
+        // properties, but we still send them explicitly to be safe).
         updatedData.name = selectedTask.leader_name || selectedTask.name;
         updatedData.leader_name = selectedTask.leader_name;
         updatedData.leader_assigned = selectedTask.leader_assigned;
@@ -454,12 +457,69 @@ const fetchUserTasks = async () => {
           } : t
         )
       );
+      // inform other components (Stats) that a task changed
+      if (notifyTaskUpdate) notifyTaskUpdate();
       handleClose();
     } catch (err) {
       console.error("Error updating task:", err.message);
       toast.error("Failed to update task: " + err.message);
     }
   };
+
+  const handleStatusClick = async (task, e) => {
+  // Prevent the click from also triggering handleEdit
+  e.stopPropagation();
+
+  const isConsolidation = task.taskType === 'consolidation' || task.is_consolidation_task;
+
+  if (isConsolidation && task.status?.toLowerCase() === 'open') {
+    try {
+      // CRITICAL: send ONLY {status: "Completed"} — do NOT spread ...task.
+      //
+      // The frontend normalises task fields for display:
+      //   - followup_date is converted to an ISO string
+      //   - assignedfor may be replaced with a display name
+      //   - extra UI-only fields like assignedTo, taskStage are added
+      //
+      // If you spread ...task into the PUT body, the backend saves those
+      // normalised values back to MongoDB, corrupting the stored data:
+      //   1. followup_date becomes a plain STRING → the stats pipeline
+      //      $match uses $gte/$lte against BSON Date values; a string field
+      //      never matches → the task disappears from ALL stats date ranges.
+      //   2. assignedfor gets overwritten with the wrong value → the task
+      //      moves to the wrong person's group in the stats breakdown.
+      //
+      // Sending only {status: "Completed"} lets the backend update just
+      // the status and set completedAt = datetime.now(timezone.utc) as a
+      // real BSON Date, which the stats pipeline can then match correctly.
+      const res = await authFetch(`${API_URL}/tasks/${task._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "Completed" }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update task");
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t._id === task._id ? { ...t, status: "completed" } : t
+        )
+      );
+
+      // notifyTaskUpdate dispatches 'taskUpdated' on window AND increments
+      // updateCount in context — both paths Stats.jsx listens on.
+      notifyTaskUpdate();
+
+      toast.success("Task marked as completed!");
+    } catch (err) {
+      console.error("Error completing task:", err.message);
+      toast.error("Failed to complete task: " + err.message);
+    }
+  } else {
+    handleEdit(task);
+  }
+};
 
   const handleEdit = (task) => {
     if (task.status?.toLowerCase() === "completed") {
@@ -729,11 +789,18 @@ const fetchUserTasks = async () => {
   const [totalCount, setTotalCount] = useState(0);
 
   useEffect(() => {
-    const count = filteredTasks.filter(
-      (t) =>
-        (t.status || "").toLowerCase() === "completed" ||
-        (t.status || "").toLowerCase() === "awaiting task"
-    ).length;
+    // The dashboard at the top of the page shows a simple task count.  Historically
+    // we treated only completed tasks (plus "awaiting task" items) as part of
+    // that number.  The user has asked for any task whose status is "Open" to be
+    // included as well, so it behaves similarly to the awaiting count.
+    const count = filteredTasks.filter((t) => {
+      const status = (t.status || "").toLowerCase();
+      return (
+        status === "completed" ||
+        status === "awaiting task" ||
+        status === "open"
+      );
+    }).length;
 
     setTotalCount(count);
   }, [filteredTasks]);
@@ -843,7 +910,7 @@ useEffect(() => {
             color: isDarkMode ? '#aaa' : '#6b7280',
             fontWeight: '600'
           }}>
-            Tasks Complete
+            Tasks Counted
           </p>
 
           <div style={{
@@ -1175,7 +1242,7 @@ useEffect(() => {
                           ? (isDarkMode ? '#fff' : '#000')
                           : (isDarkMode ? '#444' : '#6b7280'),
                     }}
-                    onClick={() => handleEdit(task)}
+                    onClick={(e) => handleStatusClick(task, e)}
                   >
                     {task.status}
                   </span>

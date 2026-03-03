@@ -10,16 +10,16 @@ import { TaskUpdateProvider } from './contexts/TaskUpdateContext';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-       <TaskUpdateProvider>
-    <ErrorBoundary>
-    <AuthProvider>
-      <UserProvider>
-        <BrowserRouter>
-          <App />
-        </BrowserRouter>
-      </UserProvider>
-    </AuthProvider>
-    </ErrorBoundary>
-       </TaskUpdateProvider>
+    <TaskUpdateProvider>
+      <ErrorBoundary>
+        <AuthProvider>
+          <UserProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </UserProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </TaskUpdateProvider>
   </React.StrictMode>
 );

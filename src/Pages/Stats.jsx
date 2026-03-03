@@ -57,6 +57,7 @@ import {
   Save,
   Event,
   Download,
+  CheckCircle,
 } from "@mui/icons-material";
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
@@ -204,7 +205,7 @@ const StatsDashboard = () => {
       });
 
       try {
-        const startDate = "2026-01-22"; // adjust as needed
+        const startDate = "2026-01-22"; 
 
         let allEvents = [];
         let page = 1;
@@ -635,16 +636,28 @@ const isOverdue = useCallback((cell) => {
     fetchEventTypes();
   }, [authFetch]);
  
+// Re-fetch when a task is updated via the context (e.g. DailyTasks marks complete).
+// updateCount is incremented by notifyTaskUpdate() in TaskUpdateContext whenever
+// any component calls it. Without this useEffect, Stats.jsx ignores context
+// updates even though it destructures updateCount — it was never wired up.
+useEffect(() => {
+  if (updateCount > 0) {
+    console.log('Context updateCount changed, refreshing stats...');
+    fetchStats(true);
+    fetchOverdueCells(true);
+  }
+}, [updateCount, fetchStats, fetchOverdueCells]);
+
+// Also listen on the window event as a belt-and-suspenders fallback
+// for components (like ServiceCheckIn) that dispatch it directly.
 useEffect(() => {
   const handleTaskUpdate = () => {
-    console.log('Task update detected, refreshing stats...');
+    console.log('taskUpdated window event received, refreshing stats...');
     fetchStats(true);
     fetchOverdueCells(true);
   };
 
-
   window.addEventListener('taskUpdated', handleTaskUpdate);
-  
   return () => {
     window.removeEventListener('taskUpdated', handleTaskUpdate);
   };
@@ -1238,6 +1251,15 @@ useEffect(() => {
           <StatCard
             title="Tasks Due"
             value={stats.overview?.tasks_due_in_period || 0}
+            subtitle={getPeriodDisplayText(period)}
+            icon={<Task />}
+            color="secondary"
+          />
+        </Grid>
+        <Grid item xs={12} sm={6} md={4}>
+          <StatCard
+            title="Consolidations Due"
+            value={stats.overview?.consolidation_due_in_period || 0}
             subtitle={getPeriodDisplayText(period)}
             icon={<Task />}
             color="secondary"
