@@ -764,12 +764,12 @@ const CreateEvents = ({
             { headers },
           );
 
-      console.log("Response:", response.data.success);
-
+      console.log("Response:", response.data);
+      console.log("Event submission successful:", { eventId, payload });
       toast.success(
         eventId ? "Event updated successfully!" : "Event created successfully!",
       );
-
+      console.log("toast success called" , { eventId, payload });
       if (!eventId) resetForm();
 
       setTimeout(() => {

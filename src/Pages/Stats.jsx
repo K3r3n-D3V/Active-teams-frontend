@@ -2169,15 +2169,13 @@ calendarEvents.forEach((e) => {
       <CreateEvents
         user={JSON.parse(localStorage.getItem('userProfile') || '{}')}
         isModal={true}
-        onClose={(wasSuccess) => {
-        setCreateEventModalOpen(false);
-        if (wasSuccess) {
-          toast.success("Event created successfully!");
-          fetchStats(true);
-          fetchOverdueCells(true);
-          fetchCalendarEvents();
-        }
-      }}
+        onClose={(success) => {
+          if (success) {
+            fetchStats(true);
+            fetchOverdueCells(true);
+          }
+          setCreateEventModalOpen(false);
+        }}
         eventTypes={filteredEventTypes}
         defaultEventType={globalEvent?.name || "Global Events"} 
         selectedEventType={newEventData.eventTypeName}

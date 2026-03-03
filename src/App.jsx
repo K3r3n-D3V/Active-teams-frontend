@@ -29,6 +29,8 @@ import withAuthCheck from "./components/withAuthCheck";
 import Admin from "./Pages/Admin";
 import NotFound from "./Pages/NotFound";
 
+import { ToastContainer } from 'react-toastify';
+
 // Wrap protected pages WITH ROLES - UPDATED WITH leaderAt12
 const ProtectedHome = withAuthCheck(Home, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
 const ProtectedProfile = withAuthCheck(Profile, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
@@ -147,6 +149,20 @@ const { user, loading } = React.useContext(AuthContext);
           
         </div>
       </div>
+      {/* ─── Added the ToastContainer  ─── */}
+      <ToastContainer
+        position="top-right"
+        autoClose={5000}
+        hideProgressBar={false}
+        newestOnTop={true}          // ← changed to true
+        closeOnClick
+        rtl={false}
+        pauseOnFocusLoss
+        draggable
+        pauseOnHover
+        limit={4}
+        style={{ zIndex: 9999 }}          
+      />
     </ThemeProvider>
   );
 }
