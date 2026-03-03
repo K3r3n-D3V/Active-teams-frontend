@@ -1341,7 +1341,6 @@ const normalizeEventAttendance = (event) => {
 
       toast.info("Preparing export — fetching events...", { toastId: TOAST_ID, autoClose: false });
 
-      // Prefer local cached source (eventsCache / allCurrentEvents / events)
       const cacheKey = `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
       let sourceEvents =
         (eventsCache.current && eventsCache.current[cacheKey]) ||
@@ -1386,7 +1385,6 @@ const normalizeEventAttendance = (event) => {
         return;
       }
 
-      // Fetch full events in small batches to speed up and avoid too many parallel requests
       const fullEvents = await fetchInBatches(eventsToExport, fetchEventFull, 6);
 
       const allRows = [];
@@ -2336,19 +2334,40 @@ const normalizeEventAttendance = (event) => {
 const handleCaptureClick = useCallback(async (event) => {
   try {
     const token = localStorage.getItem("access_token");
-    const response = await fetch(`${BACKEND_URL}/events/${event._id || event.id}`, {
+    let eventId = event._id || event.id;
+    const originalId = eventId; 
+    if (eventId && eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
+    }
+
+    if (!eventId || eventId === "undefined") {
+      console.error("handleCaptureClick: no valid ID on event", event);
+      setSelectedEvent(event);
+      setAttendanceModalOpen(true);
+      return;
+    }
+
+    const response = await fetch(`${BACKEND_URL}/events/${eventId}`, {
       headers: { Authorization: `Bearer ${token}` }
     });
+    if (!response.ok) {
+      console.error("Failed to fetch full event, using local event data");
+      setSelectedEvent(event); 
+      setAttendanceModalOpen(true);
+      return;
+    }
     const fullEvent = await response.json();
-    
-    console.log("Full event with priceTiers:", fullEvent);
-    console.log("Price tiers:", fullEvent?.priceTiers);
-    
-    setSelectedEvent(fullEvent);
+    const enrichedEvent = {
+      ...event,           
+      ...fullEvent,      
+      _id: originalId,   
+      original_event_id: eventId,  
+    };
+    setSelectedEvent(enrichedEvent);
     setAttendanceModalOpen(true);
   } catch (err) {
     console.error("Failed to fetch full event:", err);
-    setSelectedEvent(event);
+    setSelectedEvent(event); 
     setAttendanceModalOpen(true);
   }
 }, [BACKEND_URL]);
@@ -2568,8 +2587,6 @@ const handleCaptureClick = useCallback(async (event) => {
                     : { show_all_authorized: true }),
                 }),
               };
-
-              //fetch events initially had two parameters
               await fetchEvents(refreshParams, true);
             } catch (refreshError) {
               console.error("Error refreshing events:", refreshError);
@@ -2767,11 +2784,7 @@ const handleCloseEditModal = useCallback(
           },
         );
       }
-
-      // NOW clear selectedEvent
       setSelectedEvent(null);
-
-      // Optimistically update the event in the local state so UI reflects changes immediately
       if (updatedEventData) {
         setEvents((prev) =>
           prev.map((ev) => {

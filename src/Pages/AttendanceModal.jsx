@@ -1642,109 +1642,113 @@ const AttendanceModal = ({
       } else {
         setManualHeadcount("0");
       }
-
       window.__lastLoadedAttendance = weekAttendance;
     } catch (error) {
       console.error("Error loading event statistics:", error);
     }
   };
 
-  //   const loadWeeklyCheckins = () => {
-  //     if (!event) {
-  //       setCheckedIn({});
-  //       setManualHeadcount("0");
-  //       setDidNotMeet(false);
-  //       return;
-  //     }
+const loadPersistentAttendees = async (eventId) => {
+  if (!eventId || eventId === "undefined") {
+    console.error("loadPersistentAttendees called with invalid eventId:", eventId);
+    return;
+  }
 
-  //     setCheckedIn({});
-  //     setDecisions({});
-  //     setDecisionTypes({});
-  //     setAttendeeTicketInfo({});
-  //     setManualHeadcount("0");
-  //     setDidNotMeet(false);
+ const actualEventId = eventId;
 
-  const loadPersistentAttendees = async (eventId) => {
-    try {
-      const token = localStorage.getItem("token");
-      const response = await authFetch(
-        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+  if (!actualEventId || actualEventId === "undefined") {
+    console.error("Could not resolve a valid event ID from:", eventId);
+    return;
+  }
 
-      if (!response.ok) {
-        console.error("Failed to load persistent attendees:", response.status);
-        return;
-      }
+  try {
+    const token = localStorage.getItem("token");
+   const response = await authFetch(
+  `${BACKEND_URL}/events/${actualEventId}/persistent-attendees`,
+  { headers: { Authorization: `Bearer ${token}` } }
+);
+    if (!response.ok) {
+      console.error("Failed to load persistent attendees:", response.status);
+      return;
+    }
+    const data = await response.json();
+    const persistentList = data.persistent_attendees || [];
+    const checkedInList = data.checked_in_attendees || [];
 
-      const data = await response.json();
-      const persistentList = data.persistent_attendees || [];
-      const checkedInList = data.checked_in_attendees || [];
+    setPersistentCommonAttendees(persistentList);
 
-      setPersistentCommonAttendees(persistentList);
+    const isCompleted =
+      data.attendance_status === "complete" ||
+      data.attendance_status === "did_not_meet";
 
-      const newCheckedIn = {};
-      persistentList.forEach(att => {
-        if (att.id) newCheckedIn[att.id] = false;
-      });
+    const newCheckedIn = {};
+    persistentList.forEach(att => {
+      if (att.id) newCheckedIn[att.id] = false;
+    });
+
+    if (isCompleted) {
       checkedInList.forEach(att => {
         if (att.id) newCheckedIn[att.id] = true;
       });
-      setCheckedIn(newCheckedIn);
+    }
 
-      // Decisions
-      const newDecisions = {};
-      const newDecisionTypes = {};
+    setCheckedIn(newCheckedIn);
+
+    const newDecisions = {};
+    const newDecisionTypes = {};
+    if (isCompleted) {
       checkedInList.forEach(att => {
         if (att.id && att.decision) {
           newDecisions[att.id] = true;
           newDecisionTypes[att.id] = att.decision;
         }
       });
-      setDecisions(newDecisions);
-      setDecisionTypes(newDecisionTypes);
-
-     if (isTicketedEvent) {
-  const newTicketInfo = {};
-
-  persistentList.forEach(att => {
-    if (att.id && att.priceName && att.priceName.trim() !== "") {
-      newTicketInfo[att.id] = {
-        priceName: att.priceName,
-        price: att.price != null ? att.price : 0,
-        ageGroup: att.ageGroup || "",
-        paymentMethod: att.paymentMethod || "",
-      };
     }
-  });
+    setDecisions(newDecisions);
+    setDecisionTypes(newDecisionTypes);
 
-  checkedInList.forEach(att => {
-    if (att.id && att.priceName && att.priceName.trim() !== "") {
-      newTicketInfo[att.id] = {
-        priceName: att.priceName,
-        price: att.price != null ? att.price : 0,
-        ageGroup: att.ageGroup || "",
-        paymentMethod: att.paymentMethod || "",
-      };
-    }
-  });
-  setAttendeeTicketInfo(prev => ({ ...newTicketInfo, ...prev }));
-}
-      // Headcount and did-not-meet
-      if (data.attendance_status === "did_not_meet") {
-        setDidNotMeet(true);
-        setManualHeadcount("0");
-      } else {
-        setDidNotMeet(false);
-        if (data.total_headcounts > 0) {
-          setManualHeadcount(data.total_headcounts.toString());
+    if (isTicketedEvent) {
+      const newTicketInfo = {};
+      persistentList.forEach(att => {
+        if (att.id && att.priceName && att.priceName.trim() !== "") {
+          newTicketInfo[att.id] = {
+            priceName: att.priceName,
+            price: att.price != null ? att.price : 0,
+            ageGroup: att.ageGroup || "",
+            paymentMethod: att.paymentMethod || "",
+          };
         }
+      });
+      if (isCompleted) {
+        checkedInList.forEach(att => {
+          if (att.id && att.priceName && att.priceName.trim() !== "") {
+            newTicketInfo[att.id] = {
+              priceName: att.priceName,
+              price: att.price != null ? att.price : 0,
+              ageGroup: att.ageGroup || "",
+              paymentMethod: att.paymentMethod || "",
+            };
+          }
+        });
       }
-
-    } catch (error) {
-      console.error("Error loading persistent attendees:", error);
+      setAttendeeTicketInfo(prev => ({ ...newTicketInfo, ...prev }));
     }
-  };
+
+    if (data.attendance_status === "did_not_meet") {
+      setDidNotMeet(true);
+      setManualHeadcount("0");
+    } else if (isCompleted && data.total_headcounts > 0) {
+      setDidNotMeet(false);
+      setManualHeadcount(data.total_headcounts.toString());
+    } else {
+      setDidNotMeet(false);
+      setManualHeadcount("0");
+    }
+
+  } catch (error) {
+    console.error("Error loading persistent attendees:", error);
+  }
+};
 
   const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
@@ -1810,54 +1814,64 @@ const AttendanceModal = ({
     }
   };
 
-  useEffect(() => {
-    if (isOpen && event) {
-      let eventId = event._id || event.id;
-      if (eventId?.includes("_")) eventId = eventId.split("_")[0];
 
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-      setDecisions({});
-      setDecisionTypes({});
-      setAttendeeTicketInfo({});
-      setManualHeadcount("0");
-      setDidNotMeet(false);
-
-      const existingAttendees = event.persistent_attendees || [];
-      if (existingAttendees.length > 0) {
-        setPersistentCommonAttendees(existingAttendees);
-        const initialCheckedIn = {};
-        existingAttendees.forEach(att => {
-          if (att.id) initialCheckedIn[att.id] = false;
-        });
-        setCheckedIn(initialCheckedIn);
-        if (isTicketedEvent) {
-          const initialTicketInfo = {};
-          existingAttendees.forEach(att => {
-            if (att.id && att.priceName?.trim()) {
-              initialTicketInfo[att.id] = {
-                priceName: att.priceName,
-                price: att.price ?? 0,
-                ageGroup: att.ageGroup || "",
-                paymentMethod: att.paymentMethod || "",
-              };
-            }
-          });
-          setAttendeeTicketInfo(initialTicketInfo);
-        }
-      } else {
-        setPersistentCommonAttendees([]);
-        setCheckedIn({});
-      }
-
-      const loadAllData = async () => {
-        await loadPersistentAttendees(eventId);
-        await loadEventStatistics();
-      };
-      loadAllData();
+useEffect(() => {
+  if (isOpen && event) {
+ let eventId = event.original_event_id || event._id || event.id;
+    if (!eventId || eventId === "undefined") {
+      console.error("useEffect: event has no valid _id or id", event);
+      return;
     }
-  }, [isOpen, event?._id, event?.id]);
+    const cleanEventId = eventId.includes("_") ? eventId.split("_")[0] : eventId;
+
+    if (!cleanEventId || cleanEventId.length < 20) {
+      console.error("useEffect: stripped ID looks invalid:", cleanEventId, "from:", eventId);
+      return;
+    }
+
+    setSearchName("");
+    setAssociateSearch("");
+    setActiveTab(0);
+    setDecisions({});
+    setDecisionTypes({});
+    setAttendeeTicketInfo({});
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+
+    const existingAttendees = event.persistent_attendees || [];
+    if (existingAttendees.length > 0) {
+      setPersistentCommonAttendees(existingAttendees);
+      const initialCheckedIn = {};
+      existingAttendees.forEach(att => {
+        if (att.id) initialCheckedIn[att.id] = false;
+      });
+      setCheckedIn(initialCheckedIn);
+      if (isTicketedEvent) {
+        const initialTicketInfo = {};
+        existingAttendees.forEach(att => {
+          if (att.id && att.priceName?.trim()) {
+            initialTicketInfo[att.id] = {
+              priceName: att.priceName,
+              price: att.price ?? 0,
+              ageGroup: att.ageGroup || "",
+              paymentMethod: att.paymentMethod || "",
+            };
+          }
+        });
+        setAttendeeTicketInfo(initialTicketInfo);
+      }
+    } else {
+      setPersistentCommonAttendees([]);
+      setCheckedIn({});
+    }
+
+    const loadAllData = async () => {
+      await loadPersistentAttendees(cleanEventId); 
+      await loadEventStatistics();
+    };
+    loadAllData();
+  }
+}, [isOpen, event?._id, event?.id]);
 
 const fetchPeople = async (q) => {
   if (!q || !q.trim()) {
@@ -1907,8 +1921,6 @@ const fetchPeople = async (q) => {
         });
       }
     }
-
-    // Last resort — broad fetch and filter
     if (results.length === 0) {
       res = await authFetch(`${BACKEND_URL}/people?perPage=200`);
       if (res.ok) {
@@ -2065,56 +2077,62 @@ const fetchPeople = async (q) => {
     setDecisions((prev) => ({ ...prev, [id]: true }));
     setOpenDecisionDropdown(null);
   };
-  const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
-    if (!event) return false;
 
-    let eventId = event._id || event.id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
-    const ticketInfoToUse = ticketInfoOverride ?? attendeeTicketInfo;
+const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
+  if (!event) return false;
 
-    const enriched = isTicketedEvent
-      ? attendees.map(p => {
+ let eventId = event.original_event_id || event._id || event.id;
+
+  if (!eventId || eventId === "undefined") {
+    console.error("saveAllAttendees: no valid eventId found on event object", event);
+    return false;
+  }
+
+  if (eventId.includes("_")) {
+    eventId = eventId.split("_")[0];
+  }
+
+  const ticketInfoToUse = ticketInfoOverride ?? attendeeTicketInfo;
+  const enriched = isTicketedEvent
+    ? attendees.map(p => {
         const ticketOverride = ticketInfoToUse[p.id] || {};
         return {
           ...p,
           priceName: ticketOverride.priceName || p.priceName || "",
-          price: ticketOverride.price != null && ticketOverride.price !== ""
-            ? ticketOverride.price
-            : (p.price || 0),
+          price:
+            ticketOverride.price != null && ticketOverride.price !== ""
+              ? ticketOverride.price
+              : p.price || 0,
           ageGroup: ticketOverride.ageGroup || p.ageGroup || "",
           paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
         };
       })
-      : attendees;
+    : attendees;
 
-    try {
-      const token = localStorage.getItem("token");
-      const response = await authFetch(
-        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ persistent_attendees: enriched }),
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`Save failed: ${response.status}`);
+  try {
+    const token = localStorage.getItem("token");
+    const response = await authFetch(
+      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ persistent_attendees: enriched }),
       }
-
-      console.log(`Saved ${enriched.length} attendees to database`);
-      return true;
-    } catch (error) {
-      console.error("Failed to save:", error);
-      toast.error("Failed to save attendees list");
-      return false;
+    );
+    if (!response.ok) {
+      throw new Error(`Save failed: ${response.status}`);
     }
-  };
+    console.log(`Saved ${enriched.length} attendees to database`);
+    return true;
+  } catch (error) {
+    console.error("Failed to save:", error);
+    toast.error("Failed to save attendees list");
+    return false;
+  }
+};
 
   const handleAssociatePerson = async (person) => {
     const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
@@ -2293,7 +2311,7 @@ const filteredPeople = people.filter(person =>
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
     const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
-    let eventId = event?.id || event?._id;
+    let eventId = event.original_event_id || event._id || event?._id;
     if (eventId && eventId.includes("_")) {
       eventId = eventId.split("_")[0];
     }
@@ -2520,7 +2538,7 @@ const filteredPeople = people.filter(person =>
     setManualHeadcount("");
     setAttendeeTicketInfo({});
 
-    let eventId = event?.id || event?._id;
+    let eventId = event.original_event_id || event._id || event?._id;
     if (eventId && eventId.includes("_")) {
       eventId = eventId.split("_")[0];
     }
@@ -3286,19 +3304,6 @@ const filteredPeople = people.filter(person =>
                     </div>
                     <div style={styles.statLabel}>Attendees</div>
                   </div>
-
-                  <div style={styles.statBoxInput}>
-                    <input
-                      type="number"
-                      value={manualHeadcount}
-                      onChange={(e) => setManualHeadcount(e.target.value)}
-                      placeholder="0"
-                      style={styles.headcountInput}
-                      min="0"
-                    />
-                    <div style={styles.statLabel}>Total Headcounts</div>
-                  </div>
-
                   {!isTicketedEvent && (
                     <div style={styles.statBox}>
                       <div style={{ ...styles.statNumber, color: "#ffc107" }}>
