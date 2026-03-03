@@ -428,13 +428,13 @@ export const AuthProvider = ({ children }) => {
   
   }, [authFetch]);
   
-  useEffect(() => {
-    // Only poll when actually logged in
-    if (!user?.id || !isAuthenticated) return;
+  // useEffect(() => {
+  //   // Only poll when actually logged in
+  //   if (!user?.id || !isAuthenticated) return;
   
-    const interval = setInterval(fetchCurrentUser, 1_000);
-    return () => clearInterval(interval);  
-  }, [user?.id, isAuthenticated, fetchCurrentUser]); 
+  //   const interval = setInterval(fetchCurrentUser, 1_000);
+  //   return () => clearInterval(interval);  
+  // }, [user?.id, isAuthenticated, fetchCurrentUser]); 
 
   const requestPasswordReset = async (email) => {
     try {
