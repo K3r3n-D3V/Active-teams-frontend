@@ -63,7 +63,7 @@ const ForgotPassword = ({ mode }) => {
       bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
       "&.Mui-focused": {
         bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
-      },
+      },                            
     },
   };
 
