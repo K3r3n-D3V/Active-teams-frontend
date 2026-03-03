@@ -110,7 +110,7 @@ const ForgotPassword = ({ mode }) => {
           textAlign: "center",
         }}
       >
-        {/* Logo */}
+        {/* Logo Part*/}
         <Box display="flex" justifyContent="center" mb={2}>
           <img
             src={darkLogo}
