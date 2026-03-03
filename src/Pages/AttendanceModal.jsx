@@ -1653,8 +1653,7 @@ const loadPersistentAttendees = async (eventId) => {
     console.error("loadPersistentAttendees called with invalid eventId:", eventId);
     return;
   }
-
- const actualEventId = eventId;
+  const actualEventId = eventId.includes("_") ? eventId.split("_")[0] : eventId;
 
   if (!actualEventId || actualEventId === "undefined") {
     console.error("Could not resolve a valid event ID from:", eventId);
@@ -1663,10 +1662,10 @@ const loadPersistentAttendees = async (eventId) => {
 
   try {
     const token = localStorage.getItem("token");
-   const response = await authFetch(
-  `${BACKEND_URL}/events/${actualEventId}/persistent-attendees`,
-  { headers: { Authorization: `Bearer ${token}` } }
-);
+    const response = await authFetch(
+      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    );
     if (!response.ok) {
       console.error("Failed to load persistent attendees:", response.status);
       return;
@@ -1674,29 +1673,26 @@ const loadPersistentAttendees = async (eventId) => {
     const data = await response.json();
     const persistentList = data.persistent_attendees || [];
     const checkedInList = data.checked_in_attendees || [];
-
     setPersistentCommonAttendees(persistentList);
-
     const isCompleted =
       data.attendance_status === "complete" ||
       data.attendance_status === "did_not_meet";
-
     const newCheckedIn = {};
     persistentList.forEach(att => {
       if (att.id) newCheckedIn[att.id] = false;
     });
 
-    if (isCompleted) {
+    // Only tick people if this specific date's attendance is complete
+    if (isCompleted && data.attendance_status !== "did_not_meet") {
       checkedInList.forEach(att => {
         if (att.id) newCheckedIn[att.id] = true;
       });
     }
 
     setCheckedIn(newCheckedIn);
-
     const newDecisions = {};
     const newDecisionTypes = {};
-    if (isCompleted) {
+    if (isCompleted && data.attendance_status !== "did_not_meet") {
       checkedInList.forEach(att => {
         if (att.id && att.decision) {
           newDecisions[att.id] = true;
@@ -1706,7 +1702,6 @@ const loadPersistentAttendees = async (eventId) => {
     }
     setDecisions(newDecisions);
     setDecisionTypes(newDecisionTypes);
-
     if (isTicketedEvent) {
       const newTicketInfo = {};
       persistentList.forEach(att => {
@@ -1817,15 +1812,21 @@ const loadPersistentAttendees = async (eventId) => {
 
 useEffect(() => {
   if (isOpen && event) {
- let eventId = event.original_event_id || event._id || event.id;
+    let eventId;
+
+    if (event.original_event_id && event.date) {
+      const cleanDate = event.date.split("T")[0].split(" ")[0];
+      eventId = `${event.original_event_id}_${cleanDate}`;
+    } else if (event._id && event.date) {
+      // Regular events - also strip time and append clean date
+      const cleanDate = event.date.split("T")[0].split(" ")[0];
+      eventId = `${event._id}_${cleanDate}`;
+    } else {
+      eventId = event._id || event.id;
+    }
+
     if (!eventId || eventId === "undefined") {
       console.error("useEffect: event has no valid _id or id", event);
-      return;
-    }
-    const cleanEventId = eventId.includes("_") ? eventId.split("_")[0] : eventId;
-
-    if (!cleanEventId || cleanEventId.length < 20) {
-      console.error("useEffect: stripped ID looks invalid:", cleanEventId, "from:", eventId);
       return;
     }
 
@@ -1866,7 +1867,7 @@ useEffect(() => {
     }
 
     const loadAllData = async () => {
-      await loadPersistentAttendees(cleanEventId); 
+      await loadPersistentAttendees(eventId);
       await loadEventStatistics();
     };
     loadAllData();
@@ -3304,6 +3305,7 @@ const filteredPeople = people.filter(person =>
                     </div>
                     <div style={styles.statLabel}>Attendees</div>
                   </div>
+
                   {!isTicketedEvent && (
                     <div style={styles.statBox}>
                       <div style={{ ...styles.statNumber, color: "#ffc107" }}>
