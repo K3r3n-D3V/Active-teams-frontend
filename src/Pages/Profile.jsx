@@ -5,6 +5,7 @@ import React, {
   useContext,
   useRef,
 } from "react";
+
 import {
   Box,
   Typography,
@@ -26,11 +27,9 @@ import {
   Divider,
   Skeleton,
   MenuItem,
+  CircularProgress,           // ← added here (clean named import)
 } from "@mui/material";
-import Cropper from "react-easy-crop";
-import getCroppedImg from "../components/cropImageHelper";
-import { UserContext } from "../contexts/UserContext.jsx";
-import { AuthContext } from "../contexts/AuthContext.jsx"; // Import AuthContext
+
 import {
   Edit,
   Save,
@@ -39,7 +38,13 @@ import {
   VisibilityOff,
   CameraAlt,
 } from "@mui/icons-material";
+
+import Cropper from "react-easy-crop";
+import getCroppedImg from "../components/cropImageHelper";
+import { UserContext } from "../contexts/UserContext.jsx";
+import { AuthContext } from "../contexts/AuthContext.jsx";
 import axios from "axios";
+
 
 /** Texts with colors */
 const carouselTexts = [
@@ -435,6 +440,7 @@ export default function Profile() {
     }
     return "user";
   });
+  
 
   const fileInputRef = useRef(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -445,6 +451,9 @@ export default function Profile() {
   
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  // Add these states near your other form states
+const [loading, setLoading] = useState(false);
+const [submitError, setSubmitError] = useState(null);     // optional: show API-level error
   
   //initializing leaders
   const [leaders, setLeaders] = useState({
@@ -1095,6 +1104,51 @@ export default function Profile() {
   if (loadingProfile) {
     return <ProfileSkeleton />;
   }
+const handleUpdatePassword = async () => {
+  setSubmitError(null);
+
+  // Client-side validation
+  if (!form.currentPassword || !form.newPassword || !form.confirmPassword) {
+    setSubmitError("Please fill in all fields.");
+    return;
+  }
+
+  if (form.newPassword !== form.confirmPassword) {
+    setSubmitError("Passwords do not match.");
+    return;
+  }
+
+  if (form.newPassword.length < 8) {
+    setSubmitError("New password must be at least 8 characters.");
+    return;
+  }
+
+  try {
+    setLoading(true);
+
+    // Simulate API call (replace with real backend call later)
+    await new Promise(resolve => setTimeout(resolve, 1200));
+
+    console.log("Password updated:", {
+      current: form.currentPassword,
+      new: form.newPassword,
+    });
+
+    alert("Password changed successfully!");
+
+    // Clear form
+    setForm({
+      currentPassword: "",
+      newPassword: "",
+      confirmPassword: "",
+    });
+
+  } catch (error) {
+    setSubmitError(error.message || "Something went wrong.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: isDark ? "#0a0a0a" : "#f8f9fa", pb: 4 }}>
@@ -1282,10 +1336,6 @@ export default function Profile() {
 
               </Grid>
 
-              
-
-              
-
               {/* Password Section */}
               <>
                 <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
@@ -1317,14 +1367,35 @@ export default function Profile() {
                     </Typography>
                     <TextField value={form.confirmPassword || ""} onChange={handleChange("confirmPassword")} type={showPassword.confirm ? "text" : "password"} fullWidth error={!!errors.confirmPassword} helperText={errors.confirmPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.confirm ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
                   </Grid>
+
                 </Grid>
+
               </>
 
               {/* Action Buttons */}
               <Box sx={{ mt: 4, display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap", }}>
-                <Button type="submit" variant="contained" startIcon={<Save />} disabled={!hasChanges} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
-                  {canEditProfile ? "Save Changes" : "Update Password"}
-                </Button>
+               <Button
+  type="button" // IMPORTANT: prevent form auto submit refresh
+  variant="contained"
+  startIcon={<Save />}
+  disabled={!hasChanges} // removed loading
+  onClick={handleUpdatePassword}
+  sx={{
+    bgcolor: currentCarouselItem?.color,
+    "&:hover": {
+      bgcolor: currentCarouselItem?.color,
+      opacity: 0.9,
+    },
+    borderRadius: 2,
+    px: 4,
+    py: 1.5,
+    fontWeight: 600,
+    textTransform: "none",
+    fontSize: "1rem",
+  }}
+>
+  {loading ? "Updating..." : "Update Password"}
+</Button>
                 
                 {/* Cancel button only if there are changes */}
                 {hasChanges && (
