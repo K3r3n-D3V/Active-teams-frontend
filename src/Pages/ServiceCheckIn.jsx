@@ -216,6 +216,7 @@ function ServiceCheckIn() {
   const [hasDataLoaded, setHasDataLoaded] = useState(false);
   const [isLoadingPeople, setIsLoadingPeople] = useState(true);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
   const [isClosingEvent, setIsClosingEvent] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [modalSearch, setModalSearch] = useState("");
@@ -443,7 +444,7 @@ function ServiceCheckIn() {
 
         setEvents(validEvents);
 
-        if (!currentEventId && validEvents.length > 0) {
+        if (currentEventId && validEvents.length > 0) {
           const filtered = getFilteredEvents(validEvents);
           if (filtered.length > 0) setCurrentEventId(filtered[0].id);
         }
@@ -451,6 +452,7 @@ function ServiceCheckIn() {
         toast.error(err, "Failed to fetch events. Please try again.");
       } finally {
         setIsLoadingEvents(false);
+        setIsLoadingHistory(false);
       }
     },
     [authFetch, currentEventId]
@@ -585,6 +587,7 @@ function ServiceCheckIn() {
 
           setEvents(validEvents);
           setIsLoadingEvents(false);
+          setIsLoadingHistory(false);
 
           const todayStr = new Date().toISOString().split("T")[0];
           const todayOpen = validEvents.filter((e) => {
@@ -603,6 +606,7 @@ function ServiceCheckIn() {
       } finally {
         setIsLoadingPeople(false);
         setIsLoadingEvents(false);
+        setIsLoadingHistory(false);
       }
     })();
   }, []);
@@ -1173,16 +1177,31 @@ function ServiceCheckIn() {
       if (result.already_closed) toast.info(result.message || "Event was already closed");
       else toast.success(result.message || `Event "${currentEvent.eventName}" closed successfully!`);
 
-      setEvents((prev) =>
-        prev.map((e) =>
+      setEvents((prev) => {
+        const updated = prev.map((e) =>
           e.id === currentEventId
             ? { ...e, status: "complete", closed_by: result.closed_by, closed_at: result.closed_at }
             : e
-        )
-      );
+        );
+
+        const todayStr = new Date().toISOString().split("T")[0];
+        const nextEvent = updated.find((e) => {
+          if (e.id === currentEventId) return false;
+          if (e.isGlobal !== true) return false;
+          const typeName = (e.eventType || "").toLowerCase();
+          if (["cells", "all cells", "cell"].includes(typeName)) return false;
+          const status = (e.status || "").toLowerCase();
+          if (["complete", "closed", "cancelled", "did_not_meet"].includes(status)) return false;
+          if (!e.date) return false;
+          return new Date(e.date).toISOString().split("T")[0] === todayStr;
+        });
+
+        setCurrentEventId(nextEvent?.id || "");
+        return updated;
+      });
+
       setRealTimeData(null);
-      setCurrentEventId("");
-      setTimeout(() => fetchEvents(true), 500);
+      setTimeout(() => fetchEvents(true, null, false), 500);
     } catch (error) {
       if (error.message.includes("404")) toast.error("Event not found. It may have been deleted.");
       else if (error.message.includes("400")) toast.error("Invalid event ID.");
@@ -1201,7 +1220,8 @@ function ServiceCheckIn() {
         if (result.success) {
           toast.success(`Event "${event.eventName}" has been reopened!`);
           setEvents((prev) => prev.map((ev) => (ev.id === event.id || ev._id === event._id) ? { ...ev, status: "incomplete" } : ev));
-          setTimeout(() => fetchEvents(true), 500);
+          setIsLoadingHistory(true);
+          setTimeout(() => fetchEvents(true, null, false), 500);
         }
       } catch (error) { toast.error(error.message || "Failed to reopen event"); }
     },
@@ -1640,6 +1660,7 @@ function ServiceCheckIn() {
               searchTerm={eventSearch}
               isLoading={isLoadingEvents && events.length === 0}
               onRefresh={() => fetchEvents(true)}
+              isLoading={isLoadingHistory}
             />
           </Box>
         )}
