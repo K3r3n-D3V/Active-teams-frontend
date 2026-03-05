@@ -6,6 +6,7 @@ import React, {
   useCallback,
 } from "react";
 import { useTheme } from "@mui/material/styles";
+import { useOrgConfig } from "../contexts/OrgConfigContext";
 import AttendanceModal from "./AttendanceModal";
 import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
@@ -983,6 +984,8 @@ const isValidObjectId = (id) => {
 };
 const Events = () => {
   const { authFetch, logout } = React.useContext(AuthContext);
+ const { orgConfig } = useOrgConfig();
+const isActiveTeams = orgConfig?.org_id === "active-teams";
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
@@ -1441,13 +1444,11 @@ const normalizeEventAttendance = (event) => {
     return Math.min(currentPage * rowsPerPage, totalEvents);
   }, [currentPage, rowsPerPage, totalEvents]);
 
-  const allEventTypes = useMemo(() => {
-    console.log("TYPES", eventTypes);
-    return [
-      "all",
-      ...eventTypes.map((t) => (typeof t === "string" ? t : t.name)),
-    ];
-  }, [eventTypes]);
+const allEventTypes = useMemo(() => {
+  const typeNames = eventTypes.map((t) => (typeof t === "string" ? t : t.name));
+  return isActiveTeams ? ["all", ...typeNames] : typeNames;
+}, [eventTypes, isActiveTeams]);
+
 
   const fetchEventsFilters = (filters) => {
     const params = {
@@ -1606,12 +1607,12 @@ const normalizeEventAttendance = (event) => {
       const isManager =
         role === "admin" || role === "leaderat12" || role === "registrant";
 
-      const filteredTypes = eventTypesData.filter((type) => {
-        if (isManager) return true;
-        const isGlobalType = type.isGlobal === true || type.isGlobal === "true";
-        const isOwner = type.userEmail?.toLowerCase() === email;
-        return type.isEventType === true && (isGlobalType || isOwner);
-      });
+   const filteredTypes = eventTypesData.filter((type) => {
+  if (isManager) return true;
+  const isGlobalType = type.isGlobal === true || type.isGlobal === "true";
+  const isOwner = type.userEmail?.toLowerCase() === email;
+  return type.isEventType === true && (isGlobalType || isOwner);
+});
 
       setEventTypes(filteredTypes);
       setCustomEventTypes(filteredTypes);
@@ -3963,43 +3964,27 @@ allFetched.sort((a, b) => {
           : "0 2px 4px rgba(0,0,0,0.1)",
       },
     };
+const allTypes = useMemo(() => {
+  const availableTypes = filteredEventTypes;
+  const shouldSeeAll =
+    computedIsAdmin ||
+    computedIsLeaderAt12 ||
+    computedIsLeader ||
+    computedIsRegistrant ||
+    computedIsRegularUser;
 
-    const allTypes = useMemo(() => {
-      const availableTypes = filteredEventTypes;
+  if (isActiveTeams && shouldSeeAll) {
+    return ["all", ...availableTypes];
+  }
 
-      console.log("=== FINAL Filtered Types ===");
-      console.log("Available types:", availableTypes);
-      console.log("Total count:", availableTypes.length);
+  return availableTypes;
+}, [filteredEventTypes, computedIsAdmin, computedIsLeaderAt12, computedIsLeader, computedIsRegistrant, computedIsRegularUser, isActiveTeams]);
 
-      // Registrants should also see "all" option
-      const shouldSeeAll =
-        computedIsAdmin ||
-        computedIsLeaderAt12 ||
-        computedIsLeader ||
-        computedIsRegistrant ||
-        computedIsRegularUser;
-
-      if (shouldSeeAll) {
-        return ["all", ...availableTypes];
-      } else {
-        return ["all"];
-      }
-    }, [
-      filteredEventTypes,
-      computedIsAdmin,
-      computedIsLeaderAt12,
-      computedIsLeader,
-      computedIsRegistrant,
-      computedIsRegularUser,
-    ]);
-
-    const getDisplayName = (type) => {
-      if (!type) return "";
-      if (type === "all") {
-        return "ALL CELLS";
-      }
-      return typeof type === "string" ? type : type.name || String(type);
-    };
+const getDisplayName = (type) => {
+  if (!type) return "";
+  if (type === "all") return "ALL CELLS";  // ← shows for ALL orgs
+  return typeof type === "string" ? type : type.name || String(type);
+};
 
     const getTypeValue = (type) => {
       if (type === "all") return "all";
@@ -4080,10 +4065,7 @@ allFetched.sort((a, b) => {
           <div style={eventTypeStyles.selectedTypeDisplay}>
             <span>•</span>
             <span>
-              {selectedEventTypeFilter === "all" &&
-                (computedIsLeaderAt12 || computedIsLeader)
-                ? "ALL CELLS"
-                : getDisplayName(selectedEventTypeFilter)}
+            {getDisplayName(selectedEventTypeFilter)}
             </span>
           </div>
 
@@ -5323,7 +5305,7 @@ allFetched.sort((a, b) => {
                             whiteSpace: "nowrap",
                           }}
                         >
-                          {typeName === "all" ? "All Cells" : typeName}
+                          {typeName === "all" ? "ALL CELLS" : typeName}
                         </Typography>
 
                         {/* Event Type Description - MIDDLE */}
@@ -5559,7 +5541,7 @@ allFetched.sort((a, b) => {
                               mb: "4px",
                             }}
                           >
-                            {typeName === "all" ? "All Cells" : typeName}
+                            {typeName === "all" ? "ALL CELLS" : typeName}
                           </Typography>
                           {/* SHOW DESCRIPTION */}
                           <Typography

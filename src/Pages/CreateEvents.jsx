@@ -27,6 +27,7 @@ import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Popper } from "@mui/material";
+import { useOrgConfig } from "../contexts/OrgConfigContext";
 
 function generateUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
@@ -64,14 +65,7 @@ const SameWidthPopper = (props) => {
   );
 };
 
-const CreateEvents = ({
-  user,
-  isModal = false,
-  onClose,
-  eventTypes = [],
-  selectedEventType,
-  selectedEventTypeObj = null,
-}) => {
+const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, selectedEventTypeObj }) => {
   const navigate = useNavigate();
   const { id: eventId } = useParams();
   const theme = useTheme();
@@ -87,6 +81,7 @@ const CreateEvents = ({
     isTicketed: isTicketedEvent,
     hasPersonSteps,
   } = eventTypeFlags;
+    const { getHierarchyLabel, getHierarchyField, getAllHierarchyLevels } = useOrgConfig();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
@@ -257,7 +252,7 @@ const CreateEvents = ({
         hasPersonSteps: et.hasPersonSteps,
       })),
     });
-
+  const hierarchyLevels = getAllHierarchyLevels();
     const determineEventType = () => {
       if (selectedEventTypeObj) {
         return {
@@ -342,8 +337,7 @@ const CreateEvents = ({
       eventType,
       ...(prev.hasPersonSteps && !hasPersonSteps
         ? {
-            leader1: "",
-            leader12: "",
+          ...Object.fromEntries(getAllHierarchyLevels().map(h => [h.field, ""])),
           }
         : {}),
     }));
@@ -615,10 +609,11 @@ const CreateEvents = ({
         }
       }
 
-      if (hasPersonSteps) {
-        if (!formData.leader1) newErrors.leader1 = "Leader @1 is required";
-        if (!formData.leader12) newErrors.leader12 = "Leader @12 is required";
-      }
+     if (hasPersonSteps) {
+  getAllHierarchyLevels().forEach((h) => {
+    if (!formData[h.field]) newErrors[h.field] = `${h.label} is required`;
+  });
+}
     } else {
       if (!formData.date) newErrors.date = "Date is required";
       if (!formData.time) newErrors.time = "Time is required";
@@ -1567,47 +1562,34 @@ const CreateEvents = ({
               )}
             </Box>
 
-            {hasPersonSteps && !isGlobalEvent && (
-              <>
-                <TextField
-                  label="Email *"
-                  value={formData.email || ""}
-                  onChange={(e) => handleChange("email", e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.email}
-                  helperText={errors.email || "Enter the email for this event"}
-                />
+          {hasPersonSteps && !isGlobalEvent && (
+  <>
+    <TextField
+      label="Email *"
+      value={formData.email || ""}
+      onChange={(e) => handleChange("email", e.target.value)}
+      fullWidth
+      size="small"
+      sx={{ mb: 2, ...darkModeStyles.textField }}
+      error={!!errors.email}
+      helperText={errors.email || "Enter the email for this event"}
+    />
 
-                <TextField
-                  label="Leader @1 *"
-                  value={formData.leader1 || ""}
-                  onChange={(e) => handleChange("leader1", e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.leader1}
-                  helperText={
-                    errors.leader1 || "Enter the Leader @1 for this cell"
-                  }
-                />
-
-                <TextField
-                  label="Leader @12 *"
-                  value={formData.leader12 || ""}
-                  onChange={(e) => handleChange("leader12", e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.leader12}
-                  helperText={
-                    errors.leader12 || "Enter the Leader @12 for this cell"
-                  }
-                />
-              </>
-            )}
-
+    {getAllHierarchyLevels().map((h) => (
+      <TextField
+        key={h.field}
+        label={`${h.label} *`}
+        value={formData[h.field] || ""}
+        onChange={(e) => handleChange(h.field, e.target.value)}
+        fullWidth
+        size="small"
+        sx={{ mb: 2, ...darkModeStyles.textField }}
+        error={!!errors[h.field]}
+        helperText={errors[h.field] || `Enter the ${h.label} for this event`}
+      />
+    ))}
+  </>
+)}
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
               {isTicketedEvent && (
                 <Chip label="Ticketed Event" color="warning" size="small" />

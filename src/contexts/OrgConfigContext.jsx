@@ -1,0 +1,105 @@
+// src/context/OrgConfigContext.jsx
+import React, { createContext, useContext, useEffect, useState } from "react";
+
+const OrgConfigContext = createContext(null);
+
+// Matches your EXACT current setup - zero breaking changes
+const DEFAULT_CONFIG = {
+  org_id: "active-teams",
+  org_name: "Active Teams",
+  recurring_event_type: "Cells",
+  hierarchy: [
+    { level: 1, field: "leader1",   label: "Leader @1"   },
+    { level: 2, field: "leader12",  label: "Leader @12"  },
+    { level: 3, field: "leader144", label: "Leader @144" }
+  ],
+  top_leaders: { male: "Gavin Enslin", female: "Vicky Enslin" },
+  allows_create_event: true,
+  allows_create_event_type: true,
+};
+
+export const OrgConfigProvider = ({ children }) => {
+  const [orgConfig, setOrgConfig]     = useState(DEFAULT_CONFIG);
+  const [configLoaded, setConfigLoaded] = useState(false);
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const token = localStorage.getItem("access_token");
+        if (!token) return;
+
+        const res = await fetch(`${BACKEND_URL}/org-config`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          setOrgConfig(data);
+          console.log("Loaded org config:", data.org_name);
+        }
+      } catch (err) {
+        console.warn("Using default org config:", err.message);
+      } finally {
+        setConfigLoaded(true);
+      }
+    };
+    load();
+  }, []);
+
+  // ── Helpers ────────────────────────────────────────────────
+
+  /** Label for a hierarchy level: getHierarchyLabel(2) → "Leader @12" or "District Leader" */
+  const getHierarchyLabel = (level) => {
+    const found = orgConfig.hierarchy?.find(h => h.level === level);
+    return found?.label || `Level ${level}`;
+  };
+
+  /** DB field for a level: getHierarchyField(2) → "leader12" */
+  const getHierarchyField = (level) => {
+    const found = orgConfig.hierarchy?.find(h => h.level === level);
+    return found?.field || `leader${level}`;
+  };
+
+  /** All hierarchy levels as array */
+  const getAllHierarchyLevels = () => orgConfig.hierarchy || DEFAULT_CONFIG.hierarchy;
+
+  /** Is this event type the recurring (cells-like) one? */
+  const isRecurringType = (eventTypeName) => {
+    if (!eventTypeName) return false;
+    const recurringType = orgConfig.recurring_event_type || "Cells";
+    return (
+      eventTypeName === "all" ||
+      eventTypeName.toLowerCase() === recurringType.toLowerCase() ||
+      eventTypeName.toLowerCase() === "cells" // backward compat
+    );
+  };
+
+  /** Can this org create new event types? */
+  const canCreateEventType = orgConfig.allows_create_event_type !== false;
+
+  /** Can this org create new events? */
+  const canCreateEvent = orgConfig.allows_create_event !== false;
+
+  return (
+    <OrgConfigContext.Provider value={{
+      orgConfig,
+      configLoaded,
+      getHierarchyLabel,
+      getHierarchyField,
+      getAllHierarchyLevels,
+      isRecurringType,
+      canCreateEventType,
+      canCreateEvent,
+      recurringEventType: orgConfig.recurring_event_type || "Cells",
+    }}>
+      {children}
+    </OrgConfigContext.Provider>
+  );
+};
+
+export const useOrgConfig = () => {
+  const ctx = useContext(OrgConfigContext);
+  if (!ctx) throw new Error("useOrgConfig must be inside OrgConfigProvider");
+  return ctx;
+};
