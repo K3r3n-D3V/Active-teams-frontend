@@ -16,8 +16,8 @@ const Home = () => {
       setShowWelcome(true);
       
       // Clear the flags immediately so it doesn't show again
-      localStorage.removeItem('showWelcome');
-      localStorage.removeItem('welcomeUserName');
+      // localStorage.removeItem('showWelcome');
+      // localStorage.removeItem('welcomeUserName');
     }
   }, []);
 
