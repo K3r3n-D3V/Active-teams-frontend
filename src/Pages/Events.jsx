@@ -515,7 +515,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       );
     },
   };
-// RECURRING column
+  // RECURRING column
   const recurringCol = {
     field: "recurring_info",
     headerName: "Recurring",
@@ -619,7 +619,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     return !(exactMatch || caseInsensitiveMatch || containsOverdue || containsDisplayDate || containsOriginated || containsLeader12 || shouldExcludeLeader1 || containsPersonSteps);
   });
 
-  const columns = [statusCol,recurringCol];
+  const columns = [statusCol, recurringCol];
   columns.push(
     ...filteredFields.map((key) => ({
       field: key,
@@ -760,42 +760,42 @@ ${xmlCols}
     }, 100);
   };
 
-const normalizeEventAttendance = (event) => {
-  if (!event) return [];
-  
-  const eventDate = event.date;
-  let attendees = [];
+  const normalizeEventAttendance = (event) => {
+    if (!event) return [];
 
-  // Check attendance object by date key first
-  if (event.attendance && typeof event.attendance === "object") {
-    const dateAttendance = event.attendance[eventDate];
-    if (dateAttendance) {
-      attendees = dateAttendance.attendees || [];
+    const eventDate = event.date;
+    let attendees = [];
+
+    // Check attendance object by date key first
+    if (event.attendance && typeof event.attendance === "object") {
+      const dateAttendance = event.attendance[eventDate];
+      if (dateAttendance) {
+        attendees = dateAttendance.attendees || [];
+      }
     }
-  }
 
-  if (attendees.length === 0) {
-    attendees = event.attendees || [];
-  }
+    if (attendees.length === 0) {
+      attendees = event.attendees || [];
+    }
 
-  if (attendees.length === 0) return [];
+    if (attendees.length === 0) return [];
 
-  return attendees.map((att) => ({
-    "Event Name": event.eventName || event["Event Name"] || "",
-    "Event Date": eventDate,
-    "Name": att.fullName || att.name || "",
-    "Email": att.email || "",
-    "Event Leader Name": event.eventLeaderName || event.Leader || "",
-    "Leader @12": event.leader12 || "",
-    "Phone": att.phone || "",
-    "Decision": att.decision || "",
-    "Price Tier": att.priceTier || "",
-    "Payment Method": att.paymentMethod || "",
-    "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-    "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-    "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-  }));
-};
+    return attendees.map((att) => ({
+      "Event Name": event.eventName || event["Event Name"] || "",
+      "Event Date": eventDate,
+      "Name": att.fullName || att.name || "",
+      "Email": att.email || "",
+      "Event Leader Name": event.eventLeaderName || event.Leader || "",
+      "Leader @12": event.leader12 || "",
+      "Phone": att.phone || "",
+      "Decision": att.decision || "",
+      "Price Tier": att.priceTier || "",
+      "Payment Method": att.paymentMethod || "",
+      "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
+      "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
+      "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
+    }));
+  };
 
   const fetchEventFull = async (event) => {
 
@@ -983,9 +983,10 @@ const isValidObjectId = (id) => {
   return /^[0-9a-fA-F]{24}$/.test(id);
 };
 const Events = () => {
-  const { authFetch, logout } = React.useContext(AuthContext);
- const { orgConfig } = useOrgConfig();
+ const { authFetch, logout } = React.useContext(AuthContext);
+const { orgConfig } = useOrgConfig();
 const isActiveTeams = orgConfig?.org_id === "active-teams";
+console.log("ORG CONFIG:===============", orgConfig?.org_id, "isActiveTeams:", isActiveTeams);
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
@@ -1025,7 +1026,9 @@ const isActiveTeams = orgConfig?.org_id === "active-teams";
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
 
   const [fabMenuOpen, setFabMenuOpen] = useState(false);
-  const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState("all");
+  const [selectedEventTypeFilter, setSelectedEventTypeFilter] = useState(
+    isActiveTeams ? "all" : ""
+  );
   const [rowsPerPage, setRowsPerPage] = useState(50);
   const [currentPage, setCurrentPage] = useState(1);
   const [editModalOpen, setEditModalOpen] = useState(false);
@@ -1197,18 +1200,18 @@ ${xmlCols}
       hasPersonSteps: false,
     };
   };
-const fetchInBatches = async (items, fn, batchSize = 6) => {
+  const fetchInBatches = async (items, fn, batchSize = 6) => {
     const results = [];
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
-  
+
       const res = await Promise.all(batch.map((it) => fn(it)));
       results.push(...res);
     }
     return results;
   };
 
-const downloadEventAttendance = async (event) => {
+  const downloadEventAttendance = async (event) => {
     const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
     try {
       toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
@@ -1244,43 +1247,43 @@ const downloadEventAttendance = async (event) => {
     }
   };
 
-const normalizeEventAttendance = (event) => {
-  if (!event) return [];
-  
-  const eventDate = event.date;
-  let attendees = [];
+  const normalizeEventAttendance = (event) => {
+    if (!event) return [];
 
-  // Check attendance object by date key first
-  if (event.attendance && typeof event.attendance === "object") {
-    const dateAttendance = event.attendance[eventDate];
-    if (dateAttendance) {
-      attendees = dateAttendance.attendees || [];
+    const eventDate = event.date;
+    let attendees = [];
+
+    // Check attendance object by date key first
+    if (event.attendance && typeof event.attendance === "object") {
+      const dateAttendance = event.attendance[eventDate];
+      if (dateAttendance) {
+        attendees = dateAttendance.attendees || [];
+      }
     }
-  }
 
-  // Fall back to top-level attendees
-  if (attendees.length === 0) {
-    attendees = event.attendees || [];
-  }
+    // Fall back to top-level attendees
+    if (attendees.length === 0) {
+      attendees = event.attendees || [];
+    }
 
-  if (attendees.length === 0) return [];
+    if (attendees.length === 0) return [];
 
-  return attendees.map((att) => ({
-    "Event Name": event.eventName || event["Event Name"] || "",
-    "Event Date": eventDate,
-    "Name": att.fullName || att.name || "",
-    "Email": att.email || "",
-    "Event Leader Name": event.eventLeaderName || event.Leader || "",
-    "Leader @12": event.leader12 || "",
-    "Phone": att.phone || "",
-    "Decision": att.decision || "",
-    "Price Tier": att.priceTier || "",
-    "Payment Method": att.paymentMethod || "",
-    "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-    "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-    "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-  }));
-};
+    return attendees.map((att) => ({
+      "Event Name": event.eventName || event["Event Name"] || "",
+      "Event Date": eventDate,
+      "Name": att.fullName || att.name || "",
+      "Email": att.email || "",
+      "Event Leader Name": event.eventLeaderName || event.Leader || "",
+      "Leader @12": event.leader12 || "",
+      "Phone": att.phone || "",
+      "Decision": att.decision || "",
+      "Price Tier": att.priceTier || "",
+      "Payment Method": att.paymentMethod || "",
+      "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
+      "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
+      "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
+    }));
+  };
 
   const fetchEventFull = async (event) => {
     try {
@@ -1444,10 +1447,10 @@ const normalizeEventAttendance = (event) => {
     return Math.min(currentPage * rowsPerPage, totalEvents);
   }, [currentPage, rowsPerPage, totalEvents]);
 
-const allEventTypes = useMemo(() => {
-  const typeNames = eventTypes.map((t) => (typeof t === "string" ? t : t.name));
-  return isActiveTeams ? ["all", ...typeNames] : typeNames;
-}, [eventTypes, isActiveTeams]);
+  const allEventTypes = useMemo(() => {
+    const typeNames = eventTypes.map((t) => (typeof t === "string" ? t : t.name));
+    return isActiveTeams ? ["all", ...typeNames] : typeNames;
+  }, [eventTypes, isActiveTeams]);
 
 
   const fetchEventsFilters = (filters) => {
@@ -1474,16 +1477,10 @@ const allEventTypes = useMemo(() => {
     let endpoint = `${BACKEND_URL}/events`;
 
     const eventType = filters.event_type || selectedEventTypeFilter;
-    const isCellType =
-      !eventType ||
-      eventType === "CELLS" ||
-      eventType === "all" ||
-      eventType.toLowerCase() === "cells" ||
-      (eventType && eventType.toLowerCase().includes("cell"));
+    const isCellType = isActiveTeams && (!eventType || eventType === "CELLS" || eventType === "all" || eventType.toLowerCase() === "cells" || eventType.toLowerCase().includes("cell"));
 
     if (isCellType) {
       endpoint = `${BACKEND_URL}/events/cells`;
-
       params.firstName = userFirstName;
       params.userSurname = userSurname;
 
@@ -1607,12 +1604,12 @@ const allEventTypes = useMemo(() => {
       const isManager =
         role === "admin" || role === "leaderat12" || role === "registrant";
 
-   const filteredTypes = eventTypesData.filter((type) => {
-  if (isManager) return true;
-  const isGlobalType = type.isGlobal === true || type.isGlobal === "true";
-  const isOwner = type.userEmail?.toLowerCase() === email;
-  return type.isEventType === true && (isGlobalType || isOwner);
-});
+      const filteredTypes = eventTypesData.filter((type) => {
+        if (isManager) return true;
+        const isGlobalType = type.isGlobal === true || type.isGlobal === "true";
+        const isOwner = type.userEmail?.toLowerCase() === email;
+        return type.isEventType === true && (isGlobalType || isOwner);
+      });
 
       setEventTypes(filteredTypes);
       setCustomEventTypes(filteredTypes);
@@ -2332,46 +2329,46 @@ const allEventTypes = useMemo(() => {
   }, [selectedEventTypeFilter, selectedStatus, viewFilter]);
 
 
-const handleCaptureClick = useCallback(async (event) => {
-  try {
-    const token = localStorage.getItem("access_token");
-    let eventId = event._id || event.id;
-    const originalId = eventId; 
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
+  const handleCaptureClick = useCallback(async (event) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      let eventId = event._id || event.id;
+      const originalId = eventId;
+      if (eventId && eventId.includes("_")) {
+        eventId = eventId.split("_")[0];
+      }
 
-    if (!eventId || eventId === "undefined") {
-      console.error("handleCaptureClick: no valid ID on event", event);
+      if (!eventId || eventId === "undefined") {
+        console.error("handleCaptureClick: no valid ID on event", event);
+        setSelectedEvent(event);
+        setAttendanceModalOpen(true);
+        return;
+      }
+
+      const response = await fetch(`${BACKEND_URL}/events/${eventId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        console.error("Failed to fetch full event, using local event data");
+        setSelectedEvent(event);
+        setAttendanceModalOpen(true);
+        return;
+      }
+      const fullEvent = await response.json();
+      const enrichedEvent = {
+        ...event,
+        ...fullEvent,
+        _id: originalId,
+        original_event_id: eventId,
+      };
+      setSelectedEvent(enrichedEvent);
+      setAttendanceModalOpen(true);
+    } catch (err) {
+      console.error("Failed to fetch full event:", err);
       setSelectedEvent(event);
       setAttendanceModalOpen(true);
-      return;
     }
-
-    const response = await fetch(`${BACKEND_URL}/events/${eventId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!response.ok) {
-      console.error("Failed to fetch full event, using local event data");
-      setSelectedEvent(event); 
-      setAttendanceModalOpen(true);
-      return;
-    }
-    const fullEvent = await response.json();
-    const enrichedEvent = {
-      ...event,           
-      ...fullEvent,      
-      _id: originalId,   
-      original_event_id: eventId,  
-    };
-    setSelectedEvent(enrichedEvent);
-    setAttendanceModalOpen(true);
-  } catch (err) {
-    console.error("Failed to fetch full event:", err);
-    setSelectedEvent(event); 
-    setAttendanceModalOpen(true);
-  }
-}, [BACKEND_URL]);
+  }, [BACKEND_URL]);
 
   const handleCloseCreateEventModal = useCallback(
     (shouldRefresh = false) => {
@@ -2767,112 +2764,112 @@ const handleCaptureClick = useCallback(async (event) => {
     ],
   );
 
-const handleCloseEditModal = useCallback(
-  async (shouldRefresh = false, updatedEventData = null) => {
-    setEditModalOpen(false);
+  const handleCloseEditModal = useCallback(
+    async (shouldRefresh = false, updatedEventData = null) => {
+      setEditModalOpen(false);
 
-    if (shouldRefresh) {
-      // Read selectedEvent BEFORE clearing it
-      const originalDay = selectedEvent?.Day || selectedEvent?.day;
-      const newDay = updatedEventData?.Day || updatedEventData?.day;
+      if (shouldRefresh) {
+        // Read selectedEvent BEFORE clearing it
+        const originalDay = selectedEvent?.Day || selectedEvent?.day;
+        const newDay = updatedEventData?.Day || updatedEventData?.day;
 
-      if (originalDay && newDay && originalDay !== newDay) {
-        toast.info(
-          `Cell moved from ${originalDay} to ${newDay}!\n\nNote: The cell has been updated but may not appear in the current view. Check the ${newDay} filter to see it.`,
-          {
-            autoClose: 8000,
-            position: "top-center",
-          },
-        );
-      }
-      setSelectedEvent(null);
-      if (updatedEventData) {
-        setEvents((prev) =>
-          prev.map((ev) => {
-            const evId = ev._id?.includes("_") ? ev._id.split("_")[0] : ev._id;
-            const updatedId = updatedEventData._id?.includes("_")
-              ? updatedEventData._id.split("_")[0]
-              : updatedEventData._id;
-            if (evId === updatedId) {
-              return { ...ev, ...updatedEventData };
-            }
-            return ev;
-          }),
-        );
-      }
-
-      eventsCache.current = {};
-      if (cacheRef.current) {
-        cacheRef.current.data.clear();
-        cacheRef.current.timestamp.clear();
-      }
-
-      // Build refresh parameters
-      const refreshParams = {
-        page: currentPage,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        _t: Date.now(),
-        status: selectedStatus !== "all" ? selectedStatus : undefined,
-        event_type:
-          selectedEventTypeFilter === "all"
-            ? "CELLS"
-            : selectedEventTypeFilter,
-      };
-
-      if (searchQuery && searchQuery.trim()) {
-        refreshParams.search = searchQuery.trim();
-      }
-
-      if (
-        selectedEventTypeFilter === "all" ||
-        selectedEventTypeFilter === "CELLS"
-      ) {
-        if (isLeaderAt12) {
-          refreshParams.leader_at_12_view = true;
-          refreshParams.include_subordinate_cells = true;
-
-          if (currentUserLeaderAt1) {
-            refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
-          }
-
-          if (viewFilter === "personal") {
-            refreshParams.show_personal_cells = true;
-            refreshParams.personal = true;
-          } else {
-            refreshParams.show_all_authorized = true;
-          }
-        } else if (isAdmin && viewFilter === "personal") {
-          refreshParams.personal = true;
+        if (originalDay && newDay && originalDay !== newDay) {
+          toast.info(
+            `Cell moved from ${originalDay} to ${newDay}!\n\nNote: The cell has been updated but may not appear in the current view. Check the ${newDay} filter to see it.`,
+            {
+              autoClose: 8000,
+              position: "top-center",
+            },
+          );
         }
+        setSelectedEvent(null);
+        if (updatedEventData) {
+          setEvents((prev) =>
+            prev.map((ev) => {
+              const evId = ev._id?.includes("_") ? ev._id.split("_")[0] : ev._id;
+              const updatedId = updatedEventData._id?.includes("_")
+                ? updatedEventData._id.split("_")[0]
+                : updatedEventData._id;
+              if (evId === updatedId) {
+                return { ...ev, ...updatedEventData };
+              }
+              return ev;
+            }),
+          );
+        }
+
+        eventsCache.current = {};
+        if (cacheRef.current) {
+          cacheRef.current.data.clear();
+          cacheRef.current.timestamp.clear();
+        }
+
+        // Build refresh parameters
+        const refreshParams = {
+          page: currentPage,
+          limit: rowsPerPage,
+          start_date: DEFAULT_API_START_DATE,
+          _t: Date.now(),
+          status: selectedStatus !== "all" ? selectedStatus : undefined,
+          event_type:
+            selectedEventTypeFilter === "all"
+              ? "CELLS"
+              : selectedEventTypeFilter,
+        };
+
+        if (searchQuery && searchQuery.trim()) {
+          refreshParams.search = searchQuery.trim();
+        }
+
+        if (
+          selectedEventTypeFilter === "all" ||
+          selectedEventTypeFilter === "CELLS"
+        ) {
+          if (isLeaderAt12) {
+            refreshParams.leader_at_12_view = true;
+            refreshParams.include_subordinate_cells = true;
+
+            if (currentUserLeaderAt1) {
+              refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+            }
+
+            if (viewFilter === "personal") {
+              refreshParams.show_personal_cells = true;
+              refreshParams.personal = true;
+            } else {
+              refreshParams.show_all_authorized = true;
+            }
+          } else if (isAdmin && viewFilter === "personal") {
+            refreshParams.personal = true;
+          }
+        }
+
+        Object.keys(refreshParams).forEach(
+          (key) =>
+            (refreshParams[key] === undefined || refreshParams[key] === "") &&
+            delete refreshParams[key],
+        );
+
+        await fetchEvents(refreshParams, true);
+      } else {
+        setSelectedEvent(null);
       }
-
-      Object.keys(refreshParams).forEach(
-        (key) =>
-          (refreshParams[key] === undefined || refreshParams[key] === "") &&
-          delete refreshParams[key],
-      );
-
-      await fetchEvents(refreshParams, true);
-    } else {
-      setSelectedEvent(null);
-    }
-  },
-  [
-    selectedEvent,
-    currentPage,
-    rowsPerPage,
-    selectedStatus,
-    searchQuery,
-    selectedEventTypeFilter,
-    fetchEvents,
-    DEFAULT_API_START_DATE,
-    isLeaderAt12,
-    currentUserLeaderAt1,
-    viewFilter,
-    isAdmin,
-  ],
-);
+    },
+    [
+      selectedEvent,
+      currentPage,
+      rowsPerPage,
+      selectedStatus,
+      searchQuery,
+      selectedEventTypeFilter,
+      fetchEvents,
+      DEFAULT_API_START_DATE,
+      isLeaderAt12,
+      currentUserLeaderAt1,
+      viewFilter,
+      isAdmin,
+    ],
+  );
 
   const handleCloseEventTypesModal = useCallback(() => {
     setEventTypesModalOpen(false);
@@ -3075,20 +3072,20 @@ const handleCloseEditModal = useCallback(
     setSelectedEventTypeObj,
   ]);
 
- const handlePageChange = useCallback(
-  (newPage) => {
-    const cacheKey = `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
-    const cached = eventsCache.current[cacheKey];
+  const handlePageChange = useCallback(
+    (newPage) => {
+      const cacheKey = `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
+      const cached = eventsCache.current[cacheKey];
 
-    setCurrentPage(newPage);
+      setCurrentPage(newPage);
 
-    if (cached) {
-      const skip = (newPage - 1) * rowsPerPage;
-      setEvents(cached.slice(skip, skip + rowsPerPage)); 
-    }
-  },
-  [selectedEventTypeFilter, selectedStatus, viewFilter, rowsPerPage]
-);
+      if (cached) {
+        const skip = (newPage - 1) * rowsPerPage;
+        setEvents(cached.slice(skip, skip + rowsPerPage));
+      }
+    },
+    [selectedEventTypeFilter, selectedStatus, viewFilter, rowsPerPage]
+  );
   const handleNextPage = useCallback(() => {
     if (currentPage < totalPages && !isLoading) {
       handlePageChange(currentPage + 1);
@@ -3402,20 +3399,20 @@ const handleCloseEditModal = useCallback(
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         const allFetched = data.events || [];
-      //Events sort day order
+        //Events sort day order
 
-allFetched.sort((a, b) => {
-  const aOverdue = a._is_overdue || false;
-  const bOverdue = b._is_overdue || false;
+        allFetched.sort((a, b) => {
+          const aOverdue = a._is_overdue || false;
+          const bOverdue = b._is_overdue || false;
 
-  if (aOverdue !== bOverdue) return aOverdue ? 1 : -1;
-  return new Date(b.date) - new Date(a.date);
-});
+          if (aOverdue !== bOverdue) return aOverdue ? 1 : -1;
+          return new Date(b.date) - new Date(a.date);
+        });
         eventsCache.current[cacheKey] = allFetched;
         setTotalEvents(allFetched.length);
         setTotalPages(Math.ceil(allFetched.length / rowsPerPage) || 1);
         setCurrentPage(1);
-        setEvents(allFetched.slice(0, rowsPerPage)); 
+        setEvents(allFetched.slice(0, rowsPerPage));
       } catch (error) {
         console.error("Fetch error:", error);
         setEvents([]);
@@ -3964,27 +3961,22 @@ allFetched.sort((a, b) => {
           : "0 2px 4px rgba(0,0,0,0.1)",
       },
     };
-const allTypes = useMemo(() => {
+   const allTypes = useMemo(() => {
+console.log("orgConfig org_id:", orgConfig?.org_id, "isActiveTeams:", isActiveTeams);
   const availableTypes = filteredEventTypes;
-  const shouldSeeAll =
-    computedIsAdmin ||
-    computedIsLeaderAt12 ||
-    computedIsLeader ||
-    computedIsRegistrant ||
-    computedIsRegularUser;
+  const shouldSeeAll = computedIsAdmin || computedIsLeaderAt12 || computedIsLeader || computedIsRegistrant || computedIsRegularUser;
 
   if (isActiveTeams && shouldSeeAll) {
     return ["all", ...availableTypes];
   }
-
   return availableTypes;
 }, [filteredEventTypes, computedIsAdmin, computedIsLeaderAt12, computedIsLeader, computedIsRegistrant, computedIsRegularUser, isActiveTeams]);
 
-const getDisplayName = (type) => {
-  if (!type) return "";
-  if (type === "all") return "ALL CELLS";  // ← shows for ALL orgs
-  return typeof type === "string" ? type : type.name || String(type);
-};
+    const getDisplayName = (type) => {
+      if (!type) return "";
+      if (type === "all") return isActiveTeams ? "ALL CELLS" : "All Events";
+      return typeof type === "string" ? type : type.name || String(type);
+    };
 
     const getTypeValue = (type) => {
       if (type === "all") return "all";
@@ -4065,7 +4057,7 @@ const getDisplayName = (type) => {
           <div style={eventTypeStyles.selectedTypeDisplay}>
             <span>•</span>
             <span>
-            {getDisplayName(selectedEventTypeFilter)}
+              {getDisplayName(selectedEventTypeFilter)}
             </span>
           </div>
 
@@ -4987,8 +4979,8 @@ const getDisplayName = (type) => {
                         "& .MuiDataGrid-cell": {
                           alignItems: "center",
                           borderBottom: `1px solid ${isDarkMode
-                              ? "rgba(255,255,255,0.1)"
-                              : "rgba(0,0,0,0.08)"
+                            ? "rgba(255,255,255,0.1)"
+                            : "rgba(0,0,0,0.08)"
                             }`,
                           color: isDarkMode
                             ? theme.palette.text.primary
@@ -5875,14 +5867,14 @@ const getDisplayName = (type) => {
           </Box>
         </Box>
       )}
-<EditEventModal
-  isOpen={editModalOpen}
-  onClose={(shouldRefresh = false, updatedEventData = null) => {
-    handleCloseEditModal(shouldRefresh, updatedEventData);
-  }}
-  event={selectedEvent}
-  token={token}
-/>
+      <EditEventModal
+        isOpen={editModalOpen}
+        onClose={(shouldRefresh = false, updatedEventData = null) => {
+          handleCloseEditModal(shouldRefresh, updatedEventData);
+        }}
+        event={selectedEvent}
+        token={token}
+      />
 
       <Dialog
         open={confirmDeleteOpen}
