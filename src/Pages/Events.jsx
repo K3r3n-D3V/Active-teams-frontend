@@ -983,10 +983,12 @@ const isValidObjectId = (id) => {
   return /^[0-9a-fA-F]{24}$/.test(id);
 };
 const Events = () => {
- const { authFetch, logout } = React.useContext(AuthContext);
-const { orgConfig } = useOrgConfig();
-const isActiveTeams = orgConfig?.org_id === "active-teams";
+  const { authFetch, logout } = React.useContext(AuthContext);
+  const { orgConfig, configLoaded } = useOrgConfig();
+  const isActiveTeams = configLoaded && orgConfig?.org_id === "active-teams";
+
 console.log("ORG CONFIG:===============", orgConfig?.org_id, "isActiveTeams:", isActiveTeams);
+
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
@@ -1737,6 +1739,7 @@ ${xmlCols}
       });
     }
   };
+  
 
   const EventTypeGridView = ({
     eventTypes,
@@ -3311,28 +3314,28 @@ ${xmlCols}
     fetchEventTypes();
   }, [fetchEventTypes]);
 
-  useEffect(() => {
-    const savedEventTypes = localStorage.getItem("customEventTypes");
-    if (savedEventTypes) {
-      try {
-        const parsed = JSON.parse(savedEventTypes);
-        setCustomEventTypes(parsed);
-        setUserCreatedEventTypes(parsed);
-        setEventTypes(parsed.map((type) => type.name));
-      } catch (error) {
-        console.error("Error parsing saved event types:", error);
-      }
-    }
-  }, []);
+  // useEffect(() => {
+  //   const savedEventTypes = localStorage.getItem("customEventTypes");
+  //   if (savedEventTypes) {
+  //     try {
+  //       const parsed = JSON.parse(savedEventTypes);
+  //       setCustomEventTypes(parsed);
+  //       setUserCreatedEventTypes(parsed);
+  //       setEventTypes(parsed.map((type) => type.name));
+  //     } catch (error) {
+  //       console.error("Error parsing saved event types:", error);
+  //     }
+  //   }
+  // }, []);
 
-  useEffect(() => {
-    if (customEventTypes.length > 0) {
-      localStorage.setItem(
-        "customEventTypes",
-        JSON.stringify(customEventTypes),
-      );
-    }
-  }, [customEventTypes]);
+  // useEffect(() => {
+  //   if (customEventTypes.length > 0) {
+  //     localStorage.setItem(
+  //       "customEventTypes",
+  //       JSON.stringify(customEventTypes),
+  //     );
+  //   }
+  // }, [customEventTypes]);
 
   useEffect(() => {
     if (!selectedEventTypeFilter || !showingEvents) return;
@@ -3826,6 +3829,7 @@ ${xmlCols}
     const [menuAnchor, setMenuAnchor] = useState(null);
     const [selectedTypeForMenu, setSelectedTypeForMenu] = useState(null);
     const [isCollapsed, setIsCollapsed] = useState(false);
+    
     const theme = useTheme();
     const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
     const isDarkMode = theme.palette.mode === "dark";

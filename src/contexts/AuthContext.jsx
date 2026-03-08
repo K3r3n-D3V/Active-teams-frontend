@@ -87,7 +87,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = useCallback(() => {
+const logout = useCallback(() => {
     localStorage.removeItem(KEY_ACCESS);
     localStorage.removeItem(KEY_REFRESH);
     localStorage.removeItem(KEY_REFRESH_ID);
@@ -95,6 +95,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem(KEY_PROFILE_PIC);
     localStorage.removeItem(KEY_LEADERS);
     localStorage.removeItem(KEY_IS_LEADER);
+    localStorage.removeItem("customEventTypes");  
+    localStorage.removeItem("eventTypeMap");       
     setUser(null);
     setLeaders(null);
     setIsLeader(false);
@@ -147,6 +149,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem(KEY_ACCESS, data.access_token);
     localStorage.setItem(KEY_REFRESH, data.refresh_token);
     localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
+    window.location.reload();
+
     
     return true;
   } catch (e) {
@@ -228,23 +232,25 @@ export const AuthProvider = ({ children }) => {
   }
 }, [refreshInProgress, attemptRefresh, logout]);
 
-  const login = async (email, password) => {
+const login = async (email, password) => {
+    localStorage.removeItem("customEventTypes");
+    localStorage.removeItem("eventTypeMap");
+
     const res = await fetch(`${BACKEND_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Login failed');
     }
-
     const data = await res.json();
     
     localStorage.setItem(KEY_ACCESS, data.access_token);
     localStorage.setItem(KEY_REFRESH, data.refresh_token);
     localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
+    window.location.reload();
     
     const mergedUserData = {
       ...data.user,
@@ -259,7 +265,6 @@ export const AuthProvider = ({ children }) => {
     if (userWithAvatar.profile_picture) {
       localStorage.setItem(KEY_PROFILE_PIC, userWithAvatar.profile_picture);
     }
-
     setUser(userWithAvatar);
     setIsAuthenticated(true);
     

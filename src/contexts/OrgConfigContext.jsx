@@ -1,12 +1,9 @@
-// src/context/OrgConfigContext.jsx
 import React, { createContext, useContext, useEffect, useState } from "react";
-
 const OrgConfigContext = createContext(null);
 
-// Matches your EXACT current setup - zero breaking changes
 const DEFAULT_CONFIG = {
-  org_id: "active-teams",
-  org_name: "Active Teams",
+  org_id: null,  
+  org_name: "",
   recurring_event_type: "Cells",
   hierarchy: [
     { level: 1, field: "leader1",   label: "Leader @1"   },
@@ -19,20 +16,23 @@ const DEFAULT_CONFIG = {
 };
 
 export const OrgConfigProvider = ({ children }) => {
-  const [orgConfig, setOrgConfig]     = useState(DEFAULT_CONFIG);
+  const [orgConfig, setOrgConfig] = useState(DEFAULT_CONFIG);  
   const [configLoaded, setConfigLoaded] = useState(false);
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
+  const token = localStorage.getItem("access_token");
 
   useEffect(() => {
     const load = async () => {
+      setConfigLoaded(false);
+      setOrgConfig(DEFAULT_CONFIG);
       try {
-        const token = localStorage.getItem("access_token");
-        if (!token) return;
-
+        if (!token) {
+          setConfigLoaded(true);
+          return;
+        }
         const res = await fetch(`${BACKEND_URL}/org-config`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-
         if (res.ok) {
           const data = await res.json();
           setOrgConfig(data);
@@ -40,46 +40,34 @@ export const OrgConfigProvider = ({ children }) => {
         }
       } catch (err) {
         console.warn("Using default org config:", err.message);
+        setOrgConfig(DEFAULT_CONFIG);
       } finally {
         setConfigLoaded(true);
       }
     };
     load();
-  }, []);
+  }, [token]);
 
-  // ── Helpers ────────────────────────────────────────────────
-
-  /** Label for a hierarchy level: getHierarchyLabel(2) → "Leader @12" or "District Leader" */
   const getHierarchyLabel = (level) => {
-    const found = orgConfig.hierarchy?.find(h => h.level === level);
+    const found = orgConfig?.hierarchy?.find(h => h.level === level);
     return found?.label || `Level ${level}`;
   };
-
-  /** DB field for a level: getHierarchyField(2) → "leader12" */
   const getHierarchyField = (level) => {
-    const found = orgConfig.hierarchy?.find(h => h.level === level);
+    const found = orgConfig?.hierarchy?.find(h => h.level === level);
     return found?.field || `leader${level}`;
   };
-
-  /** All hierarchy levels as array */
-  const getAllHierarchyLevels = () => orgConfig.hierarchy || DEFAULT_CONFIG.hierarchy;
-
-  /** Is this event type the recurring (cells-like) one? */
+  const getAllHierarchyLevels = () => orgConfig?.hierarchy || DEFAULT_CONFIG.hierarchy;
   const isRecurringType = (eventTypeName) => {
     if (!eventTypeName) return false;
-    const recurringType = orgConfig.recurring_event_type || "Cells";
+    const recurringType = orgConfig?.recurring_event_type || "Cells";
     return (
       eventTypeName === "all" ||
       eventTypeName.toLowerCase() === recurringType.toLowerCase() ||
-      eventTypeName.toLowerCase() === "cells" // backward compat
+      eventTypeName.toLowerCase() === "cells"
     );
   };
-
-  /** Can this org create new event types? */
-  const canCreateEventType = orgConfig.allows_create_event_type !== false;
-
-  /** Can this org create new events? */
-  const canCreateEvent = orgConfig.allows_create_event !== false;
+  const canCreateEventType = orgConfig?.allows_create_event_type !== false;
+  const canCreateEvent = orgConfig?.allows_create_event !== false;
 
   return (
     <OrgConfigContext.Provider value={{
@@ -91,7 +79,7 @@ export const OrgConfigProvider = ({ children }) => {
       isRecurringType,
       canCreateEventType,
       canCreateEvent,
-      recurringEventType: orgConfig.recurring_event_type || "Cells",
+      recurringEventType: orgConfig?.recurring_event_type || "Cells",
     }}>
       {children}
     </OrgConfigContext.Provider>
