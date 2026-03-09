@@ -25,7 +25,6 @@ export const AuthProvider = ({ children }) => {
   const [refreshInProgress, setRefreshInProgress] = useState(false);
   const [leaders, setLeaders] = useState(null);
   const [isLeader, setIsLeader] = useState(false);
-
   const getDefaultAvatar = (userData) => {
     if (!userData) return DEFAULT_AVATARS.neutral;
     const gender = userData.gender?.toLowerCase();
@@ -235,7 +234,7 @@ const logout = useCallback(() => {
 const login = async (email, password) => {
     localStorage.removeItem("customEventTypes");
     localStorage.removeItem("eventTypeMap");
-
+    
     const res = await fetch(`${BACKEND_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -250,15 +249,9 @@ const login = async (email, password) => {
     localStorage.setItem(KEY_ACCESS, data.access_token);
     localStorage.setItem(KEY_REFRESH, data.refresh_token);
     localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
-    window.location.reload();
     
-    const mergedUserData = {
-      ...data.user,
-      ...(data.leaders || {})
-    };
-    
+    const mergedUserData = { ...data.user, ...(data.leaders || {}) };
     const userWithAvatar = ensureUserWithAvatar(mergedUserData);
-    
     persistUser(userWithAvatar);
     persistLeadersData(data.leaders, data.isLeader);
     
@@ -267,6 +260,8 @@ const login = async (email, password) => {
     }
     setUser(userWithAvatar);
     setIsAuthenticated(true);
+    
+    window.location.reload();  // ← AFTER everything is saved
     
     return data;
   };

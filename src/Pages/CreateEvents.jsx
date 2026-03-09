@@ -386,7 +386,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
 
     try {
       setIsSearchingPeople(true);
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
 
       const res = await fetch(
         `${BACKEND_URL}/people/search-fast?query=${encodeURIComponent(q.trim())}&limit=10`,
@@ -739,7 +739,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
 
       console.log("Final Payload:", payload);
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const headers = {
         Authorization: token ? `Bearer ${token}` : "",
         "Content-Type": "application/json",

@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
-
+import { useOrgConfig } from "../contexts/OrgConfigContext";
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
@@ -1409,6 +1409,7 @@ const AttendanceModal = ({
   currentUser,
 }) => {
   const { authFetch } = useContext(AuthContext);
+  const { getHierarchyLabel } = useOrgConfig();  
   const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
@@ -3075,8 +3076,8 @@ const filteredPeople = people.filter(person =>
                         <tr>
                           <th style={styles.th}>Attendees Name</th>
                           <th style={styles.th}>Attendees Email</th>
-                          <th style={styles.th}>Attendees Leader @12</th>
-                          <th style={styles.th}>Attendees Leader @144</th>
+                     <th style={styles.th}>Attendees {getHierarchyLabel(2)}</th>
+<th style={styles.th}>Attendees {getHierarchyLabel(3)}</th>
                           <th style={styles.th}>Attendees Number</th>
                           {isTicketedEvent && (
                             <>
@@ -3387,7 +3388,7 @@ const filteredPeople = people.filter(person =>
                             <div style={styles.mobileCardInfo}>
                               <div style={styles.mobileCardName}>{person.fullName}</div>
                               <div style={styles.mobileCardEmail}>{person.email}</div>
-                              <div style={{ fontSize: "12px", color: "#666" }}>Leader @12: {person.leader12}</div>
+                              <div style={{ fontSize: "12px", color: "#666" }}>{getHierarchyLabel(2)}: {person.leader12}</div>
                               <div style={{ fontSize: "12px", color: "#666" }}>Phone: {person.phone}</div>
                             </div>
                             <button
@@ -3410,8 +3411,8 @@ const filteredPeople = people.filter(person =>
                         <tr>
                           <th style={styles.th}>Name</th>
                           <th style={styles.th}>Email</th>
-                          <th style={styles.th}>Leader @12</th>
-                          <th style={styles.th}>Leader @144</th>
+                         <th style={styles.th}>{getHierarchyLabel(2)}</th>
+<th style={styles.th}>{getHierarchyLabel(3)}</th>
                           <th style={styles.th}>Phone</th>
                           <th style={{ ...styles.th, textAlign: "center" }}>Add</th>
                         </tr>
