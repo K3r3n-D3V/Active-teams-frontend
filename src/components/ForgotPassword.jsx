@@ -159,7 +159,7 @@ const ForgotPassword = ({ mode }) => {
             {error}
           </Typography>
         )}
-
+        {/* Submit Button */}
         <Button
           type="submit"
           variant="contained"
