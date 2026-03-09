@@ -55,23 +55,34 @@ const uniformInputSx = {
   },
 };
 
+const capitaliseWords = (str) =>
+  str
+    .split(" ")
+    .map((word) => (word ? word[0].toUpperCase() + word.slice(1).toLowerCase() : ""))
+    .join(" ");
+
+const digitsOnly = (str) => str.replace(/[^\d+]/g, "");
+
 const useDebounce = (value, delay) => {
   const [debouncedValue, setDebouncedValue] = useState(value);
-
   useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value);
-    }, delay);
-
-    return () => {
-      clearTimeout(handler);
-    };
+    const handler = setTimeout(() => setDebouncedValue(value), delay);
+    return () => clearTimeout(handler);
   }, [value, delay]);
-
   return debouncedValue;
 };
 
-export default function AddPersonDialog({ open, onClose, onSave, formData, setFormData, isEdit = false, personId = null }) {
+export default function AddPersonDialog({
+  open,
+  onClose,
+  onSave,
+  formData,
+  setFormData,
+  isEdit = false,
+  personId = null,
+  currentEventId,
+  preloadedPeople = []
+}) {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const { authFetch } = useContext(AuthContext);
@@ -84,11 +95,13 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     invitedBy: "",
     leader1: "",
     leader12: "",
-    leader144: ""
+    leader144: "",
   });
   const [showLeaderFields, setShowLeaderFields] = useState(false);
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+
+  const [originalFormData, setOriginalFormData] = useState(null);
 
   const debouncedAddressInput = useDebounce(searchInputs.address || "", 500);
 
@@ -96,40 +109,36 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     if (!open) {
       setIsSubmitting(false);
       setErrors({});
-      setSearchInputs({
-        invitedBy: "",
-        leader1: "",
-        leader12: "",
-        leader144: ""
-      });
+      setSearchInputs({ invitedBy: "", leader1: "", leader12: "", leader144: "" });
       setShowLeaderFields(false);
+      setOriginalFormData(null);
     }
   }, [open]);
 
-  const fetchFullPerson = useCallback(async (id) => {
-    if (!id || !isEdit) return null;
-    try {
-      const response = await authFetch(`${BASE_URL}/people/${id}`);
-      if (response.ok) {
-        return await response.json();
+  const fetchFullPerson = useCallback(
+    async (id) => {
+      if (!id || !isEdit) return null;
+      try {
+        const response = await authFetch(`${BASE_URL}/people/${id}`);
+        if (response.ok) return await response.json();
+      } catch (err) {
+        console.error("Full fetch error:", err);
       }
-    } catch (err) {
-      console.error('Full fetch error:', err);
-    }
-    return null;
-  }, [authFetch, isEdit]);
+      return null;
+    },
+    [authFetch, isEdit]
+  );
 
   useEffect(() => {
     if (open && isEdit && personId) {
       const initForm = async () => {
         const fullPerson = await fetchFullPerson(personId);
-
         let initData;
         if (fullPerson) {
           initData = {
             name: fullPerson.Name || "",
             surname: fullPerson.Surname || "",
-            dob: fullPerson.Birthday ? fullPerson.Birthday.replace(/\//g, '-') : "",
+            dob: fullPerson.Birthday ? fullPerson.Birthday.replace(/\//g, "-") : "",
             address: fullPerson.Address || "",
             email: fullPerson.Email || "",
             number: fullPerson.Number || "",
@@ -143,40 +152,61 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         } else {
           initData = initialFormState;
         }
-
-        const hasLeaderData = initData.leader1 || initData.leader12 || initData.leader144;
-        setShowLeaderFields(hasLeaderData);
+        setShowLeaderFields(!!(initData.leader1 || initData.leader12 || initData.leader144));
         setFormData(initData);
+        setOriginalFormData(initData);
       };
       initForm();
     }
   }, [open, isEdit, personId, fetchFullPerson]);
 
-  const peopleOptions = useMemo(() => {
-    return peopleList.map(person => {
-      const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
-      return {
-        label: fullName,
-        person,
-        FullName: person.FullName || fullName,
-        Email: person.Email || "",
-        searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase()
-      };
-    });
-  }, [peopleList]);
+  const peopleOptions = useMemo(
+    () =>
+      peopleList.map((person) => {
+        const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
+        return {
+          label: fullName,
+          person,
+          FullName: person.FullName || fullName,
+          Email: person.Email || "",
+          searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase(),
+        };
+      }),
+    [peopleList]
+  );
 
   useEffect(() => {
     if (!open) return;
+
+    if (preloadedPeople && preloadedPeople.length > 0) {
+      const converted = preloadedPeople.map(p => ({
+        _id: p._id,
+        Name: p.name || "",
+        Surname: p.surname || "",
+        Email: p.email || "",
+        Number: p.number || p.phone || "",
+        Gender: p.gender || "",
+        Address: p.address || "",
+        Birthday: p.birthday || "",
+        InvitedBy: p.invitedBy || "",
+        "Leader @1": p.leader1 || "",
+        "Leader @12": p.leader12 || "",
+        "Leader @144": p.leader144 || "",
+        Stage: p.stage || "",
+        FullName: p.fullName || `${p.name || ''} ${p.surname || ''}`.trim()
+      }));
+      setPeopleList(converted);
+      setIsLoadingPeople(false);
+      return;
+    }
 
     const fetchAllPeople = async () => {
       setIsLoadingPeople(true);
       try {
         const response = await authFetch(`${BASE_URL}/cache/people`);
-
         if (response.ok) {
           const data = await response.json();
-          const cachedData = data.cached_data || [];
-          setPeopleList(cachedData);
+          setPeopleList(data.cached_data || []);
         } else {
           await fetchPeopleFallback();
         }
@@ -194,164 +224,130 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           const data = await response.json();
           setPeopleList(data.results || []);
         }
-      } catch (fallbackErr) {
+      } catch {
         setPeopleList([]);
       }
     };
 
     fetchAllPeople();
-  }, [open, authFetch]);
+  }, [open, preloadedPeople, authFetch]);
 
   useEffect(() => {
     if (!debouncedAddressInput || debouncedAddressInput.length < 3) {
       setAddressSuggestions([]);
       return;
     }
-
-    // If the Geoapify API key is not configured, skip the request and
-    // keep suggestions empty. This prevents requests like apiKey=undefined
-    // which cause 401 responses in the console.
     if (!GEOAPIFY_API_KEY) {
-      console.warn('VITE_GEOAPIFY_API_KEY is not set; address autocomplete disabled.');
       setAddressSuggestions([]);
       setIsLoadingAddress(false);
       return;
     }
-
     const fetchAddresses = async () => {
       setIsLoadingAddress(true);
       try {
         const response = await fetch(
-          `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(
-            debouncedAddressInput
-          )}&apiKey=${GEOAPIFY_API_KEY}`
+          `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(debouncedAddressInput)}&apiKey=${GEOAPIFY_API_KEY}`
         );
-      
-        if (!response.ok) throw new Error('Failed to fetch addresses');
-      
+        if (!response.ok) throw new Error("Failed to fetch addresses");
         const data = await response.json();
-        const suggestions = data.features?.map(feature => ({
-          label: feature.properties.formatted,
-          address: feature.properties.formatted
-        })) || [];
-      
-        setAddressSuggestions(suggestions);
-      } catch (err) {
-        console.error('Geoapify error:', err);
+        setAddressSuggestions(
+          data.features?.map((f) => ({
+            label: f.properties.formatted,
+            address: f.properties.formatted,
+          })) || []
+        );
+      } catch {
         setAddressSuggestions([]);
       } finally {
         setIsLoadingAddress(false);
       }
     };
-
     fetchAddresses();
-  }, [debouncedAddressInput, GEOAPIFY_API_KEY]);
-
-
+  }, [debouncedAddressInput]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({ ...prev, [name]: value }));
-    setErrors(prev => ({ ...prev, [name]: "" }));
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const handleNameChange = (e) => {
+    const { name, value } = e.target;
+    const capitalised = capitaliseWords(value);
+    setFormData((prev) => ({ ...prev, [name]: capitalised }));
+    setErrors((prev) => ({ ...prev, [name]: "" }));
+  };
+
+  const handleNumberChange = (e) => {
+    const clean = digitsOnly(e.target.value);
+    setFormData((prev) => ({ ...prev, number: clean }));
+    setErrors((prev) => ({ ...prev, number: "" }));
   };
 
   const handleInvitedByChange = (value) => {
     if (!value) {
-      setFormData(prev => ({
-        ...prev,
-        invitedBy: "",
-        leader1: "",
-        leader12: "",
-        leader144: ""
-      }));
+      setFormData((prev) => ({ ...prev, invitedBy: "", leader1: "", leader12: "", leader144: "" }));
       setShowLeaderFields(false);
       return;
     }
-
     const label = typeof value === "string" ? value : value.label;
-
     const person = peopleList.find(
-      p => `${p.Name} ${p.Surname}`.trim() === label.trim() ||
+      (p) =>
+        `${p.Name} ${p.Surname}`.trim() === label.trim() ||
         p.FullName?.trim() === label.trim()
     );
-
     if (!person) {
-      setFormData(prev => ({
-        ...prev,
-        invitedBy: label,
-        leader1: "",
-        leader12: "",
-        leader144: ""
-      }));
+      setFormData((prev) => ({ ...prev, invitedBy: label, leader1: "", leader12: "", leader144: "" }));
       setShowLeaderFields(false);
       return;
     }
-
     const inviterName = `${person.Name || ""} ${person.Surname || ""}`.trim() || person.Email || label;
-
     let leader1 = person["Leader @1"] || "";
     let leader12 = person["Leader @12"] || "";
     let leader144 = person["Leader @144"] || "";
+    if (!leader1) leader1 = inviterName;
+    else if (!leader12) leader12 = inviterName;
+    else if (!leader144) leader144 = inviterName;
 
-    if (!leader1) {
-      leader1 = inviterName;
-    } else if (!leader12) {
-      leader12 = inviterName;
-    } else if (!leader144) {
-      leader144 = inviterName;
-    }
-
-    setFormData(prev => ({
-      ...prev,
-      invitedBy: label,
-      leader1: leader1,
-      leader12: leader12,
-      leader144: leader144
-    }));
-
-    const hasLeaderData = leader1 || leader12 || leader144;
-    setShowLeaderFields(hasLeaderData);
+    setFormData((prev) => ({ ...prev, invitedBy: label, leader1, leader12, leader144 }));
+    setShowLeaderFields(!!(leader1 || leader12 || leader144));
   };
 
   const handleSearchInputChange = (field, value) => {
-    setSearchInputs(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setSearchInputs((prev) => ({ ...prev, [field]: value }));
   };
 
   const filterOptions = useCallback((options, { inputValue }) => {
-    if (!inputValue) {
-      return options.slice(0, 30);
-    }
-
+    if (!inputValue) return options.slice(0, 30);
     const searchTerm = inputValue.toLowerCase();
     return options
-      .filter(option =>
-        option.searchText.includes(searchTerm) ||
-        option.label.toLowerCase().includes(searchTerm) ||
-        option.Email.toLowerCase().includes(searchTerm)
+      .filter(
+        (o) =>
+          o.searchText.includes(searchTerm) ||
+          o.label.toLowerCase().includes(searchTerm) ||
+          o.Email.toLowerCase().includes(searchTerm)
       )
       .slice(0, 50);
   }, []);
 
+  const hasChanges = useMemo(() => {
+    if (!isEdit || !originalFormData) return true;
+    return Object.keys(originalFormData).some(
+      (key) => (formData[key] || "") !== (originalFormData[key] || "")
+    );
+  }, [isEdit, formData, originalFormData]);
+
   const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
     const currentValue = formData[name] || "";
-
     return (
       <Autocomplete
         freeSolo
         disabled={disabled || isSubmitting || isLoadingPeople}
         options={peopleOptions}
-        getOptionLabel={(option) => {
-          if (typeof option === "string") return option;
-          return option.label;
-        }}
+        getOptionLabel={(option) => (typeof option === "string" ? option : option.label)}
         filterOptions={filterOptions}
         value={
-          peopleOptions.find(option =>
-            option.label === currentValue
-          ) ||
+          peopleOptions.find((o) => o.label === currentValue) ||
           (currentValue ? { label: currentValue } : null)
         }
         onChange={(e, newValue) => {
@@ -359,22 +355,15 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
             handleInvitedByChange(newValue);
           } else {
             const value = newValue ? (typeof newValue === "string" ? newValue : newValue.label) : "";
-            setFormData(prev => ({ ...prev, [name]: value }));
-
-            if (value && !showLeaderFields) {
-              setShowLeaderFields(true);
-            }
+            setFormData((prev) => ({ ...prev, [name]: value }));
+            if (value && !showLeaderFields) setShowLeaderFields(true);
           }
         }}
         onInputChange={(e, newInputValue, reason) => {
           handleSearchInputChange(name, newInputValue);
-
           if (reason === "input") {
-            setFormData(prev => ({ ...prev, [name]: newInputValue }));
-
-            if (newInputValue && !showLeaderFields) {
-              setShowLeaderFields(true);
-            }
+            setFormData((prev) => ({ ...prev, [name]: newInputValue }));
+            if (newInputValue && !showLeaderFields) setShowLeaderFields(true);
           }
         }}
         renderInput={(params) => (
@@ -402,6 +391,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     const { select, selectOptions, type, required, helperText } = options;
     const currentValue = formData[name] || "";
 
+    let onChange = handleInputChange;
+    if (name === "name" || name === "surname") onChange = handleNameChange;
+    if (name === "number") onChange = handleNumberChange;
+
     return (
       <TextField
         margin="normal"
@@ -412,37 +405,36 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         select={select}
         disabled={isSubmitting}
         value={currentValue}
-        onChange={handleInputChange}
+        onChange={onChange}
         error={!!errors[name]}
         helperText={errors[name] || helperText}
-        InputLabelProps={{
-          shrink: type === "date" || Boolean(currentValue)
-        }}
+        InputLabelProps={{ shrink: type === "date" || Boolean(currentValue) }}
+        inputProps={name === "number" ? { inputMode: "tel" } : undefined}
         sx={uniformInputSx}
       >
-        {select && selectOptions.map((opt) => (
-          <MenuItem key={opt} value={opt} sx={{ fontSize: "0.95rem" }}>
-            {opt}
-          </MenuItem>
-        ))}
+        {select &&
+          selectOptions.map((opt) => (
+            <MenuItem key={opt} value={opt} sx={{ fontSize: "0.95rem" }}>
+              {opt}
+            </MenuItem>
+          ))}
       </TextField>
     );
   };
 
   const validate = () => {
     const newErrors = {};
-    const requiredFields = [
-      'name', 'surname', 'dob', 'address', 'email', 'number', 'gender'
-    ];
-
+    const requiredFields = ["name", "surname", "dob", "address", "email", "number", "gender"];
     requiredFields.forEach((field) => {
-      if (!formData[field]?.trim()) {
-        newErrors[field] = 'This field is required';
-      }
+      if (!formData[field]?.trim()) newErrors[field] = "This field is required";
     });
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
+  };
+
+  const isFormValid = () => {
+    const requiredFields = ["name", "surname", "dob", "address", "email", "number", "gender"];
+    return requiredFields.every((f) => formData[f]?.toString().trim() !== "");
   };
 
   const handleSaveClick = async () => {
@@ -450,11 +442,9 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
     setIsSubmitting(true);
 
     try {
-      const leaders = [
-        formData.leader1 || "",
-        formData.leader12 || "",
-        formData.leader144 || ""
-      ].filter(leader => leader.trim() !== "");
+      const leaders = [formData.leader1 || "", formData.leader12 || "", formData.leader144 || ""].filter(
+        (l) => l.trim() !== ""
+      );
 
       const payload = {
         invitedBy: formData.invitedBy,
@@ -466,7 +456,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         phone: formData.number,
         dob: formData.dob.replace(/-/g, "/"),
         address: formData.address,
-        leaders: leaders,
+        leaders,
+        leader1: formData.leader1 || "",
+        leader12: formData.leader12 || "",
+        leader144: formData.leader144 || "",
         stage: formData.stage || "Win",
       };
 
@@ -491,15 +484,15 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
             gender: data.Gender || payload.gender,
             address: data.Address || payload.address,
             birthday: data.Birthday || payload.dob,
-            invitedBy: data.InvitedBy || payload.invitedBy,
-            leader1: data["Leader @1"] || "",
-            leader12: data["Leader @12"] || "",
-            leader144: data["Leader @144"] || "",
+            invitedBy: data.InvitedBy || payload.invitedBy || formData.invitedBy,
+            leader1: data["Leader @1"] ?? data.leader1 ?? formData.leader1 ?? "",
+            leader12: data["Leader @12"] ?? data.leader12 ?? formData.leader12 ?? "",
+            leader144: data["Leader @144"] ?? data.leader144 ?? formData.leader144 ?? "",
             stage: data.Stage || payload.stage || "Win",
-            fullName: `${data.Name || payload.name} ${data.Surname || payload.surname}`.trim()
+            fullName: `${data.Name || payload.name} ${data.Surname || payload.surname}`.trim(),
           };
 
-          onSave(normalizedData);
+          onSave({ ...normalizedData, __updatedNewPerson: true });
         } else {
           const errorData = await response.json();
           throw new Error(errorData.detail || "Update failed");
@@ -516,17 +509,11 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           const backendLeaders = {
             leader1: createdPerson["Leader @1"] || createdPerson.leader1 || "",
             leader12: createdPerson["Leader @12"] || createdPerson.leader12 || "",
-            leader144: createdPerson["Leader @144"] || createdPerson.leader144 || ""
+            leader144: createdPerson["Leader @144"] || createdPerson.leader144 || "",
           };
-
           onSave({
             ...data,
-            person: {
-              ...createdPerson,
-              leader1: backendLeaders.leader1,
-              leader12: backendLeaders.leader12,
-              leader144: backendLeaders.leader144
-            }
+            person: { ...createdPerson, ...backendLeaders },
           });
         } else {
           const errorData = await response.json();
@@ -534,13 +521,10 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
         }
       }
 
-      if (!isEdit) {
-        setFormData(initialFormState);
-      }
+      if (!isEdit) setFormData(initialFormState);
       onClose();
     } catch (err) {
-      const msg = err.message || "An error occurred";
-      toast.error(`Error: ${msg}`);
+      toast.error(`Error: ${err.message || "An error occurred"}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -548,23 +532,11 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
 
   const handleClose = () => {
     if (isSubmitting) return;
-    if (!isEdit) {
-      setFormData(initialFormState);
-    }
+    if (!isEdit) setFormData(initialFormState);
     onClose();
   };
 
-  const isFormValid = () => {
-    const requiredFields = ['name', 'surname', 'dob', 'address', 'email', 'number', 'gender'];
-    return requiredFields.every(field => {
-      const val = formData[field];
-      return val !== undefined && val !== null && val.toString().trim() !== "";
-    });
-  };
-
-  const toggleLeaderFields = () => {
-    setShowLeaderFields(!showLeaderFields);
-  };
+  const toggleLeaderFields = () => setShowLeaderFields((v) => !v);
 
   return (
     <Dialog
@@ -573,13 +545,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       maxWidth="md"
       fullWidth
       disableEscapeKeyDown={isSubmitting}
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          m: 2,
-          maxHeight: '90vh',
-        }
-      }}
+      PaperProps={{ sx: { borderRadius: 3, m: 2, maxHeight: "90vh" } }}
     >
       <DialogTitle sx={{ pb: 1 }}>
         <Typography variant="h5" component="div">
@@ -593,70 +559,66 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
             Please fill in all required fields
           </Alert>
         )}
-
-        {isLoadingPeople && (
+        {isLoadingPeople && peopleList.length === 0 && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            <Typography variant="body2">
-              Loading people data...
-            </Typography>
+            <Typography variant="body2">Loading people data...</Typography>
           </Alert>
         )}
 
         <Box>
-          {renderTextField('name', 'First Name *', { required: true })}
-          {renderTextField('surname', 'Last Name *', { required: true })}
-          {renderTextField('dob', 'Date of Birth *', {
-            type: 'date',
-            required: true
-          })}
-          {renderAutocomplete('invitedBy', 'Invited By', true, false)}
-        <Autocomplete
+          {renderTextField("name", "First Name *", { required: true })}
+          {renderTextField("surname", "Last Name *", { required: true })}
+          {renderTextField("dob", "Date of Birth *", { type: "date", required: true })}
+          {renderAutocomplete("invitedBy", "Invited By", true, false)}
+
+          {/* Address autocomplete */}
+          <Autocomplete
             freeSolo
             options={addressSuggestions}
-            getOptionLabel={(option) => {
-            if (typeof option === "string") return option;
-              return option.label || option.address || "";
-             }}
+            getOptionLabel={(option) =>
+              typeof option === "string" ? option : option.label || option.address || ""
+            }
             value={formData.address}
             onChange={(e, newValue) => {
-            const address = typeof newValue === "string" ? newValue : (newValue?.address || newValue?.label || "");
-            setFormData(prev => ({ ...prev, address }));
-            setErrors(prev => ({ ...prev, address: "" }));
-           }}
-           onInputChange={(e, newInputValue) => {
-           setSearchInputs(prev => ({ ...prev, address: newInputValue }));
-           setFormData(prev => ({ ...prev, address: newInputValue }));
-           setErrors(prev => ({ ...prev, address: "" }));
-           }}
-           loading={isLoadingAddress}
-           loadingText="Searching addresses..."
-           noOptionsText={debouncedAddressInput?.length < 3 ? "Type at least 3 characters" : "No addresses found"}
-           renderInput={(params) => (
-        <TextField
-          {...params}
-          label="Home Address *"
-          error={!!errors.address}
-          helperText={errors.address}
-          margin="normal"
-          fullWidth
-          sx={uniformInputSx}
-         />
-        )}
-        disabled={isSubmitting}
-        blurOnSelect
-        clearOnBlur={false}
-        />
-          {renderTextField('email', 'Email Address *', {
-            type: 'email',
-            required: true
-          })}
-          {renderTextField('number', 'Phone Number *', {
-            required: true
-          })}
-          {renderTextField('gender', 'Gender *', {
+              const address =
+                typeof newValue === "string"
+                  ? newValue
+                  : newValue?.address || newValue?.label || "";
+              setFormData((prev) => ({ ...prev, address }));
+              setErrors((prev) => ({ ...prev, address: "" }));
+            }}
+            onInputChange={(e, newInputValue) => {
+              setSearchInputs((prev) => ({ ...prev, address: newInputValue }));
+              setFormData((prev) => ({ ...prev, address: newInputValue }));
+              setErrors((prev) => ({ ...prev, address: "" }));
+            }}
+            loading={isLoadingAddress}
+            loadingText="Searching addresses…"
+            noOptionsText={
+              debouncedAddressInput?.length < 3 ? "Type at least 3 characters" : "No addresses found"
+            }
+            renderInput={(params) => (
+              <TextField
+                {...params}
+                label="Home Address *"
+                error={!!errors.address}
+                helperText={errors.address}
+                margin="normal"
+                fullWidth
+                sx={uniformInputSx}
+              />
+            )}
+            disabled={isSubmitting}
+            blurOnSelect
+            clearOnBlur={false}
+          />
+
+          {renderTextField("email", "Email Address *", { type: "email", required: true })}
+          {renderTextField("number", "Phone Number *", { required: true })}
+          {renderTextField("gender", "Gender *", {
             select: true,
-            selectOptions: ['Male', 'Female'],
-            required: true
+            selectOptions: ["Male", "Female"],
+            required: true,
           })}
 
           <Collapse in={showLeaderFields}>
@@ -664,17 +626,14 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
               <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1 }}>
                 Additional Leaders
               </Typography>
-
-              {/* Only Leader @1 is editable, others are disabled */}
-              {renderAutocomplete('leader1', 'Leader @1', false, true)}
-              {renderAutocomplete('leader12', 'Leader @12', false, true)}
-              {renderAutocomplete('leader144', 'Leader @144', false, true)}
+              {renderAutocomplete("leader1", "Leader @1", false, true)}
+              {renderAutocomplete("leader12", "Leader @12", false, true)}
+              {renderAutocomplete("leader144", "Leader @144", false, true)}
             </Box>
           </Collapse>
 
-          {/* Show toggle button only when leader fields are hidden and no leader data exists */}
           {!showLeaderFields && !formData.leader1 && !formData.leader12 && !formData.leader144 && (
-            <Box sx={{ mt: 2, textAlign: 'center' }}>
+            <Box sx={{ mt: 2, textAlign: "center" }}>
               <Button
                 onClick={toggleLeaderFields}
                 startIcon={<LeaderIcon />}
@@ -690,11 +649,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
       </DialogContent>
 
       <DialogActions sx={{ p: 2 }}>
-        <Button
-          onClick={handleClose}
-          color="inherit"
-          disabled={isSubmitting}
-        >
+        <Button onClick={handleClose} color="inherit" disabled={isSubmitting}>
           Cancel
         </Button>
         <LoadingButton
@@ -702,7 +657,7 @@ export default function AddPersonDialog({ open, onClose, onSave, formData, setFo
           variant="contained"
           color="primary"
           loading={isSubmitting}
-          disabled={!isFormValid() || isLoadingPeople}
+          disabled={!isFormValid() || (isEdit && !hasChanges)}
           sx={{ minWidth: 100 }}
         >
           {isEdit ? "Update" : "Save"}
