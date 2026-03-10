@@ -10,6 +10,7 @@ import {
   useTheme,
   IconButton,
   Alert,
+  useMediaQuery, 
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import CategoryIcon from "@mui/icons-material/Category";
@@ -23,6 +24,9 @@ const EventTypesModal = ({
 }) => {
   const theme = useTheme();
   const [loading, setLoading] = useState(false);
+
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
 
   const [formData, setFormData] = useState({
     name: "",
@@ -140,28 +144,66 @@ const EventTypesModal = ({
     onClose?.();
   };
 
+   // Calculates modal width based on screen size
+  const getModalWidth = () => {
+    if (isMobile) return '95%';
+    if (isTablet) return '80%';
+    return '600px';
+  };
+
+  // Calculates vertical margin based on screen size
+  const getVerticalMargin = () => {
+    if (isMobile) return '5vh';
+    return '10vh';
+  };
+
+
   return (
-    <Modal open={open} onClose={handleClose}>
+    <Modal 
+      open={open} 
+      onClose={handleClose}
+      sx={{
+        overflow: 'auto',
+      }}
+    >
       <Box
         sx={{
-          width: "600px",
+          width: getModalWidth(),
+          maxWidth: '600px',
+          minWidth: isMobile ? 'auto' : '400px',
           bgcolor: "background.paper",
-          borderRadius: 2,
+          borderRadius: isMobile ? 1 : 2,
           mx: "auto",
-          my: "10vh",
+          my: getVerticalMargin(),
+          maxHeight: isMobile ? '90vh' : '80vh',
+          overflow: 'auto',
+          boxShadow: 24,
+          outline: 'none',
         }}
       >
-        <Box sx={{ p: 2, display: "flex", alignItems: "center", gap: 2 }}>
-          <CategoryIcon color="primary" />
-          <Typography variant="h6" sx={{ flex: 1 }}>
+        {/* Header */}
+        <Box sx={{ 
+          p: isMobile ? 1.5 : 2, 
+          display: "flex", 
+          alignItems: "center", 
+          gap: 1.5,
+          borderBottom: `1px solid ${theme.palette.divider}`,
+          position: 'sticky',
+          top: 0,
+          bgcolor: 'background.paper',
+          zIndex: 1,
+        }}>
+          <CategoryIcon color="primary" sx={{ fontSize: isMobile ? 20 : 24 }} />
+          <Typography variant={isMobile ? "subtitle1" : "h6"} sx={{ flex: 1, fontWeight: 600 }}>
             {selectedEventType ? "Edit Event Type" : "Create Event Type"}
           </Typography>
-          <IconButton onClick={handleClose}>
+          <IconButton onClick={handleClose} size={isMobile ? "small" : "medium"}>
             <CloseIcon />
           </IconButton>
         </Box>
 
-        <Box sx={{ p: 3 }}>
+        {/* Content */}
+        <Box sx={{ p: isMobile ? 2 : 3 }}>
           <TextField
             inputRef={nameInputRef}
             label="Event Type Name"
@@ -172,6 +214,7 @@ const EventTypesModal = ({
             sx={{ mb: 2 }}
             error={!!errors.name}
             helperText={errors.name}
+            size={isMobile ? "small" : "medium"}
           />
 
           <TextField
@@ -179,21 +222,32 @@ const EventTypesModal = ({
             name="description"
             fullWidth
             multiline
-            rows={3}
+            rows={isMobile ? 2 : 3}
             value={formData.description}
             onChange={handleInputChange}
             sx={{ mb: 3 }}
             error={!!errors.description}
             helperText={errors.description}
+            size={isMobile ? "small" : "medium"}
           />
 
           {/* Visibility Settings */}
-          <Box sx={{ mb: 3, p: 2, bgcolor: "rgba(0,0,0,0.02)", borderRadius: 1 }}>
-
-            <Typography fontWeight={600} sx={{ mb: 2 }}>
-
-              isGlobal Event            </Typography>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+          <Box sx={{ 
+            mb: 3, 
+            p: isMobile ? 1.5 : 2, 
+            bgcolor: "rgba(0,0,0,0.01)", 
+            borderRadius: 1 
+          }}>
+            <Typography fontWeight={600} sx={{ mb: 2, fontSize: isMobile ? '0.95rem' : '1rem' }}>
+              isGlobal Event
+            </Typography>
+            
+            <Box sx={{ 
+              display: "flex", 
+              flexDirection: isMobile ? 'column' : 'row',
+              alignItems: isMobile ? 'flex-start' : 'center',
+              gap: isMobile ? 1 : 2 
+            }}>
               <FormControlLabel
                 control={
                   <Checkbox
@@ -204,9 +258,15 @@ const EventTypesModal = ({
                         isGlobal: true,
                       }))
                     }
+                    size={isMobile ? "small" : "medium"}
                   />
                 }
                 label="True"
+                sx={{
+                  '& .MuiTypography-root': {
+                    fontSize: isMobile ? '0.9rem' : '1rem',
+                  }
+                }}
               />
 
               <FormControlLabel
@@ -219,16 +279,27 @@ const EventTypesModal = ({
                         isGlobal: false,
                       }))
                     }
+                    size={isMobile ? "small" : "medium"}
                   />
                 }
                 label="False"
+                sx={{
+                  '& .MuiTypography-root': {
+                    fontSize: isMobile ? '0.9rem' : '1rem',
+                  }
+                }}
               />
             </Box>
           </Box>
 
           {/* Form Type Settings */}
-          <Box sx={{ mb: 3, p: 2, bgcolor: "rgba(0,123,255,0.05)", borderRadius: 1 }}>
-            <Typography fontWeight={600} sx={{ mb: 2 }}>
+          <Box sx={{ 
+            mb: 3, 
+            p: isMobile ? 1.5 : 2, 
+            bgcolor: "rgba(0,123,255,0.05)", 
+            borderRadius: 1 
+          }}>
+            <Typography fontWeight={600} sx={{ mb: 2, fontSize: isMobile ? '0.95rem' : '1rem' }}>
               Type Settings:
             </Typography>
 
@@ -237,36 +308,73 @@ const EventTypesModal = ({
                 <Checkbox
                   checked={formData.isTicketed}
                   onChange={handleCheckboxChange("isTicketed")}
+                  size={isMobile ? "small" : "medium"}
                 />
               }
               label="Ticketed Event"
-              sx={{ mb: 2, display: 'block' }}
+              sx={{ 
+                mb: 2, 
+                display: 'block',
+                '& .MuiTypography-root': {
+                  fontSize: isMobile ? '0.9rem' : '1rem',
+                }
+              }}
             />
 
-            {/* ADDED TRAINING CHECKBOX */}
             <FormControlLabel
               control={
                 <Checkbox
                   checked={formData.isTraining}
                   onChange={handleCheckboxChange("isTraining")}
+                  size={isMobile ? "small" : "medium"}
                 />
               }
               label="Training Event"
-              sx={{ display: 'block' }}
+              sx={{ 
+                display: 'block',
+                '& .MuiTypography-root': {
+                  fontSize: isMobile ? '0.9rem' : '1rem',
+                }
+              }}
             />
           </Box>
 
           {errors.submit && (
-            <Typography color="error" sx={{ mt: 2 }}>
+            <Alert severity="error" sx={{ mt: 2 }}>
               {errors.submit}
-            </Typography>
+            </Alert>
           )}
 
-          <Box sx={{ display: "flex", justifyContent: "flex-end", mt: 3 }}>
-            <Button onClick={handleClose} sx={{ mr: 2 }}>
+          {/* Buttons */}
+          <Box sx={{ 
+            display: "flex", 
+            flexDirection: isMobile ? 'column' : 'row',
+            justifyContent: "flex-end", 
+            mt: 3,
+            gap: isMobile ? 1 : 2,
+          }}>
+            <Button 
+              onClick={handleClose} 
+              sx={{ 
+                mr: isMobile ? 0 : 2,
+                width: isMobile ? '100%' : 'auto',
+              }}
+              variant="outlined"
+              fullWidth={isMobile}
+              size={isMobile ? "small" : "medium"}
+            >
               Cancel
             </Button>
-            <Button variant="contained" onClick={handleSubmit}>
+            <Button 
+              variant="contained" 
+              onClick={handleSubmit}
+              disabled={loading}
+              sx={{
+                width: isMobile ? '100%' : 'auto',
+              }}
+              fullWidth={isMobile}
+              size={isMobile ? "small" : "medium"}
+            >
               {loading ? "Saving..." : "Save"}
             </Button>
           </Box>

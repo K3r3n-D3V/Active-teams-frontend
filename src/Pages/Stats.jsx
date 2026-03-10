@@ -1624,220 +1624,331 @@ calendarEvents.forEach((e) => {
       )}
         </Box>
         {activeTab === 1 && (
-          <Paper sx={{ 
-            p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }), 
-            height: getResponsiveValue({ xs: 'auto', sm: 'calc(100vh - 320px)', md: 3, lg: 'calc(100vh - 320px)', xl: 'calc(100vh - 320px)' }),
-            display: 'flex', 
-            flexDirection: 'column'
-          }}>
-            <Box sx={{ 
-              display: 'flex', 
-              justifyContent: 'space-between', 
-              alignItems: isXsDown ? "flex-start" : "center", 
-              mb: { xs: 2.5, md: 3 },
-              flexShrink: 0,
-              flexDirection: isXsDown ? "column" : "row",
-              gap: isXsDown ? 1 : 0,
-            }}
-          >
-            <Box>
-              <Typography variant="subtitle1" gutterBottom>
-                All Tasks by Person ({stats.groupedTasks.length} people •{" "}
-                {filteredTasks.length} total)
-              </Typography>
-            </Box>
-            <Chip
-              label={`Period: ${getPeriodDisplayText(period)}`}
-              color="secondary"
-              size="small"
-              variant="outlined"
-            />
-          </Box>
+  <Paper sx={{ 
+    p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }), 
+    height: { 
+      xs: 'calc(100vh - 320px)', 
+      sm: 'calc(100vh - 340px)', 
+      md: 'calc(100vh - 360px)',
+      lg: 'calc(100vh - 380px)',
+      xl: 'calc(100vh - 400px)'
+    },
+    display: 'flex', 
+    flexDirection: 'column'
+  }}>
+    <Box sx={{ 
+      display: 'flex', 
+      justifyContent: 'space-between', 
+      alignItems: { xs: 'flex-start', sm: 'flex-start', md: 'center' },
+      mb: { xs: 2, sm: 2.5, md: 3 },
+      flexDirection: { xs: 'column', sm: 'column', md: 'row' },
+      gap: { xs: 1.5, sm: 1.5, md: 2 },
+      flexShrink: 0,
+    }}>
+      <Box sx={{ width: { xs: '100%', sm: '100%', md: 'auto' } }}>
+        <Typography 
+          variant="subtitle1" 
+          gutterBottom
+          sx={{ 
+            fontSize: { xs: '0.95rem', sm: '1rem', md: '1.1rem' },
+            whiteSpace: 'normal',
+            wordBreak: 'break-word'
+          }}
+        >
+          All Tasks by Person ({stats.groupedTasks.length} people •{" "}
+          {filteredTasks.length} total)
+        </Typography>
+      </Box>
+      
+      <Chip
+        label={`Period: ${getPeriodDisplayText(period)}`}
+        color="secondary"
+        size="small"
+        variant="outlined"
+        sx={{ 
+          alignSelf: { xs: 'flex-start', sm: 'flex-start', md: 'center' },
+          fontSize: { xs: '0.75rem', sm: '0.8125rem' }
+        }}
+      />
+    </Box>
 
-          <Box
-            sx={{
-              flexGrow: 1,
-              overflow: "auto",
-              pr: 1,
-              "&::-webkit-scrollbar": { width: "6px" },
-              "&::-webkit-scrollbar-track": {
-                background: "#f1f1f1",
-                borderRadius: "3px",
-              },
-              "&::-webkit-scrollbar-thumb": { background: "#888", borderRadius: "3px" },
-              "&::-webkit-scrollbar-thumb:hover": { background: "#555" },
-            }}
-          >
-            {stats.groupedTasks.length === 0 && !stats.loading ? (
-              <Box
-                sx={{
-                  textAlign: "center",
-                  py: 6,
-                  color: "text.secondary",
-                  border: "2px dashed",
-                  borderColor: "divider",
-                  borderRadius: 1.5,
-                }}
-              >
-                <Task sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
-                <Typography variant="body1">No tasks found</Typography>
-                <Typography variant="caption" sx={{ fontSize: "0.75rem" }}>
-                  No tasks found for {getPeriodDisplayText(period)}.
-                </Typography>
-              </Box>
-            ) : (
-              <Stack spacing={1.5}>
-                {stats.groupedTasks.map(
-                  ({ user, tasks, totalCount, completedCount, incompleteCount }) => {
-                    const key = user.email || user.fullName;
-                    const isExpanded = expandedUsers.includes(key);
+    <Box
+      sx={{
+        flexGrow: 1,
+        overflow: "auto",
+        pr: { xs: 0.5, sm: 1 },
+        '&::-webkit-scrollbar': { width: '6px' },
+        '&::-webkit-scrollbar-track': {
+          background: '#f1f1f1',
+          borderRadius: '3px',
+        },
+        '&::-webkit-scrollbar-thumb': { 
+          background: '#888', 
+          borderRadius: '3px' 
+        },
+        '&::-webkit-scrollbar-thumb:hover': { 
+          background: '#555' 
+        },
+      }}
+    >
+      {stats.groupedTasks.length === 0 && !stats.loading ? (
+        <Box
+          sx={{
+            textAlign: "center",
+            py: { xs: 4, sm: 6 },
+            px: { xs: 2, sm: 3 },
+            color: "text.secondary",
+            border: "2px dashed",
+            borderColor: "divider",
+            borderRadius: 1.5,
+          }}
+        >
+          <Task sx={{ 
+            fontSize: { xs: 36, sm: 48 }, 
+            opacity: 0.3, 
+            mb: 1.5 
+          }} />
+          <Typography variant="body1">
+            No tasks found
+          </Typography>
+          <Typography variant="caption" sx={{ fontSize: "0.75rem" }}>
+            No tasks found for {getPeriodDisplayText(period)}.
+          </Typography>
+        </Box>
+      ) : (
+        <Stack spacing={1.5}>
+          {stats.groupedTasks.map(
+            ({ user, tasks, totalCount, completedCount, incompleteCount }) => {
+              const key = user.email || user.fullName;
+              const isExpanded = expandedUsers.includes(key);
 
-                    return (
-                      <Box
-                        key={key}
+              return (
+                <Box
+                  key={key}
+                  sx={{
+                    backgroundColor: "background.paper",
+                    border: "1px solid",
+                    borderColor: "divider",
+                    boxShadow: 1,
+                    overflow: "hidden",
+                    transition: "all 0.2s",
+                    "&:hover": { boxShadow: 2 },
+                  }}
+                >
+                  <Box
+                    sx={{
+                      p: { xs: 1.25, sm: 1.5 },
+                      cursor: "pointer",
+                      backgroundColor:
+                        incompleteCount > 0 ? "error.50" : "transparent",
+                      "&:hover": { backgroundColor: "action.hover" },
+                    }}
+                    onClick={() => toggleExpand(key)}
+                  >
+                    <Box 
+                      display="flex" 
+                      alignItems="center" 
+                      justifyContent="space-between"
+                      sx={{
+                        flexWrap: { xs: 'wrap', sm: 'nowrap' },
+                        gap: 1
+                      }}
+                    >
+                      <Box 
+                        display="flex" 
+                        alignItems="center" 
+                        gap={1.5}
                         sx={{
-                          backgroundColor: "background.paper",
-                          border: "1px solid",
-                          borderColor: "divider",
-                          boxShadow: 1,
-                          overflow: "hidden",
-                          transition: "all 0.2s",
-                          "&:hover": { boxShadow: 2 },
+                          width: { xs: '100%', sm: 'auto' }
                         }}
                       >
-                        <Box
+                        <Avatar
                           sx={{
-                            p: 1.5,
-                            cursor: "pointer",
-                            backgroundColor:
-                              incompleteCount > 0 ? "error.50" : "transparent",
-                            "&:hover": { backgroundColor: "action.hover" },
+                            bgcolor: "primary.main",
+                            width: { xs: 36, sm: 40 },
+                            height: { xs: 36, sm: 40 },
+                            fontSize: { xs: '0.9rem', sm: '1rem' },
+                            fontWeight: "bold",
                           }}
-                          onClick={() => toggleExpand(key)}
                         >
-                          <Box display="flex" alignItems="center" justifyContent="space-between">
-                            <Box display="flex" alignItems="center" gap={1.5}>
-                              <Avatar
-                                sx={{
-                                  bgcolor: "primary.main",
-                                  width: 40,
-                                  height: 40,
-                                  fontSize: "1rem",
-                                  fontWeight: "bold",
-                                }}
-                              >
-                                {user.fullName?.charAt(0)?.toUpperCase?.() || "?"}
-                              </Avatar>
-                              <Box>
-                                <Typography variant="body2" fontWeight="medium">
-                                  {user.fullName}
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary">
-                                  {totalCount} task{totalCount !== 1 ? "s" : ""} •{" "}
-                                  {completedCount} completed
-                                  {incompleteCount === 0 &&
-                                    totalCount > 0 &&
-                                    " — ALL DONE!"}
-                                </Typography>
-                              </Box>
-                            </Box>
-                            <IconButton size="small" sx={{ p: 0.5 }}>
-                              <ExpandMore
-                                sx={{
-                                  transition: "transform 0.2s ease",
-                                  transform: isExpanded
-                                    ? "rotate(180deg)"
-                                    : "rotate(0deg)",
-                                }}
-                              />
-                            </IconButton>
-                          </Box>
+                          {user.fullName?.charAt(0)?.toUpperCase?.() || "?"}
+                        </Avatar>
+                        
+                        <Box sx={{ 
+                          minWidth: 0, // Allow text to truncate
+                          flex: 1
+                        }}>
+                          <Typography 
+                            variant="body2" 
+                            fontWeight="medium"
+                            sx={{
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: { xs: '200px', sm: '250px', md: '300px' }
+                            }}
+                          >
+                            {user.fullName}
+                          </Typography>
+                          
+                          <Typography 
+                            variant="caption" 
+                            color="text.secondary"
+                            sx={{
+                              display: 'block',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              maxWidth: { xs: '200px', sm: '250px', md: '300px' }
+                            }}
+                          >
+                            {totalCount} task{totalCount !== 1 ? "s" : ""} •{" "}
+                            {completedCount} completed
+                            {incompleteCount === 0 &&
+                              totalCount > 0 &&
+                              " — ALL DONE!"}
+                          </Typography>
                         </Box>
+                      </Box>
+                      
+                      <IconButton 
+                        size="small" 
+                        sx={{ 
+                          p: 0.5,
+                          alignSelf: { xs: 'flex-end', sm: 'center' }
+                        }}
+                      >
+                        <ExpandMore
+                          sx={{
+                            transition: "transform 0.2s ease",
+                            transform: isExpanded
+                              ? "rotate(180deg)"
+                              : "rotate(0deg)",
+                          }}
+                        />
+                      </IconButton>
+                    </Box>
+                  </Box>
 
-                        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                          <Box sx={{ px: 1.5, pb: 1.5, pt: 1, backgroundColor: "grey.50" }}>
-                            <Divider sx={{ mb: 1.5 }} />
-                            {tasks.length === 0 ? (
-                              <Typography
-                                color="text.secondary"
-                                fontStyle="italic"
-                                variant="caption"
-                              >
-                                No tasks assigned
-                              </Typography>
-                            ) : (
-                              <Stack spacing={1}>
-                                {tasks.map((task) => (
-                                  <Box
-                                    key={task._id}
-                                    sx={{
-                                      p: 1.5,
-                                      borderRadius: 1.5,
-                                      backgroundColor: "background.paper",
-                                      border: "1px solid",
-                                      borderColor: "divider",
-                                      display: "flex",
-                                      justifyContent: "space-between",
-                                      alignItems: "center",
+                  <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+                    <Box sx={{ 
+                      px: { xs: 1.25, sm: 1.5 }, 
+                      pb: { xs: 1.25, sm: 1.5 }, 
+                      pt: 1, 
+                      backgroundColor: "grey.50" 
+                    }}>
+                      <Divider sx={{ mb: 1.5 }} />
+                      {tasks.length === 0 ? (
+                        <Typography
+                          color="text.secondary"
+                          fontStyle="italic"
+                          variant="caption"
+                          sx={{ display: 'block', textAlign: 'center', py: 1 }}
+                        >
+                          No tasks assigned
+                        </Typography>
+                      ) : (
+                        <Stack spacing={1}>
+                          {tasks.map((task) => (
+                            <Box
+                              key={task._id}
+                              sx={{
+                                p: { xs: 1, sm: 1.5 },
+                                borderRadius: 1.5,
+                                backgroundColor: "background.paper",
+                                border: "1px solid",
+                                borderColor: "divider",
+                                display: "flex",
+                                flexDirection: { xs: 'column', sm: 'row' },
+                                justifyContent: "space-between",
+                                alignItems: { xs: 'flex-start', sm: 'center' },
+                                gap: 1
+                              }}
+                            >
+                              <Box sx={{ 
+                                width: { xs: '100%', sm: 'auto' },
+                                minWidth: 0 // Allow text truncation
+                              }}>
+                                <Typography 
+                                  variant="caption" 
+                                  fontWeight="medium"
+                                  sx={{
+                                    display: 'block',
+                                    whiteSpace: 'nowrap',
+                                    overflow: 'hidden',
+                                    textOverflow: 'ellipsis',
+                                    maxWidth: { xs: '100%', sm: '250px', md: '350px' }
+                                  }}
+                                >
+                                  {task.name || task.taskType || "Untitled Task"}
+                                </Typography>
+                                
+                                {task.contacted_person?.name && (
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    sx={{ 
+                                      display: "block", 
+                                      fontSize: "0.7rem",
+                                      whiteSpace: 'nowrap',
+                                      overflow: 'hidden',
+                                      textOverflow: 'ellipsis',
+                                      maxWidth: { xs: '100%', sm: '200px' }
                                     }}
                                   >
-                                    <Box>
-                                      <Typography variant="caption" fontWeight="medium">
-                                        {task.name || task.taskType || "Untitled Task"}
-                                      </Typography>
-                                      {task.contacted_person?.name && (
-                                        <Typography
-                                          variant="caption"
-                                          color="text.secondary"
-                                          sx={{ display: "block", fontSize: "0.7rem" }}
-                                        >
-                                          Contact: {task.contacted_person.name}
-                                        </Typography>
-                                      )}
-                                      {task.followup_date && (
-                                        <Typography
-                                          variant="caption"
-                                          color="text.secondary"
-                                          sx={{
-                                            display: "block",
-                                            mt: 0.25,
-                                            fontSize: "0.7rem",
-                                          }}
-                                        >
-                                          Due: {formatDate(task.followup_date)}
-                                        </Typography>
-                                      )}
-                                    </Box>
+                                    Contact: {task.contacted_person.name}
+                                  </Typography>
+                                )}
+                                
+                                {task.followup_date && (
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    sx={{
+                                      display: "block",
+                                      mt: 0.25,
+                                      fontSize: "0.7rem",
+                                    }}
+                                  >
+                                    Due: {formatDate(task.followup_date)}
+                                  </Typography>
+                                )}
+                              </Box>
 
-                                    <Chip
-                                      label={task.status || "Pending"}
-                                      size="small"
-                                      color={
-                                        ["completed", "done"].includes(
-                                          task.status?.toLowerCase?.()
-                                        )
-                                          ? "success"
-                                          : task.status?.toLowerCase?.() === "overdue"
-                                            ? "error"
-                                            : "warning"
-                                      }
-                                      sx={{ fontSize: "0.7rem", height: 22 }}
-                                    />
-                                  </Box>
-                                ))}
-                              </Stack>
-                            )}
-                          </Box>
-                        </Collapse>
-                      </Box>
-                    );
-                  }
-                )}
-              </Stack>
-            )}
-          </Box>
-        </Paper>
+                              <Chip
+                                label={task.status || "Pending"}
+                                size="small"
+                                color={
+                                  ["completed", "done"].includes(
+                                    task.status?.toLowerCase?.()
+                                  )
+                                    ? "success"
+                                    : task.status?.toLowerCase?.() === "overdue"
+                                      ? "error"
+                                      : "warning"
+                                }
+                                sx={{ 
+                                  fontSize: "0.7rem", 
+                                  height: 22,
+                                  minWidth: { xs: '100%', sm: 'auto' },
+                                  alignSelf: { xs: 'flex-start', sm: 'center' }
+                                }}
+                              />
+                            </Box>
+                          ))}
+                        </Stack>
+                      )}
+                    </Box>
+                  </Collapse>
+                </Box>
+              );
+            }
+          )}
+        </Stack>
       )}
+    </Box>
+  </Paper>
+)}
 
       {/* CALENDAR TAB */}
       {activeTab === 2 && (
