@@ -1022,24 +1022,6 @@
             </Button>
           </DialogActions>
         </Dialog>
-
-        <Fab
-          color="primary"
-          aria-label="add user"
-          onClick={() => setShowAddUserModal(true)}
-          sx={{
-            position: 'fixed',
-            bottom: 24,
-            right: 24,
-            boxShadow: 3,
-            '&:hover': {
-              boxShadow: 6
-            }
-          }}
-          size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-        >
-          <AddIcon />
-        </Fab>
       </Box>
     );
   }
