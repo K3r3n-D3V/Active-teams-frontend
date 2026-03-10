@@ -1322,7 +1322,26 @@ export default function Profile() {
 
               {/* Action Buttons */}
               <Box sx={{ mt: 4, display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap", }}>
-                <Button type="submit" variant="contained" startIcon={<Save />} disabled={!hasChanges} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
+                <Button 
+                  type="submit" 
+                  variant="contained" 
+                  startIcon={<Save />} 
+                  disabled={!hasChanges} 
+                  sx={{ 
+                    bgcolor: currentCarouselItem.color, 
+                    "&:hover": {
+                       bgcolor: currentCarouselItem.color, 
+                       opacity: 0.9, 
+                      }, 
+                       "&:disabled": {
+                         bgcolor: isDark ? "#333333" : "#cccccc",
+                          color: isDark ? "#666666" : "#999999", 
+                          }, borderRadius: 2, 
+                          px: 4, 
+                          py: 1.5, 
+                          fontWeight: 600, 
+                          textTransform: "none", 
+                          fontSize: "1rem", }}>
                   {canEditProfile ? "Save Changes" : "Update Password"}
                 </Button>
                 
