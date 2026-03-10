@@ -1689,6 +1689,7 @@ calendarEvents.forEach((e) => {
               <Stack spacing={1.5}>
                 {stats.groupedTasks.map(
                   ({ user, tasks, totalCount, completedCount, incompleteCount }) => {
+                      // console.log('User object:', user); 
                     const key = user.email || user.fullName;
                     const isExpanded = expandedUsers.includes(key);
 
