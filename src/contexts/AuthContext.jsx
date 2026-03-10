@@ -95,7 +95,8 @@ const logout = useCallback(() => {
     localStorage.removeItem(KEY_LEADERS);
     localStorage.removeItem(KEY_IS_LEADER);
     localStorage.removeItem("customEventTypes");  
-    localStorage.removeItem("eventTypeMap");       
+    localStorage.removeItem("eventTypeMap"); 
+          
     setUser(null);
     setLeaders(null);
     setIsLeader(false);
