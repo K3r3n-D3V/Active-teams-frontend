@@ -422,8 +422,8 @@ const CreateEvents = ({
   };
 
   useEffect(() => {
+    console.log("is it",selectedEventTypeObj)
     if (!eventId) return;
-
     const fetchEventData = async () => {
       try {
         const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);

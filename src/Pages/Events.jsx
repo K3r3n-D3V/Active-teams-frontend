@@ -2632,9 +2632,12 @@ const handleCaptureClick = useCallback(async (event) => {
   }, []);
 
   const handleEditEvent = useCallback((event) => {
+    if (event.isTicketed === true){
+      setCreateEventModalOpen(true);
+      return
+    }
     let eventId = event._id;
     let eventDate = event.date;
-
     if (eventId && eventId.includes("_")) {
       const parts = eventId.split("_");
       if (parts.length > 0 && isValidObjectId(parts[0])) {
@@ -2656,9 +2659,10 @@ const handleCaptureClick = useCallback(async (event) => {
       );
       return;
     }
-
+   
     setSelectedEvent(eventToEdit);
-    setEditModalOpen(true);
+    
+    // setEditModalOpen(true);
   }, []);
 
   const handleDeleteEvent = useCallback(
