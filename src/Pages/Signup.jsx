@@ -166,7 +166,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Organizations (dynamic from backend)
   const [organizations, setOrganizations] = useState([]);
 
   useEffect(() => {
@@ -427,7 +426,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const handleChange = (e) => {
     const { name, value } = e.target;
 
-    // Special logic for organization change: reset leader if not Active Church
     if (name === "organization") {
       const isMainChurch = value.toLowerCase() === "active church";
       setForm((prev) => ({

@@ -325,10 +325,8 @@ async function uploadAvatarFromDataUrl(dataUrl, authFetch) {
       response = await authFetch(`${BACKEND_URL}/users/${userId}/avatar`, {
         method: "POST",
         body: form,
-        // authFetch will handle the Authorization header
       });
     } else {
-      // Fallback to fetch with token
       const token =
         localStorage.getItem("access_token") ||
         localStorage.getItem("token") ||
@@ -380,7 +378,6 @@ async function updatePassword(currentPassword, newPassword, authFetch) {
 
       return response.json();
     } else {
-      // Fallback to axios
       const token =
         localStorage.getItem("access_token") ||
         localStorage.getItem("token") ||
@@ -417,10 +414,8 @@ export default function Profile() {
   const { userProfile, setUserProfile, setProfilePic, profilePic } =
     useContext(UserContext);
 
-  // Get authFetch from AuthContext
   const { authFetch, logout, isAuthenticated: authIsAuthenticated } = useContext(AuthContext);
 
-  // CRITICAL FIX: Store the logged-in user's role separately and NEVER let it change
   const [loggedInUserRole, setLoggedInUserRole] = useState(() => {
     const storedProfile = localStorage.getItem("userProfile");
     if (storedProfile) {
@@ -446,14 +441,12 @@ export default function Profile() {
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [carouselIndex, setCarouselIndex] = useState(0);
 
-  //initializing leaders
   const [leaders, setLeaders] = useState({
     leaderAt1: "",
     leaderAt12: "",
     leaderAt144: "",
   });
 
-  // Initialize form with empty values to prevent undefined errors
   const [form, setForm] = useState({
     name: "",
     surname: "",
@@ -470,7 +463,6 @@ export default function Profile() {
     confirmPassword: "",
   });
 
-  // Organizations list (loaded from backend)
   const [organizations, setOrganizations] = useState([]);
   const [orgTag, setOrgTag] = useState("");
 
@@ -500,14 +492,12 @@ export default function Profile() {
     severity: "success",
   });
 
-  // Gender options with case handling
   const genderOptions = [
     { value: "", label: "Select Gender" },
     { value: "Male", label: "Male" },
     { value: "Female", label: "Female" },
   ];
 
-  // Normalize gender value for display
   const normalizeGender = (gender) => {
     if (!gender) return "";
     const genderMap = {
@@ -519,7 +509,6 @@ export default function Profile() {
     return genderMap[gender] || gender;
   };
 
-  // FIXED: Memoize checkIfCanEdit with no dependencies that change
   const checkIfCanEdit = useCallback((roleToCheck) => {
     if (!roleToCheck) {
       return false;
@@ -536,13 +525,11 @@ export default function Profile() {
     const canEdit = hasAdminRole || hasLeaderRole;
 
     return canEdit;
-  }, []); // No dependencies - pure function
+  }, []);
 
-  // CRITICAL: Always use loggedInUserRole for permission checks
   const canEditProfile = checkIfCanEdit(loggedInUserRole);
   const isRegularUser = !canEditProfile;
 
-  // Get display role with proper formatting for multiple roles
   const getUserRole = useCallback(() => {
     if (!loggedInUserRole) return "User";
 
@@ -559,7 +546,6 @@ export default function Profile() {
     return uniqueRoles.join(" / ");
   }, [loggedInUserRole]);
 
-  // Carousel effect
   useEffect(() => {
     const t = setInterval(
       () => setCarouselIndex((p) => (p + 1) % carouselTexts.length),
@@ -568,7 +554,6 @@ export default function Profile() {
     return () => clearInterval(t);
   }, []);
 
-  // Update form with profile data
   const updateFormWithProfile = useCallback((profile) => {
     const formData = {
       name: profile?.name || "",
@@ -586,10 +571,8 @@ export default function Profile() {
       confirmPassword: "",
     };
 
-    // Update the org_tag display from profile
     setOrgTag(profile?.org_tag || "");
 
-    //setting leaders state to localstorage leaders field which was set upon login
     const savedLeaders = JSON.parse(localStorage.getItem("leaders")) || {};
     setLeaders(savedLeaders);
 
@@ -598,7 +581,6 @@ export default function Profile() {
     console.log("📝 Form updated with profile data:", formData);
   }, []);
 
-  // Add authentication check at component mount
   useEffect(() => {
     const checkAuthentication = () => {
       console.log("🔐 Authentication Check:");
@@ -623,7 +605,6 @@ export default function Profile() {
           severity: "warning",
         });
 
-        // Redirect to login after 2 seconds
         setTimeout(() => {
           window.location.href = "/login";
         }, 2000);
@@ -644,7 +625,6 @@ export default function Profile() {
     }
   }, [authIsAuthenticated, authFetch]);
 
-  // FIXED: Load profile data with proper dependency management
   useEffect(() => {
     let isMounted = true;
 
@@ -653,22 +633,18 @@ export default function Profile() {
         setLoadingProfile(true);
         console.log(" Loading profile data...");
 
-        // Check if we have cached data first
         const cachedProfile = localStorage.getItem('userProfile');
         if (cachedProfile && isMounted) {
           try {
             const parsed = JSON.parse(cachedProfile);
             console.log("📦 Using cached profile:", parsed);
 
-            // Update form immediately with cached data
             updateFormWithProfile(parsed);
 
-            // Update context
             if (setUserProfile) {
               setUserProfile(parsed);
             }
 
-            // Set profile picture
             const pic = parsed?.profile_picture || null;
             if (pic && setProfilePic) {
               setProfilePic(pic);
@@ -680,7 +656,6 @@ export default function Profile() {
           }
         }
 
-        // THEN: Try to fetch fresh data from server
         try {
           const serverProfile = await fetchUserProfile(authFetch);
 
@@ -688,33 +663,28 @@ export default function Profile() {
             console.log("📥 Received fresh profile data:", serverProfile);
             console.log("👤 User role from server:", serverProfile.role);
 
-            // CRITICAL: Store the logged-in user's role and NEVER change it
             if (serverProfile.role) {
               setLoggedInUserRole(serverProfile.role);
               console.log("🔐 Logged-in user role set to:", serverProfile.role);
             }
 
-            // Update with fresh data
             updateFormWithProfile(serverProfile);
 
             if (setUserProfile) {
               setUserProfile(serverProfile);
             }
 
-            // Set profile picture
             const pic = serverProfile?.profile_picture || null;
             if (pic && setProfilePic) {
               setProfilePic(pic);
             }
 
-            // Cache data
             localStorage.setItem("userProfile", JSON.stringify(serverProfile));
 
             console.log(" Profile updated with fresh data");
           }
         } catch (fetchError) {
           console.warn(" Could not fetch fresh profile, using cached:", fetchError.message);
-          // Keep using cached data if fetch fails
         }
       } catch (error) {
         console.error(" Profile loading error:", error);
@@ -732,14 +702,12 @@ export default function Profile() {
       }
     };
 
-    // Only load profile if we have authentication
     const hasToken =
       !!localStorage.getItem("access_token") ||
       !!localStorage.getItem("token") ||
       !!localStorage.getItem("accessToken");
 
     if (hasToken) {
-      // Delay loading slightly to ensure context is ready
       setTimeout(() => {
         loadProfile();
       }, 100);
@@ -750,9 +718,8 @@ export default function Profile() {
     return () => {
       isMounted = false;
     };
-  }, [authFetch]); // Add authFetch as dependency
+  }, [authFetch]);
 
-  // FIXED: Track changes properly
   const hasChanges = React.useMemo(() => {
     const hasPasswordChange = form.newPassword !== "" || form.confirmPassword !== "" || form.currentPassword !== "";
 
@@ -772,19 +739,16 @@ export default function Profile() {
   const validate = () => {
     const n = {};
 
-    // Required fields - only validate if user can edit them
     if (canEditProfile) {
       if (!form.name.trim()) n.name = "Name is required";
       if (!form.surname.trim()) n.surname = "Surname is required";
       if (!form.email.trim()) n.email = "Email is required";
       else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
     } else {
-      // Regular users can still update email
       if (!form.email.trim()) n.email = "Email is required";
       else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
     }
 
-    // Date validation
     if (form.dob && canEditProfile) {
       const dobDate = new Date(form.dob);
       const today = new Date();
@@ -793,7 +757,6 @@ export default function Profile() {
       }
     }
 
-    // Phone validation (optional)
     if (form.phone && form.phone.trim()) {
       const hasNumbers = /\d/.test(form.phone);
       if (!hasNumbers) {
@@ -809,7 +772,6 @@ export default function Profile() {
       }
     }
 
-    // Password validation (only if changing password)
     if (form.newPassword || form.confirmPassword || form.currentPassword) {
       if (!form.currentPassword.trim()) {
         n.currentPassword = "Current password is required to change password";
@@ -835,12 +797,11 @@ export default function Profile() {
     if (field === "phone") {
       value = value.replace(/\D/g, ""); // only numbers
 
-      // Force the phone number to start with 0
       if (value.length > 0 && value[0] !== "0") {
         value = "0" + value.slice(1);
       }
 
-      value = value.slice(0, 10); // max 10 digits
+      value = value.slice(0, 10);
     }
 
     setForm((prev) => ({ ...prev, [field]: value }));
@@ -852,7 +813,6 @@ export default function Profile() {
     console.log(" Changes cancelled");
   };
 
-  // FIXED: Handle submit with proper state updates and authFetch
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log(" Form submission started");
@@ -878,7 +838,6 @@ export default function Profile() {
       let profileUpdated = false;
       let passwordUpdated = false;
 
-      // Handle profile update
       if (hasProfileChanges) {
         try {
           const profileData = {
@@ -914,13 +873,11 @@ export default function Profile() {
         }
       }
 
-      // Handle password update
       if (hasPasswordChange) {
         try {
           await updatePassword(form.currentPassword, form.newPassword, authFetch);
           passwordUpdated = true;
 
-          // Clear password fields after successful update
           setForm(prev => ({
             ...prev,
             currentPassword: "",
@@ -938,10 +895,8 @@ export default function Profile() {
         }
       }
 
-      // FIXED: Update originalForm to reflect saved state
       setOriginalForm({ ...form, currentPassword: "", newPassword: "", confirmPassword: "" });
 
-      // Show success message
       let successMessage = "";
       if (profileUpdated && passwordUpdated) {
         successMessage = "Profile and password updated successfully!";
@@ -1048,7 +1003,6 @@ export default function Profile() {
       bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
       height: "56px",
 
-      // KEEP BG DARK EVEN WHEN FOCUSED
       "&.Mui-focused": {
         bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
       },
@@ -1064,7 +1018,6 @@ export default function Profile() {
       },
     },
 
-    // Prevent white autofill background
     "& input:-webkit-autofill": {
       WebkitBoxShadow: `0 0 0 1000px ${isDark ? "#1a1a1a" : "#f8f9fa"} inset`,
       WebkitTextFillColor: isDark ? "#ffffff" : "#000000",
@@ -1080,7 +1033,6 @@ export default function Profile() {
     }
   };
 
-  // Skeleton loading component
   const ProfileSkeleton = () => (
     <Box sx={{ minHeight: "100vh", bgcolor: isDark ? "#0a0a0a" : "#f8f9fa", pb: 4 }}>
       <Box sx={{ position: "relative", minHeight: "30vh", background: isDark ? `linear-gradient(135deg, ${currentCarouselItem.color}15 0%, ${currentCarouselItem.color}25 100%)` : `linear-gradient(135deg, ${currentCarouselItem.color}10 0%, ${currentCarouselItem.color}20 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", pt: 6, pb: 12 }}>
