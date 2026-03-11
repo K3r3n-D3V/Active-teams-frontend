@@ -218,40 +218,6 @@ export default function DailyTasks() {
     const minutes = String(date.getMinutes()).padStart(2, "0");
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
-  const markTaskComplete = async (taskId) => {
-    try {
-      const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: "completed",
-          taskStage: "Completed",
-        }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update task");
-
-      setTasks((prev) =>
-        prev.map((t) =>
-          t._id === taskId
-            ? {
-                ...t,
-                status: "completed",
-                ...data.updatedTask,
-              }
-            : t,
-        ),
-      );
-
-      toast.success("Task marked as completed!");
-      notifyTaskUpdate();
-      fetchUserTasks(); 
-    } catch (err) {
-      console.error("Error completing task:", err.message);
-      toast.error("Failed to update task: " + err.message);
-    }
-  };
 
   console.log("Deleting:", selectedTypeToManage);
   console.log(
@@ -820,6 +786,9 @@ export default function DailyTasks() {
         updatedData.leader_assigned = selectedTask.leader_assigned;
       }
 
+       if (updatedData.status?.toLowerCase() === "completed") {
+        updatedData.completedAt = new Date().toISOString();
+      }
       const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -910,8 +879,7 @@ export default function DailyTasks() {
         name: isConsolidationTask
           ? taskData.assignedTo
           : taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
-        taskType:
-          taskData.taskType ||
+        taskType: taskTypes.find(t => (t._id || t.id) === taskData.taskType)?.name || taskData.taskType ||
           (isConsolidationTask
             ? "consolidation"
             : formType === "call"
