@@ -422,7 +422,9 @@ const CreateEvents = ({
   };
 
   useEffect(() => {
-    console.log("is it",selectedEventTypeObj)
+    if (selectedEventTypeObj.isTicketed === true){
+      alert("jhey")
+    }
     if (!eventId) return;
     const fetchEventData = async () => {
       try {

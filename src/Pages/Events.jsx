@@ -2630,9 +2630,10 @@ const handleCaptureClick = useCallback(async (event) => {
   useEffect(() => {
     eventsCache.current = {};
   }, []);
-
   const handleEditEvent = useCallback((event) => {
     if (event.isTicketed === true){
+      console.log("here",event)
+      setSelectedEventTypeObj(event)
       setCreateEventModalOpen(true);
       return
     }
