@@ -1658,9 +1658,8 @@ function ServiceCheckIn() {
               onUnsaveEvent={handleUnsaveEvent}
               events={getFilteredClosedEvents()}
               searchTerm={eventSearch}
-              isLoading={isLoadingEvents && events.length === 0}
+              isLoading={isLoadingEvents && events.length === 0 && isLoadingHistory}
               onRefresh={() => fetchEvents(true)}
-              isLoading={isLoadingHistory}
             />
           </Box>
         )}

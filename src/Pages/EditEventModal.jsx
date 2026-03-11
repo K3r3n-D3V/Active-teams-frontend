@@ -129,7 +129,7 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
   'last_decisions_count', 'last_attendance_breakdown',
   'last_attendance_data', 'last_headcount', 'last_status',
   'last_attendance_date', 'last_updated_by',
-  // 'priceTiers', 'price_tiers',
+  'priceTiers', 'price_tiers',
   'new_people', 'consolidations',
   'is_new_event', 'updatedAt', 'Date Of Event',
   'total_headcounts', 'deactivation_start', 'deactivation_end',
@@ -167,7 +167,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
           'isEventType', 'eventTypeId', 'last_updated'].includes(key)
         );
         setAvailableFields(editableFields);
-        console.log("THE EVENT",editableFields)
     }
   }, [event]);
 
@@ -1112,11 +1111,9 @@ const handleSubmit = async (e, isDeactivating = false) => {
             </Box>
 
             <Divider sx={{ my: 2 }} />
-            
 
             {changedFields.length > 0 && (
               <Box sx={{ mb: 3, p: 2, bgcolor: 'action.hover', borderRadius: 1 }}>
-                
                 <Typography variant="subtitle2" gutterBottom sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                   Fields to update ({changedFields.length}):
                 </Typography>
@@ -1273,7 +1270,6 @@ const handleSubmit = async (e, isDeactivating = false) => {
                 )} */}
                 {otherFields.length > 0 && (
                   <Box sx={{ mt: 3 }}>
-                    
                     <Button
                       fullWidth
                       onClick={() => setShowAllFields(!showAllFields)}
@@ -1357,13 +1353,11 @@ const handleSubmit = async (e, isDeactivating = false) => {
                 
                 {/* Event Name, Leader, Email, Status, Day, Description fields */}
                 {['eventName', 'Event Name', 'eventLeader', 'Leader', 'eventLeaderEmail', 'Email',
-                  'status', 'recurring_day', 'Day', 'description','priceTiers']
+                  'status', 'recurring_day', 'Day', 'description']
                   .filter(field => availableFields.includes(field))
                   .map(field => (
                     <Grid item xs={12} md={6} key={field}>
-                      {field !== "priceTiers"?renderField(field):<>
-                      
-                      </>}
+                      {renderField(field)}
                     </Grid>
                   ))}
 

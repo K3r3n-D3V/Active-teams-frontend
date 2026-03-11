@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef,useContext } from "react";
 import {
   Button,
   TextField,
@@ -24,9 +24,10 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Popper } from "@mui/material";
+import { AuthContext } from "../contexts/AuthContext";
 
 function generateUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
@@ -72,8 +73,11 @@ const CreateEvents = ({
   selectedEventType,
   selectedEventTypeObj = null,
 }) => {
+  const { authFetch } = useContext(AuthContext);
+  const token = localStorage.getItem("access_token");
   const navigate = useNavigate();
-  const { id: eventId } = useParams();
+  const { id: paramEventID } = useParams();
+  const [eventId,setEventId] = useState(paramEventID?paramEventID:null)
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
@@ -420,15 +424,30 @@ const CreateEvents = ({
       setIsSearchingPeople(false);
     }
   };
+  
+  useEffect(()=>{
+    const queryString = window.location.search
+    const queries = new URLSearchParams(queryString)
+    //checking if opened a ticketed event
+    if (selectedEventTypeObj.isTicketed === true){
+      console.log("ddd",queries.get("eventId"))
+      setEventId(queries.get("eventId"))
+    }
+  },[])
 
   useEffect(() => {
-    if (selectedEventTypeObj.isTicketed === true){
-      alert("jhey")
-    }
+    console.log("dd",eventId)
     if (!eventId) return;
     const fetchEventData = async () => {
       try {
         const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
+        // const response = await authFetch(`${BACKEND_URL}/events/${eventId}`, {
+        //     method: "GET",
+        //     headers: {
+        //       Authorization: `Bearer ${token}`,
+        //       "Content-Type": "application/json",
+        //     },
+        //   });
         const data = response.data;
 
         console.log("Fetched event data:", data);
@@ -491,6 +510,8 @@ const CreateEvents = ({
         }
 
         setFormData((prev) => ({ ...prev, ...data }));
+        // Replace current URL without query string
+window.history.replaceState({}, "", window.location.pathname);
       } catch (err) {
         console.error("Failed to fetch event:", err);
         toast.error("Failed to load event data. Please try again.");
@@ -533,8 +554,13 @@ const CreateEvents = ({
     setPriceTiers((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
+      setFormData((prev) => ({
+      ...prev,
+      "priceTiers": updated,
+      }));
       return updated;
     });
+
   };
 
   const handleLeaderSelect = (person) => {
@@ -752,21 +778,37 @@ const CreateEvents = ({
         "Content-Type": "application/json",
       };
 
-      const response = eventId
-        ? await axios.put(
-            `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`,
-            payload,
-            {
-              headers,
+      const params = {
+        "event_id": eventId,
+        "event_data": {
+          ...formData
+        }
+      }
+      const queryString = new URLSearchParams(params).toString();
+      
+      const response = eventId?
+      await authFetch(`${BACKEND_URL}/events/${eventId}`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
-          )
+            body: JSON.stringify(formData)
+          })
+        // ? await axios.put(
+        //     `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`,
+        //     payload,
+        //     {
+        //       headers,
+        //     },
+        //   )
         : await axios.post(
             `${BACKEND_URL.replace(/\/$/, "")}/events`,
             payload,
             { headers },
           );
 
-      console.log("Response:", response.data.success);
+      console.log("ResponseS:", response.data);
 
       toast.success(
         eventId ? "Event updated successfully!" : "Event created successfully!",
@@ -1161,8 +1203,11 @@ const CreateEvents = ({
                     <TextField
                       label="Price Name *"
                       value={tier.name}
-                      onChange={(e) =>
-                        handlePriceTierChange(index, "name", e.target.value)
+                      onChange={(e) =>{
+                        handlePriceTierChange(index, "name", e.target.value);
+                        
+                      }
+                        
                       }
                       fullWidth
                       size="small"

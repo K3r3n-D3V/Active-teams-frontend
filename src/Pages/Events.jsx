@@ -2632,7 +2632,9 @@ const handleCaptureClick = useCallback(async (event) => {
   }, []);
   const handleEditEvent = useCallback((event) => {
     if (event.isTicketed === true){
-      console.log("here",event)
+      let url = new URL(window.location.href);
+      url.searchParams.set("eventId", event._id);
+      window.history.pushState({}, "", url);
       setSelectedEventTypeObj(event)
       setCreateEventModalOpen(true);
       return
@@ -2662,8 +2664,8 @@ const handleCaptureClick = useCallback(async (event) => {
     }
    
     setSelectedEvent(eventToEdit);
-    
-    // setEditModalOpen(true);
+     if (event.isTicketed === true) return
+    setEditModalOpen(true);
   }, []);
 
   const handleDeleteEvent = useCallback(
