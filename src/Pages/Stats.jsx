@@ -1661,7 +1661,7 @@ calendarEvents.forEach((e) => {
               pr: 1,
               "&::-webkit-scrollbar": { width: "6px" },
               "&::-webkit-scrollbar-track": {
-                background: "#f1f1f1",
+                background: "#e4e4e4",
                 borderRadius: "3px",
               },
               "&::-webkit-scrollbar-thumb": { background: "#888", borderRadius: "3px" },
