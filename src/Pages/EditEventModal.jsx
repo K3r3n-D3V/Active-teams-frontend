@@ -1016,7 +1016,7 @@ const handleSubmit = async (e, isDeactivating = false) => {
       'is_active', 'Display date', 'Display_date', 'display_date',
       'did_not_meet', 'Did_not_meet', 'S', 's', 'Data-recurring',
       'data-recurring', 'is_recurring', 'isRecurring',
-      'closed_by', 'closed_at', 'new_people', 'consolidations', "Status"
+      'closed_by', 'closed_at', 'new_people', 'consolidations', "Status", "new_people_count", "consolidation_count"
     ];
 
     if (!isCellEvent) {
