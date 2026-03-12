@@ -36,6 +36,10 @@ export const AuthProvider = ({ children }) => {
 
   const ensureUserWithAvatar = (userData) => {
     if (!userData) return null;
+    // Always normalize role so route guards don't see "unknown"
+    const normalizedRole = userData.role && String(userData.role).trim().length
+      ? userData.role
+      : 'user';
     const profilePicture = userData.profile_picture || 
                           userData.avatarUrl || 
                           userData.profilePicUrl || 
@@ -43,6 +47,7 @@ export const AuthProvider = ({ children }) => {
                           getDefaultAvatar(userData);
     return {
       ...userData,
+      role: normalizedRole,
       profile_picture: profilePicture,
       avatarUrl: profilePicture,
       profilePicUrl: profilePicture
