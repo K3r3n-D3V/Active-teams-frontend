@@ -76,6 +76,24 @@ const createAuthenticatedRequest = () => {
   });
 };
 
+// Extract userId from JWT token (most reliable source)
+const extractUserIdFromToken = () => {
+  const token = 
+    localStorage.getItem("access_token") || 
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken");
+  
+  if (!token) return null;
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.user_id || payload.sub || payload.userId || payload.id;
+  } catch (e) {
+    console.error("Failed to decode token:", e);
+    return null;
+  }
+};
+
 // Updated: Handle missing userId and use authFetch
 async function fetchUserProfile(authFetch) {
   console.log("=== FETCH PROFILE START ===");
@@ -85,10 +103,17 @@ async function fetchUserProfile(authFetch) {
     try {
       console.log(" Using authFetch from AuthContext...");
       
-      // Get userId first
-      let userId = localStorage.getItem("userId");
+      // PRIORITY 1: Extract from JWT token (most reliable)
+      let userId = extractUserIdFromToken();
+      console.log("userId from JWT token:", userId);
       
-      // If no userId in localStorage, check userProfile
+      // PRIORITY 2: Fall back to localStorage if token extraction fails
+      if (!userId) {
+        userId = localStorage.getItem("userId");
+        console.log("userId from localStorage:", userId);
+      }
+      
+      // PRIORITY 3: Check userProfile as last resort
       if (!userId) {
         const userProfileStr = localStorage.getItem("userProfile");
         if (userProfileStr) {
@@ -96,12 +121,6 @@ async function fetchUserProfile(authFetch) {
             const profile = JSON.parse(userProfileStr);
             userId = profile.id || profile._id || profile.userId;
             console.log("Found userId in userProfile:", userId);
-            
-            // Save it to localStorage for future use
-            if (userId) {
-              localStorage.setItem("userId", userId);
-              console.log(" Saved userId to localStorage");
-            }
           } catch (e) {
             console.error("Failed to parse userProfile:", e);
           }
@@ -136,19 +155,17 @@ async function fetchUserProfile(authFetch) {
   // Fallback to axios if authFetch not available
   console.log(" Using axios fallback...");
   
-  // Get token from any possible key
-  const token = 
-    localStorage.getItem("access_token") || 
-    localStorage.getItem("token") ||
-    localStorage.getItem("accessToken");
+  // PRIORITY 1: Extract from JWT token (most reliable)
+  let userId = extractUserIdFromToken();
+  console.log("userId from JWT token:", userId);
   
-  console.log("Token exists:", !!token);
+  // PRIORITY 2: Fall back to localStorage
+  if (!userId) {
+    userId = localStorage.getItem("userId");
+    console.log("userId from localStorage:", userId);
+  }
   
-  // Find userId from multiple sources
-  let userId = localStorage.getItem("userId");
-  console.log("userId from localStorage:", userId);
-  
-  // If no userId in localStorage, check userProfile
+  // PRIORITY 3: Check userProfile as last resort
   if (!userId) {
     const userProfileStr = localStorage.getItem("userProfile");
     if (userProfileStr) {
@@ -156,41 +173,23 @@ async function fetchUserProfile(authFetch) {
         const profile = JSON.parse(userProfileStr);
         userId = profile.id || profile._id || profile.userId;
         console.log("Found userId in userProfile:", userId);
-        
-        // Save it to localStorage for future use
-        if (userId) {
-          localStorage.setItem("userId", userId);
-          console.log(" Saved userId to localStorage");
-        }
       } catch (e) {
         console.error("Failed to parse userProfile:", e);
       }
     }
   }
   
-  // If still no userId, try to extract from token
-  if (!userId && token) {
-    try {
-      // Decode JWT to get user info
-      const payload = JSON.parse(atob(token.split('.')[1]));
-      userId = payload.sub || payload.userId || payload.id;
-      console.log("Extracted userId from token:", userId);
-      
-      if (userId) {
-        localStorage.setItem("userId", userId);
-      }
-    } catch (e) {
-      console.error("Failed to decode token:", e);
-    }
-  }
-  
   if (!userId) {
     console.error(" CRITICAL: No userId found anywhere!");
-    console.log("Token:", token ? "Exists" : "Missing");
     console.log("userProfile in localStorage:", localStorage.getItem("userProfile"));
     throw new Error("User ID not found. Please log in again.");
   }
   
+  const token = 
+    localStorage.getItem("access_token") || 
+    localStorage.getItem("token") ||
+    localStorage.getItem("accessToken");
+
   if (!token) {
     console.error(" CRITICAL: No authentication token found!");
     throw new Error("Authentication required. Please log in again.");
@@ -239,9 +238,17 @@ async function fetchUserProfile(authFetch) {
 async function updateUserProfile(data, authFetch) {
   console.log("=== UPDATE PROFILE START ===");
   
-  // Get userId from multiple sources
-  let userId = localStorage.getItem("userId");
+  // PRIORITY 1: Extract from JWT token (most reliable)
+  let userId = extractUserIdFromToken();
+  console.log("userId from JWT token:", userId);
   
+  // PRIORITY 2: Fall back to localStorage
+  if (!userId) {
+    userId = localStorage.getItem("userId");
+    console.log("userId from localStorage:", userId);
+  }
+  
+  // PRIORITY 3: Check userProfile as last resort
   if (!userId) {
     const userProfileStr = localStorage.getItem("userProfile");
     if (userProfileStr) {
@@ -249,10 +256,6 @@ async function updateUserProfile(data, authFetch) {
         const profile = JSON.parse(userProfileStr);
         userId = profile.id || profile._id || profile.userId;
         console.log("Found userId in userProfile:", userId);
-        
-        if (userId) {
-          localStorage.setItem("userId", userId);
-        }
       } catch (e) {
         console.error("Failed to parse userProfile:", e);
       }
@@ -307,7 +310,13 @@ async function updateUserProfile(data, authFetch) {
 }
 
 async function uploadAvatarFromDataUrl(dataUrl, authFetch) {
-  const userId = localStorage.getItem("userId");
+  // PRIORITY 1: Extract from JWT token (most reliable)
+  let userId = extractUserIdFromToken();
+  
+  // PRIORITY 2: Fall back to localStorage
+  if (!userId) {
+    userId = localStorage.getItem("userId");
+  }
   
   if (!userId) {
     throw new Error("User ID not found");
@@ -358,7 +367,13 @@ async function uploadAvatarFromDataUrl(dataUrl, authFetch) {
 }
 
 async function updatePassword(currentPassword, newPassword, authFetch) {
-  const userId = localStorage.getItem("userId");
+  // PRIORITY 1: Extract from JWT token (most reliable)
+  let userId = extractUserIdFromToken();
+  
+  // PRIORITY 2: Fall back to localStorage
+  if (!userId) {
+    userId = localStorage.getItem("userId");
+  }
   
   if (!userId) {
     throw new Error("User ID not found");
@@ -1322,7 +1337,26 @@ export default function Profile() {
 
               {/* Action Buttons */}
               <Box sx={{ mt: 4, display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap", }}>
-                <Button type="submit" variant="contained" startIcon={<Save />} disabled={!hasChanges} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
+                <Button 
+                  type="submit" 
+                  variant="contained" 
+                  startIcon={<Save />} 
+                  disabled={!hasChanges} 
+                  sx={{ 
+                    bgcolor: currentCarouselItem.color, 
+                    "&:hover": {
+                       bgcolor: currentCarouselItem.color, 
+                       opacity: 0.9, 
+                      }, 
+                       "&:disabled": {
+                         bgcolor: isDark ? "#333333" : "#cccccc",
+                          color: isDark ? "#666666" : "#999999", 
+                          }, borderRadius: 2, 
+                          px: 4, 
+                          py: 1.5, 
+                          fontWeight: 600, 
+                          textTransform: "none", 
+                          fontSize: "1rem", }}>
                   {canEditProfile ? "Save Changes" : "Update Password"}
                 </Button>
                 
