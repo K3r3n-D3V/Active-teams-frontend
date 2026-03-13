@@ -1660,7 +1660,7 @@ function ServiceCheckIn() {
               searchTerm={eventSearch}
               isLoading={isLoadingEvents && events.length === 0}
               onRefresh={() => fetchEvents(true)}
-              isLoading={isLoadingHistory}
+              // isLoading={isLoadingHistory}
             />
           </Box>
         )}
