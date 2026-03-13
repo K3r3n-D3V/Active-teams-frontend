@@ -24,7 +24,7 @@ import DescriptionIcon from "@mui/icons-material/Description";
 import AddIcon from "@mui/icons-material/Add";
 import DeleteIcon from "@mui/icons-material/Delete";
 import axios from "axios";
-import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Popper } from "@mui/material";
 import { AuthContext } from "../contexts/AuthContext";
@@ -74,9 +74,9 @@ const CreateEvents = ({
   selectedEventTypeObj = null,
 }) => {
   const { authFetch } = useContext(AuthContext);
-  const token = localStorage.getItem("access_token");
   const navigate = useNavigate();
   const { id: paramEventID } = useParams();
+  //changed eventId initial value to first check if there's an Id in the params
   const [eventId,setEventId] = useState(paramEventID?paramEventID:null)
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
@@ -425,12 +425,16 @@ const CreateEvents = ({
     }
   };
   
+  //
   useEffect(()=>{
+    //when create event is rendered it should check if it was opened by a ticketed event
     const queryString = window.location.search
     const queries = new URLSearchParams(queryString)
+
     //checking if opened a ticketed event
     if (selectedEventTypeObj.isTicketed === true){
-      console.log("ddd",queries.get("eventId"))
+      console.log("Event ID",queries.get("eventId"))
+      //setting event id to query
       setEventId(queries.get("eventId"))
     }
   },[])
@@ -441,13 +445,6 @@ const CreateEvents = ({
     const fetchEventData = async () => {
       try {
         const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
-        // const response = await authFetch(`${BACKEND_URL}/events/${eventId}`, {
-        //     method: "GET",
-        //     headers: {
-        //       Authorization: `Bearer ${token}`,
-        //       "Content-Type": "application/json",
-        //     },
-        //   });
         const data = response.data;
 
         console.log("Fetched event data:", data);
@@ -554,6 +551,7 @@ window.history.replaceState({}, "", window.location.pathname);
     setPriceTiers((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
+      //Add price tiers to formData so when it's updated it can be sent to the backend
       setFormData((prev) => ({
       ...prev,
       "priceTiers": updated,
@@ -778,14 +776,7 @@ window.history.replaceState({}, "", window.location.pathname);
         "Content-Type": "application/json",
       };
 
-      const params = {
-        "event_id": eventId,
-        "event_data": {
-          ...formData
-        }
-      }
-      const queryString = new URLSearchParams(params).toString();
-      
+      //updating using auth fetch as endpoint was returning a 401 error
       const response = eventId?
       await authFetch(`${BACKEND_URL}/events/${eventId}`, {
             method: "PUT",
@@ -793,22 +784,16 @@ window.history.replaceState({}, "", window.location.pathname);
               Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
+            //sending form data 
             body: JSON.stringify(formData)
           })
-        // ? await axios.put(
-        //     `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`,
-        //     payload,
-        //     {
-        //       headers,
-        //     },
-        //   )
         : await axios.post(
             `${BACKEND_URL.replace(/\/$/, "")}/events`,
             payload,
             { headers },
           );
 
-      console.log("ResponseS:", response.data);
+      console.log("Response:", response.data);
 
       toast.success(
         eventId ? "Event updated successfully!" : "Event created successfully!",
@@ -1205,7 +1190,6 @@ window.history.replaceState({}, "", window.location.pathname);
                       value={tier.name}
                       onChange={(e) =>{
                         handlePriceTierChange(index, "name", e.target.value);
-                        
                       }
                         
                       }

@@ -160,7 +160,6 @@ const EditEventModal = ({ isOpen, onClose, event, token, refreshEvents }) => {
       setFormData(initialData);
 
       setIsActiveToggle(initialData.is_active === true || initialData.is_active === false ? initialData.is_active : true);
-      
       const editableFields = Object.keys(initialData).filter(key =>
         !['_id', 'id', '__v', 'UUID', 'created_at', 'updated_at',
           'persistent_attendees', 'attendees', 'total_attendance',
@@ -1349,8 +1348,7 @@ const handleSubmit = async (e, isDeactivating = false) => {
                 )}
               </Box>
             ) : (
-              <Grid container spacing={2}>
-                
+              <Grid container spacing={2}>            
                 {/* Event Name, Leader, Email, Status, Day, Description fields */}
                 {['eventName', 'Event Name', 'eventLeader', 'Leader', 'eventLeaderEmail', 'Email',
                   'status', 'recurring_day', 'Day', 'description']
