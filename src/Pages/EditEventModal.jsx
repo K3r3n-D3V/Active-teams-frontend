@@ -859,7 +859,7 @@ const handleSubmit = async (e, isDeactivating = false) => {
     }
 
     if (fl === 'status') {
-      const statusOptions = ['complete', 'incomplete', 'did_not_meet', 'cancelled'];
+      const statusOptions = ['complete', 'incomplete', 'did_not_meet'];
       const content = (
         <FormControl fullWidth margin="normal" error={isChanged} disabled={isDisabled}>
           <InputLabel>Status</InputLabel>
