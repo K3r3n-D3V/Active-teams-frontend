@@ -444,10 +444,6 @@ function ServiceCheckIn() {
 
         setEvents(validEvents);
 
-        if (currentEventId && validEvents.length > 0) {
-          const filtered = getFilteredEvents(validEvents);
-          if (filtered.length > 0) setCurrentEventId(filtered[0].id);
-        }
       } catch (err) {
         toast.error(err, "Failed to fetch events. Please try again.");
       } finally {
