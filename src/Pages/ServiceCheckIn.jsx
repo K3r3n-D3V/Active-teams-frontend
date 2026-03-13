@@ -611,6 +611,12 @@ function ServiceCheckIn() {
     })();
   }, []);
 
+useEffect(() => {
+  if (!search.trim()) {
+    setSortModel([]);
+  }
+}, [search]);
+
   useEffect(() => {
     if (!currentEventId) {
       setRealTimeData(null);
