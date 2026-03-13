@@ -94,61 +94,56 @@ function matchesSearch(person, searchTerms) {
   return searchTerms.every((t) => text.includes(t));
 }
 
-function isPriorityEnslin(firstName, surname) {
-  const isEnslin = surname.includes("ensl");
-  const isVicky =
-    firstName.includes("vick") ||
-    firstName.includes("vic") ||
-    firstName.includes("vicky");
-  const isGavin =
-    firstName.includes("gav") ||
-    firstName.includes("gavin") ||
-    firstName.includes("gavyn");
-  return isEnslin && (isVicky || isGavin);
+const PRIORITY_PEOPLE = [
+  { firstNameIncludes: ["vick", "vic", "vicky"], surnameIncludes: ["ensl"] },
+  { firstNameIncludes: ["gav", "gavin", "gavyn"], surnameIncludes: ["ensl"] },
+];
+
+function isPriorityPerson(firstName, surname) {
+  const fn = firstName.toLowerCase();
+  const sn = surname.toLowerCase();
+  return PRIORITY_PEOPLE.some(
+    (p) =>
+      p.surnameIncludes.some((s) => sn.includes(s)) &&
+      p.firstNameIncludes.some((f) => fn.includes(f))
+  );
 }
 
-function getSearchPriorityScore(attendee, searchTermLower) {
-  const firstName = (attendee.name || "").toLowerCase();
-  const lastName = (attendee.surname || "").toLowerCase();
-  if (!isPriorityEnslin(firstName, lastName)) return 0;
-  const isEnslinSearch = searchTermLower.includes("ensl");
-  if (!isEnslinSearch) return 0;
-  return 90;
-}
+function createLeaderSortComparator(leaderField, searchTerm = "") {
+  return (a, b) => {
+    const aVal = (a[leaderField] || "").toLowerCase();
+    const bVal = (b[leaderField] || "").toLowerCase();
 
-function createLeaderSortComparator(leaderField) {
-  return (v1, v2, cellParams1, cellParams2) => {
-    const row1 = cellParams1?.api?.getRow(cellParams1.id) || {};
-    const row2 = cellParams2?.api?.getRow(cellParams2.id) || {};
+    if (leaderField === "leader1") {
+      const aIsPriority = isPriorityPerson(a.name || "", a.surname || "");
+      const bIsPriority = isPriorityPerson(b.name || "", b.surname || "");
+      if (aIsPriority && !bIsPriority) return -1;
+      if (!aIsPriority && bIsPriority) return 1;
 
-    const fn1 = (row1.name || "").toLowerCase().trim();
-    const fn2 = (row2.name || "").toLowerCase().trim();
-    const sn1 = (row1.surname || "").toLowerCase().trim();
-    const sn2 = (row2.surname || "").toLowerCase().trim();
+      const aIsEnslin = aVal.includes("enslin");
+      const bIsEnslin = bVal.includes("enslin");
+      if (aIsEnslin && !bIsEnslin) return -1;
+      if (!aIsEnslin && bIsEnslin) return 1;
+      if (aIsEnslin && bIsEnslin) return aVal.localeCompare(bVal);
+    }
 
-    const p1 = isPriorityEnslin(fn1, sn1);
-    const p2 = isPriorityEnslin(fn2, sn2);
-    if (p1 && !p2) return -1;
-    if (!p1 && p2) return 1;
+    const searchLower = searchTerm.toLowerCase().trim();
+    if (searchLower) {
+      const searchWords = searchLower.split(/\s+/).filter(Boolean);
+      const aMatches = searchWords.some((word) => aVal.includes(word));
+      const bMatches = searchWords.some((word) => bVal.includes(word));
+      if (aMatches && !bMatches) return -1;
+      if (!aMatches && bMatches) return 1;
+    }
 
-    if (row1.isNew && !row2.isNew) return -1;
-    if (!row1.isNew && row2.isNew) return 1;
+    const aHas = Boolean(aVal.trim());
+    const bHas = Boolean(bVal.trim());
+    if (aHas && !bHas) return -1;
+    if (!aHas && bHas) return 1;
 
-    const hl1 = Boolean((row1[leaderField] || "").trim());
-    const hl2 = Boolean((row2[leaderField] || "").trim());
-    if (hl1 && !hl2) return -1;
-    if (!hl1 && hl2) return 1;
-
-    return (row1[leaderField] || "").toLowerCase()
-      .localeCompare((row2[leaderField] || "").toLowerCase());
+    return aVal.localeCompare(bVal);
   };
 }
-
-const leaderComparators = {
-  leader1: createLeaderSortComparator("leader1"),
-  leader12: createLeaderSortComparator("leader12"),
-  leader144: createLeaderSortComparator("leader144"),
-};
 
 function normalisePerson(p) {
   return {
@@ -251,23 +246,28 @@ function ServiceCheckIn() {
   });
 
   const theme = useTheme();
-  const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
-  const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
-  const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
-  const isLgDown = useMediaQuery(theme.breakpoints.down("lg"));
+  const isXs = useMediaQuery(theme.breakpoints.down("xs"));
+  const isSm = useMediaQuery(theme.breakpoints.down("sm"));
+  const isMd = useMediaQuery(theme.breakpoints.down("md"));
+  const isLg = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
 
-  const getResponsiveValue = (xs, sm, md, lg, xl) => {
-    if (isXsDown) return xs;
-    if (isSmDown) return sm;
-    if (isMdDown) return md;
-    if (isLgDown) return lg;
+  const isXsDown = isXs;
+  const isSmDown = isSm;
+  const isMdDown = isMd;
+  const isLgDown = isLg;
+
+  const rv = (xs, sm, md, lg, xl) => {
+    if (isXs) return xs;
+    if (isSm) return sm;
+    if (isMd) return md;
+    if (isLg) return lg;
     return xl;
   };
+  const getResponsiveValue = rv;
 
-  const containerPadding = getResponsiveValue(0.5, 1, 2, 3, 3);
-  const titleVariant = getResponsiveValue("subtitle1", "h6", "h5", "h4", "h4");
-  const cardSpacing = getResponsiveValue(0.5, 1, 1.5, 2, 2);
+  const containerPadding = rv(0.5, 1, 2, 3, 3);
+  const cardSpacing = rv(0.5, 1, 1.5, 2, 2);
 
   const attendeeMap = useMemo(() => {
     const map = new Map();
@@ -305,7 +305,7 @@ function ServiceCheckIn() {
         return data.cached_data;
       }
     } catch (err) {
-      toast.error("Failed to load people data. Please refresh the page.");
+      toast.error("Failed to load people data. Please refresh the page.", err);
     } finally {
       setIsLoadingPeople(false);
     }
@@ -313,12 +313,12 @@ function ServiceCheckIn() {
   }, [authFetch]);
 
   const fetchEvents = useCallback(
-    async (forceRefresh = false, sharedPeopleList = null) => {
+    async (sharedPeopleList = null) => {
       try {
         const [evResponse, peopleResponse] = sharedPeopleList
-          ? [await authFetch(`${BASE_URL}/events/eventsdata`), null]
+          ? [await authFetch(`${BASE_URL}/events/eventsdata?limit=100&start_date=2024-10-10`), null]
           : await Promise.all([
-            authFetch(`${BASE_URL}/events/eventsdata`),
+            authFetch(`${BASE_URL}/events/eventsdata?limit=100&start_date=2024-10-10`),
             authFetch(`${BASE_URL}/cache/people`),
           ]);
 
@@ -466,7 +466,7 @@ function ServiceCheckIn() {
     (async () => {
       try {
         const [evResponse, peopleResponse] = await Promise.all([
-          authFetch(`${BASE_URL}/events/eventsdata`),
+          authFetch(`${BASE_URL}/events/eventsdata?limit=100&start_date=2024-10-10`),
           authFetch(`${BASE_URL}/cache/people`),
         ]);
 
@@ -611,6 +611,12 @@ function ServiceCheckIn() {
     })();
   }, []);
 
+useEffect(() => {
+  if (!search.trim()) {
+    setSortModel([]);
+  }
+}, [search]);
+
   useEffect(() => {
     if (!currentEventId) {
       setRealTimeData(null);
@@ -707,16 +713,12 @@ function ServiceCheckIn() {
     const terms = search.toLowerCase().trim().split(/\s+/);
     const filtered = attendeesWithStatus.filter((p) => matchesSearch(p, terms));
 
-    const q = search.toLowerCase();
-    if (q.includes("ensl") || q.includes("vick") || q.includes("vic") || q.includes("gav")) {
-      return [...filtered].sort((a, b) => {
-        const sa = getSearchPriorityScore(a, q);
-        const sb = getSearchPriorityScore(b, q);
-        if (sa !== sb) return sb - sa;
-        return `${a.name} ${a.surname}`.localeCompare(`${b.name} ${b.surname}`);
-      });
-    }
-    return filtered;
+    return [...filtered].sort((a, b) => {
+      const sa = isPriorityPerson(a.name || "", a.surname || "") ? 1 : 0;
+      const sb = isPriorityPerson(b.name || "", b.surname || "") ? 1 : 0;
+      if (sa !== sb) return sb - sa;
+      return `${a.name} ${a.surname}`.localeCompare(`${b.name} ${b.surname}`);
+    });
   }, [attendeesWithStatus, search]);
 
   const sortedFilteredAttendees = useMemo(() => {
@@ -724,8 +726,9 @@ function ServiceCheckIn() {
     if (sortModel?.length > 0) {
       const { field, sort } = sortModel[0];
       if (field === "leader1" || field === "leader12" || field === "leader144") {
+        const comparator = createLeaderSortComparator(field, search);
         result.sort((a, b) => {
-          const cmp = leaderComparators[field](a[field], b[field], a, b);
+          const cmp = comparator(a, b);
           return sort === "desc" ? -cmp : cmp;
         });
       } else if (field && field !== "actions") {
@@ -754,8 +757,7 @@ function ServiceCheckIn() {
     const full = (realTimeData?.present_attendees || []).map((a) => {
       const fp = attendeeMap.get(a.id || a._id) || {};
       return {
-        ...a,
-        ...fp,
+        ...a, ...fp,
         name: fp.name || a.name || "",
         surname: fp.surname || a.surname || "",
         email: fp.email || a.email || "",
@@ -785,8 +787,7 @@ function ServiceCheckIn() {
     const full = (realTimeData?.new_people || []).map((np) => {
       const fp = attendeeMap.get(np.id || np._id) || {};
       return {
-        ...np,
-        ...fp,
+        ...np, ...fp,
         name: fp.name || np.name || "",
         surname: fp.surname || np.surname || "",
         email: fp.email || np.email || "",
@@ -818,11 +819,9 @@ function ServiceCheckIn() {
         attendeeMap.get(cons.person_id) ||
         attendees.find(
           (a) => a.name === (cons.person_name || cons.name) && a.surname === (cons.person_surname || cons.surname)
-        ) ||
-        {};
+        ) || {};
       return {
-        ...cons,
-        ...fp,
+        ...cons, ...fp,
         person_name: fp.name || cons.person_name || "",
         person_surname: fp.surname || cons.person_surname || "",
         person_email: fp.email || cons.person_email || "",
@@ -849,28 +848,20 @@ function ServiceCheckIn() {
   const newPeopleCount = realTimeData?.new_people_count ?? 0;
   const consolidationCount = realTimeData?.consolidation_count ?? 0;
 
-
   const handleFullRefresh = useCallback(async () => {
-    if (!currentEventId) {
-      toast.error("Please select an event first");
-      return;
-    }
+    if (!currentEventId) { toast.error("Please select an event first"); return; }
     setIsRefreshing(true);
-
     setOpenDialog(false);
     setEditingPerson(null);
     setFormData(emptyForm);
     setSearch("");
-
     try {
       await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" });
       const [data, cacheResponse] = await Promise.all([
         fetchRealTimeEventData(currentEventId),
         authFetch(`${BASE_URL}/cache/people`),
       ]);
-
       if (data) setRealTimeData(data);
-
       if (cacheResponse.ok) {
         const cacheData = await cacheResponse.json();
         if (cacheData.success && cacheData.cached_data) {
@@ -929,13 +920,10 @@ function ServiceCheckIn() {
       setCheckInLoading((prev) => new Set(prev).add(attendee._id));
       const fullName = `${attendee.name} ${attendee.surname}`.trim();
       const isCurrentlyPresent = presentIds.has(attendee._id);
-
       const personId = attendee._id;
       const optimisticEntry = {
-        id: personId,
-        _id: personId,
-        name: attendee.name,
-        surname: attendee.surname,
+        id: personId, _id: personId,
+        name: attendee.name, surname: attendee.surname,
         email: attendee.email,
         phone: attendee.phone || attendee.number || "",
         leader1: attendee.leader1 || "",
@@ -948,11 +936,7 @@ function ServiceCheckIn() {
         if (!isCurrentlyPresent) {
           const alreadyThere = (prev.present_attendees || []).some((a) => a.id === personId || a._id === personId);
           if (alreadyThere) return prev;
-          return {
-            ...prev,
-            present_attendees: [...(prev.present_attendees || []), optimisticEntry],
-            present_count: (prev.present_count || 0) + 1,
-          };
+          return { ...prev, present_attendees: [...(prev.present_attendees || []), optimisticEntry], present_count: (prev.present_count || 0) + 1 };
         } else {
           const filtered = (prev.present_attendees || []).filter((a) => a.id !== personId && a._id !== personId);
           return { ...prev, present_attendees: filtered, present_count: filtered.length };
@@ -972,13 +956,8 @@ function ServiceCheckIn() {
           });
           if (response.ok) {
             const data = await response.json();
-            if (data.success) {
-              toast.success(`${fullName} checked in`);
-              success = true;
-            } else if (data.message?.includes("already checked in")) {
-              toast.warning(`${fullName} is already checked in`);
-              success = true;
-            }
+            if (data.success) { toast.success(`${fullName} checked in`); success = true; }
+            else if (data.message?.includes("already checked in")) { toast.warning(`${fullName} is already checked in`); success = true; }
           }
         } else {
           const response = await authFetch(`${BASE_URL}/service-checkin/remove`, {
@@ -987,10 +966,7 @@ function ServiceCheckIn() {
           });
           if (response.ok) {
             const data = await response.json();
-            if (data.success) {
-              toast.info(`${fullName} removed from check-in`);
-              success = true;
-            }
+            if (data.success) { toast.info(`${fullName} removed from check-in`); success = true; }
           }
         }
 
@@ -1006,11 +982,7 @@ function ServiceCheckIn() {
           });
           toast.error(`Failed to update check-in for ${fullName}`);
         }
-
-        fetchRealTimeEventData(currentEventId).then((freshData) => {
-          if (freshData) setRealTimeData(freshData);
-        });
-
+        fetchRealTimeEventData(currentEventId).then((freshData) => { if (freshData) setRealTimeData(freshData); });
       } catch (err) {
         setRealTimeData((prev) => {
           if (!prev) return prev;
@@ -1036,49 +1008,19 @@ function ServiceCheckIn() {
         if (editingPerson) {
           const { __updatedNewPerson, ...normalizedUpdate } = responseData;
           const personId = editingPerson._id;
-
           toast.success(`${normalizedUpdate.name} ${normalizedUpdate.surname} updated successfully`);
-
-          setAttendees((prev) => [
-            ...prev.map((p) =>
-              p._id === personId
-                ? { ...p, ...normalizedUpdate, _id: personId, id: personId }
-                : p
-            ),
-          ]);
-
+          setAttendees((prev) => [...prev.map((p) => p._id === personId ? { ...p, ...normalizedUpdate, _id: personId, id: personId } : p)]);
           setRealTimeData((prev) => {
             if (!prev) return prev;
-            const patch = (list) =>
-              (list || []).map((entry) =>
-                entry.id === personId || entry._id === personId
-                  ? {
-                    ...entry,
-                    ...normalizedUpdate,
-                    id: personId,
-                    _id: personId,
-                    person_name: normalizedUpdate.name,
-                    person_surname: normalizedUpdate.surname,
-                    person_email: normalizedUpdate.email,
-                    person_phone: normalizedUpdate.phone || normalizedUpdate.number,
-                  }
-                  : entry
-              );
-            return {
-              ...prev,
-              new_people: patch(prev.new_people),
-              present_attendees: patch(prev.present_attendees),
-            };
+            const patch = (list) => (list || []).map((entry) =>
+              entry.id === personId || entry._id === personId
+                ? { ...entry, ...normalizedUpdate, id: personId, _id: personId, person_name: normalizedUpdate.name, person_surname: normalizedUpdate.surname, person_email: normalizedUpdate.email, person_phone: normalizedUpdate.phone || normalizedUpdate.number }
+                : entry
+            );
+            return { ...prev, new_people: patch(prev.new_people), present_attendees: patch(prev.present_attendees) };
           });
-
-          setOpenDialog(false);
-          setEditingPerson(null);
-          setFormData(emptyForm);
-
-          fetchRealTimeEventData(currentEventId).then((freshData) => {
-            if (freshData) setRealTimeData(freshData);
-          });
-
+          setOpenDialog(false); setEditingPerson(null); setFormData(emptyForm);
+          fetchRealTimeEventData(currentEventId).then((freshData) => { if (freshData) setRealTimeData(freshData); });
           authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }).catch(() => { });
           return;
         }
@@ -1089,16 +1031,7 @@ function ServiceCheckIn() {
           method: "POST",
           body: JSON.stringify({
             event_id: currentEventId,
-            person_data: {
-              id: newPersonData._id,
-              name: newPersonData.Name || formData.name,
-              surname: newPersonData.Surname || formData.surname,
-              email: newPersonData.Email || formData.email,
-              number: newPersonData.Number || formData.number,
-              gender: newPersonData.Gender || formData.gender,
-              invitedBy: newPersonData.InvitedBy || formData.invitedBy,
-              stage: "First Time",
-            },
+            person_data: { id: newPersonData._id, name: newPersonData.Name || formData.name, surname: newPersonData.Surname || formData.surname, email: newPersonData.Email || formData.email, number: newPersonData.Number || formData.number, gender: newPersonData.Gender || formData.gender, invitedBy: newPersonData.InvitedBy || formData.invitedBy, stage: "First Time" },
             type: "new_person",
           }),
         });
@@ -1107,44 +1040,21 @@ function ServiceCheckIn() {
           const data = await response.json();
           if (data.success) {
             toast.success(`${fullName} added as new person successfully`);
-            setOpenDialog(false);
-            setEditingPerson(null);
-            setFormData(emptyForm);
-            setSearch("");
-
+            setOpenDialog(false); setEditingPerson(null); setFormData(emptyForm); setSearch("");
             const newPersonForGrid = {
-              _id: newPersonData._id,
-              name: newPersonData.Name || formData.name,
-              surname: newPersonData.Surname || formData.surname,
-              email: newPersonData.Email || formData.email,
-              number: newPersonData.Number || formData.number,
-              phone: newPersonData.Number || formData.number,
-              gender: newPersonData.Gender || formData.gender,
-              invitedBy: newPersonData.InvitedBy || formData.invitedBy,
-              leader1: formData.leader1 || "",
-              leader12: formData.leader12 || "",
-              leader144: formData.leader144 || "",
-              stage: "First Time",
-              fullName,
-              address: "",
-              birthday: "",
-              dob: "",
-              isNew: true,
-              present: false,
+              _id: newPersonData._id, name: newPersonData.Name || formData.name, surname: newPersonData.Surname || formData.surname,
+              email: newPersonData.Email || formData.email, number: newPersonData.Number || formData.number, phone: newPersonData.Number || formData.number,
+              gender: newPersonData.Gender || formData.gender, invitedBy: newPersonData.InvitedBy || formData.invitedBy,
+              leader1: formData.leader1 || "", leader12: formData.leader12 || "", leader144: formData.leader144 || "",
+              stage: "First Time", fullName, address: "", birthday: "", dob: "", isNew: true, present: false,
             };
             setAttendees((prev) => [newPersonForGrid, ...prev]);
-
-            try {
-              await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" });
-            } catch { }
-
+            try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch { }
             const freshData = await fetchRealTimeEventData(currentEventId);
             if (freshData) setRealTimeData(freshData);
           }
         }
-      } catch (error) {
-        toast.error(error.message || "Failed to save person");
-      }
+      } catch (error) { toast.error(error.message || "Failed to save person"); }
     },
     [currentEventId, editingPerson, formData, authFetch, fetchRealTimeEventData]
   );
@@ -1179,11 +1089,8 @@ function ServiceCheckIn() {
 
       setEvents((prev) => {
         const updated = prev.map((e) =>
-          e.id === currentEventId
-            ? { ...e, status: "complete", closed_by: result.closed_by, closed_at: result.closed_at }
-            : e
+          e.id === currentEventId ? { ...e, status: "complete", closed_by: result.closed_by, closed_at: result.closed_at } : e
         );
-
         const todayStr = new Date().toISOString().split("T")[0];
         const nextEvent = updated.find((e) => {
           if (e.id === currentEventId) return false;
@@ -1195,13 +1102,12 @@ function ServiceCheckIn() {
           if (!e.date) return false;
           return new Date(e.date).toISOString().split("T")[0] === todayStr;
         });
-
         setCurrentEventId(nextEvent?.id || "");
         return updated;
       });
 
       setRealTimeData(null);
-      setTimeout(() => fetchEvents(true, null, false), 500);
+      setTimeout(() => fetchEvents(true, null), 500);
     } catch (error) {
       if (error.message.includes("404")) toast.error("Event not found. It may have been deleted.");
       else if (error.message.includes("400")) toast.error("Invalid event ID.");
@@ -1214,16 +1120,23 @@ function ServiceCheckIn() {
   const handleUnsaveEvent = useCallback(
     async (event) => {
       try {
-        const response = await authFetch(`${BASE_URL}/events/${event.id || event._id}/toggle-status`, { method: "PATCH" });
-        if (!response.ok) { const e = await response.json(); throw new Error(e.detail || `HTTP error`); }
-        const result = await response.json();
-        if (result.success) {
-          toast.success(`Event "${event.eventName}" has been reopened!`);
-          setEvents((prev) => prev.map((ev) => (ev.id === event.id || ev._id === event._id) ? { ...ev, status: "incomplete" } : ev));
-          setIsLoadingHistory(true);
-          setTimeout(() => fetchEvents(true, null, false), 500);
+        const response = await authFetch(
+          `${BASE_URL}/events/${event.id || event._id}/toggle-status`,
+          { method: "PATCH" }
+        );
+        if (!response.ok) {
+          const e = await response.json();
+          throw new Error(e.detail || `HTTP error`);
         }
-      } catch (error) { toast.error(error.message || "Failed to reopen event"); }
+        const result = await response.json();
+        toast.success(`Event "${event.eventName}" has been reopened!`);
+        setIsLoadingHistory(true);
+        setIsLoadingEvents(true);
+        await fetchEvents();
+        setCurrentEventId(event.id || event._id);
+      } catch (error) {
+        toast.error(error.message || "Failed to reopen event");
+      }
     },
     [authFetch, fetchEvents]
   );
@@ -1236,18 +1149,14 @@ function ServiceCheckIn() {
   const handleEditClick = useCallback((person) => {
     setEditingPerson(person);
     setFormData({
-      name: person.name || "",
-      surname: person.surname || "",
+      name: person.name || "", surname: person.surname || "",
       dob: person.dob || person.dateOfBirth || person.birthday || "",
       address: person.homeAddress || person.address || "",
       email: person.email || "",
       number: person.phone || person.Number || person.number || "",
       phone: person.phone || person.Number || person.number || "",
-      gender: person.gender || "",
-      invitedBy: person.invitedBy || "",
-      leader1: person.leader1 || "",
-      leader12: person.leader12 || "",
-      leader144: person.leader144 || "",
+      gender: person.gender || "", invitedBy: person.invitedBy || "",
+      leader1: person.leader1 || "", leader12: person.leader12 || "", leader144: person.leader144 || "",
       stage: person.stage || "Win",
     });
     setOpenDialog(true);
@@ -1259,22 +1168,14 @@ function ServiceCheckIn() {
       try {
         const res = await authFetch(`${BASE_URL}/people/${personId}`, { method: "DELETE" });
         if (!res.ok) { const e = await res.json(); toast.error(`Delete failed: ${e.detail}`); return; }
-
         setAttendees((prev) => prev.filter((p) => p._id !== personId && p.id !== personId));
         setRealTimeData((prev) => {
           if (!prev) return prev;
           const filterFn = (a) => a.id !== personId && a._id !== personId;
           const newPresent = (prev.present_attendees || []).filter(filterFn);
           const newPeople = (prev.new_people || []).filter(filterFn);
-          return {
-            ...prev,
-            present_attendees: newPresent,
-            new_people: newPeople,
-            present_count: newPresent.length,
-            new_people_count: newPeople.length,
-          };
+          return { ...prev, present_attendees: newPresent, new_people: newPeople, present_count: newPresent.length, new_people_count: newPeople.length };
         });
-
         try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch { }
         toast.success(`"${personName}" deleted successfully`);
       } catch {
@@ -1309,17 +1210,9 @@ function ServiceCheckIn() {
   const exportToExcel = useCallback((data, filename = "export") => {
     if (!data?.length) { toast.error("No data to export"); return; }
     const headers = ["Name", "Surname", "Email", "Phone", "Leader @1", "Leader @12", "Leader @144", "CheckIn_Time", "Status"];
-    const worksheetData = data.map((row) => {
-      const ordered = {};
-      headers.forEach((h) => (ordered[h] = row[h] ?? ""));
-      return ordered;
-    });
+    const worksheetData = data.map((row) => { const o = {}; headers.forEach((h) => (o[h] = row[h] ?? "")); return o; });
     const ws = XLSX.utils.json_to_sheet(worksheetData, { header: headers });
-    ws["!cols"] = headers.map((h) => {
-      let maxw = h.length;
-      worksheetData.forEach((row) => { const v = String(row[h] || ""); if (v.length > maxw) maxw = v.length; });
-      return { wch: maxw + 3 };
-    });
+    ws["!cols"] = headers.map((h) => { let maxw = h.length; worksheetData.forEach((row) => { const v = String(row[h] || ""); if (v.length > maxw) maxw = v.length; }); return { wch: maxw + 3 }; });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Present Attendees");
     const today = new Date().toISOString().split("T")[0];
@@ -1328,33 +1221,20 @@ function ServiceCheckIn() {
       const blob = new Blob([s2ab(wbout)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
-      link.href = url;
-      link.download = `${filename}_${today}.xlsx`;
-      link.style.display = "none";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      link.href = url; link.download = `${filename}_${today}.xlsx`; link.style.display = "none";
+      document.body.appendChild(link); link.click(); document.body.removeChild(link); URL.revokeObjectURL(url);
       toast.success(`Exported ${data.length} records`);
     } catch { toast.error("Failed to create Excel file"); }
   }, []);
 
   const handleAddPersonClick = useCallback(() => {
     if (!currentEventId) { toast.error("Please select an event first before adding people"); return; }
-    setEditingPerson(null);
-    setFormData(emptyForm);
-    setOpenDialog(true);
+    setEditingPerson(null); setFormData(emptyForm); setOpenDialog(true);
   }, [currentEventId]);
 
-  const handleViewEventDetails = useCallback((event, data) => {
-    setEventHistoryModal({ open: true, event, type: "attendance", data: data || [] });
-  }, []);
-  const handleViewNewPeople = useCallback((event, data) => {
-    setEventHistoryModal({ open: true, event, type: "newPeople", data: data || [] });
-  }, []);
-  const handleViewConsolidated = useCallback((event, data) => {
-    setEventHistoryModal({ open: true, event, type: "consolidated", data: data || [] });
-  }, []);
+  const handleViewEventDetails = useCallback((event, data) => { setEventHistoryModal({ open: true, event, type: "attendance", data: data || [] }); }, []);
+  const handleViewNewPeople = useCallback((event, data) => { setEventHistoryModal({ open: true, event, type: "newPeople", data: data || [] }); }, []);
+  const handleViewConsolidated = useCallback((event, data) => { setEventHistoryModal({ open: true, event, type: "consolidated", data: data || [] }); }, []);
 
   const mainColumns = useMemo(() => {
     const base = [
@@ -1362,141 +1242,129 @@ function ServiceCheckIn() {
         field: "name",
         headerName: "Name",
         flex: 1,
-        minWidth: 120,
+        minWidth: isSm ? 110 : 140,
         sortable: true,
         renderCell: (params) => {
           const isFirstTime = params.row.stage === "First Time" || params.row.isNew === true;
           return (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.2, width: "100%" }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.3, width: "100%", overflow: "hidden" }}>
               {isFirstTime && (
-                <Chip label="New" size="small" color="success" variant="filled" sx={{ fontSize: "0.55rem", height: 14, flexShrink: 0, padding: "0 3px" }} />
+                <Chip label="New" size="small" color="success" variant="filled"
+                  sx={{ fontSize: "0.5rem", height: 13, flexShrink: 0, px: "2px", "& .MuiChip-label": { px: "3px" } }} />
               )}
-              <Typography variant="body2" sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: isXsDown ? "0.7rem" : isSmDown ? "0.75rem" : "0.9rem", width: "100%" }}>
+              <Typography variant="body2" noWrap
+                sx={{ fontSize: isSm ? "0.72rem" : "0.88rem", lineHeight: 1.2 }}>
                 {params.row.name} {params.row.surname}
               </Typography>
             </Box>
           );
         },
       },
-      ...(!isSmDown
-        ? [
-          {
-            field: "phone",
-            headerName: "Phone",
-            flex: 0.8,
-            minWidth: 100,
-            sortable: true,
-            renderCell: (params) => (
-              <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", fontSize: "0.9rem", width: "100%" }}>
-                {params.row.number || "—"}
-              </Typography>
-            ),
-          },
-          {
-            field: "email",
-            headerName: "Email",
-            flex: 1,
-            minWidth: 120,
-            sortable: true,
-            renderCell: (params) => (
-              <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", fontSize: "0.9rem", width: "100%" }}>
-                {params.row.email || "—"}
-              </Typography>
-            ),
-          },
-        ]
-        : []),
+      ...(!isSm ? [{
+        field: "phone",
+        headerName: "Phone",
+        flex: 0.7,
+        minWidth: 100,
+        sortable: true,
+        renderCell: (params) => (
+          <Typography variant="body2" noWrap sx={{ fontSize: "0.85rem" }}>
+            {params.row.number || "—"}
+          </Typography>
+        ),
+      }] : []),
+      ...(!isMd ? [{
+        field: "email",
+        headerName: "Email",
+        flex: 1,
+        minWidth: 130,
+        sortable: true,
+        renderCell: (params) => (
+          <Typography variant="body2" noWrap sx={{ fontSize: "0.85rem" }}>
+            {params.row.email || "—"}
+          </Typography>
+        ),
+      }] : []),
       {
         field: "leader1",
-        headerName: isXsDown ? "L1" : "Leader @1",
-        flex: 0.6,
-        minWidth: 40,
+        headerName: isSm ? "L@1" : "Leader @1",
+        flex: 0.55,
+        minWidth: isSm ? 38 : 80,
         sortable: true,
-        sortComparator: leaderComparators.leader1,
         renderCell: (params) => (
-          <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", fontSize: isXsDown ? "0.65rem" : "0.9rem", whiteSpace: "nowrap", width: "100%" }}>
+          <Typography variant="body2" noWrap sx={{ fontSize: isSm ? "0.65rem" : "0.85rem" }}>
             {params.row.leader1 || "—"}
           </Typography>
         ),
       },
       {
         field: "leader12",
-        headerName: isXsDown ? "L12" : "Leader @12",
-        flex: 0.6,
-        minWidth: 70,
+        headerName: isSm ? "L@12" : "Leader @12",
+        flex: 0.55,
+        minWidth: isSm ? 44 : 88,
         sortable: true,
-        sortComparator: leaderComparators.leader12,
         renderCell: (params) => (
-          <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", fontSize: isXsDown ? "0.65rem" : "0.9rem", whiteSpace: "nowrap", width: "100%" }}>
+          <Typography variant="body2" noWrap sx={{ fontSize: isSm ? "0.65rem" : "0.85rem" }}>
             {params.row.leader12 || "—"}
           </Typography>
         ),
       },
-      {
+      ...(!isXs ? [{
         field: "leader144",
-        headerName: isXsDown ? "L144" : "Leader @144",
-        flex: 0.6,
-        minWidth: 70,
+        headerName: isSm ? "L@144" : "Leader @144",
+        flex: 0.55,
+        minWidth: isSm ? 50 : 96,
         sortable: true,
-        sortComparator: leaderComparators.leader144,
         renderCell: (params) => (
-          <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", fontSize: isXsDown ? "0.65rem" : "0.9rem", whiteSpace: "nowrap", width: "100%" }}>
+          <Typography variant="body2" noWrap sx={{ fontSize: isSm ? "0.65rem" : "0.85rem" }}>
             {params.row.leader144 || "—"}
           </Typography>
         ),
-      },
+      }] : []),
       {
         field: "actions",
-        headerName: "Actions",
-        flex: 0.8,
-        minWidth: 120,
+        headerName: "",
+        width: isSm ? 96 : 120,
         sortable: false,
         filterable: false,
         renderCell: (params) => {
           const fullName = `${params.row.name || ""} ${params.row.surname || ""}`.trim();
           const isDisabled = !currentEventId;
           const isCheckInLoading = checkInLoading.has(params.row._id);
+          const btnSz = isSm ? "small" : "medium";
+          const iconSz = isSm ? "16px" : "22px";
+          const pad = isSm ? "3px" : "6px";
 
           return (
-            <Stack direction="row" spacing={0.5} sx={{ alignItems: "center", justifyContent: "center" }}>
-              <Tooltip title={isDisabled ? "Please select an event first" : "Delete"}>
+            <Stack direction="row" spacing={0} sx={{ alignItems: "center" }}>
+              <Tooltip title={isDisabled ? "Select event first" : "Delete"}>
                 <span>
-                  <IconButton
-                    size="medium"
-                    color={isDisabled ? "default" : "error"}
+                  <IconButton size={btnSz} color={isDisabled ? "default" : "error"}
                     onClick={() => !isDisabled && setDeleteConfirmation({ open: true, personId: params.row._id, personName: fullName })}
                     disabled={isDisabled || isCheckInLoading}
-                    sx={{ padding: isXsDown ? "4px" : "8px", opacity: isDisabled || isCheckInLoading ? 0.5 : 1 }}
-                  >
-                    <DeleteIcon sx={{ fontSize: isXsDown ? "18px" : "24px" }} />
+                    sx={{ p: pad, opacity: isDisabled || isCheckInLoading ? 0.4 : 1 }}>
+                    <DeleteIcon sx={{ fontSize: iconSz }} />
                   </IconButton>
                 </span>
               </Tooltip>
-              <Tooltip title={isDisabled ? "Please select an event first" : "Edit"}>
+              <Tooltip title={isDisabled ? "Select event first" : "Edit"}>
                 <span>
-                  <IconButton
-                    size="medium"
-                    color={isDisabled ? "default" : "primary"}
+                  <IconButton size={btnSz} color={isDisabled ? "default" : "primary"}
                     onClick={() => !isDisabled && handleEditClick(params.row)}
                     disabled={isDisabled || isCheckInLoading}
-                    sx={{ padding: isXsDown ? "4px" : "8px", opacity: isDisabled || isCheckInLoading ? 0.5 : 1 }}
-                  >
-                    <EditIcon sx={{ fontSize: isXsDown ? "18px" : "24px" }} />
+                    sx={{ p: pad, opacity: isDisabled || isCheckInLoading ? 0.4 : 1 }}>
+                    <EditIcon sx={{ fontSize: iconSz }} />
                   </IconButton>
                 </span>
               </Tooltip>
-              <Tooltip title={isDisabled ? "Please select an event first" : isCheckInLoading ? "Processing..." : params.row.present ? "Checked in" : "Check in"}>
+              <Tooltip title={isDisabled ? "Select event first" : isCheckInLoading ? "Processing…" : params.row.present ? "Checked in" : "Check in"}>
                 <span>
-                  <IconButton
-                    size="medium"
-                    color={isDisabled ? "default" : "success"}
+                  <IconButton size={btnSz} color={isDisabled ? "default" : "success"}
                     disabled={isDisabled || isCheckInLoading}
                     onClick={() => !isDisabled && !isCheckInLoading && handleToggleCheckIn(params.row)}
-                    sx={{ padding: isXsDown ? "4px" : "8px", opacity: isDisabled || isCheckInLoading ? 0.5 : 1 }}
-                  >
+                    sx={{ p: pad, opacity: isDisabled || isCheckInLoading ? 0.4 : 1 }}>
                     {params.row.present
-                      ? <CheckCircleIcon sx={{ fontSize: isXsDown ? "18px" : "24px" }} />
-                      : <CheckCircleOutlineIcon sx={{ fontSize: isXsDown ? "18px" : "24px" }} />}
+                      ? <CheckCircleIcon sx={{ fontSize: iconSz }} />
+                      : <CheckCircleOutlineIcon sx={{ fontSize: iconSz }} />}
                   </IconButton>
                 </span>
               </Tooltip>
@@ -1506,35 +1374,70 @@ function ServiceCheckIn() {
       },
     ];
 
-    if (isSmDown) return base.filter((c) => ["name", "leader12", "leader144", "actions"].includes(c.field));
     return base;
-  }, [isXsDown, isSmDown, currentEventId, checkInLoading, handleEditClick, handleToggleCheckIn]);
+  }, [isXs, isSm, isMd, currentEventId, checkInLoading, handleEditClick, handleToggleCheckIn]);
 
   const StatsCard = useCallback(
     ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
       <Paper
         variant="outlined"
-        sx={{ p: getResponsiveValue(1, 1.5, 2, 2.5, 2.5), textAlign: "center", cursor: disabled ? "default" : "pointer", boxShadow: 2, minHeight: "80px", display: "flex", flexDirection: "column", justifyContent: "center", "&:hover": disabled ? {} : { boxShadow: 4, transform: "translateY(-2px)" }, transition: "all 0.2s", opacity: disabled ? 0.6 : 1, backgroundColor: "background.paper" }}
         onClick={onClick}
+        sx={{
+          p: rv(1, 1.2, 1.8, 2, 2),
+          textAlign: "center",
+          cursor: disabled ? "default" : "pointer",
+          boxShadow: 2,
+          minHeight: rv(64, 72, 80, 88, 88),
+          display: "flex", flexDirection: "column", justifyContent: "center",
+          "&:hover": disabled ? {} : { boxShadow: 4, transform: "translateY(-2px)" },
+          transition: "all 0.2s",
+          opacity: disabled ? 0.6 : 1,
+          backgroundColor: "background.paper",
+        }}
       >
-        <Stack direction="row" alignItems="center" justifyContent="center" spacing={1} mb={0.5}>
-          {React.cloneElement(icon, { color: disabled ? "disabled" : color, sx: { fontSize: getResponsiveValue(18, 20, 24, 28, 28) } })}
-          <Typography variant={getResponsiveValue("h6", "h5", "h4", "h4", "h3")} fontWeight={600} color={disabled ? "text.disabled" : `${color}.main`} sx={{ fontSize: getResponsiveValue("0.9rem", "1rem", "1.2rem", "1.3rem", "1.3rem") }}>
+        <Stack direction="row" alignItems="center" justifyContent="center" spacing={0.8} mb={0.3}>
+          {React.cloneElement(icon, {
+            color: disabled ? "disabled" : color,
+            sx: { fontSize: rv(18, 20, 24, 26, 26) },
+          })}
+          <Typography
+            fontWeight={700}
+            color={disabled ? "text.disabled" : `${color}.main`}
+            sx={{ fontSize: rv("1rem", "1.1rem", "1.25rem", "1.4rem", "1.4rem"), lineHeight: 1 }}
+          >
             {count}
           </Typography>
         </Stack>
-        <Typography variant={getResponsiveValue("caption", "body2", "body2", "body1", "body1")} color={disabled ? "text.disabled" : `${color}.main`} sx={{ fontSize: getResponsiveValue("0.7rem", "0.8rem", "0.9rem", "1rem", "1rem") }}>
+        <Typography
+          color={disabled ? "text.disabled" : `${color}.main`}
+          sx={{ fontSize: rv("0.65rem", "0.72rem", "0.82rem", "0.9rem", "0.9rem") }}
+        >
           {title}
-          {disabled && (<Typography variant="caption" display="block" color="text.disabled" sx={{ fontSize: "0.6rem" }}>Select event</Typography>)}
+          {disabled && <Typography component="span" display="block" sx={{ fontSize: "0.58rem", color: "text.disabled" }}>Select event</Typography>}
         </Typography>
       </Paper>
     ),
-    [getResponsiveValue]
+    [rv]
   );
 
+  const gridHeight = isSm
+    ? "calc(100vh - 340px)"
+    : isMd
+      ? "calc(100vh - 300px)"
+      : 620;
+  const gridMinHeight = isSm ? 380 : isMd ? 450 : 550;
+
   return (
-    <Box p={containerPadding} sx={{ width: "100%", margin: "0 auto", mt: 6, minHeight: "100vh", maxWidth: "100vw", overflowX: "hidden" }}>
-      <ToastContainer position={isSmDown ? "top-center" : "top-right"} autoClose={3000} hideProgressBar={isSmDown} style={{ marginTop: isSmDown ? "0px" : "20px", zIndex: 9999 }} />
+    <Box
+      p={containerPadding}
+      sx={{ width: "100%", margin: "0 auto", mt: 6, minHeight: "100vh", maxWidth: "100vw", overflowX: "hidden" }}
+    >
+      <ToastContainer
+        position={isSm ? "top-center" : "top-right"}
+        autoClose={3000}
+        hideProgressBar={isSm}
+        style={{ marginTop: isSm ? "0px" : "20px", zIndex: 9999 }}
+      />
 
       <DeleteConfirmationModal
         open={deleteConfirmation.open}
@@ -1544,83 +1447,119 @@ function ServiceCheckIn() {
         isLoading={isDeleting}
       />
 
-      {/* Stats Cards */}
+      {/* ── Stats Cards ── */}
       <Grid container spacing={cardSpacing} mb={cardSpacing}>
-        <Grid item xs={6} sm={6} md={4}>
-          <StatsCard title="Present" count={presentCount} icon={<GroupIcon />} color="primary" onClick={() => { if (currentEventId) { setModalOpen(true); setModalSearch(""); setModalPage(0); } }} disabled={!currentEventId} />
+        <Grid item xs={4}>
+          <StatsCard title="Present" count={presentCount} icon={<GroupIcon />} color="primary"
+            onClick={() => { if (currentEventId) { setModalOpen(true); setModalSearch(""); setModalPage(0); } }}
+            disabled={!currentEventId} />
         </Grid>
-        <Grid item xs={6} sm={6} md={4}>
-          <StatsCard title="New People" count={newPeopleCount} icon={<PersonAddAltIcon />} color="success" onClick={() => { if (currentEventId) { setNewPeopleModalOpen(true); setNewPeopleSearch(""); setNewPeoplePage(0); } }} disabled={!currentEventId} />
+        <Grid item xs={4}>
+          <StatsCard title="New People" count={newPeopleCount} icon={<PersonAddAltIcon />} color="success"
+            onClick={() => { if (currentEventId) { setNewPeopleModalOpen(true); setNewPeopleSearch(""); setNewPeoplePage(0); } }}
+            disabled={!currentEventId} />
         </Grid>
-        <Grid item xs={6} sm={6} md={4}>
-          <StatsCard title="Consolidated" count={consolidationCount} icon={<MergeIcon />} color="secondary" onClick={() => { if (currentEventId) { setConsolidatedModalOpen(true); setConsolidatedSearch(""); setConsolidatedPage(0); } }} disabled={!currentEventId} />
+        <Grid item xs={4}>
+          <StatsCard title="Consolidated" count={consolidationCount} icon={<MergeIcon />} color="secondary"
+            onClick={() => { if (currentEventId) { setConsolidatedModalOpen(true); setConsolidatedSearch(""); setConsolidatedPage(0); } }}
+            disabled={!currentEventId} />
         </Grid>
       </Grid>
 
-      {/* Controls Row */}
-      <Grid container spacing={cardSpacing} mb={cardSpacing} alignItems="center">
-        <Grid item xs={12} sm={isSmDown ? 12 : 6} md={4}>
-          <Select size={getResponsiveValue("small", "small", "medium", "medium", "medium")} value={currentEventId} onChange={(e) => setCurrentEventId(e.target.value)} displayEmpty fullWidth sx={{ boxShadow: 2 }}>
-            <MenuItem value=""><Typography color="text.secondary">{isLoadingEvents ? "Loading events..." : "Select Global Event"}</Typography></MenuItem>
-            {menuEvents.map((ev) => (<MenuItem key={ev.id} value={ev.id}><Typography variant="body2" fontWeight="medium">{ev.eventName}</Typography></MenuItem>))}
-            {menuEvents.length === 0 && events.length > 0 && (<MenuItem disabled><Typography variant="body2" color="text.secondary" fontStyle="italic">No open global events</Typography></MenuItem>)}
-            {events.length === 0 && !isLoadingEvents && (<MenuItem disabled><Typography variant="body2" color="text.secondary" fontStyle="italic">No events available</Typography></MenuItem>)}
-          </Select>
-        </Grid>
-        <Grid item xs={12} sm={isSmDown ? 12 : 6} md={5}>
-          {activeTab === 0 ? (
-            <TextField size={getResponsiveValue("small", "small", "medium", "medium", "medium")} placeholder="Search attendees..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} fullWidth sx={{ boxShadow: 2, mt: isSmDown ? 1 : 0 }} />
-          ) : (
-            <TextField size={getResponsiveValue("small", "small", "medium", "medium", "medium")} placeholder="Search events..." value={eventSearch} onChange={(e) => setEventSearch(e.target.value)} fullWidth sx={{ boxShadow: 2, mt: isSmDown ? 1 : 0 }} />
+      {/* ── Controls Row ── */}
+      <Box mb={cardSpacing}>
+        {/* Row 1: Event selector + search */}
+        <Grid container spacing={1} mb={1} alignItems="center">
+          <Grid item xs={12} sm={6} md={5}>
+            <Select
+              size="small"
+              value={currentEventId}
+              onChange={(e) => setCurrentEventId(e.target.value)}
+              displayEmpty fullWidth
+              sx={{ boxShadow: 1, fontSize: isSm ? "0.8rem" : "0.9rem" }}
+            >
+              <MenuItem value="">
+                <Typography color="text.secondary" sx={{ fontSize: "inherit" }}>
+                  {isLoadingEvents ? "Loading events…" : "Select Global Event"}
+                </Typography>
+              </MenuItem>
+              {menuEvents.map((ev) => (
+                <MenuItem key={ev.id} value={ev.id}>
+                  <Typography variant="body2" fontWeight="medium" noWrap>{ev.eventName}</Typography>
+                </MenuItem>
+              ))}
+              {menuEvents.length === 0 && events.length > 0 && (
+                <MenuItem disabled><Typography variant="body2" color="text.secondary" fontStyle="italic">No open global events</Typography></MenuItem>
+              )}
+              {events.length === 0 && !isLoadingEvents && (
+                <MenuItem disabled><Typography variant="body2" color="text.secondary" fontStyle="italic">No events available</Typography></MenuItem>
+              )}
+            </Select>
+          </Grid>
+          <Grid item xs={12} sm={6} md={4}>
+            {activeTab === 0 ? (
+              <TextField size="small" placeholder="Search attendees…" value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(0); }} fullWidth sx={{ boxShadow: 1 }} />
+            ) : (
+              <TextField size="small" placeholder="Search events…" value={eventSearch}
+                onChange={(e) => setEventSearch(e.target.value)} fullWidth sx={{ boxShadow: 1 }} />
+            )}
+          </Grid>
+          {/* Row 1 actions on md+ */}
+          {!isMd && (
+            <Grid item md={3}>
+              <Stack direction="row" spacing={1} justifyContent="flex-end" alignItems="center">
+                <ActionButtons
+                  currentEventId={currentEventId} isDarkMode={isDarkMode} isSm={isSm}
+                  isClosingEvent={isClosingEvent} isRefreshing={isRefreshing}
+                  handleAddPersonClick={handleAddPersonClick}
+                  handleConsolidationClick={handleConsolidationClick}
+                  handleSaveAndCloseEvent={handleSaveAndCloseEvent}
+                  handleFullRefresh={handleFullRefresh}
+                  theme={theme}
+                />
+              </Stack>
+            </Grid>
           )}
         </Grid>
-        <Grid item xs={12} md={3}>
-          <Stack direction="row" spacing={2} justifyContent={isMdDown ? "center" : "flex-end"} sx={{ mt: isSmDown ? 2 : 0 }}>
-            <Tooltip title={currentEventId ? "Add Person" : "Please select an event first"}>
-              <span>
-                <PersonAddIcon onClick={handleAddPersonClick} sx={{ cursor: currentEventId ? "pointer" : "not-allowed", fontSize: 36, color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled", "&:hover": { color: currentEventId ? "primary.dark" : "text.disabled" }, filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none", opacity: currentEventId ? 1 : 0.5 }} />
-              </span>
-            </Tooltip>
-            <Stack direction="row" spacing={2} alignItems="center">
-              <Tooltip title={currentEventId ? "Consolidation" : "Please select an event first"}>
-                <span>
-                  <EmojiPeopleIcon onClick={handleConsolidationClick} sx={{ cursor: currentEventId ? "pointer" : "not-allowed", fontSize: 36, color: currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled", "&:hover": { color: currentEventId ? "secondary.dark" : "text.disabled" }, filter: currentEventId ? "drop-shadow(0px 2px 4px rgba(0,0,0,0.3))" : "none", opacity: currentEventId ? 1 : 0.5 }} />
-                </span>
-              </Tooltip>
-              <Tooltip title={currentEventId ? "Save and Close Event" : "Please select an event first"}>
-                <span>
-                  <Button variant="contained" startIcon={isClosingEvent ? <CloseIcon /> : <SaveIcon />} onClick={handleSaveAndCloseEvent} disabled={!currentEventId || isClosingEvent} sx={{ minWidth: "auto", px: 2, opacity: currentEventId ? 1 : 0.5, cursor: currentEventId ? "pointer" : "not-allowed", transition: "all 0.2s", backgroundColor: theme.palette.warning.main, "&:hover": currentEventId ? { transform: "translateY(-2px)", boxShadow: 4, backgroundColor: theme.palette.warning.dark } : {} }}>
-                    {isClosingEvent ? "Closing..." : "Save"}
-                  </Button>
-                </span>
-              </Tooltip>
-              <Tooltip title={currentEventId ? "Refresh All Data" : "Please select an event first"}>
-                <span>
-                  <IconButton onClick={handleFullRefresh} color="primary" disabled={!currentEventId || isRefreshing} sx={{ opacity: currentEventId ? 1 : 0.5 }}>
-                    <RefreshIcon />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            </Stack>
-          </Stack>
-        </Grid>
-      </Grid>
 
-      {/* Tabs */}
-      <Box sx={{ minHeight: 400, width: "100%" }}>
-        <Paper variant="outlined" sx={{ mb: 2, boxShadow: 3, minHeight: "36px", width: "100%" }}>
-          <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} sx={{ borderBottom: 1, borderColor: "divider", minHeight: "36px", "& .MuiTab-root": { py: 0.5, fontSize: getResponsiveValue("0.7rem", "0.8rem", "0.9rem", "1rem", "1rem") } }}>
+        {/* Row 2: Action buttons on mobile/tablet */}
+        {isMd && (
+          <Stack direction="row" spacing={isSm ? 0.5 : 1} justifyContent="flex-start" alignItems="center" flexWrap="wrap" gap={0.5}>
+            <ActionButtons
+              currentEventId={currentEventId} isDarkMode={isDarkMode} isSm={isSm}
+              isClosingEvent={isClosingEvent} isRefreshing={isRefreshing}
+              handleAddPersonClick={handleAddPersonClick}
+              handleConsolidationClick={handleConsolidationClick}
+              handleSaveAndCloseEvent={handleSaveAndCloseEvent}
+              handleFullRefresh={handleFullRefresh}
+              theme={theme}
+            />
+          </Stack>
+        )}
+      </Box>
+
+      {/* ── Tabs + Content ── */}
+      <Box sx={{ width: "100%" }}>
+        <Paper variant="outlined" sx={{ mb: 1.5, boxShadow: 2 }}>
+          <Tabs
+            value={activeTab}
+            onChange={(e, v) => setActiveTab(v)}
+            sx={{
+              borderBottom: 1, borderColor: "divider", minHeight: "38px",
+              "& .MuiTab-root": { py: 0.5, minHeight: "38px", fontSize: rv("0.7rem", "0.78rem", "0.85rem", "0.9rem", "0.9rem") },
+            }}
+          >
             <Tab label="All Attendees" />
             <Tab label="Event History" />
           </Tabs>
         </Paper>
 
         {activeTab === 0 && (
-          <Paper variant="outlined" sx={{ boxShadow: 3, overflow: "hidden", width: "100%", height: isMdDown ? `calc(100vh - ${containerPadding * 8 + 280}px)` : 650, minHeight: isMdDown ? 500 : 650, maxHeight: isMdDown ? "650px" : 700 }}>
+          <Paper variant="outlined" sx={{ boxShadow: 3, overflow: "hidden", width: "100%", height: gridHeight, minHeight: gridMinHeight }}>
             <DataGrid
               rows={sortedFilteredAttendees}
               columns={mainColumns}
-              sortingMode="server"
               loading={isLoadingPeople}
               pagination
               paginationModel={{ page, pageSize: rowsPerPage }}
@@ -1628,22 +1567,51 @@ function ServiceCheckIn() {
               rowCount={filteredAttendees.length}
               pageSizeOptions={[25, 50, 100]}
               slots={{ toolbar: GridToolbar }}
-              slotProps={{ toolbar: { showQuickFilter: true, quickFilterProps: { debounceMs: 500 } } }}
+              slotProps={{ toolbar: { showQuickFilter: !isSm, quickFilterProps: { debounceMs: 500 } } }}
               disableRowSelectionOnClick
               sortModel={sortModel}
               onSortModelChange={(model) => { setPage(0); setSortModel(model); }}
               getRowId={(row) => row._id}
+              rowHeight={isSm ? 44 : 52}
+              columnHeaderHeight={isSm ? 40 : 48}
               sx={{
-                width: "100%",
-                height: "calc(100% - 1px)",
-                "& .MuiDataGrid-cell": { display: "flex", alignItems: "center", padding: isXsDown ? "2px 4px" : "4px 6px", fontSize: isXsDown ? "0.7rem" : "0.8rem", minWidth: "40px" },
-                "& .MuiDataGrid-columnHeaders": { width: "100% !important", backgroundColor: theme.palette.action.hover, borderBottom: `1px solid ${theme.palette.divider}` },
-                "& .MuiDataGrid-columnHeader": { fontWeight: 600, minWidth: "40px", fontSize: isXsDown ? "0.7rem" : "0.8rem", padding: isXsDown ? "4px 2px" : "6px 4px", "& .MuiDataGrid-iconButtonContainer": { visibility: "visible !important" }, "& .MuiDataGrid-sortIcon": { opacity: 1 } },
+                width: "100%", height: "100%",
+                "& .MuiDataGrid-cell": {
+                  display: "flex", alignItems: "center",
+                  px: isSm ? "4px" : "8px",
+                  fontSize: isSm ? "0.72rem" : "0.85rem",
+                  py: "2px",
+                },
+                "& .MuiDataGrid-columnHeaders": {
+                  backgroundColor: theme.palette.action.hover,
+                  borderBottom: `1px solid ${theme.palette.divider}`,
+                },
+                "& .MuiDataGrid-columnHeader": {
+                  fontWeight: 700,
+                  fontSize: isSm ? "0.7rem" : "0.82rem",
+                  px: isSm ? "4px" : "8px",
+                  "& .MuiDataGrid-iconButtonContainer": { visibility: "visible !important" },
+                  "& .MuiDataGrid-sortIcon": { opacity: 1 },
+                },
                 "& .MuiDataGrid-row:hover": { backgroundColor: theme.palette.action.hover },
-                "& .MuiDataGrid-toolbarContainer": { padding: isXsDown ? "4px 2px" : "12px 8px", borderBottom: `1px solid ${theme.palette.divider}` },
-                "& .MuiDataGrid-footerContainer": { display: "flex", borderTop: `1px solid ${theme.palette.divider}`, backgroundColor: theme.palette.background.paper, minHeight: "52px" },
-                "& .MuiTablePagination-root": { flexWrap: "wrap", justifyContent: "center", padding: "8px 4px", fontSize: "0.75rem" },
-                ...(isSmDown && { "& .MuiDataGrid-columnSeparator": { display: "none" }, "& .MuiDataGrid-toolbarContainer": { flexDirection: "column", alignItems: "flex-start", gap: 1 } }),
+                "& .MuiDataGrid-toolbarContainer": {
+                  px: isSm ? "4px" : "12px", py: "6px",
+                  borderBottom: `1px solid ${theme.palette.divider}`,
+                  flexWrap: "wrap", gap: "4px",
+                },
+                "& .MuiDataGrid-footerContainer": {
+                  borderTop: `1px solid ${theme.palette.divider}`,
+                  backgroundColor: theme.palette.background.paper,
+                  minHeight: "48px",
+                },
+                "& .MuiTablePagination-root": {
+                  fontSize: "0.72rem",
+                  flexWrap: "wrap",
+                },
+                ...(isSm && {
+                  "& .MuiDataGrid-columnSeparator": { display: "none" },
+                  "& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows": { fontSize: "0.68rem" },
+                }),
               }}
             />
           </Paper>
@@ -1665,201 +1633,295 @@ function ServiceCheckIn() {
         )}
       </Box>
 
-      {/* Add/Edit Person Dialog */}
+      {/* ── Add/Edit Person Dialog ── */}
       <AddPersonDialog
         open={openDialog}
         onClose={() => { setOpenDialog(false); setEditingPerson(null); setFormData(emptyForm); }}
         onSave={handlePersonSave}
-        formData={formData}
-        setFormData={setFormData}
+        formData={formData} setFormData={setFormData}
         isEdit={Boolean(editingPerson)}
         personId={editingPerson?._id || null}
         currentEventId={currentEventId}
         preloadedPeople={attendees}
       />
 
-      {/* Present Attendees Modal */}
-      <Dialog open={modalOpen} onClose={() => setModalOpen(false)} fullWidth maxWidth="lg" PaperProps={{ sx: { boxShadow: 6, maxHeight: "90vh", ...(isSmDown && { margin: 2, maxHeight: "85vh", width: "calc(100% - 32px)" }) } }}>
-        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>Attendees Present: {presentCount}</DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: isSmDown ? 600 : 700, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
-          <TextField size="small" placeholder="Search..." value={modalSearch} onChange={(e) => { setModalSearch(e.target.value); setModalPage(0); }} fullWidth sx={{ mb: 2, boxShadow: 1 }} />
+      {/* ── Present Attendees Modal ── */}
+      <Dialog open={modalOpen} onClose={() => setModalOpen(false)} fullWidth
+        maxWidth={isSm ? "sm" : "lg"}
+        fullScreen={isXs}
+        PaperProps={{ sx: { boxShadow: 6, maxHeight: "90vh", ...(isSm && !isXs && { mx: 1.5 }) } }}>
+        <DialogTitle sx={{ pb: 1, fontWeight: 600, fontSize: isSm ? "1rem" : "1.25rem" }}>
+          Attendees Present: {presentCount}
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: isSm ? 1 : 2, overflowY: "auto" }}>
+          <TextField size="small" placeholder="Search…" value={modalSearch}
+            onChange={(e) => { setModalSearch(e.target.value); setModalPage(0); }} fullWidth sx={{ mb: 1.5 }} />
           {!currentEventId ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>Please select an event to view present attendees</Typography>
+            <Typography color="text.secondary" textAlign="center" py={4}>Please select an event</Typography>
           ) : modalFilteredAttendees.length === 0 ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>{modalSearch ? "No matching attendees found" : "No attendees present for this event"}</Typography>
+            <Typography color="text.secondary" textAlign="center" py={4}>
+              {modalSearch ? "No matching attendees" : "No attendees present"}
+            </Typography>
           ) : (
             <>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600, width: "40px" }}>#</TableCell>
-                    <TableCell sx={{ fontWeight: 600, minWidth: "150px" }}>Name & Surname</TableCell>
-                    <TableCell sx={{ fontWeight: 600, minWidth: "100px" }}>Phone</TableCell>
-                    {!isSmDown && <TableCell sx={{ fontWeight: 600, minWidth: "150px" }}>Email</TableCell>}
-                    <TableCell sx={{ fontWeight: 600, minWidth: "90px" }}>Leader @1</TableCell>
-                    <TableCell sx={{ fontWeight: 600, minWidth: "90px" }}>Leader @12</TableCell>
-                    <TableCell sx={{ fontWeight: 600, minWidth: "90px" }}>Leader @144</TableCell>
-                    <TableCell align="center" sx={{ fontWeight: 600, width: "80px" }}>Remove</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {modalPaginatedAttendees.map((a, idx) => (
-                    <TableRow key={a.id || a._id} hover>
-                      <TableCell>{modalPage * modalRowsPerPage + idx + 1}</TableCell>
-                      <TableCell><Typography variant="body2" fontWeight="600" noWrap>{a.name} {a.surname}</Typography></TableCell>
-                      <TableCell><Typography variant="body2" noWrap>{a.phone || a.number || "—"}</Typography></TableCell>
-                      {!isSmDown && <TableCell><Typography variant="body2" noWrap>{a.email || "—"}</Typography></TableCell>}
-                      <TableCell><Typography variant="body2" noWrap>{a.leader1 || "—"}</Typography></TableCell>
-                      <TableCell><Typography variant="body2" noWrap>{a.leader12 || "—"}</Typography></TableCell>
-                      <TableCell><Typography variant="body2" noWrap>{a.leader144 || "—"}</Typography></TableCell>
-                      <TableCell align="center">
-                        <Tooltip title="Remove from check-in">
-                          <IconButton color="error" size="medium" onClick={() => { const att = attendeeMap.get(a.id || a._id); if (att) handleToggleCheckIn(att); }}>
-                            <CheckCircleOutlineIcon />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+              <Box sx={{ overflowX: "auto" }}>
+                <Table size="small" stickyHeader sx={{ minWidth: isSm ? 380 : 700 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, width: 32, px: isSm ? 0.5 : 1 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700, minWidth: 120 }}>Name</TableCell>
+                      {!isXs && <TableCell sx={{ fontWeight: 700 }}>Phone</TableCell>}
+                      {!isSm && <TableCell sx={{ fontWeight: 700 }}>Email</TableCell>}
+                      <TableCell sx={{ fontWeight: 700 }}>Leader @1</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Leader @12</TableCell>
+                      {!isSm && <TableCell sx={{ fontWeight: 700 }}>Leader @144</TableCell>}
+                      <TableCell align="center" sx={{ fontWeight: 700, width: 56 }}>✕</TableCell>
                     </TableRow>
-                  ))}
-                  {modalPaginatedAttendees.length === 0 && (<TableRow><TableCell colSpan={8} align="center">No matching attendees</TableCell></TableRow>)}
-                </TableBody>
-              </Table>
-              <Box mt={1}>
-                <TablePagination component="div" count={modalFilteredAttendees.length} page={modalPage} onPageChange={(e, p) => setModalPage(p)} rowsPerPage={modalRowsPerPage} onRowsPerPageChange={(e) => { setModalRowsPerPage(parseInt(e.target.value, 10)); setModalPage(0); }} rowsPerPageOptions={[25, 50, 100]} />
+                  </TableHead>
+                  <TableBody>
+                    {modalPaginatedAttendees.map((a, idx) => (
+                      <TableRow key={a.id || a._id} hover>
+                        <TableCell sx={{ px: isSm ? 0.5 : 1 }}>{modalPage * modalRowsPerPage + idx + 1}</TableCell>
+                        <TableCell><Typography variant="body2" fontWeight={600} noWrap sx={{ fontSize: isSm ? "0.75rem" : "0.875rem" }}>{a.name} {a.surname}</Typography></TableCell>
+                        {!isXs && <TableCell><Typography variant="body2" noWrap sx={{ fontSize: "0.8rem" }}>{a.phone || a.number || "—"}</Typography></TableCell>}
+                        {!isSm && <TableCell><Typography variant="body2" noWrap sx={{ fontSize: "0.8rem" }}>{a.email || "—"}</Typography></TableCell>}
+                        <TableCell><Typography variant="body2" noWrap sx={{ fontSize: "0.78rem" }}>{a.leader1 || "—"}</Typography></TableCell>
+                        <TableCell><Typography variant="body2" noWrap sx={{ fontSize: "0.78rem" }}>{a.leader12 || "—"}</Typography></TableCell>
+                        {!isSm && <TableCell><Typography variant="body2" noWrap sx={{ fontSize: "0.78rem" }}>{a.leader144 || "—"}</Typography></TableCell>}
+                        <TableCell align="center">
+                          <Tooltip title="Remove from check-in">
+                            <IconButton color="error" size="small"
+                              onClick={() => { const att = attendeeMap.get(a.id || a._id); if (att) handleToggleCheckIn(att); }}>
+                              <CheckCircleOutlineIcon sx={{ fontSize: "18px" }} />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </Box>
+              <TablePagination component="div" count={modalFilteredAttendees.length} page={modalPage}
+                onPageChange={(e, p) => setModalPage(p)} rowsPerPage={modalRowsPerPage}
+                onRowsPerPageChange={(e) => { setModalRowsPerPage(parseInt(e.target.value, 10)); setModalPage(0); }}
+                rowsPerPageOptions={[25, 50, 100]}
+                sx={{ "& .MuiTablePagination-root": { fontSize: "0.72rem" } }} />
             </>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button variant="outlined" startIcon={<DownloadIcon />} onClick={() => { const d = modalFilteredAttendees.map((a) => ({ Name: a.name, Surname: a.surname, Email: a.email, Phone: a.phone, "Leader @1": a.leader1, "Leader @12": a.leader12, "Leader @144": a.leader144, CheckIn_Time: a.time || "", Status: "Present" })); exportToExcel(d, `Present_Attendees_${currentEventId}`); }} size={isSmDown ? "small" : "medium"} disabled={modalFilteredAttendees.length === 0}>
-            Download XLSX
+        <DialogActions sx={{ p: isSm ? 1 : 1.5, gap: 1 }}>
+          <Button variant="outlined" size="small" startIcon={<DownloadIcon />}
+            onClick={() => { const d = modalFilteredAttendees.map((a) => ({ Name: a.name, Surname: a.surname, Email: a.email, Phone: a.phone, "Leader @1": a.leader1, "Leader @12": a.leader12, "Leader @144": a.leader144, CheckIn_Time: a.time || "", Status: "Present" })); exportToExcel(d, `Present_Attendees_${currentEventId}`); }}
+            disabled={modalFilteredAttendees.length === 0}>
+            {isSm ? "Export" : "Download XLSX"}
           </Button>
-          <Button onClick={() => setModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>Close</Button>
+          <Button onClick={() => setModalOpen(false)} variant="outlined" size="small">Close</Button>
         </DialogActions>
       </Dialog>
 
-
-      {/* New People Modal */}
-      <Dialog open={newPeopleModalOpen} onClose={() => setNewPeopleModalOpen(false)} fullWidth maxWidth="md" PaperProps={{ sx: { boxShadow: 6, ...(isSmDown && { margin: 2, maxHeight: "80vh", width: "calc(100% - 32px)" }) } }}>
-        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>New People: {newPeopleCount}</DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
-          <TextField size="small" placeholder="Search..." value={newPeopleSearch} onChange={(e) => { setNewPeopleSearch(e.target.value); setNewPeoplePage(0); }} fullWidth sx={{ mb: 2, boxShadow: 1 }} />
+      {/* ── New People Modal ── */}
+      <Dialog open={newPeopleModalOpen} onClose={() => setNewPeopleModalOpen(false)} fullWidth
+        maxWidth="md" fullScreen={isXs}
+        PaperProps={{ sx: { boxShadow: 6, ...(isSm && !isXs && { mx: 1.5, maxHeight: "88vh" }) } }}>
+        <DialogTitle sx={{ pb: 1, fontWeight: 600, fontSize: isSm ? "1rem" : "1.25rem" }}>
+          New People: {newPeopleCount}
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: isSm ? 1 : 2, overflowY: "auto" }}>
+          <TextField size="small" placeholder="Search…" value={newPeopleSearch}
+            onChange={(e) => { setNewPeopleSearch(e.target.value); setNewPeoplePage(0); }} fullWidth sx={{ mb: 1.5 }} />
           {!currentEventId ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>Please select an event to view new people</Typography>
+            <Typography color="text.secondary" textAlign="center" py={4}>Please select an event</Typography>
           ) : newPeopleFilteredList.length === 0 ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>{newPeopleSearch ? "No matching people found" : "No new people added for this event"}</Typography>
+            <Typography color="text.secondary" textAlign="center" py={4}>
+              {newPeopleSearch ? "No matching people" : "No new people added"}
+            </Typography>
           ) : (
             <>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
-                    {!isSmDown && <TableCell sx={{ fontWeight: 600 }}>Email</TableCell>}
-                    <TableCell sx={{ fontWeight: 600 }}>Gender</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Invited By</TableCell>
-                    <TableCell sx={{ fontWeight: 600, width: "80px" }}>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {newPeoplePaginatedList.map((a, idx) => (
-                    <TableRow key={a.id || a._id} hover onContextMenu={(e) => handleContextMenu(e, a, "new_person")}>
-                      <TableCell>{newPeoplePage * newPeopleRowsPerPage + idx + 1}</TableCell>
-                      <TableCell><Typography variant="body2" fontWeight="medium">{a.name} {a.surname}</Typography></TableCell>
-                      <TableCell>{a.phone || "—"}</TableCell>
-                      {!isSmDown && <TableCell>{a.email || "—"}</TableCell>}
-                      <TableCell>{a.gender || "—"}</TableCell>
-                      <TableCell>{a.invitedBy || "—"}</TableCell>
-                      <TableCell>
-                        <Tooltip title="Remove from new people">
-                          <IconButton size="small" color="error" onClick={() => handleRemoveNewPerson(a)} sx={{ padding: "4px" }}>
-                            <DeleteForeverIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+              <Box sx={{ overflowX: "auto" }}>
+                <Table size="small" stickyHeader sx={{ minWidth: isSm ? 340 : 500 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, width: 32 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
+                      {!isXs && <TableCell sx={{ fontWeight: 700 }}>Phone</TableCell>}
+                      {!isSm && <TableCell sx={{ fontWeight: 700 }}>Email</TableCell>}
+                      <TableCell sx={{ fontWeight: 700 }}>Gender</TableCell>
+                      {!isSm && <TableCell sx={{ fontWeight: 700 }}>Invited By</TableCell>}
+                      <TableCell sx={{ fontWeight: 700, width: 56 }}>Del</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <Box mt={1}>
-                <TablePagination component="div" count={newPeopleFilteredList.length} page={newPeoplePage} onPageChange={(e, p) => setNewPeoplePage(p)} rowsPerPage={newPeopleRowsPerPage} onRowsPerPageChange={(e) => { setNewPeopleRowsPerPage(parseInt(e.target.value, 10)); setNewPeoplePage(0); }} rowsPerPageOptions={[25, 50, 100]} />
+                  </TableHead>
+                  <TableBody>
+                    {newPeoplePaginatedList.map((a, idx) => (
+                      <TableRow key={a.id || a._id} hover onContextMenu={(e) => handleContextMenu(e, a, "new_person")}>
+                        <TableCell>{newPeoplePage * newPeopleRowsPerPage + idx + 1}</TableCell>
+                        <TableCell><Typography variant="body2" fontWeight="medium" noWrap sx={{ fontSize: isSm ? "0.75rem" : "0.875rem" }}>{a.name} {a.surname}</Typography></TableCell>
+                        {!isXs && <TableCell sx={{ fontSize: "0.8rem" }}>{a.phone || "—"}</TableCell>}
+                        {!isSm && <TableCell sx={{ fontSize: "0.8rem" }}>{a.email || "—"}</TableCell>}
+                        <TableCell sx={{ fontSize: "0.8rem" }}>{a.gender || "—"}</TableCell>
+                        {!isSm && <TableCell sx={{ fontSize: "0.8rem" }}>{a.invitedBy || "—"}</TableCell>}
+                        <TableCell>
+                          <Tooltip title="Remove">
+                            <IconButton size="small" color="error" onClick={() => handleRemoveNewPerson(a)} sx={{ p: "3px" }}>
+                              <DeleteForeverIcon sx={{ fontSize: "18px" }} />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </Box>
+              <TablePagination component="div" count={newPeopleFilteredList.length} page={newPeoplePage}
+                onPageChange={(e, p) => setNewPeoplePage(p)} rowsPerPage={newPeopleRowsPerPage}
+                onRowsPerPageChange={(e) => { setNewPeopleRowsPerPage(parseInt(e.target.value, 10)); setNewPeoplePage(0); }}
+                rowsPerPageOptions={[25, 50, 100]} />
             </>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button onClick={() => setNewPeopleModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>Close</Button>
+        <DialogActions sx={{ p: isSm ? 1 : 1.5 }}>
+          <Button onClick={() => setNewPeopleModalOpen(false)} variant="outlined" size="small">Close</Button>
         </DialogActions>
       </Dialog>
 
-      {/* Consolidated Modal */}
-      <Dialog open={consolidatedModalOpen} onClose={() => setConsolidatedModalOpen(false)} fullWidth maxWidth="md" PaperProps={{ sx: { boxShadow: 6, ...(isSmDown && { margin: 2, maxHeight: "80vh", width: "calc(100% - 32px)" }) } }}>
-        <DialogTitle sx={{ pb: 1, fontWeight: 600 }}>Consolidated People: {consolidationCount}</DialogTitle>
-        <DialogContent dividers sx={{ maxHeight: isSmDown ? 400 : 500, overflowY: "auto", p: isSmDown ? 1 : 2 }}>
-          <TextField size="small" placeholder="Search..." value={consolidatedSearch} onChange={(e) => { setConsolidatedSearch(e.target.value); setConsolidatedPage(0); }} fullWidth sx={{ mb: 2, boxShadow: 1 }} />
+      {/* ── Consolidated Modal ── */}
+      <Dialog open={consolidatedModalOpen} onClose={() => setConsolidatedModalOpen(false)} fullWidth
+        maxWidth="md" fullScreen={isXs}
+        PaperProps={{ sx: { boxShadow: 6, ...(isSm && !isXs && { mx: 1.5, maxHeight: "88vh" }) } }}>
+        <DialogTitle sx={{ pb: 1, fontWeight: 600, fontSize: isSm ? "1rem" : "1.25rem" }}>
+          Consolidated: {consolidationCount}
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: isSm ? 1 : 2, overflowY: "auto" }}>
+          <TextField size="small" placeholder="Search…" value={consolidatedSearch}
+            onChange={(e) => { setConsolidatedSearch(e.target.value); setConsolidatedPage(0); }} fullWidth sx={{ mb: 1.5 }} />
           {!currentEventId ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>Please select an event to view consolidated people</Typography>
+            <Typography color="text.secondary" textAlign="center" py={4}>Please select an event</Typography>
           ) : filteredConsolidatedPeople.length === 0 ? (
-            <Typography variant="body1" color="text.secondary" textAlign="center" py={4}>{consolidatedSearch ? "No matching consolidated people found" : "No consolidated people for this event"}</Typography>
+            <Typography color="text.secondary" textAlign="center" py={4}>
+              {consolidatedSearch ? "No matching people" : "No consolidated people"}
+            </Typography>
           ) : (
             <>
-              <Table size="small" stickyHeader>
-                <TableHead>
-                  <TableRow>
-                    <TableCell sx={{ fontWeight: 600 }}>#</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Contact</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Decision Type</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Assigned To</TableCell>
-                    <TableCell sx={{ fontWeight: 600 }}>Date</TableCell>
-                    <TableCell sx={{ fontWeight: 600, width: "80px" }}>Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {consolidatedPaginatedList.map((person, idx) => (
-                    <TableRow key={person.id || person._id || idx} hover onContextMenu={(e) => handleContextMenu(e, person, "consolidation")}>
-                      <TableCell>{consolidatedPage * consolidatedRowsPerPage + idx + 1}</TableCell>
-                      <TableCell><Typography variant="body2" fontWeight="medium">{person.person_name} {person.person_surname}</Typography></TableCell>
-                      <TableCell>
-                        <Box>
-                          {person.person_email && <Typography variant="body2">{person.person_email}</Typography>}
-                          {person.person_phone && <Typography variant="body2" color="text.secondary">{person.person_phone}</Typography>}
-                          {!person.person_email && !person.person_phone && "—"}
-                        </Box>
-                      </TableCell>
-                      <TableCell><Chip label={person.decision_type || "Commitment"} size="small" color={person.decision_type === "Recommitment" ? "primary" : "secondary"} variant="filled" /></TableCell>
-                      <TableCell>{person.assigned_to || "Not assigned"}</TableCell>
-                      <TableCell>{person.created_at ? new Date(person.created_at).toLocaleDateString() : "—"}</TableCell>
-                      <TableCell>
-                        <Tooltip title="Remove consolidation">
-                          <IconButton size="small" color="error" onClick={() => handleRemoveConsolidation(person)} sx={{ padding: "4px" }}>
-                            <DeleteForeverIcon fontSize="small" />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
+              <Box sx={{ overflowX: "auto" }}>
+                <Table size="small" stickyHeader sx={{ minWidth: isSm ? 340 : 580 }}>
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: 700, width: 32 }}>#</TableCell>
+                      <TableCell sx={{ fontWeight: 700 }}>Name</TableCell>
+                      {!isSm && <TableCell sx={{ fontWeight: 700 }}>Contact</TableCell>}
+                      <TableCell sx={{ fontWeight: 700 }}>Type</TableCell>
+                      {!isSm && <TableCell sx={{ fontWeight: 700 }}>Assigned To</TableCell>}
+                      {!isSm && <TableCell sx={{ fontWeight: 700 }}>Date</TableCell>}
+                      <TableCell sx={{ fontWeight: 700, width: 56 }}>Del</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              <Box mt={1}>
-                <TablePagination component="div" count={filteredConsolidatedPeople.length} page={consolidatedPage} onPageChange={(e, p) => setConsolidatedPage(p)} rowsPerPage={consolidatedRowsPerPage} onRowsPerPageChange={(e) => { setConsolidatedRowsPerPage(parseInt(e.target.value, 10)); setConsolidatedPage(0); }} rowsPerPageOptions={[25, 50, 100]} />
+                  </TableHead>
+                  <TableBody>
+                    {consolidatedPaginatedList.map((person, idx) => (
+                      <TableRow key={person.id || person._id || idx} hover onContextMenu={(e) => handleContextMenu(e, person, "consolidation")}>
+                        <TableCell>{consolidatedPage * consolidatedRowsPerPage + idx + 1}</TableCell>
+                        <TableCell>
+                          <Typography variant="body2" fontWeight="medium" noWrap sx={{ fontSize: isSm ? "0.75rem" : "0.875rem" }}>
+                            {person.person_name} {person.person_surname}
+                          </Typography>
+                        </TableCell>
+                        {!isSm && (
+                          <TableCell>
+                            <Box>
+                              {person.person_email && <Typography variant="body2" sx={{ fontSize: "0.78rem" }} noWrap>{person.person_email}</Typography>}
+                              {person.person_phone && <Typography variant="body2" color="text.secondary" sx={{ fontSize: "0.75rem" }}>{person.person_phone}</Typography>}
+                              {!person.person_email && !person.person_phone && "—"}
+                            </Box>
+                          </TableCell>
+                        )}
+                        <TableCell>
+                          <Chip label={person.decision_type || "Commitment"} size="small"
+                            color={person.decision_type === "Recommitment" ? "primary" : "secondary"}
+                            sx={{ fontSize: isSm ? "0.62rem" : "0.72rem", height: isSm ? 18 : 22 }} />
+                        </TableCell>
+                        {!isSm && <TableCell sx={{ fontSize: "0.8rem" }}>{person.assigned_to || "Not assigned"}</TableCell>}
+                        {!isSm && <TableCell sx={{ fontSize: "0.78rem" }}>{person.created_at ? new Date(person.created_at).toLocaleDateString() : "—"}</TableCell>}
+                        <TableCell>
+                          <Tooltip title="Remove">
+                            <IconButton size="small" color="error" onClick={() => handleRemoveConsolidation(person)} sx={{ p: "3px" }}>
+                              <DeleteForeverIcon sx={{ fontSize: "18px" }} />
+                            </IconButton>
+                          </Tooltip>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </Box>
+              <TablePagination component="div" count={filteredConsolidatedPeople.length} page={consolidatedPage}
+                onPageChange={(e, p) => setConsolidatedPage(p)} rowsPerPage={consolidatedRowsPerPage}
+                onRowsPerPageChange={(e) => { setConsolidatedRowsPerPage(parseInt(e.target.value, 10)); setConsolidatedPage(0); }}
+                rowsPerPageOptions={[25, 50, 100]} />
             </>
           )}
         </DialogContent>
-        <DialogActions sx={{ p: isSmDown ? 1 : 2 }}>
-          <Button variant="contained" startIcon={<EmojiPeopleIcon />} onClick={() => { setConsolidatedModalOpen(false); handleConsolidationClick(); }} disabled={!currentEventId} size={isSmDown ? "small" : "medium"}>
-            Add Consolidation
+        <DialogActions sx={{ p: isSm ? 1 : 1.5, gap: 1 }}>
+          <Button variant="contained" size="small" startIcon={<EmojiPeopleIcon />}
+            onClick={() => { setConsolidatedModalOpen(false); handleConsolidationClick(); }}
+            disabled={!currentEventId}>
+            {isSm ? "Add" : "Add Consolidation"}
           </Button>
-          <Button onClick={() => setConsolidatedModalOpen(false)} variant="outlined" size={isSmDown ? "small" : "medium"}>Close</Button>
+          <Button onClick={() => setConsolidatedModalOpen(false)} variant="outlined" size="small">Close</Button>
         </DialogActions>
       </Dialog>
 
-      <EventHistoryModal open={eventHistoryModal.open} onClose={() => setEventHistoryModal({ open: false, event: null, type: null, data: [] })} event={eventHistoryModal.event} type={eventHistoryModal.type} data={eventHistoryModal.data} />
+      <EventHistoryModal
+        open={eventHistoryModal.open}
+        onClose={() => setEventHistoryModal({ open: false, event: null, type: null, data: [] })}
+        event={eventHistoryModal.event} type={eventHistoryModal.type} data={eventHistoryModal.data}
+      />
 
-      <ConsolidationModal open={consolidationOpen} onClose={() => setConsolidationOpen(false)} attendeesWithStatus={attendeesWithStatus} onFinish={handleFinishConsolidation} consolidatedPeople={filteredConsolidatedPeople} currentEventId={currentEventId} />
+      <ConsolidationModal
+        open={consolidationOpen} onClose={() => setConsolidationOpen(false)}
+        attendeesWithStatus={attendeesWithStatus} onFinish={handleFinishConsolidation}
+        consolidatedPeople={filteredConsolidatedPeople} currentEventId={currentEventId}
+      />
     </Box>
+  );
+}
+
+function ActionButtons({ currentEventId, isDarkMode, isSm, isClosingEvent, isRefreshing, handleAddPersonClick, handleConsolidationClick, handleSaveAndCloseEvent, handleFullRefresh, theme }) {
+  const iconColor = currentEventId ? (isDarkMode ? "white" : "black") : "text.disabled";
+  const iconFilter = currentEventId ? "drop-shadow(0px 2px 3px rgba(0,0,0,0.25))" : "none";
+  const iconSz = isSm ? 28 : 34;
+
+  return (
+    <>
+      <Tooltip title={currentEventId ? "Add Person" : "Select event first"}>
+        <span>
+          <PersonAddIcon onClick={handleAddPersonClick}
+            sx={{ cursor: currentEventId ? "pointer" : "not-allowed", fontSize: iconSz, color: iconColor, filter: iconFilter, opacity: currentEventId ? 1 : 0.4, "&:hover": { color: currentEventId ? "primary.main" : iconColor } }} />
+        </span>
+      </Tooltip>
+      <Tooltip title={currentEventId ? "Consolidation" : "Select event first"}>
+        <span>
+          <EmojiPeopleIcon onClick={handleConsolidationClick}
+            sx={{ cursor: currentEventId ? "pointer" : "not-allowed", fontSize: iconSz, color: iconColor, filter: iconFilter, opacity: currentEventId ? 1 : 0.4, "&:hover": { color: currentEventId ? "secondary.main" : iconColor } }} />
+        </span>
+      </Tooltip>
+      <Tooltip title={currentEventId ? "Save and Close Event" : "Select event first"}>
+        <span>
+          <Button variant="contained" size={isSm ? "small" : "medium"}
+            startIcon={isClosingEvent ? <CloseIcon /> : <SaveIcon />}
+            onClick={handleSaveAndCloseEvent}
+            disabled={!currentEventId || isClosingEvent}
+            sx={{ minWidth: "auto", px: isSm ? 1.2 : 2, opacity: currentEventId ? 1 : 0.4, backgroundColor: theme.palette.warning.main, "&:hover": currentEventId ? { backgroundColor: theme.palette.warning.dark, transform: "translateY(-1px)" } : {} }}>
+            {isClosingEvent ? "Closing…" : "Save"}
+          </Button>
+        </span>
+      </Tooltip>
+      <Tooltip title={currentEventId ? "Refresh" : "Select event first"}>
+        <span>
+          <IconButton onClick={handleFullRefresh} color="primary" size={isSm ? "small" : "medium"}
+            disabled={!currentEventId || isRefreshing} sx={{ opacity: currentEventId ? 1 : 0.4 }}>
+            <RefreshIcon />
+          </IconButton>
+        </span>
+      </Tooltip>
+    </>
   );
 }
 
