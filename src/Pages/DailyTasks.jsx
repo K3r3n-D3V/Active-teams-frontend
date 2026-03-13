@@ -836,7 +836,7 @@ export default function DailyTasks() {
     const lastName = nameParts.slice(1).join(" ") || "";
 
     setTaskData({
-      taskType: task.taskType || "",
+      taskType: taskTypes.find(t => (t._id || t.id) === taskData.taskType)?.name || taskData.taskType,
       recipient: {
         Name: firstName,
         Surname: lastName,
