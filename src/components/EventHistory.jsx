@@ -333,7 +333,6 @@ const EventHistory = React.memo(function EventHistory({
           border: 'none',
           '& .MuiDataGrid-virtualScroller':       { overflowX: 'hidden !important' },
           '& .MuiDataGrid-columnHeadersInner':     { width: '100% !important' },
-          '& .MuiDataGrid-row':                    { width: '100% !important' },
 
           '& .MuiDataGrid-columnHeaders': {
             backgroundColor: theme.palette.background.paper,
@@ -359,6 +358,7 @@ const EventHistory = React.memo(function EventHistory({
             '&:hover': { backgroundColor: theme.palette.action.hover },
             '&.Mui-selected': { backgroundColor: 'transparent' },
             '&.Mui-selected:hover': { backgroundColor: theme.palette.action.hover },
+            width: '100% !important'
           },
           '& .MuiDataGrid-cell': {
             borderBottom: `1px solid ${theme.palette.divider}`,

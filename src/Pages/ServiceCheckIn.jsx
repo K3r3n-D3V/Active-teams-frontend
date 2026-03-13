@@ -1123,16 +1123,11 @@ function ServiceCheckIn() {
           throw new Error(e.detail || `HTTP error`);
         }
         const result = await response.json();
-        if (result.success) {
-          toast.success(`Event "${event.eventName}" has been reopened!`);
-          setEvents((prev) =>
-            prev.filter((ev) => ev.id !== event.id && ev._id !== event._id)
-          );
-          setCurrentEventId(event.id || event._id);
-          setIsLoadingHistory(true);
-          setIsLoadingEvents(true);
-          await fetchEvents(true, null);
-        }
+        toast.success(`Event "${event.eventName}" has been reopened!`);
+        setIsLoadingHistory(true);
+        setIsLoadingEvents(true);
+        await fetchEvents();
+        setCurrentEventId(event.id || event._id);
       } catch (error) {
         toast.error(error.message || "Failed to reopen event");
       }
