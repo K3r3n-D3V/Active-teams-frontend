@@ -1,3 +1,5 @@
+
+
 import { useState, useEffect, useRef } from "react";
 import {
   Button,
@@ -58,7 +60,7 @@ const SameWidthPopper = (props) => {
       placement="bottom-start"
       style={{
         zIndex: 20000,
-        width, 
+        width,
       }}
     />
   );
@@ -90,7 +92,6 @@ const CreateEvents = ({
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
-  const [loadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
 
   const isSelectingFromDropdown = useRef(false);
@@ -129,7 +130,7 @@ const CreateEvents = ({
   // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
   const searchDebounceRef = useRef(null);
-  
+
   useEffect(() => {
     if (!navigator.geolocation) return;
 
@@ -270,13 +271,12 @@ const CreateEvents = ({
       }
       if (selectedEventType) {
         console.log("Looking for event type:", selectedEventType);
-        // Handle "all" and convert to "CELLS" - Always set hasPersonSteps to true for CELLS
         if (selectedEventType === "all" || selectedEventType.toUpperCase() === "ALL CELLS") {
           return {
             eventType: "CELLS",
             isGlobal: false,
             isTicketed: false,
-            hasPersonSteps: true, 
+            hasPersonSteps: true,
           };
         }
         const foundEventType = eventTypes.find((et) => {
@@ -303,7 +303,6 @@ const CreateEvents = ({
           };
         } else {
           console.log("Event type not found, using defaults");
-          // For CELLS type specifically, set hasPersonSteps to true
           const isCellsType = selectedEventType.toUpperCase() === "CELLS";
           return {
             eventType: selectedEventType,
@@ -384,37 +383,60 @@ const CreateEvents = ({
     }
   }, [isTicketedEvent]);
 
+  // FIXED: Use the exact working fetchPeople logic from the first (working) version
+  // Same backend endpoint, client-side filtering/sorting, full leader field fallbacks
   const fetchPeople = async (q) => {
-    if (!q.trim() || q.trim().length < 2) {
+    if (!q.trim()) {
       setPeopleData([]);
       return;
     }
 
+    const parts = q.trim().split(/\s+/);
+    const name = parts[0];
+    const surname = parts.slice(1).join(" ");
+
     try {
       setIsSearchingPeople(true);
       const token = localStorage.getItem("token");
+      const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      const res = await fetch(
-        `${BACKEND_URL}/people/search-fast?query=${encodeURIComponent(q.trim())}&limit=10`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-
-      if (!res.ok) throw new Error("Search failed");
+      if (!res.ok) throw new Error("Failed to fetch people");
 
       const data = await res.json();
-      const results = data?.results || [];
 
-      const formatted = results.map((p) => ({
+      let filtered = (data?.results || data?.people || []).filter((p) =>
+        (p.Name && p.Name.toLowerCase().includes(name.toLowerCase())) &&
+        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+      );
+
+      // Sort the results (exact same as working first version)
+      filtered.sort((a, b) => {
+        const nameA = (a.Name || "").toLowerCase();
+        const nameB = (b.Name || "").toLowerCase();
+        const surnameA = (a.Surname || "").toLowerCase();
+        const surnameB = (b.Surname || "").toLowerCase();
+
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        if (surnameA < surnameB) return -1;
+        if (surnameA > surnameB) return 1;
+        return 0;
+      });
+
+      const formatted = filtered.map((p) => ({
         id: p._id,
-        fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-        email: p.Email || "",
-        leader1: p["Leader @1"] || "",
-        leader12: p["Leader @12"] || "",
-      })).filter((p) => p.fullName);
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+      }));
 
       setPeopleData(formatted);
     } catch (err) {
-      console.error("Search error:", err);
+      console.error("Error fetching people:", err);
+      toast.error(err.message);
       setPeopleData([]);
     } finally {
       setIsSearchingPeople(false);
@@ -535,16 +557,6 @@ const CreateEvents = ({
     });
   };
 
-  const handleLeaderSelect = (person) => {
-    setFormData((prev) => ({
-      ...prev,
-      eventLeader: person.fullName,
-      eventLeaderEmail: person.email,
-    }));
-  };
-  
-  console.log("view leadersgip fields", handleLeaderSelect);
-
   const handleRemovePriceTier = (index) => {
     setPriceTiers((prev) => prev.filter((_, i) => i !== index));
   };
@@ -553,12 +565,14 @@ const CreateEvents = ({
     setFormData({
       eventType: selectedEventTypeObj?.name || selectedEventType || "",
       eventName: "",
+      email: "",
       date: "",
       time: "",
       timePeriod: "AM",
       recurringDays: [],
       location: "",
       eventLeader: "",
+      eventLeaderEmail: "",
       description: "",
       leader1: "",
       leader12: "",
@@ -583,11 +597,6 @@ const CreateEvents = ({
     if (!isGlobalEvent) {
       if (hasPersonSteps && formData.recurringDays.length === 0) {
         newErrors.recurringDays = "Select at least one recurring day";
-      }
-
-      if (!hasPersonSteps) {
-        if (!formData.date) newErrors.date = "Date is required";
-        if (!formData.time) newErrors.time = "Time is required";
       }
 
       if (isTicketedEvent) {
@@ -1072,7 +1081,7 @@ const CreateEvents = ({
               {eventTypes.map((et) => (
                 <MenuItem key={et.id} value={et.name}>
                   {et.name}
-                </MenuItem>                  
+                </MenuItem>
               ))}
             </TextField>
 
@@ -1350,12 +1359,12 @@ const CreateEvents = ({
               }
               filterOptions={(x) => x}
               loading={locationLoading}
-              PopperComponent={SameWidthPopper} 
+              PopperComponent={SameWidthPopper}
               ListboxProps={{ sx: darkModeStyles.autocompleteListbox }}
               PaperComponent={({ children }) => (
                 <Paper
                   sx={{
-                    width: "100%", 
+                    width: "100%",
                     bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
                     border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
                   }}
@@ -1423,7 +1432,7 @@ const CreateEvents = ({
               )}
             />
 
-            {/* Event Leader section */}
+            {/* Event Leader section - FIXED with working logic from first version */}
             <Box sx={{ mb: 3, position: "relative" }}>
               <TextField
                 label="Event Leader *"
@@ -1431,7 +1440,7 @@ const CreateEvents = ({
                 onChange={(e) => {
                   const value = e.target.value;
                   handleChange("eventLeader", value);
-                  setPeopleData([]);
+                  setPeopleData([]); // clear old results immediately
                   if (searchDebounceRef.current)
                     clearTimeout(searchDebounceRef.current);
 
@@ -1447,7 +1456,6 @@ const CreateEvents = ({
                   }
                 }}
                 onBlur={() => {
-                  // Only close dropdown if user is NOT actively clicking a result
                   if (!isSelectingFromDropdown.current) {
                     setTimeout(() => {
                       if (!isSelectingFromDropdown.current) {
@@ -1477,7 +1485,7 @@ const CreateEvents = ({
                 autoComplete="off"
               />
 
-              {/* Dropdown results */}
+              {/* Dropdown results - kept improved mouse handlers from second version */}
               {peopleData.length > 0 && (
                 <Box
                   sx={{
@@ -1515,7 +1523,6 @@ const CreateEvents = ({
                           borderBottom: "none",
                         },
                       }}
-              
                       onMouseDown={() => {
                         isSelectingFromDropdown.current = true;
                       }}
@@ -1523,11 +1530,16 @@ const CreateEvents = ({
                         isSelectingFromDropdown.current = false;
                         const selectedName = person.fullName;
                         const selectedEmail = person.email;
+
+                        // FIXED: Use exact selection logic from first version (auto-fill eventName for cells)
+                        // + keep second version's email handling
                         if (hasPersonSteps && !isGlobalEvent) {
                           setFormData((prev) => ({
                             ...prev,
                             eventLeader: selectedName,
+                            eventName: selectedName, // ← restored from first version
                             eventLeaderEmail: selectedEmail.toLowerCase(),
+                            email: selectedEmail.toLowerCase(), // also populate the Email field
                             leader1: person.leader1 || "",
                             leader12: person.leader12 || "",
                           }));
@@ -1557,7 +1569,7 @@ const CreateEvents = ({
                 </Box>
               )}
 
-              {loadingPeople && (
+              {isSearchingPeople && (
                 <Typography
                   variant="body2"
                   sx={{ color: "text.secondary", mt: 0.5 }}
