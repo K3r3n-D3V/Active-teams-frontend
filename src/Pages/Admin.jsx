@@ -29,6 +29,9 @@ import NewUserModal from '../components/NewUserModal';
 
 let globalUsersData = null;
 let globalDataLoaded = false;
+let globalDataTimestamp = null;
+let globalOrgFilter = null;
+const CACHE_DURATION = 5 * 60 * 1000; 
 
 const SUPREME_ADMIN_EMAIL = "tkgenia1234@gmail.com";
 
@@ -60,6 +63,7 @@ export default function AdminDashboard() {
   const [loading, setLoading] = useState(!globalDataLoaded);
   
   const [users, setUsers] = useState(globalUsersData || []);
+  const [totalUsers, setTotalUsers] = useState(0); // <-- ADD THIS LINE
   const [activityLog, setActivityLog] = useState([]);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -89,7 +93,7 @@ export default function AdminDashboard() {
   const [deletingOrg, setDeletingOrg] = useState(false);
 
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(100);
 
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
   
@@ -169,6 +173,16 @@ export default function AdminDashboard() {
       ];
   };
 
+    const addActivityLog = useCallback((action, details) => {
+    const newLog = {
+      id: Date.now(),
+      action,
+      details,
+      timestamp: new Date().toISOString(),
+      user: currentUser?.name || 'Current Admin'
+    };
+    setActivityLog(prev => [newLog, ...prev].slice(0, 50));
+  }, [currentUser]);
   const getRoleDisplay = (role) => {
     if (!role) return 'Unknown';
     return role.charAt(0).toUpperCase() + role.slice(1);
@@ -185,7 +199,7 @@ export default function AdminDashboard() {
     
     setLoadingOrgs(true);
     try {
-      const response = await authFetch(`${API_BASE_URL}/admin/organizations`, {
+      const response = await authFetch(`${API_BASE_URL}/organizations`, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -203,84 +217,152 @@ export default function AdminDashboard() {
     }
   }, [API_BASE_URL, authFetch, isSupremeAdmin]);
 
-  // Fetch all users with organization filter
-  const fetchAllData = useCallback(async (forceRefresh = false) => {
-    if (globalDataLoaded && !forceRefresh && !selectedOrg) {
-      setUsers(globalUsersData);
-      setLoading(false);
-      fetchInProgressRef.current = false;
-      return;
-    }
+// Fetch all users with intelligent caching and pagination
+const fetchAllData = useCallback(async (forceRefresh = false) => {
+  // Check if cache is valid (not expired and same org filter)
+  const now = Date.now();
+  const cacheValid = globalDataLoaded && 
+                     globalDataTimestamp && 
+                     (now - globalDataTimestamp < CACHE_DURATION) &&
+                     globalOrgFilter === selectedOrg &&
+                     !forceRefresh;
+  
+  if (cacheValid) {
+    console.log('🔵 Using cached data:', globalUsersData?.length, 'users');
+    setUsers(globalUsersData);
+    setTotalUsers(globalUsersData?.length || 0);
+    setLoading(false);
+    return;
+  }
 
-    if (isRefreshingToken) {
-      fetchInProgressRef.current = false;
-      return;
-    }
+  // Prevent multiple simultaneous fetches
+  if (isRefreshingToken) {
+    console.log('⏳ Token refreshing, waiting...');
+    return;
+  }
 
-    fetchInProgressRef.current = true;
-    setLoading(true);
+  if (fetchInProgressRef.current) {
+    console.log('⏳ Fetch already in progress, skipping...');
+    return;
+  }
+
+  fetchInProgressRef.current = true;
+  setLoading(true);
+  
+  try {
+    // Build URL with pagination parameters
+    const skip = page * rowsPerPage;
+    let url = `${API_BASE_URL}/admin/users?skip=${skip}&limit=${rowsPerPage}`;
     
-    try {
-      // Build URL with organization filter if selected
-      let url = `${API_BASE_URL}/admin/users`;
-      if (selectedOrg) {
-        url += `?organization=${encodeURIComponent(selectedOrg)}`;
-        console.log('Fetching users for organization:', selectedOrg);
-        console.log('URL:', url);
-      }
-      
-      const response = await authFetch(url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
+    if (selectedOrg) {
+      url += `&organization=${encodeURIComponent(selectedOrg)}`;
+    }
+    
+    console.log('🟡 Fetching users from:', url);
+    console.log(`Page ${page}, skip: ${skip}, limit: ${rowsPerPage}`);
+    
+    const response = await authFetch(url, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' }
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to fetch users: ${response.status} - ${errorText}`);
+    }
+
+    const data = await response.json();
+    console.log('🟢 Received data from API:', data);
+    
+    // Handle different response formats
+    let usersArray = [];
+    let totalCount = 0;
+    
+    if (data.users && Array.isArray(data.users)) {
+      // Format: { users: [...], total: 123 }
+      usersArray = data.users;
+      totalCount = data.total || usersArray.length;
+    } else if (Array.isArray(data)) {
+      // Format: [...] (direct array)
+      usersArray = data;
+      totalCount = usersArray.length;
+    } else {
+      console.error('Invalid response format:', data);
+      usersArray = [];
+      totalCount = 0;
+    }
+    
+    console.log(`📊 Loaded ${usersArray.length} users on current page, total in DB: ${totalCount}`);
+    
+    if (Array.isArray(usersArray)) {
+      // Transform data once and cache it
+      const transformedUsers = usersArray.map(user => {
+        // Debug first few users
+        if (usersArray.indexOf(user) < 3) {
+          console.log('Sample user transformation:', {
+            id: user.id,
+            name: user.name,
+            surname: user.surname,
+            role: user.role,
+            organization: user.organization
+          });
         }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
-
-      const data = await response.json();
-      console.log('Received data:', data);
-      
-      if (data.users && Array.isArray(data.users)) {
-        const transformedUsers = data.users.map(user => ({
+        
+        return {
           id: user.id,
-          name: `${user.name} ${user.surname}`.trim(),
-          email: user.email,
-          role: user.role,
-          status: 'active',
+          name: user.name && user.surname 
+            ? `${user.name} ${user.surname}`.trim() 
+            : user.name || user.surname || 'Unknown',
+          email: user.email || '',
+          role: user.role || 'Unknown',
           phoneNumber: user.phone_number,
           dateOfBirth: user.date_of_birth,
           address: user.address,
           gender: user.gender,
           invitedBy: user.invitedBy,
-          leader12: user.leader12,
-          leader144: user.leader144,
-          leader1728: user.leader1728,
-          stage: user.stage,
           organization: user.organization,
           createdAt: user.created_at
-        }));
+        };
+      });
 
-        console.log('Transformed users:', transformedUsers);
+      // Update cache with transformed data
+      globalUsersData = transformedUsers;
+      globalDataLoaded = true;
+      globalDataTimestamp = now;
+      globalOrgFilter = selectedOrg;
 
-        globalUsersData = transformedUsers;
-        globalDataLoaded = true;
-
-        setUsers(transformedUsers);
-        addActivityLog('DATA_REFRESH', `User data refreshed for ${selectedOrg || 'all organizations'}`);
-      } else {
-        console.error('Invalid response format:', data);
-      }
+      // Update state
+      setUsers(transformedUsers);
+      setTotalUsers(totalCount);
       
-    } catch (err) {
-      console.error('Error fetching data:', err);
-    } finally {
-      setLoading(false);
-      fetchInProgressRef.current = false;
+      console.log(`✅ State updated: ${transformedUsers.length} users displayed, ${totalCount} total in DB`);
+      
+      // Add activity log for refresh
+      if (forceRefresh) {
+        addActivityLog('DATA_REFRESH', `Refreshed user data: ${totalCount} total users`);
+      }
     }
-  }, [API_BASE_URL, authFetch, isRefreshingToken, selectedOrg]);
+    
+  } catch (err) {
+    console.error('🔴 Error fetching data:', err);
+    
+    // If we have stale cache, show it with warning
+    if (globalUsersData) {
+      console.log('⚠️ Showing stale cached data due to error');
+      setUsers(globalUsersData);
+      setTotalUsers(globalUsersData.length);
+      
+      // Show non-blocking error notification
+      alert('Using cached data. Unable to refresh from server.');
+    } else {
+      setUsers([]);
+      setTotalUsers(0);
+    }
+  } finally {
+    setLoading(false);
+    fetchInProgressRef.current = false;
+  }
+}, [API_BASE_URL, authFetch, isRefreshingToken, selectedOrg, page, rowsPerPage, addActivityLog]);
 
   // Handle organization change
   const handleOrgChange = (orgName) => {
@@ -454,17 +536,13 @@ export default function AdminDashboard() {
       fetchAllData(true);
     }
   }, [selectedOrg, fetchAllData]);
-
-  const addActivityLog = useCallback((action, details) => {
-    const newLog = {
-      id: Date.now(),
-      action,
-      details,
-      timestamp: new Date().toISOString(),
-      user: currentUser?.name || 'Current Admin'
-    };
-    setActivityLog(prev => [newLog, ...prev].slice(0, 50));
-  }, [currentUser]);
+// Fetch data when page or rowsPerPage changes
+useEffect(() => {
+  if (globalDataLoaded) {
+    console.log(`Page changed to ${page}, fetching new data...`);
+    fetchAllData(true);
+  }
+}, [page, rowsPerPage]);
 
   const handleCreateUser = async (userData) => {
     setCreatingUser(true);
@@ -522,6 +600,8 @@ export default function AdminDashboard() {
       setCreatingUser(false);
     }
   };
+
+
 
   const handleRoleChange = async (userId, newRole) => {
     setUpdatingRole(true);
@@ -602,6 +682,29 @@ export default function AdminDashboard() {
       setDeletingUser(false);
     }
   };
+  // Fetch distinct roles for the current organization
+const fetchOrganizationRoles = useCallback(async () => {
+  try {
+    const org = selectedOrg || currentUser?.organization;
+    if (!org) return;
+    
+    const response = await authFetch(`${API_BASE_URL}/admin/roles/distinct?organization=${encodeURIComponent(org)}`);
+    if (response.ok) {
+      const data = await response.json();
+      console.log('Organization roles:', data.roles);
+      setOrganizationRoles(data.roles || []);
+    }
+  } catch (err) {
+    console.error('Error fetching roles:', err);
+  }
+}, [API_BASE_URL, authFetch, selectedOrg, currentUser]);
+
+// Call when organization changes
+useEffect(() => {
+  if (selectedOrg || currentUser?.organization) {
+    fetchOrganizationRoles();
+  }
+}, [selectedOrg, fetchOrganizationRoles]);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filterKey = `${normalizedSearch}|${selectedRole}`;
@@ -839,6 +942,53 @@ export default function AdminDashboard() {
       </Box>
     );
   }
+  const RoleOption = ({ role, selectedUser, onSelect }) => {
+  // Add safety check for selectedUser
+  if (!selectedUser) return null;
+  
+  return (
+    <Paper
+      variant="outlined"
+      sx={{ 
+        p: 2, 
+        cursor: 'pointer',
+        border: selectedUser?.role === role.name ? 2 : 1,
+        borderColor: selectedUser?.role === role.name ? 'primary.main' : 'divider',
+        borderRadius: 1,
+        transition: 'all 0.2s',
+        '&:hover': { 
+          borderColor: 'primary.main', 
+          bgcolor: 'action.hover',
+          transform: 'translateY(-1px)',
+          boxShadow: 1
+        }
+      }}
+      onClick={onSelect}
+    >
+      <Stack direction="row" justifyContent="space-between" alignItems="center">
+        <Stack direction="row" spacing={1} alignItems="center">
+          <Avatar sx={{ width: 24, height: 24, bgcolor: role.color || '#9c27b0' }}>
+            <PersonIcon fontSize="small" />
+          </Avatar>
+          <Typography variant="body1" fontWeight="medium">
+            {role.name}
+          </Typography>
+          {!role.is_system && (
+            <Chip 
+              label="custom" 
+              size="small" 
+              variant="outlined" 
+              sx={{ height: 20, fontSize: '0.625rem' }}
+            />
+          )}
+        </Stack>
+        <Typography variant="body2" color="text.secondary">
+          {role.count} {role.count === 1 ? 'person' : 'people'}
+        </Typography>
+      </Stack>
+    </Paper>
+  );
+};
 
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
@@ -949,18 +1099,18 @@ export default function AdminDashboard() {
 
       {/* Dynamic Stats Cards */}
       <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
-        {/* Total People Card */}
-        <Grid item xs={6} sm={4} md={2}>
-          <Card sx={cardStyles}>
-            <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-              <Avatar sx={{ bgcolor: '#2196f3', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
-                <People />
-              </Avatar>
-              <Typography variant="h4" fontWeight="bold">{users.length}</Typography>
-              <Typography variant="body2" color="text.secondary">Total People</Typography>
-            </CardContent>
-          </Card>
-        </Grid>
+   {/* Total People Card - FIXED */}
+<Grid item xs={6} sm={4} md={2}>
+  <Card sx={cardStyles}>
+    <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+      <Avatar sx={{ bgcolor: '#2196f3', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+        <People />
+      </Avatar>
+      <Typography variant="h4" fontWeight="bold">{totalUsers}</Typography> {/* ← USE totalUsers */}
+      <Typography variant="body2" color="text.secondary">Total People</Typography>
+    </CardContent>
+  </Card>
+</Grid>
         
         {/* Dynamic Role Cards - One for each unique role */}
         {Object.entries(roleStats).map(([role, count], index) => {
@@ -1053,7 +1203,7 @@ export default function AdminDashboard() {
                   onChange={(e) => setSelectedRole(e.target.value)}
                   size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
                 >
-                  <MenuItem value="all">All Roles ({users.length})</MenuItem>
+                 <MenuItem value="all">All Roles ({totalUsers})</MenuItem> 
                   {uniqueRoles.map(role => (
                     <MenuItem key={role} value={role}>
                       {role} ({roleStats[role]})
@@ -1184,18 +1334,19 @@ export default function AdminDashboard() {
                         </TableBody>
                       </Table>
                     </TableContainer>
-                    <TablePagination 
-                      component="div" 
-                      count={filteredUsers.length} 
-                      page={page} 
-                      onPageChange={handlePageChange} 
-                      rowsPerPage={rowsPerPage} 
-                      onRowsPerPageChange={(e) => { 
-                        setRowsPerPage(parseInt(e.target.value, 10)); 
-                        setPage(0); 
-                      }} 
-                      rowsPerPageOptions={[5, 10, 20, 50]} 
-                    />
+                 <TablePagination 
+  component="div" 
+  count={totalUsers} // Use total from backend, not filteredUsers.length
+  page={page} 
+  onPageChange={handlePageChange} 
+  rowsPerPage={rowsPerPage} 
+  onRowsPerPageChange={(e) => { 
+    setRowsPerPage(parseInt(e.target.value, 10)); 
+    setPage(0); 
+    globalDataLoaded = false; // Force refresh when rows per page changes
+  }} 
+  rowsPerPageOptions={[5, 10, 20, 50, 100]} 
+/>
                   </Box>
                 )}
               </>
@@ -1448,97 +1599,80 @@ export default function AdminDashboard() {
       )}
 
       {/* Role Change Modal */}
-      <Dialog 
-        open={showRoleModal} 
-        onClose={() => !updatingRole && setShowRoleModal(false)} 
-        maxWidth="sm" 
-        fullWidth
-        PaperProps={{ 
-          sx: { borderRadius: 2 }
-        }}
-      >
-        <DialogTitle sx={{ fontWeight: 'bold', py: 2 }}>
-          <Typography variant="h6" fontWeight="bold">Change User Role</Typography>
-        </DialogTitle>
-        <DialogContent>
-          {selectedUser && (
+   {/* Role Change Modal - SINGLE VERSION */}
+<Dialog 
+  open={showRoleModal} 
+  onClose={() => !updatingRole && setShowRoleModal(false)} 
+  maxWidth="sm" 
+  fullWidth
+  PaperProps={{ sx: { borderRadius: 2 } }}
+>
+  <DialogTitle>
+    <Typography variant="h6" fontWeight="bold">Change User Role</Typography>
+  </DialogTitle>
+  <DialogContent>
+    {selectedUser && (
+      <>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+          User: <strong>{selectedUser.name}</strong>
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+          Current Role: <Chip 
+            label={selectedUser.role} 
+            size="small"
+            sx={{ 
+              bgcolor: getRoleColor(selectedUser.role),
+              color: 'white'
+            }}
+          />
+        </Typography>
+        
+        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+          Available Roles for {selectedOrg || currentUser?.organization}:
+        </Typography>
+        
+        <Stack spacing={1}>
+          {/* Show system roles first */}
+          {organizationRoles.filter(r => r.is_system).map(role => (
+            <RoleOption
+              key={role.name}
+              role={role}
+              selectedUser={selectedUser}
+              onSelect={() => handleRoleChange(selectedUser.id, role.name)}
+            />
+          ))}
+          
+          {/* Show custom roles */}
+          {organizationRoles.filter(r => !r.is_system).length > 0 && (
             <>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-                User: <strong>{selectedUser.name}</strong>
-              </Typography>
-              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-                Current Role: <Chip 
-                  label={getRoleDisplay(selectedUser.role)} 
-                  color={getRoleColor(selectedUser.role)} 
-                  size="small" 
-                  icon={getRoleIcon(selectedUser.role)}
+              <Divider sx={{ my: 1 }}>
+                <Chip label="Custom Roles" size="small" />
+              </Divider>
+              
+              {organizationRoles.filter(r => !r.is_system).map(role => (
+                <RoleOption
+                  key={role.name}
+                  role={role}
+                  selectedUser={selectedUser}
+                  onSelect={() => handleRoleChange(selectedUser.id, role.name)}
                 />
-              </Typography>
-              <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>Select New Role:</Typography>
-              <Stack spacing={1}>
-                {uniqueRoles.map(roleName => {
-                  const canAssign = isSupremeAdmin || 
-                    (currentUser?.role === 'admin' && roleName !== 'admin');
-                  
-                  return (
-                    <Paper
-                      key={roleName}
-                      variant="outlined"
-                      sx={{ 
-                        p: 2, 
-                        cursor: updatingRole || !canAssign ? 'not-allowed' : 'pointer',
-                        opacity: canAssign ? 1 : 0.6,
-                        border: selectedUser.role === roleName ? 2 : 1,
-                        borderColor: selectedUser.role === roleName ? 'primary.main' : 'divider',
-                        borderRadius: 1,
-                        boxShadow: 1,
-                        transition: 'all 0.2s',
-                        '&:hover': { 
-                          borderColor: canAssign && !updatingRole ? 'primary.main' : 'divider', 
-                          bgcolor: canAssign && !updatingRole ? 'action.hover' : 'inherit',
-                          boxShadow: canAssign && !updatingRole ? 2 : 1
-                        }
-                      }}
-                      onClick={() => canAssign && !updatingRole && handleRoleChange(selectedUser.id, roleName)}
-                    >
-                      <Stack direction="row" justifyContent="space-between" alignItems="center">
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Avatar sx={{ width: 24, height: 24, bgcolor: `${getRoleColor(roleName)}.main` }}>
-                            {getRoleIcon(roleName)}
-                          </Avatar>
-                          <Typography variant="body1" fontWeight="medium">
-                            {getRoleDisplay(roleName)}
-                          </Typography>
-                        </Stack>
-                        <Stack direction="row" spacing={1} alignItems="center">
-                          <Typography variant="body2" color="text.secondary">
-                            {roleStats[roleName]} {roleStats[roleName] === 1 ? 'person' : 'people'}
-                          </Typography>
-                          {!canAssign && (
-                            <Tooltip title="You don't have permission to assign this role">
-                              <WarningIcon fontSize="small" color="warning" />
-                            </Tooltip>
-                          )}
-                        </Stack>
-                      </Stack>
-                    </Paper>
-                  );
-                })}
-              </Stack>
+              ))}
             </>
           )}
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button 
-            onClick={() => setShowRoleModal(false)} 
-            disabled={updatingRole}
-            variant="outlined"
-          >
-            {updatingRole ? 'Updating...' : 'Cancel'}
-          </Button>
-        </DialogActions>
-      </Dialog>
-
+        </Stack>
+      </>
+    )}
+  </DialogContent>
+  <DialogActions sx={{ p: 2 }}>
+    <Button 
+      onClick={() => setShowRoleModal(false)} 
+      disabled={updatingRole}
+      variant="outlined"
+    >
+      Cancel
+    </Button>
+  </DialogActions>
+</Dialog>
       {/* Delete Confirmation Modal */}
       <Dialog 
         open={showDeleteConfirm} 
