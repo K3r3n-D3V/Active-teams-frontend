@@ -79,9 +79,165 @@ const toSATime = (d) => {
 };
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+// Add this memoized component OUTSIDE StatsDashboard
+const TaskGroupRow = React.memo(
+  ({ group, isExpanded, onToggle, formatDate }) => {
+    const { user, tasks, totalCount, completedCount, incompleteCount } = group;
+    const key = user.email || user.fullName;
+
+    return (
+      <Box
+        sx={{
+          backgroundColor: "background.paper",
+          border: "1px solid",
+          borderColor: "divider",
+          boxShadow: 1,
+          overflow: "hidden",
+          transition: "all 0.2s",
+          "&:hover": { boxShadow: 2 },
+        }}
+      >
+        <Box
+          sx={{
+            p: 1.5,
+            cursor: "pointer",
+            backgroundColor: incompleteCount > 0 ? "error.50" : "transparent",
+            "&:hover": { backgroundColor: "action.hover" },
+          }}
+          onClick={() => onToggle(key)}
+        >
+          <Box
+            display="flex"
+            alignItems="center"
+            justifyContent="space-between"
+          >
+            <Box display="flex" alignItems="center" gap={1.5}>
+              <Avatar
+                sx={{
+                  bgcolor: "primary.main",
+                  width: 40,
+                  height: 40,
+                  fontSize: "1rem",
+                  fontWeight: "bold",
+                }}
+              >
+                {user.fullName?.charAt(0)?.toUpperCase?.() || "?"}
+              </Avatar>
+              <Box>
+                <Typography variant="body2" fontWeight="medium">
+                  {user.fullName}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {totalCount} task{totalCount !== 1 ? "s" : ""} captured •{" "}
+                  {completedCount} completed • {incompleteCount} remaining
+                  {incompleteCount === 0 && totalCount > 0 && " — ALL DONE! ✓"}
+                </Typography>
+              </Box>
+            </Box>
+            <IconButton size="small" sx={{ p: 0.5 }}>
+              <ExpandMore
+                sx={{
+                  transition: "transform 0.2s ease",
+                  transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                }}
+              />
+            </IconButton>
+          </Box>
+        </Box>
+
+        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
+          <Box sx={{ px: 1.5, pb: 1.5, pt: 1, backgroundColor: "grey.50" }}>
+            <Divider sx={{ mb: 1.5 }} />
+            {tasks.length === 0 ? (
+              <Typography
+                color="text.secondary"
+                fontStyle="italic"
+                variant="caption"
+              >
+                No tasks assigned
+              </Typography>
+            ) : (
+              <Stack spacing={1}>
+                {tasks.map((task) => (
+                  <Box
+                    key={task._id}
+                    sx={{
+                      p: 1.5,
+                      borderRadius: 1.5,
+                      backgroundColor: "background.paper",
+                      border: "1px solid",
+                      borderColor: "divider",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Box>
+                      <Typography variant="caption" fontWeight="medium">
+                        {task.name || "Unknown"}
+                      </Typography>
+                      {task.contacted_person?.name && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{ display: "block", fontSize: "0.7rem" }}
+                        >
+                          Contacted: {task.contacted_person.name}
+                        </Typography>
+                      )}
+                      {task.type && task.type.length < 30 && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{
+                            display: "block",
+                            fontSize: "0.7rem",
+                            textTransform: "capitalize",
+                          }}
+                        >
+                          {task.type}
+                        </Typography>
+                      )}
+                      {task.followup_date && (
+                        <Typography
+                          variant="caption"
+                          color="text.secondary"
+                          sx={{
+                            display: "block",
+                            mt: 0.25,
+                            fontSize: "0.7rem",
+                          }}
+                        >
+                          Due: {formatDate(task.followup_date)}
+                        </Typography>
+                      )}
+                    </Box>
+                    <Chip
+                      label={task.status || "Pending"}
+                      size="small"
+                      color={
+                        ["completed", "done"].includes(
+                          task.status?.toLowerCase?.(),
+                        )
+                          ? "success"
+                          : task.status?.toLowerCase?.() === "overdue"
+                            ? "error"
+                            : "warning"
+                      }
+                      sx={{ fontSize: "0.7rem", height: 22 }}
+                    />
+                  </Box>
+                ))}
+              </Stack>
+            )}
+          </Box>
+        </Collapse>
+      </Box>
+    );
+  },
+);
+
 const StatsDashboard = () => {
-  const { updateCount } = useTaskUpdate();
-  console.log(">>> StatsDashboard function body executed — component is alive");
   const theme = useTheme();
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
@@ -160,27 +316,12 @@ const StatsDashboard = () => {
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [viewMoreModalOpen, setViewMoreModalOpen] = useState(false);
-
-  // Dedicated overdue cells state
   const [cells, setCells] = useState([]);
   const [cellsLoading, setCellsLoading] = useState(false);
   const [cellsError, setCellsError] = useState(null);
-
   const { authFetch } = useContext(AuthContext);
-
-  /** CHANGE:
-   * We use two locks instead of one.
-   * One lock is for stats, one is for cells.
-   * This stops them from blocking each other.
-   */
   const statsLockRef = useRef(false);
   const cellsLockRef = useRef(false);
-
-  /** CHANGE:
-   * This helper makes the lock logic easy.
-   * If it is already fetching, we skip.
-   * Otherwise, we allow the fetch and lock it.
-   */
 
   const canStartFetch = (lockRef, forceRefresh) => {
     if (lockRef.current && !forceRefresh) return false;
@@ -1403,14 +1544,6 @@ const StatsDashboard = () => {
 
       {/* Stat Cards */}
       <Grid container spacing={3} mb={4}>
-        {/* <Grid item xs={12} sm={6} md={4}>
-          <StatCard
-            title="Total Attendance"
-            value={stats.overview?.total_attendance || 0}
-            icon={<People />}
-            color="primary"
-          />
-        </Grid> */}
         <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="Overdue Cells"
@@ -1447,6 +1580,7 @@ const StatsDashboard = () => {
 
       {/* Tab Content */}
       <Box sx={{ minHeight: "0px" }}>
+        {/* OVERDUE CELLS TAB */}
         {activeTab === 0 && (
           <Paper
             sx={{
@@ -1474,11 +1608,7 @@ const StatsDashboard = () => {
                   {getPeriodDisplayText(period)} • {filteredOverdueCells.length}{" "}
                   found
                 </Typography>
-                <Typography variant="caption" color="error" sx={{ mt: 1 }}>
-                  (raw cells count: {cells.length})
-                </Typography>
               </Box>
-
               <Box display="flex" gap={1.5} alignItems="center">
                 <Chip
                   label={getPeriodDisplayText(period)}
@@ -1499,7 +1629,6 @@ const StatsDashboard = () => {
               </Box>
             </Box>
 
-            {/* Content area */}
             {cellsLoading ? (
               <Box
                 sx={{
@@ -1554,28 +1683,10 @@ const StatsDashboard = () => {
                 </Typography>
                 <Typography variant="body1" sx={{ maxWidth: 480 }}>
                   All cells are up to date for the selected period.
-                  <br />
-                  Great work keeping everything on track!
                 </Typography>
               </Box>
             ) : (
-              <Box
-                sx={{
-                  flexGrow: 1,
-                  overflowY: "auto",
-                  pr: 1,
-                  "&::-webkit-scrollbar": { width: "6px" },
-                  "&::-webkit-scrollbar-track": {
-                    background: "#f1f1f1",
-                    borderRadius: "3px",
-                  },
-                  "&::-webkit-scrollbar-thumb": {
-                    background: "#aaa",
-                    borderRadius: "3px",
-                  },
-                  "&::-webkit-scrollbar-thumb:hover": { background: "#888" },
-                }}
-              >
+              <Box sx={{ flexGrow: 1, overflowY: "auto", pr: 1 }}>
                 <Stack spacing={2}>
                   {filteredOverdueCells.map((cell) => (
                     <Card
@@ -1609,7 +1720,6 @@ const StatsDashboard = () => {
                             <Typography variant="subtitle1" fontWeight={600}>
                               {cell.eventName || "Unnamed Cell"}
                             </Typography>
-
                             <Stack
                               direction="row"
                               spacing={2}
@@ -1635,7 +1745,6 @@ const StatsDashboard = () => {
                                     />
                                     {formatDate(cell.date)}
                                   </Typography>
-
                                   {isOverdue(cell) && (
                                     <Chip
                                       label="OVERDUE"
@@ -1665,7 +1774,6 @@ const StatsDashboard = () => {
                                 </Typography>
                               )}
                             </Stack>
-
                             {cell.description && (
                               <Typography
                                 variant="body2"
@@ -1676,12 +1784,11 @@ const StatsDashboard = () => {
                               </Typography>
                             )}
                           </Box>
-
                           <Box textAlign="right">
                             {isOverdue(cell) ? (
                               <Box
                                 sx={{
-                                  bgcolor: "#dc35451a", // light red background
+                                  bgcolor: "#dc35451a",
                                   color: "#dc3545",
                                   border: "1px solid #dc3545",
                                   borderRadius: 1,
@@ -1709,14 +1816,9 @@ const StatsDashboard = () => {
                                       ? "error"
                                       : "default"
                                 }
-                                sx={{
-                                  minWidth: 110,
-                                  fontWeight: 600,
-                                  textTransform: "capitalize",
-                                }}
+                                sx={{ minWidth: 110, fontWeight: 600 }}
                               />
                             )}
-
                             {cell.attendees?.length > 0 && (
                               <Typography
                                 variant="caption"
@@ -1738,573 +1840,349 @@ const StatsDashboard = () => {
             )}
           </Paper>
         )}
-      </Box>
-      {activeTab === 1 && (
-        <Paper
-          sx={{
-            p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }),
-            height: getResponsiveValue({
-              xs: "auto",
-              sm: "calc(100vh - 320px)",
-              md: 3,
-              lg: "calc(100vh - 320px)",
-              xl: "calc(100vh - 320px)",
-            }),
-            display: "flex",
-            flexDirection: "column",
-          }}
-        >
-          <Box
-            sx={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: isXsDown ? "flex-start" : "center",
-              mb: { xs: 2.5, md: 3 },
-              flexShrink: 0,
-              flexDirection: isXsDown ? "column" : "row",
-              gap: isXsDown ? 1 : 0,
-            }}
-          >
-            <Box>
-              <Typography variant="subtitle1" gutterBottom>
-                All Tasks by Person ({stats.groupedTasks.length} people •{" "}
-                {filteredTasks.length} total)
-              </Typography>
-            </Box>
-            <Chip
-              label={`Period: ${getPeriodDisplayText(period)}`}
-              color="secondary"
-              size="small"
-              variant="outlined"
-            />
-          </Box>
 
-          <Box
-            sx={{
-              flexGrow: 1,
-              overflow: "auto",
-              pr: 1,
-              "&::-webkit-scrollbar": { width: "6px" },
-              "&::-webkit-scrollbar-track": {
-                background: "#f1f1f1",
-                borderRadius: "3px",
-              },
-              "&::-webkit-scrollbar-thumb": {
-                background: "#888",
-                borderRadius: "3px",
-              },
-              "&::-webkit-scrollbar-thumb:hover": { background: "#555" },
-            }}
-          >
-            {stats.groupedTasks.length === 0 && !stats.loading ? (
-              <Box
-                sx={{
-                  textAlign: "center",
-                  py: 6,
-                  color: "text.secondary",
-                  border: "2px dashed",
-                  borderColor: "divider",
-                  borderRadius: 1.5,
-                }}
-              >
-                <Task sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
-                <Typography variant="body1">No tasks found</Typography>
-                <Typography variant="caption" sx={{ fontSize: "0.75rem" }}>
-                  No tasks found for {getPeriodDisplayText(period)}.
-                </Typography>
-              </Box>
-            ) : (
-              <Stack spacing={1.5}>
-                {stats.groupedTasks.map(
-                  ({
-                    user,
-                    tasks,
-                    totalCount,
-                    completedCount,
-                    incompleteCount,
-                  }) => {
-                    const key = user.email || user.fullName;
-                    const isExpanded = expandedUsers.includes(key);
-
-                    return (
-                      <Box
-                        key={key}
-                        sx={{
-                          backgroundColor: "background.paper",
-                          border: "1px solid",
-                          borderColor: "divider",
-                          boxShadow: 1,
-                          overflow: "hidden",
-                          transition: "all 0.2s",
-                          "&:hover": { boxShadow: 2 },
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            p: 1.5,
-                            cursor: "pointer",
-                            backgroundColor:
-                              incompleteCount > 0 ? "error.50" : "transparent",
-                            "&:hover": { backgroundColor: "action.hover" },
-                          }}
-                          onClick={() => toggleExpand(key)}
-                        >
-                          <Box
-                            display="flex"
-                            alignItems="center"
-                            justifyContent="space-between"
-                          >
-                            <Box display="flex" alignItems="center" gap={1.5}>
-                              <Avatar
-                                sx={{
-                                  bgcolor: "primary.main",
-                                  width: 40,
-                                  height: 40,
-                                  fontSize: "1rem",
-                                  fontWeight: "bold",
-                                }}
-                              >
-                                {user.fullName?.charAt(0)?.toUpperCase?.() ||
-                                  "?"}
-                              </Avatar>
-                              <Box>
-                                <Typography variant="body2" fontWeight="medium">
-                                  {user.fullName}
-                                </Typography>
-                                <Typography
-                                  variant="caption"
-                                  color="text.secondary"
-                                >
-                                  {totalCount} task{totalCount !== 1 ? "s" : ""}{" "}
-                                  captured • {completedCount} completed •{" "}
-                                  {incompleteCount} remaining
-                                  {incompleteCount === 0 &&
-                                    totalCount > 0 &&
-                                    " — ALL DONE! ✓"}
-                                </Typography>
-                              </Box>
-                            </Box>
-                            <IconButton size="small" sx={{ p: 0.5 }}>
-                              <ExpandMore
-                                sx={{
-                                  transition: "transform 0.2s ease",
-                                  transform: isExpanded
-                                    ? "rotate(180deg)"
-                                    : "rotate(0deg)",
-                                }}
-                              />
-                            </IconButton>
-                          </Box>
-                        </Box>
-
-                        <Collapse in={isExpanded} timeout="auto" unmountOnExit>
-                          <Box
-                            sx={{
-                              px: 1.5,
-                              pb: 1.5,
-                              pt: 1,
-                              backgroundColor: "grey.50",
-                            }}
-                          >
-                            <Divider sx={{ mb: 1.5 }} />
-                            {tasks.length === 0 ? (
-                              <Typography
-                                color="text.secondary"
-                                fontStyle="italic"
-                                variant="caption"
-                              >
-                                No tasks assigned
-                              </Typography>
-                            ) : (
-                              <Stack spacing={1}>
-                                {tasks.map((task) => (
-                                  <Box
-                                    key={task._id}
-                                    sx={{
-                                      p: 1.5,
-                                      borderRadius: 1.5,
-                                      backgroundColor: "background.paper",
-                                      border: "1px solid",
-                                      borderColor: "divider",
-                                      display: "flex",
-                                      justifyContent: "space-between",
-                                      alignItems: "center",
-                                    }}
-                                  >
-                                    <Box>
-                                      {/* Capturer */}
-                                      <Typography
-                                        variant="caption"
-                                        fontWeight="medium"
-                                      >
-                                        {task.name || "Unknown"}
-                                      </Typography>
-
-                                      {/* Contacted/Captured person */}
-                                      {task.contacted_person?.name && (
-                                        <Typography
-                                          variant="caption"
-                                          color="text.secondary"
-                                          sx={{
-                                            display: "block",
-                                            fontSize: "0.7rem",
-                                          }}
-                                        >
-                                          Contacted:{" "}
-                                          {task.contacted_person.name}
-                                        </Typography>
-                                      )}
-
-                                      {/* Type — only show if it's a readable value not an ID */}
-                                      {task.type && task.type.length < 30 && (
-                                        <Typography
-                                          variant="caption"
-                                          color="text.secondary"
-                                          sx={{
-                                            display: "block",
-                                            fontSize: "0.7rem",
-                                            textTransform: "capitalize",
-                                          }}
-                                        >
-                                          {task.type}
-                                        </Typography>
-                                      )}
-
-                                      {/* Due date */}
-                                      {task.followup_date && (
-                                        <Typography
-                                          variant="caption"
-                                          color="text.secondary"
-                                          sx={{
-                                            display: "block",
-                                            mt: 0.25,
-                                            fontSize: "0.7rem",
-                                          }}
-                                        >
-                                          Due: {formatDate(task.followup_date)}
-                                        </Typography>
-                                      )}
-                                    </Box>
-
-                                    <Chip
-                                      label={task.status || "Pending"}
-                                      size="small"
-                                      color={
-                                        ["completed", "done"].includes(
-                                          task.status?.toLowerCase?.(),
-                                        )
-                                          ? "success"
-                                          : task.status?.toLowerCase?.() ===
-                                              "overdue"
-                                            ? "error"
-                                            : "warning"
-                                      }
-                                      sx={{ fontSize: "0.7rem", height: 22 }}
-                                    />
-                                  </Box>
-                                ))}
-                              </Stack>
-                            )}
-                          </Box>
-                        </Collapse>
-                      </Box>
-                    );
-                  },
-                )}
-              </Stack>
-            )}
-          </Box>
-        </Paper>
-      )}
-
-      {/* CALENDAR TAB */}
-      {activeTab === 2 && (
-        <>
+        {/* TASKS TAB */}
+        {activeTab === 1 && (
           <Paper
             sx={{
-              flex: 1,
+              p: getResponsiveValue({ xs: 1, sm: 1.5, md: 2, lg: 2, xl: 2 }),
+              height: "calc(100vh - 320px)",
               display: "flex",
               flexDirection: "column",
-              overflow: "hidden",
-              borderRadius: 2,
-              boxShadow: 1,
-              minHeight: { xs: "auto", md: "500px" },
             }}
           >
             <Box
               sx={{
-                p: { xs: 2, md: 2.5 },
-                borderBottom: "1px solid",
-                borderColor: "divider",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: isXsDown ? "flex-start" : "center",
+                mb: { xs: 2.5, md: 3 },
                 flexShrink: 0,
+                flexDirection: isXsDown ? "column" : "row",
+                gap: isXsDown ? 1 : 0,
               }}
             >
-              <Box
-                sx={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  gap: 2,
-                }}
-              >
-                <Typography variant="subtitle1" fontWeight="medium">
-                  Event Calendar ({calendarEvents.length} events total)
+              <Box>
+                <Typography variant="subtitle1" gutterBottom>
+                  All Tasks by Person ({stats.groupedTasks.length} people •{" "}
+                  {filteredTasks.length} total)
                 </Typography>
-                <Button
-                  variant="contained"
-                  size="small"
-                  startIcon={<Add />}
-                  onClick={handleCreateEvent}
-                >
-                  Create Event
-                </Button>
               </Box>
+              <Chip
+                label={`Period: ${getPeriodDisplayText(period)}`}
+                color="secondary"
+                size="small"
+                variant="outlined"
+              />
             </Box>
 
             <Box
+              sx={{
+                flexGrow: 1,
+                overflow: "auto",
+                pr: 1,
+                "&::-webkit-scrollbar": { width: "6px" },
+                "&::-webkit-scrollbar-track": {
+                  background: "#f1f1f1",
+                  borderRadius: "3px",
+                },
+                "&::-webkit-scrollbar-thumb": {
+                  background: "#888",
+                  borderRadius: "3px",
+                },
+                "&::-webkit-scrollbar-thumb:hover": { background: "#555" },
+              }}
+            >
+              {stats.groupedTasks.length === 0 && !stats.loading ? (
+                <Box
+                  sx={{
+                    textAlign: "center",
+                    py: 6,
+                    color: "text.secondary",
+                    border: "2px dashed",
+                    borderColor: "divider",
+                    borderRadius: 1.5,
+                  }}
+                >
+                  <Task sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
+                  <Typography variant="body1">No tasks found</Typography>
+                  <Typography variant="caption" sx={{ fontSize: "0.75rem" }}>
+                    No tasks found for {getPeriodDisplayText(period)}.
+                  </Typography>
+                </Box>
+              ) : (
+                <Stack spacing={1.5}>
+                  {stats.groupedTasks.map((group) => {
+                    const key = group.user.email || group.user.fullName;
+                    return (
+                      <TaskGroupRow
+                        key={key}
+                        group={group}
+                        isExpanded={expandedUsers.includes(key)}
+                        onToggle={toggleExpand}
+                        formatDate={formatDate}
+                      />
+                    );
+                  })}
+                </Stack>
+              )}
+            </Box>
+          </Paper>
+        )}
+
+        {/* CALENDAR TAB */}
+        {activeTab === 2 && (
+          <>
+            <Paper
               sx={{
                 flex: 1,
                 display: "flex",
-                flexDirection: { xs: "column", md: "row" },
-                gap: 0,
+                flexDirection: "column",
                 overflow: "hidden",
+                borderRadius: 2,
+                boxShadow: 1,
+                minHeight: { xs: "auto", md: "500px" },
               }}
             >
-              {/* ─── LEFT: Calendar ─── */}
               <Box
                 sx={{
-                  flex: { xs: "1 1 auto", md: "0 0 420px" },
-                  overflowY: "auto",
                   p: { xs: 2, md: 2.5 },
-                  borderRight: { md: "1px solid" },
+                  borderBottom: "1px solid",
                   borderColor: "divider",
+                  flexShrink: 0,
                 }}
               >
-                {EnhancedCalendar}
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    flexWrap: "wrap",
+                    gap: 2,
+                  }}
+                >
+                  <Typography variant="subtitle1" fontWeight="medium">
+                    Event Calendar ({calendarEvents.length} events total)
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    size="small"
+                    startIcon={<Add />}
+                    onClick={handleCreateEvent}
+                  >
+                    Create Event
+                  </Button>
+                </Box>
               </Box>
 
-              {/* ─── RIGHT: Events for selected date ─── */}
-              {/* RIGHT: Events for selected date */}
               <Box
                 sx={{
                   flex: 1,
                   display: "flex",
-                  flexDirection: "column",
-                  bgcolor: "background.default",
-                  overflow: "hidden", // Parent must clip
+                  flexDirection: { xs: "column", md: "row" },
+                  gap: 0,
+                  overflow: "hidden",
                 }}
               >
-                {/* Fixed header */}
                 <Box
                   sx={{
+                    flex: { xs: "1 1 auto", md: "0 0 420px" },
+                    overflowY: "auto",
                     p: { xs: 2, md: 2.5 },
-                    pb: 1,
-                    borderBottom: "1px solid",
+                    borderRight: { md: "1px solid" },
                     borderColor: "divider",
-                    bgcolor: "background.paper",
-                    zIndex: 1,
                   }}
                 >
-                  <Typography variant="subtitle1" component="div">
-                    Events on {formatLocalDisplayDate(selectedDate)}
-                    <Typography
-                      component="span"
-                      variant="caption"
-                      sx={{ ml: 1.5, color: "text.secondary" }}
-                    >
-                      ({eventsOnSelectedDate.length} event
-                      {eventsOnSelectedDate.length !== 1 ? "s" : ""})
-                    </Typography>
-                  </Typography>
+                  {EnhancedCalendar}
                 </Box>
 
-                {calendarLoading ? (
+                <Box
+                  sx={{
+                    flex: 1,
+                    display: "flex",
+                    flexDirection: "column",
+                    bgcolor: "background.default",
+                    overflow: "hidden",
+                  }}
+                >
                   <Box
                     sx={{
-                      flex: 1,
-                      display: "flex",
-                      justifyContent: "center",
-                      alignItems: "center",
+                      p: { xs: 2, md: 2.5 },
+                      pb: 1,
+                      borderBottom: "1px solid",
+                      borderColor: "divider",
+                      bgcolor: "background.paper",
+                      zIndex: 1,
                     }}
                   >
-                    <CircularProgress />
-                  </Box>
-                ) : eventsOnSelectedDate.length === 0 ? (
-                  <Box
-                    sx={{
-                      flex: 1,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      color: "text.secondary",
-                      textAlign: "center",
-                      p: 4,
-                    }}
-                  >
-                    <Event sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
-                    <Typography variant="h6" gutterBottom>
-                      No events on this date
+                    <Typography variant="subtitle1" component="div">
+                      Events on {formatLocalDisplayDate(selectedDate)}
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{ ml: 1.5, color: "text.secondary" }}
+                      >
+                        ({eventsOnSelectedDate.length} event
+                        {eventsOnSelectedDate.length !== 1 ? "s" : ""})
+                      </Typography>
                     </Typography>
-                    <Button
-                      variant="outlined"
-                      startIcon={<Add />}
-                      onClick={handleCreateEvent}
-                      sx={{ mt: 2 }}
-                    >
-                      Create Event for this day
-                    </Button>
                   </Box>
-                ) : (
-                  // ─── THIS IS THE SCROLLABLE AREA ───
-                  <Box
-                    sx={{
-                      flex: 1, // Takes remaining space
-                      overflowY: "auto", // Scroll when content overflows
-                      px: { xs: 2, md: 2.5 },
-                      py: 1,
-                      pb: 3,
-                      // Force scrollbar appearance & styling
-                      scrollbarWidth: "thin",
-                      scrollbarColor: `${theme.palette.divider} transparent`,
-                      "&::-webkit-scrollbar": {
-                        width: "6px",
-                      },
-                      "&::-webkit-scrollbar-track": {
-                        background: "transparent",
-                      },
-                      "&::-webkit-scrollbar-thumb": {
-                        background: theme.palette.divider,
-                        borderRadius: "10px",
-                      },
-                      "&::-webkit-scrollbar-thumb:hover": {
-                        background: theme.palette.primary.main,
-                      },
-                    }}
-                  >
-                    <Stack spacing={2}>
-                      {eventsOnSelectedDate.slice(0, 2).map((e) => (
-                        <Card
-                          key={e._id}
-                          variant="outlined"
-                          sx={{
-                            p: 2,
-                            borderRadius: 2,
-                            transition: "all 0.2s",
-                            "&:hover": {
-                              boxShadow: 3,
-                              transform: "translateY(-2px)",
-                            },
-                          }}
-                        >
-                          <Typography
-                            variant="subtitle2"
-                            fontWeight="medium"
-                            gutterBottom
-                          >
-                            {e.eventName || "Unnamed Event"}
-                          </Typography>
-                          <Box
+
+                  {calendarLoading ? (
+                    <Box
+                      sx={{
+                        flex: 1,
+                        display: "flex",
+                        justifyContent: "center",
+                        alignItems: "center",
+                      }}
+                    >
+                      <CircularProgress />
+                    </Box>
+                  ) : eventsOnSelectedDate.length === 0 ? (
+                    <Box
+                      sx={{
+                        flex: 1,
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: "text.secondary",
+                        textAlign: "center",
+                        p: 4,
+                      }}
+                    >
+                      <Event sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
+                      <Typography variant="h6" gutterBottom>
+                        No events on this date
+                      </Typography>
+                      <Button
+                        variant="outlined"
+                        startIcon={<Add />}
+                        onClick={handleCreateEvent}
+                        sx={{ mt: 2 }}
+                      >
+                        Create Event for this day
+                      </Button>
+                    </Box>
+                  ) : (
+                    <Box
+                      sx={{
+                        flex: 1,
+                        overflowY: "auto",
+                        px: { xs: 2, md: 2.5 },
+                        py: 1,
+                        pb: 3,
+                      }}
+                    >
+                      <Stack spacing={2}>
+                        {eventsOnSelectedDate.slice(0, 2).map((e) => (
+                          <Card
+                            key={e._id}
+                            variant="outlined"
                             sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 1,
-                              mb: 0.5,
+                              p: 2,
+                              borderRadius: 2,
+                              transition: "all 0.2s",
+                              "&:hover": {
+                                boxShadow: 3,
+                                transform: "translateY(-2px)",
+                              },
                             }}
                           >
-                            <Event fontSize="small" color="action" />
-                            <Typography variant="body2" color="text.secondary">
-                              {formatLocalDisplayDate(e.date)} •{" "}
-                              {e.time || "No time specified"}
+                            <Typography
+                              variant="subtitle2"
+                              fontWeight="medium"
+                              gutterBottom
+                            >
+                              {e.eventName || "Unnamed Event"}
                             </Typography>
-                          </Box>
-                          <Box
-                            sx={{
-                              display: "flex",
-                              flexWrap: "wrap",
-                              gap: 1,
-                              mt: 1,
-                            }}
-                          >
-                            <Chip
-                              label={e.eventTypeName || "Event"}
-                              size="small"
-                              color="primary"
-                              variant="outlined"
-                            />
-                            {e.location && (
+                            <Box
+                              sx={{
+                                display: "flex",
+                                alignItems: "center",
+                                gap: 1,
+                                mb: 0.5,
+                              }}
+                            >
+                              <Event fontSize="small" color="action" />
                               <Typography
                                 variant="body2"
                                 color="text.secondary"
                               >
-                                {e.location}
+                                {formatLocalDisplayDate(e.date)} •{" "}
+                                {e.time || "No time specified"}
+                              </Typography>
+                            </Box>
+                            <Box
+                              sx={{
+                                display: "flex",
+                                flexWrap: "wrap",
+                                gap: 1,
+                                mt: 1,
+                              }}
+                            >
+                              <Chip
+                                label={e.eventTypeName || "Event"}
+                                size="small"
+                                color="primary"
+                                variant="outlined"
+                              />
+                              {e.location && (
+                                <Typography
+                                  variant="body2"
+                                  color="text.secondary"
+                                >
+                                  {e.location}
+                                </Typography>
+                              )}
+                            </Box>
+                            {e.eventLeaderName && (
+                              <Typography
+                                variant="body2"
+                                color="text.secondary"
+                                sx={{ mt: 1 }}
+                              >
+                                Leader: {e.eventLeaderName}
                               </Typography>
                             )}
-                          </Box>
-                          {e.eventLeaderName && (
-                            <Typography
-                              variant="body2"
-                              color="text.secondary"
-                              sx={{ mt: 1 }}
-                            >
-                              Leader: {e.eventLeaderName}
-                            </Typography>
-                          )}
-                        </Card>
-                      ))}
-                    </Stack>
-
-                    {eventsOnSelectedDate.length > 0 && (
-                      <Box sx={{ textAlign: "center", mt: 3, pb: 2 }}>
-                        <Button
-                          variant="outlined"
-                          size="small"
-                          onClick={() => setViewMoreModalOpen(true)}
-                        >
-                          View all {eventsOnSelectedDate.length} events
-                        </Button>
-                      </Box>
-                    )}
-                  </Box>
-                )}
-              </Box>
-            </Box>
-          </Paper>
-
-          {/* Optional modal - only if you want it */}
-          <Dialog
-            open={viewMoreModalOpen}
-            onClose={() => setViewMoreModalOpen(false)}
-            maxWidth="sm"
-            fullWidth
-          >
-            <DialogTitle>
-              All Events on {formatLocalDisplayDate(selectedDate)} (
-              {eventsOnSelectedDate.length})
-            </DialogTitle>
-
-            <DialogContent dividers>
-              {eventsOnSelectedDate.length === 0 ? (
-                <Box sx={{ textAlign: "center", py: 4 }}>
-                  <Event sx={{ fontSize: 64, opacity: 0.3, mb: 2 }} />
-                  <Typography variant="h6">No events found</Typography>
+                          </Card>
+                        ))}
+                      </Stack>
+                      {eventsOnSelectedDate.length > 0 && (
+                        <Box sx={{ textAlign: "center", mt: 3, pb: 2 }}>
+                          <Button
+                            variant="outlined"
+                            size="small"
+                            onClick={() => setViewMoreModalOpen(true)}
+                          >
+                            View all {eventsOnSelectedDate.length} events
+                          </Button>
+                        </Box>
+                      )}
+                    </Box>
+                  )}
                 </Box>
-              ) : (
+              </Box>
+            </Paper>
+
+            <Dialog
+              open={viewMoreModalOpen}
+              onClose={() => setViewMoreModalOpen(false)}
+              maxWidth="sm"
+              fullWidth
+            >
+              <DialogTitle>
+                All Events on {formatLocalDisplayDate(selectedDate)} (
+                {eventsOnSelectedDate.length})
+              </DialogTitle>
+              <DialogContent dividers>
                 <Stack spacing={2}>
                   {eventsOnSelectedDate.map((e) => (
                     <Card
                       key={e._id}
                       variant="outlined"
-                      sx={{
-                        p: 2,
-                        borderRadius: 2,
-                        transition: "all 0.2s",
-                        "&:hover": {
-                          boxShadow: 3,
-                          transform: "translateY(-2px)",
-                        },
-                      }}
+                      sx={{ p: 2, borderRadius: 2 }}
                     >
                       <Typography
                         variant="subtitle2"
@@ -2313,7 +2191,6 @@ const StatsDashboard = () => {
                       >
                         {e.eventName || "Unnamed Event"}
                       </Typography>
-
                       <Box
                         sx={{
                           display: "flex",
@@ -2328,7 +2205,6 @@ const StatsDashboard = () => {
                           {e.time || "No time specified"}
                         </Typography>
                       </Box>
-
                       <Box
                         sx={{
                           display: "flex",
@@ -2349,7 +2225,6 @@ const StatsDashboard = () => {
                           </Typography>
                         )}
                       </Box>
-
                       {e.eventLeaderName && (
                         <Typography
                           variant="body2"
@@ -2362,15 +2237,16 @@ const StatsDashboard = () => {
                     </Card>
                   ))}
                 </Stack>
-              )}
-            </DialogContent>
-
-            <DialogActions>
-              <Button onClick={() => setViewMoreModalOpen(false)}>Close</Button>
-            </DialogActions>
-          </Dialog>
-        </>
-      )}
+              </DialogContent>
+              <DialogActions>
+                <Button onClick={() => setViewMoreModalOpen(false)}>
+                  Close
+                </Button>
+              </DialogActions>
+            </Dialog>
+          </>
+        )}
+      </Box>
       {/* CREATE EVENT MODAL - Using CreateEvents component */}
       <Dialog
         open={createEventModalOpen}
