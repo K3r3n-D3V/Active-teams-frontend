@@ -281,7 +281,7 @@ function ServiceCheckIn() {
       if (!eventId) return null;
       try {
         const response = await authFetch(
-          `${BASE_URL}/service-checkin/real-time-data?event_id=${cleanEventId(eventId)}`,
+          `${BASE_URL}/service-checkin/real-time-data?event_id=${eventId}`,
           { method: "GET" }
         );
         if (!response.ok) return null;
@@ -404,7 +404,6 @@ function ServiceCheckIn() {
                 id: event._id || event.id || Math.random().toString(36),
                 eventName: event.eventName || event.Event_Name || "Unnamed Event",
                 status: (event.status || "open").toLowerCase(),
-                // isGlobal: event.isGlobal === true,
                 isGlobal: event.isGlobal === true || event.isGlobal === "true",
                 isTicketed: event.isTicketed === true,
                 date: event.date || event.createdAt,
@@ -440,12 +439,11 @@ function ServiceCheckIn() {
           if (!event || event.status === "error") return false;
           const typeName = (event.eventType || "").toLowerCase();
           if (typeName === "cells" || typeName === "all cells" || typeName === "trainingl") return false;
-          // if (event.isGlobal !== true) return false;
           if (event.isGlobal !== true && event.isGlobal !== "true") return false;
           return true;
         });
-console.log("fetchEvents - statuses:", validEvents.map(e => ({ name: e.eventName, status: e.status })));
-setEvents(validEvents);
+        console.log("fetchEvents - statuses:", validEvents.map(e => ({ name: e.eventName, status: e.status })));
+        setEvents(validEvents);
         setEvents(validEvents);
 
       } catch (err) {
@@ -552,7 +550,6 @@ setEvents(validEvents);
                 id: event._id || event.id || Math.random().toString(36),
                 eventName: event.eventName || event.Event_Name || "Unnamed Event",
                 status: (event.status || "open").toLowerCase(),
-                // isGlobal: event.isGlobal === true,
                 isGlobal: event.isGlobal === true || event.isGlobal === "true",
                 isTicketed: event.isTicketed === true,
                 date: event.date || event.createdAt,
@@ -582,7 +579,6 @@ setEvents(validEvents);
             if (!event || event.status === "error") return false;
             const typeName = (event.eventType || "").toLowerCase();
             if (["cells", "all cells", "cell", "training"].includes(typeName)) return false;
-            // if (event.isGlobal !== true) return false;
             if (event.isGlobal !== true && event.isGlobal !== "true") return false;
             return true;
           });
@@ -613,11 +609,11 @@ setEvents(validEvents);
     })();
   }, []);
 
-useEffect(() => {
-  if (!search.trim()) {
-    setSortModel([]);
-  }
-}, [search]);
+  useEffect(() => {
+    if (!search.trim()) {
+      setSortModel([]);
+    }
+  }, [search]);
 
   useEffect(() => {
     if (!currentEventId) {
@@ -648,7 +644,6 @@ useEffect(() => {
     return eventsList.filter((event) => {
       const typeName = (event.eventType || "").toLowerCase();
       if (typeName === "cells" || typeName === "all cells" || typeName === "cell") return false;
-      // if (event.isGlobal !== true) return false;
       if (event.isGlobal !== true && event.isGlobal !== "true") return false;
       const status = event.status?.toLowerCase() || "";
       if (["complete", "closed", "cancelled", "did_not_meet"].includes(status)) return false;
@@ -659,7 +654,6 @@ useEffect(() => {
 
   const getFilteredClosedEvents = useCallback(() => {
     const closed = events.filter((event) => {
-      // if (event.isGlobal !== true) return false;
       if (event.isGlobal !== true && event.isGlobal !== "true") return false;
       const typeName = (event.eventType || event.eventTypeName || "").toLowerCase();
       if (["cells", "all cells", "cell"].includes(typeName)) return false;
@@ -886,7 +880,7 @@ useEffect(() => {
       try {
         setIsDeleting(true);
         const response = await authFetch(
-          `${BASE_URL}/service-checkin/remove-consolidation?event_id=${cleanEventId(currentEventId)}&consolidation_id=${consolidation.id}&keep_person_in_attendees=true`,
+          `${BASE_URL}/service-checkin/remove-consolidation?event_id=${currentEventId}&consolidation_id=${consolidation.id}&keep_person_in_attendees=true`,
           { method: "DELETE" }
         );
         if (response.ok) {
@@ -966,7 +960,11 @@ useEffect(() => {
         } else {
           const response = await authFetch(`${BASE_URL}/service-checkin/remove`, {
             method: "DELETE",
-            body: JSON.stringify({ event_id: cleanEventId(currentEventId), person_id: personId, type: "attendees" }),
+            body: JSON.stringify({
+              event_id: cleanEventId(currentEventId),
+              person_id: personId,
+              type: "attendees"
+            }),
           });
           if (response.ok) {
             const data = await response.json();
@@ -1053,7 +1051,7 @@ useEffect(() => {
               stage: "First Time", fullName, address: "", birthday: "", dob: "", isNew: true, present: false,
             };
             setAttendees((prev) => [newPersonForGrid, ...prev]);
-            try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch { }
+            try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch (error) { console.error("Failed to refresh people cache after adding new person", error); }
             const freshData = await fetchRealTimeEventData(cleanEventId(currentEventId));
             if (freshData) setRealTimeData(freshData);
           }
@@ -1069,7 +1067,16 @@ useEffect(() => {
       const fullName = task.recipientName || `${task.person_name || ""} ${task.person_surname || ""}`.trim() || "Unknown Person";
       setConsolidationOpen(false);
       toast.success(`${fullName} consolidated successfully`);
-      const freshData = await fetchRealTimeEventData(cleanEventId(currentEventId));
+
+      console.log("currentEventId at consolidation time:", currentEventId);
+
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      const freshData = await fetchRealTimeEventData(currentEventId);
+      console.log("freshData after consolidation:", freshData);
+      console.log("consolidations in freshData:", freshData?.consolidations);
+      console.log("consolidation_count:", freshData?.consolidation_count);
+
       if (freshData) setRealTimeData(freshData);
       notifyTaskUpdate?.();
       window.dispatchEvent(new CustomEvent("taskUpdated", { detail: { action: "consolidationCreated", task } }));
@@ -1080,8 +1087,8 @@ useEffect(() => {
   const handleSaveAndCloseEvent = useCallback(async () => {
     if (!currentEventId) { toast.error("Please select an event first"); return; }
     const currentEvent = events.find(
-  (e) => cleanEventId(e.id) === cleanEventId(currentEventId)
-);
+      (e) => cleanEventId(e.id) === cleanEventId(currentEventId)
+    );
     if (!currentEvent) { toast.error("Selected event not found"); return; }
     if (!window.confirm(`Are you sure you want to close "${currentEvent.eventName}"? This action cannot be undone.`)) return;
 
@@ -1123,48 +1130,47 @@ useEffect(() => {
     }
   }, [currentEventId, events, authFetch, fetchEvents]);
 
-const handleUnsaveEvent = useCallback(
-  async (event) => {
-    try {
-      // Use the FULL id including date suffix so backend targets the right instance
-      const fullId = event.id || event._id;
-      const baseId = cleanEventId(fullId);
+  const handleUnsaveEvent = useCallback(
+    async (event) => {
+      try {
+        const fullId = event.id || event._id;
+        const baseId = cleanEventId(fullId);
 
-      const response = await authFetch(
-        `${BASE_URL}/events/${fullId}/toggle-status`,
-        { method: "PATCH" }
-      );
-      if (!response.ok) {
-        const e = await response.json();
-        throw new Error(e.detail || `HTTP error`);
+        const response = await authFetch(
+          `${BASE_URL}/events/${fullId}/toggle-status`,
+          { method: "PATCH" }
+        );
+        if (!response.ok) {
+          const e = await response.json();
+          throw new Error(e.detail || `HTTP error`);
+        }
+        const result = await response.json();
+        console.log("Server toggle result:", result);
+
+        if (result.action !== "reopened") {
+          toast.error("Server did not reopen the event. Please try again.");
+          return;
+        }
+
+        toast.success(`Event "${event.eventName}" has been reopened!`);
+
+        setEvents((prev) =>
+          prev.map((e) =>
+            cleanEventId(e.id) === baseId
+              ? { ...e, status: "incomplete", closed_by: undefined, closed_at: undefined }
+              : e
+          )
+        );
+
+        setCurrentEventId(fullId);
+
+        setTimeout(() => fetchEvents(), 1500);
+      } catch (error) {
+        toast.error(error.message || "Failed to reopen event");
       }
-      const result = await response.json();
-      console.log("Server toggle result:", result);
-
-      if (result.action !== "reopened") {
-        toast.error("Server did not reopen the event. Please try again.");
-        return;
-      }
-
-      toast.success(`Event "${event.eventName}" has been reopened!`);
-
-      setEvents((prev) =>
-        prev.map((e) =>
-          cleanEventId(e.id) === baseId
-            ? { ...e, status: "incomplete", closed_by: undefined, closed_at: undefined }
-            : e
-        )
-      );
-
-      setCurrentEventId(fullId);
-
-      setTimeout(() => fetchEvents(), 1500);
-    } catch (error) {
-      toast.error(error.message || "Failed to reopen event");
-    }
-  },
-  [authFetch, fetchEvents]
-);
+    },
+    [authFetch, fetchEvents]
+  );
 
   const handleConsolidationClick = useCallback(() => {
     if (!currentEventId) { toast.error("Please select an event first"); return; }
@@ -1220,11 +1226,15 @@ const handleUnsaveEvent = useCallback(
         const personId = person.id || person._id;
         const response = await authFetch(`${BASE_URL}/service-checkin/remove`, {
           method: "DELETE",
-          body: JSON.stringify({ event_id: cleanEventId(currentEventId), person_id: personId, type: "new_people" }),
+          body: JSON.stringify({
+            event_id: cleanEventId(currentEventId),
+            person_id: personId,
+            type: "new_people"
+          }),
         });
         if (response.ok) {
           toast.success("Person removed from new people");
-          const freshData = await fetchRealTimeEventData(cleanEventId(currentEventId));
+          const freshData = await fetchRealTimeEventData(currentEventId);
           if (freshData) setRealTimeData(freshData);
         }
       } catch { toast.error("Failed to remove person"); }
@@ -1652,7 +1662,6 @@ const handleUnsaveEvent = useCallback(
               events={getFilteredClosedEvents()}
               searchTerm={eventSearch}
               isLoading={isLoadingEvents && events.length === 0 && isLoadingHistory}
-              // onRefresh={() => fetchEvents(true)}
             />
           </Box>
         )}
