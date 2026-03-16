@@ -100,6 +100,13 @@ export default function AdminDashboard() {
   const initialLoadRef = useRef(true);
   const fetchInProgressRef = useRef(false);
 
+  // Add these state variables near your other useState declarations
+const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
+const [newRoleName, setNewRoleName] = useState('');
+const [creatingRole, setCreatingRole] = useState(false);
+const [organizationRoles, setOrganizationRoles] = useState([]);
+const [roleCreateError, setRoleCreateError] = useState('');
+
   // Calculate dynamic role stats
   const roleStats = useMemo(() => {
     const stats = {};
@@ -682,20 +689,26 @@ useEffect(() => {
       setDeletingUser(false);
     }
   };
-  // Fetch distinct roles for the current organization
+// Fetch distinct roles for the current organization
 const fetchOrganizationRoles = useCallback(async () => {
   try {
+    // Don't fetch roles if no specific organization is selected
+    if (!selectedOrg && !currentUser?.organization) {
+      setOrganizationRoles([]);
+      return;
+    }
+    
     const org = selectedOrg || currentUser?.organization;
-    if (!org) return;
     
     const response = await authFetch(`${API_BASE_URL}/admin/roles/distinct?organization=${encodeURIComponent(org)}`);
     if (response.ok) {
       const data = await response.json();
-      console.log('Organization roles:', data.roles);
+      console.log('Organization roles:', data);
       setOrganizationRoles(data.roles || []);
     }
   } catch (err) {
     console.error('Error fetching roles:', err);
+    setOrganizationRoles([]);
   }
 }, [API_BASE_URL, authFetch, selectedOrg, currentUser]);
 
@@ -705,6 +718,80 @@ useEffect(() => {
     fetchOrganizationRoles();
   }
 }, [selectedOrg, fetchOrganizationRoles]);
+
+const handleCreateRole = async () => {
+  // Double-check we're not in Active Church
+  if (!selectedOrg || selectedOrg === "Active Church") {
+    setRoleCreateError('Cannot create custom roles for Active Church');
+    return;
+  }
+  
+  if (!newRoleName.trim()) {
+    setRoleCreateError('Role name is required');
+    return;
+  }
+  
+  // Format role name: lowercase, replace spaces with underscores
+  const formattedRoleName = newRoleName.trim()
+    .toLowerCase()
+    .replace(/\s+/g, '_')
+    .replace(/[^a-z0-9_]/g, '');
+  
+  if (!formattedRoleName) {
+    setRoleCreateError('Invalid role name. Use letters, numbers, and spaces only.');
+    return;
+  }
+  
+  // Check if role already exists
+  if (organizationRoles.some(r => r.name === formattedRoleName)) {
+    setRoleCreateError(`Role "${formattedRoleName}" already exists`);
+    return;
+  }
+  
+  setCreatingRole(true);
+  setRoleCreateError('');
+  
+  try {
+    // Add the new role to the local list
+    const newRole = {
+      name: formattedRoleName,
+      count: 0,
+      is_system: false,
+      color: getRoleColor(formattedRoleName)
+    };
+    
+    setOrganizationRoles(prev => [...prev, newRole]);
+    addActivityLog('ROLE_CREATED', `Created new role: ${formattedRoleName} for ${selectedOrg}`);
+    
+    // Close modal and reset
+    setShowCreateRoleModal(false);
+    setNewRoleName('');
+    
+  } catch (err) {
+    console.error('Error creating role:', err);
+    setRoleCreateError(err.message);
+  } finally {
+    setCreatingRole(false);
+  }
+};
+useEffect(() => {
+  if (selectedOrg || currentUser?.organization) {
+    fetchOrganizationRoles();
+  }
+}, [selectedOrg, fetchOrganizationRoles]);
+
+// Also refresh roles when users data changes (to update counts)
+useEffect(() => {
+  if (users.length > 0) {
+    // Update counts in organizationRoles
+    setOrganizationRoles(prev => 
+      prev.map(role => ({
+        ...role,
+        count: users.filter(u => u.role === role.name).length
+      }))
+    );
+  }
+}, [users]);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filterKey = `${normalizedSearch}|${selectedRole}`;
@@ -942,7 +1029,7 @@ useEffect(() => {
       </Box>
     );
   }
-  const RoleOption = ({ role, selectedUser, onSelect }) => {
+const RoleOption = ({ role, selectedUser, onSelect }) => {
   // Add safety check for selectedUser
   if (!selectedUser) return null;
   
@@ -1098,40 +1185,105 @@ useEffect(() => {
       </Box>
 
       {/* Dynamic Stats Cards */}
-      <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
-   {/* Total People Card - FIXED */}
-<Grid item xs={6} sm={4} md={2}>
-  <Card sx={cardStyles}>
-    <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-      <Avatar sx={{ bgcolor: '#2196f3', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
-        <People />
-      </Avatar>
-      <Typography variant="h4" fontWeight="bold">{totalUsers}</Typography> {/* ← USE totalUsers */}
-      <Typography variant="body2" color="text.secondary">Total People</Typography>
-    </CardContent>
-  </Card>
-</Grid>
-        
-        {/* Dynamic Role Cards - One for each unique role */}
-        {Object.entries(roleStats).map(([role, count], index) => {
-          const colorIndex = index % roleCardColors.length;
-          
-          return (
-            <Grid item xs={6} sm={4} md={2} key={role}>
-              <Card sx={cardStyles}>
-                <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-                  <Avatar sx={{ bgcolor: roleCardColors[colorIndex], width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
-                    {getRoleIcon(role)}
-                  </Avatar>
-                  <Typography variant="h4" fontWeight="bold">{count}</Typography>
-                  <Typography variant="body2" color="text.secondary">{role}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          );
-        })}
+   {/* Dynamic Stats Cards */}
+<Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
+  {/* Total People Card */}
+  <Grid item xs={6} sm={4} md={2}>
+    <Card sx={cardStyles}>
+      <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+        <Avatar sx={{ bgcolor: '#2196f3', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+          <People />
+        </Avatar>
+        <Typography variant="h4" fontWeight="bold">{totalUsers}</Typography>
+        <Typography variant="body2" color="text.secondary">Total People</Typography>
+      </CardContent>
+    </Card>
+  </Grid>
+  
+  {/* Role Cards - Show top roles or all roles based on church type */}
+  {(selectedOrg || currentUser?.organization) === "Active Church" ? (
+    /* Active Church - Show specific role cards */
+    <>
+      <Grid item xs={6} sm={4} md={2}>
+        <Card sx={cardStyles}>
+          <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+            <Avatar sx={{ bgcolor: '#f44336', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+              <AdminPanelSettings />
+            </Avatar>
+            <Typography variant="h4" fontWeight="bold">{roleStats['admin'] || 0}</Typography>
+            <Typography variant="body2" color="text.secondary">Admin</Typography>
+          </CardContent>
+        </Card>
       </Grid>
-
+      <Grid item xs={6} sm={4} md={2}>
+        <Card sx={cardStyles}>
+          <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+            <Avatar sx={{ bgcolor: '#9c27b0', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+              <HandshakeIcon />
+            </Avatar>
+            <Typography variant="h4" fontWeight="bold">{roleStats['leader'] || 0}</Typography>
+            <Typography variant="body2" color="text.secondary">Leader</Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid item xs={6} sm={4} md={2}>
+        <Card sx={cardStyles}>
+          <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+            <Avatar sx={{ bgcolor: '#2196f3', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+              <People />
+            </Avatar>
+            <Typography variant="h4" fontWeight="bold">{roleStats['leaderAt12'] || 0}</Typography>
+            <Typography variant="body2" color="text.secondary">LeaderAt12</Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid item xs={6} sm={4} md={2}>
+        <Card sx={cardStyles}>
+          <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+            <Avatar sx={{ bgcolor: '#4caf50', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+              <PersonIcon />
+            </Avatar>
+            <Typography variant="h4" fontWeight="bold">{roleStats['user'] || 0}</Typography>
+            <Typography variant="body2" color="text.secondary">User</Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid item xs={6} sm={4} md={2}>
+        <Card sx={cardStyles}>
+          <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+            <Avatar sx={{ bgcolor: '#ff9800', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+              <RegistrantIcon />
+            </Avatar>
+            <Typography variant="h4" fontWeight="bold">{roleStats['registrant'] || 0}</Typography>
+            <Typography variant="body2" color="text.secondary">Registrant</Typography>
+          </CardContent>
+        </Card>
+      </Grid>
+    </>
+  ) : (
+    /* Other Churches - Show dynamic role cards (up to 5 most populated) */
+    Object.entries(roleStats)
+      .sort((a, b) => b[1] - a[1]) // Sort by count descending
+      .slice(0, 5) // Take top 5
+      .map(([role, count], index) => {
+        const colorIndex = index % roleCardColors.length;
+        
+        return (
+          <Grid item xs={6} sm={4} md={2} key={role}>
+            <Card sx={cardStyles}>
+              <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+                <Avatar sx={{ bgcolor: roleCardColors[colorIndex], width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+                  {getRoleIcon(role)}
+                </Avatar>
+                <Typography variant="h4" fontWeight="bold">{count}</Typography>
+                <Typography variant="body2" color="text.secondary">{role}</Typography>
+              </CardContent>
+            </Card>
+          </Grid>
+        );
+      })
+  )}
+</Grid>
       {/* Main Content */}
       <Paper sx={{ boxShadow: 3, borderRadius: 2, overflow: 'hidden' }}>
         <Box sx={{ 
@@ -1495,9 +1647,9 @@ useEffect(() => {
           <Stack spacing={3} sx={{ mt: 1 }}>
             {editingOrg && (
               <Alert severity="info" sx={{ mb: 2 }}>
-                <Typography variant="body2">
+                {/* <Typography variant="body2">
                   Members: {editingOrg.user_count || 0}
-                </Typography>
+                </Typography> */}
               </Alert>
             )}
             
@@ -1597,9 +1749,7 @@ useEffect(() => {
           <AddIcon />
         </Fab>
       )}
-
-      {/* Role Change Modal */}
-   {/* Role Change Modal - SINGLE VERSION */}
+{/* Role Change Modal - With different UI for Active Church vs Other Churches */}
 <Dialog 
   open={showRoleModal} 
   onClose={() => !updatingRole && setShowRoleModal(false)} 
@@ -1627,29 +1777,53 @@ useEffect(() => {
           />
         </Typography>
         
-        <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-          Available Roles for {selectedOrg || currentUser?.organization}:
-        </Typography>
-        
-        <Stack spacing={1}>
-          {/* Show system roles first */}
-          {organizationRoles.filter(r => r.is_system).map(role => (
-            <RoleOption
-              key={role.name}
-              role={role}
-              selectedUser={selectedUser}
-              onSelect={() => handleRoleChange(selectedUser.id, role.name)}
-            />
-          ))}
-          
-          {/* Show custom roles */}
-          {organizationRoles.filter(r => !r.is_system).length > 0 && (
-            <>
-              <Divider sx={{ my: 1 }}>
-                <Chip label="Custom Roles" size="small" />
-              </Divider>
+        {/* Different UI based on organization */}
+        {(selectedOrg || currentUser?.organization) === "Active Church" ? (
+          /* ACTIVE CHURCH - Simple dropdown with standard roles */
+          <>
+            <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+              Select New Role:
+            </Typography>
+            <FormControl fullWidth size="medium">
+              <Select
+                value={selectedUser.role}
+                onChange={(e) => handleRoleChange(selectedUser.id, e.target.value)}
+                disabled={updatingRole}
+              >
+                <MenuItem value="admin">Admin</MenuItem>
+                <MenuItem value="leader">Leader</MenuItem>
+                <MenuItem value="leaderAt12">LeaderAt12</MenuItem>
+                <MenuItem value="user">User</MenuItem>
+                <MenuItem value="registrant">Registrant</MenuItem>
+              </Select>
+            </FormControl>
+          </>
+        ) : (
+          /* OTHER CHURCHES - Role cards with Add Role button */
+          <>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+              <Typography variant="subtitle2" fontWeight="bold">
+                Available Roles for {selectedOrg || currentUser?.organization}:
+              </Typography>
               
-              {organizationRoles.filter(r => !r.is_system).map(role => (
+              {/* Add Role button for non-Active Church organizations */}
+              <Button
+                variant="outlined"
+                size="small"
+                startIcon={<AddIcon />}
+                onClick={() => {
+                  setShowRoleModal(false);
+                  setShowCreateRoleModal(true);
+                }}
+                sx={{ borderRadius: 2 }}
+              >
+                + ADD ROLE
+              </Button>
+            </Box>
+            
+            <Stack spacing={1} sx={{ maxHeight: 400, overflowY: 'auto', pr: 1 }}>
+              {/* Show system roles first */}
+              {organizationRoles.filter(r => r.is_system).map(role => (
                 <RoleOption
                   key={role.name}
                   role={role}
@@ -1657,9 +1831,27 @@ useEffect(() => {
                   onSelect={() => handleRoleChange(selectedUser.id, role.name)}
                 />
               ))}
-            </>
-          )}
-        </Stack>
+              
+              {/* Show custom roles */}
+              {organizationRoles.filter(r => !r.is_system).length > 0 && (
+                <>
+                  <Divider sx={{ my: 1 }}>
+                    <Chip label="Custom Roles" size="small" />
+                  </Divider>
+                  
+                  {organizationRoles.filter(r => !r.is_system).map(role => (
+                    <RoleOption
+                      key={role.name}
+                      role={role}
+                      selectedUser={selectedUser}
+                      onSelect={() => handleRoleChange(selectedUser.id, role.name)}
+                    />
+                  ))}
+                </>
+              )}
+            </Stack>
+          </>
+        )}
       </>
     )}
   </DialogContent>
@@ -1669,7 +1861,79 @@ useEffect(() => {
       disabled={updatingRole}
       variant="outlined"
     >
+      CANCEL
+    </Button>
+  </DialogActions>
+</Dialog>
+
+
+{/* Create Role Modal - Only for non-Active Church */}
+<Dialog 
+  open={showCreateRoleModal} 
+  onClose={() => !creatingRole && setShowCreateRoleModal(false)} 
+  maxWidth="xs" 
+  fullWidth
+  PaperProps={{ sx: { borderRadius: 2 } }}
+>
+  <DialogTitle>
+    <Typography variant="h6" fontWeight="bold">Create New Role</Typography>
+  </DialogTitle>
+  <DialogContent>
+    <Box sx={{ mt: 2 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+        Create a custom role for <strong>{selectedOrg || currentUser?.organization}</strong>
+      </Typography>
+      
+      <TextField
+        fullWidth
+        label="Role Name"
+        value={newRoleName}
+        onChange={(e) => {
+          setNewRoleName(e.target.value);
+          setRoleCreateError('');
+        }}
+        placeholder="e.g., Welcome Team, Sound Tech, Kitchen Volunteer"
+        helperText={roleCreateError || "Role names will be formatted as lowercase_with_underscores"}
+        error={!!roleCreateError}
+        disabled={creatingRole}
+        autoFocus
+      />
+      
+      <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+        <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+          Preview:
+        </Typography>
+        <Chip 
+          label={newRoleName.trim() || 'New Role'} 
+          color={getRoleColor(newRoleName)}
+          icon={getRoleIcon(newRoleName)}
+          sx={{ boxShadow: 1 }}
+        />
+        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+          Will be stored as: <strong>{newRoleName.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') || 'new_role'}</strong>
+        </Typography>
+      </Box>
+    </Box>
+  </DialogContent>
+  <DialogActions sx={{ p: 2, gap: 1 }}>
+    <Button 
+      onClick={() => {
+        setShowCreateRoleModal(false);
+        setNewRoleName('');
+        setRoleCreateError('');
+      }} 
+      disabled={creatingRole}
+      variant="outlined"
+    >
       Cancel
+    </Button>
+    <Button 
+      variant="contained" 
+      onClick={handleCreateRole}
+      disabled={creatingRole || !newRoleName.trim()}
+      startIcon={creatingRole ? <CircularProgress size={20} /> : <CheckIcon />}
+    >
+      {creatingRole ? 'Creating...' : 'Create Role'}
     </Button>
   </DialogActions>
 </Dialog>
