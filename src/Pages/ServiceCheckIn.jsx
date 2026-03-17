@@ -347,92 +347,126 @@ function ServiceCheckIn() {
           return null;
         };
 
-        const transformedEvents = eventsData
-          .map((event) => {
-            try {
-              if (!event) return null;
-              const attendeesArray = Array.isArray(event.attendees) ? event.attendees : [];
-              const newPeopleArray = Array.isArray(event.new_people) ? event.new_people : [];
-              const consolidationsArray = Array.isArray(event.consolidations) ? event.consolidations : [];
+      const transformedEvents = eventsData
+  .map((event) => {
+    try {
+      if (!event) return null;
+      
+      // ✅ CRITICAL: Always use MongoDB _id as the primary ID (24-char hex string)
+      const eventObjectId = event._id || event.id;
+      
+      // Validate that we have a proper ID
+      if (!eventObjectId) {
+        console.warn("Event missing ID:", event);
+        return null;
+      }
 
-              const mapEntry = (entry, type) => {
-                const id = entry.id || entry._id || entry.person_id;
-                const fp = findPerson(id, entry.email || entry.Email || entry.person_email);
-                return {
-                  ...entry,
-                  name: entry.name || entry.Name || fp?.Name || "",
-                  surname: entry.surname || entry.Surname || fp?.Surname || "",
-                  email: entry.email || entry.Email || fp?.Email || "",
-                  phone: entry.phone || entry.Number || fp?.Number || "",
-                  leader1: fp?.["Leader @1"] || entry.leader1 || "",
-                  leader12: fp?.["Leader @12"] || entry.leader12 || "",
-                  leader144: fp?.["Leader @144"] || entry.leader144 || "",
-                  id: id || Math.random().toString(36),
-                  _id: id,
-                  ...(type === "new" && { isNew: true }),
-                };
-              };
+      const attendeesArray = Array.isArray(event.attendees) ? event.attendees : [];
+      const newPeopleArray = Array.isArray(event.new_people) ? event.new_people : [];
+      const consolidationsArray = Array.isArray(event.consolidations) ? event.consolidations : [];
 
-              const attendanceData = attendeesArray.map((a) => mapEntry(a, "att"));
-              const newPeopleData = newPeopleArray.map((np) => mapEntry(np, "new"));
-              const consolidatedData = consolidationsArray.map((c) => {
-                const id = c.person_id || c.id || c._id;
-                const fp = findPerson(id, c.person_email || c.email);
-                return {
-                  ...c,
-                  name: c.person_name || c.name || fp?.Name || "",
-                  surname: c.person_surname || c.surname || fp?.Surname || "",
-                  person_name: c.person_name || c.name || fp?.Name || "",
-                  person_surname: c.person_surname || c.surname || fp?.Surname || "",
-                  person_email: c.person_email || c.email || fp?.Email || "",
-                  person_phone: c.person_phone || c.phone || fp?.Number || "",
-                  email: c.person_email || c.email || fp?.Email || "",
-                  phone: c.person_phone || c.phone || fp?.Number || "",
-                  assigned_to: c.assigned_to || c.assignedTo || "",
-                  decision_type: c.decision_type || c.consolidation_type || "Commitment",
-                  status: c.status || "active",
-                  leader1: fp?.["Leader @1"] || c.leader1 || "",
-                  leader12: fp?.["Leader @12"] || c.leader12 || "",
-                  leader144: fp?.["Leader @144"] || c.leader144 || "",
-                  id: id || Math.random().toString(36),
-                  _id: id,
-                };
-              });
+      const mapEntry = (entry, isNew = false) => {
+        const id = entry.id || entry._id || entry.person_id;
+        const fp = findPerson(id, entry.email || entry.Email || entry.person_email);
+        return {
+          ...entry,
+          name: entry.name || entry.Name || fp?.Name || "",
+          surname: entry.surname || entry.Surname || fp?.Surname || "",
+          email: entry.email || entry.Email || fp?.Email || "",
+          phone: entry.phone || entry.Number || fp?.Number || "",
+          number: entry.Number || entry.phone || fp?.Number || "",
+          leader1: fp?.["Leader @1"] || entry.leader1 || "",
+          leader12: fp?.["Leader @12"] || entry.leader12 || "",
+          leader144: fp?.["Leader @144"] || entry.leader144 || "",
+          id: id || Math.random().toString(36),
+          _id: id,
+          ...(isNew && { isNew: true }),
+        };
+      };
 
-              return {
-                id: event._id || event.id || Math.random().toString(36),
-                eventName: event.eventName || event.Event_Name || "Unnamed Event",
-                status: (event.status || "open").toLowerCase(),
-                isGlobal: event.isGlobal === true,
-                isTicketed: event.isTicketed === true,
-                date: event.date || event.createdAt,
-                eventType: event.eventType || "Global Events",
-                closed_by: event.closed_by,
-                closed_at: event.closed_at,
-                attendees: attendeesArray,
-                new_people: newPeopleArray,
-                consolidations: consolidationsArray,
-                total_attendance:
-                  typeof event.total_attendance === "number"
-                    ? event.total_attendance
-                    : attendanceData.length,
-                attendance: attendanceData.length,
-                newPeople: newPeopleData.length,
-                consolidated: consolidatedData.length,
-                attendanceData,
-                newPeopleData,
-                consolidatedData,
-                location: event.location || event.Location || "",
-                description: event.description || "",
-                UUID: event.UUID || "",
-                created_at: event.created_at,
-                updated_at: event.updated_at,
-              };
-            } catch {
-              return null;
-            }
-          })
-          .filter(Boolean);
+      const attendanceData = attendeesArray.map((a) => mapEntry(a));
+      const newPeopleData = newPeopleArray.map((np) => mapEntry(np, true));
+      const consolidatedData = consolidationsArray.map((c) => {
+        const id = c.person_id || c.id || c._id;
+        const fp = findPerson(id, c.person_email || c.email);
+        return {
+          ...c,
+          name: c.person_name || c.name || fp?.Name || "",
+          surname: c.person_surname || c.surname || fp?.Surname || "",
+          person_name: c.person_name || c.name || fp?.Name || "",
+          person_surname: c.person_surname || c.surname || fp?.Surname || "",
+          person_email: c.person_email || c.email || fp?.Email || "",
+          person_phone: c.person_phone || c.phone || fp?.Number || "",
+          email: c.person_email || c.email || fp?.Email || "",
+          phone: c.person_phone || c.phone || fp?.Number || "",
+          number: c.Number || c.phone || fp?.Number || "",
+          assigned_to: c.assigned_to || c.assignedTo || "",
+          decision_type: c.decision_type || c.consolidation_type || "Commitment",
+          status: c.status || "active",
+          leader1: fp?.["Leader @1"] || c.leader1 || "",
+          leader12: fp?.["Leader @12"] || c.leader12 || "",
+          leader144: fp?.["Leader @144"] || c.leader144 || "",
+          id: id || Math.random().toString(36),
+          _id: id,
+        };
+      });
+
+      return {
+        // ✅ Use MongoDB ObjectId consistently
+        id: eventObjectId,
+        _id: eventObjectId,
+        
+        // Event details
+        eventName: event.eventName || event.Event_Name || "Unnamed Event",
+        status: (event.status || "open").toLowerCase(),
+        isGlobal: event.isGlobal === true,
+        isTicketed: event.isTicketed === true,
+        date: event.date || event.createdAt,
+        eventType: event.eventType || event.eventTypeName || "Global Events",
+        eventTypeName: event.eventTypeName || event.eventType || "Global Events",
+        
+        // Metadata
+        closed_by: event.closed_by,
+        closed_at: event.closed_at,
+        location: event.location || event.Location || "",
+        description: event.description || "",
+        UUID: event.UUID || "",
+        created_at: event.created_at,
+        updated_at: event.updated_at,
+        
+        // Raw arrays
+        attendees: attendeesArray,
+        new_people: newPeopleArray,
+        consolidations: consolidationsArray,
+        
+        // Processed data with counts
+        total_attendance: typeof event.total_attendance === "number" 
+          ? event.total_attendance 
+          : attendanceData.length,
+        attendance: attendanceData.length,
+        newPeople: newPeopleData.length,
+        consolidated: consolidatedData.length,
+        
+        // Enriched data arrays
+        attendanceData,
+        newPeopleData,
+        consolidatedData,
+        
+        // Additional fields that might be useful
+        time: event.time || "",
+        recurring_day: event.recurring_day || [],
+        eventLeader: event.eventLeader || "",
+        eventLeaderEmail: event.eventLeaderEmail || "",
+        eventLeaderName: event.eventLeaderName || "",
+        priceTiers: event.priceTiers || [],
+        hasPersonSteps: event.hasPersonSteps || false,
+      };
+    } catch (error) {
+      console.error("Error transforming event:", error);
+      return null;
+    }
+  })
+  .filter(Boolean);
 
         const validEvents = transformedEvents.filter((event) => {
           if (!event || event.status === "error") return false;
@@ -444,6 +478,13 @@ function ServiceCheckIn() {
 
         setEvents(validEvents);
 
+if(currentEventId&& validEvents.length > 0){
+  const filtered = getFilteredClosedEvents(validEvents);
+  if (filtered.length > 0)
+    setCurrentEventId(filtered[0].id);
+}
+
+
       } catch (err) {
         toast.error(err, "Failed to fetch events. Please try again.");
       } finally {
@@ -454,71 +495,84 @@ function ServiceCheckIn() {
     [authFetch, currentEventId]
   );
 
-  const hasInitialized = useRef(false);
-  useEffect(() => {
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
+const hasInitialized = useRef(false);
+useEffect(() => {
+  if (hasInitialized.current) return;
+  hasInitialized.current = true;
 
-    (async () => {
-      try {
-        const [evResponse, peopleResponse] = await Promise.all([
-          authFetch(`${BASE_URL}/events/eventsdata?limit=100&start_date=2024-10-10`),
-          authFetch(`${BASE_URL}/cache/people`),
-        ]);
+  (async () => {
+    try {
+      const [evResponse, peopleResponse] = await Promise.all([
+        authFetch(`${BASE_URL}/events/eventsdata?limit=100&start_date=2024-10-10`),
+        authFetch(`${BASE_URL}/cache/people`),
+      ]);
 
-        let rawPeople = [];
-        if (peopleResponse.ok) {
-          const pd = await peopleResponse.json();
-          if (pd.success && pd.cached_data) {
-            rawPeople = pd.cached_data;
-            setAttendees(rawPeople.map(normalisePerson));
-            setHasDataLoaded(true);
-            setIsLoadingPeople(false);
-          }
+      let rawPeople = [];
+      if (peopleResponse.ok) {
+        const pd = await peopleResponse.json();
+        if (pd.success && pd.cached_data) {
+          rawPeople = pd.cached_data;
+          setAttendees(rawPeople.map(normalisePerson));
+          setHasDataLoaded(true);
+          setIsLoadingPeople(false);
         }
+      }
 
-        if (evResponse.ok) {
-          const evData = await evResponse.json();
-          const eventsData = evData.events || [];
+      if (evResponse.ok) {
+        const evData = await evResponse.json();
+        const eventsData = evData.events || [];
 
-          const peopleById = new Map();
-          const peopleByEmail = new Map();
-          rawPeople.forEach((p) => {
-            if (p._id) peopleById.set(p._id, p);
-            if (p.id) peopleById.set(p.id, p);
-            if (p.Email) peopleByEmail.set(p.Email.toLowerCase(), p);
-            if (p.email) peopleByEmail.set(p.email.toLowerCase(), p);
-          });
-          const findPerson = (id, email) => {
-            if (id && peopleById.has(id)) return peopleById.get(id);
-            if (email) return peopleByEmail.get(email.toLowerCase()) || null;
-            return null;
+        const peopleById = new Map();
+        const peopleByEmail = new Map();
+        rawPeople.forEach((p) => {
+          if (p._id) peopleById.set(p._id, p);
+          if (p.id) peopleById.set(p.id, p);
+          if (p.Email) peopleByEmail.set(p.Email.toLowerCase(), p);
+          if (p.email) peopleByEmail.set(p.email.toLowerCase(), p);
+        });
+        
+        const findPerson = (id, email) => {
+          if (id && peopleById.has(id)) return peopleById.get(id);
+          if (email) return peopleByEmail.get(email.toLowerCase()) || null;
+          return null;
+        };
+
+        const mapEntry = (entry, isNew = false) => {
+          const id = entry.id || entry._id || entry.person_id;
+          const fp = findPerson(id, entry.email || entry.Email || entry.person_email);
+          return {
+            ...entry,
+            name: entry.name || entry.Name || fp?.Name || "",
+            surname: entry.surname || entry.Surname || fp?.Surname || "",
+            email: entry.email || entry.Email || fp?.Email || "",
+            phone: entry.phone || entry.Number || fp?.Number || "",
+            leader1: fp?.["Leader @1"] || entry.leader1 || "",
+            leader12: fp?.["Leader @12"] || entry.leader12 || "",
+            leader144: fp?.["Leader @144"] || entry.leader144 || "",
+            id: id || Math.random().toString(36),
+            _id: id,
+            ...(isNew && { isNew: true }),
           };
+        };
 
-          const mapEntry = (entry, isNew = false) => {
-            const id = entry.id || entry._id || entry.person_id;
-            const fp = findPerson(id, entry.email || entry.Email || entry.person_email);
-            return {
-              ...entry,
-              name: entry.name || entry.Name || fp?.Name || "",
-              surname: entry.surname || entry.Surname || fp?.Surname || "",
-              email: entry.email || entry.Email || fp?.Email || "",
-              phone: entry.phone || entry.Number || fp?.Number || "",
-              leader1: fp?.["Leader @1"] || entry.leader1 || "",
-              leader12: fp?.["Leader @12"] || entry.leader12 || "",
-              leader144: fp?.["Leader @144"] || entry.leader144 || "",
-              id: id || Math.random().toString(36),
-              _id: id,
-              ...(isNew && { isNew: true }),
-            };
-          };
-
-          const transformedEvents = eventsData.map((event) => {
+        // Transform events with consistent ID handling
+        const transformedEvents = eventsData
+          .map((event) => {
             try {
               if (!event) return null;
+              
+              // ✅ CRITICAL: Always use MongoDB _id as the primary ID
+              const eventObjectId = event._id || event.id;
+              
+              if (!eventObjectId) {
+                console.warn("Event missing ID:", event);
+                return null;
+              }
+
               const attendeesArray = Array.isArray(event.attendees) ? event.attendees : [];
               const newPeopleArray = Array.isArray(event.new_people) ? event.new_people : [];
               const consolidationsArray = Array.isArray(event.consolidations) ? event.consolidations : [];
+              
               const attendanceData = attendeesArray.map((a) => mapEntry(a));
               const newPeopleData = newPeopleArray.map((np) => mapEntry(np, true));
               const consolidatedData = consolidationsArray.map((c) => {
@@ -544,20 +598,25 @@ function ServiceCheckIn() {
                   _id: id,
                 };
               });
+
               return {
-                id: event._id || event.id || Math.random().toString(36),
+                // ✅ Use MongoDB ObjectId consistently
+                id: eventObjectId,
+                _id: eventObjectId,
                 eventName: event.eventName || event.Event_Name || "Unnamed Event",
                 status: (event.status || "open").toLowerCase(),
                 isGlobal: event.isGlobal === true,
                 isTicketed: event.isTicketed === true,
                 date: event.date || event.createdAt,
-                eventType: event.eventType || "Global Events",
+                eventType: event.eventType || event.eventTypeName || "Global Events",
                 closed_by: event.closed_by,
                 closed_at: event.closed_at,
                 attendees: attendeesArray,
                 new_people: newPeopleArray,
                 consolidations: consolidationsArray,
-                total_attendance: typeof event.total_attendance === "number" ? event.total_attendance : attendanceData.length,
+                total_attendance: typeof event.total_attendance === "number" 
+                  ? event.total_attendance 
+                  : attendanceData.length,
                 attendance: attendanceData.length,
                 newPeople: newPeopleData.length,
                 consolidated: consolidatedData.length,
@@ -570,42 +629,87 @@ function ServiceCheckIn() {
                 created_at: event.created_at,
                 updated_at: event.updated_at,
               };
-            } catch { return null; }
-          }).filter(Boolean);
+            } catch (error) {
+              console.error("Error transforming event:", error);
+              return null;
+            }
+          })
+          .filter(Boolean);
 
-          const validEvents = transformedEvents.filter((event) => {
-            if (!event || event.status === "error") return false;
-            const typeName = (event.eventType || "").toLowerCase();
-            if (["cells", "all cells", "cell", "training"].includes(typeName)) return false;
-            if (event.isGlobal !== true) return false;
-            return true;
-          });
+        // Filter for valid events
+        const validEvents = transformedEvents.filter((event) => {
+          if (!event || event.status === "error") return false;
+          const typeName = (event.eventType || "").toLowerCase();
+          if (["cells", "all cells", "cell", "training"].includes(typeName)) return false;
+          if (event.isGlobal !== true) return false;
+          return true;
+        });
 
-          setEvents(validEvents);
-          setIsLoadingEvents(false);
-          setIsLoadingHistory(false);
-
-          const todayStr = new Date().toISOString().split("T")[0];
-          const todayOpen = validEvents.filter((e) => {
-            const typeName = (e.eventType || "").toLowerCase();
-            if (["cells", "all cells", "cell"].includes(typeName)) return false;
-            if (e.isGlobal !== true) return false;
-            const status = e.status?.toLowerCase() || "";
-            if (["complete", "closed", "cancelled", "did_not_meet"].includes(status)) return false;
-            if (!e.date) return false;
-            return new Date(e.date).toISOString().split("T")[0] === todayStr;
-          });
-          if (todayOpen.length > 0) setCurrentEventId(todayOpen[0].id);
-        }
-      } catch {
-        toast.error("Failed to load initial data.");
-      } finally {
-        setIsLoadingPeople(false);
+        setEvents(validEvents);
         setIsLoadingEvents(false);
         setIsLoadingHistory(false);
+
+        // ✅ FIXED: Find today's open events and set currentEventId
+        const todayStr = new Date().toISOString().split("T")[0];
+        console.log("Today's date:", todayStr);
+        
+        const todayOpen = validEvents.filter((e) => {
+          const typeName = (e.eventType || "").toLowerCase();
+          if (["cells", "all cells", "cell", "training"].includes(typeName)) return false;
+          if (e.isGlobal !== true) return false;
+          const status = e.status?.toLowerCase() || "";
+          if (["complete", "closed", "cancelled", "did_not_meet"].includes(status)) return false;
+          if (!e.date) return false;
+          
+          // Convert event date to string for comparison
+          const eventDateStr = new Date(e.date).toISOString().split("T")[0];
+          return eventDateStr === todayStr;
+        });
+
+        console.log("Today's open events:", todayOpen.length);
+
+        if (todayOpen.length > 0) {
+          // ✅ Use the MongoDB ObjectId from the transformed event
+          const selectedEventId = todayOpen[0].id; // This should now be the MongoDB _id
+          console.log("Selected event ID:", selectedEventId);
+          console.log("Event name:", todayOpen[0].eventName);
+          console.log("Is valid ObjectId?", /^[0-9a-fA-F]{24}$/.test(selectedEventId));
+          
+          // Validate that it's a proper ObjectId before setting
+          if (/^[0-9a-fA-F]{24}$/.test(selectedEventId)) {
+            setCurrentEventId(selectedEventId);
+          } else {
+            console.error("Selected event ID is not a valid ObjectId:", selectedEventId);
+            // Try to find another valid event
+            const validIdEvent = validEvents.find(e => /^[0-9a-fA-F]{24}$/.test(e.id));
+            if (validIdEvent) {
+              console.log("Using alternative event with valid ID:", validIdEvent.id);
+              setCurrentEventId(validIdEvent.id);
+            }
+          }
+        } else {
+          // If no open events today, try to find any open global event
+          const anyOpenEvent = validEvents.find(e => 
+            e.isGlobal === true && 
+            !["complete", "closed", "cancelled", "did_not_meet"].includes(e.status?.toLowerCase() || "")
+          );
+          
+          if (anyOpenEvent && /^[0-9a-fA-F]{24}$/.test(anyOpenEvent.id)) {
+            console.log("No events today, using next available open event:", anyOpenEvent.id);
+            setCurrentEventId(anyOpenEvent.id);
+          }
+        }
       }
-    })();
-  }, []);
+    } catch (error) {
+      console.error("Failed to load initial data:", error);
+      toast.error("Failed to load initial data.");
+    } finally {
+      setIsLoadingPeople(false);
+      setIsLoadingEvents(false);
+      setIsLoadingHistory(false);
+    }
+  })();
+}, [authFetch]); // Don't forget to include authFetch in dependencies
 
 useEffect(() => {
   if (!search.trim()) {
@@ -637,18 +741,18 @@ useEffect(() => {
     };
   }, [currentEventId, fetchRealTimeEventData, fetchEvents]);
 
-  const getFilteredEvents = useCallback((eventsList = events) => {
-    const todayStr = new Date().toISOString().split("T")[0];
-    return eventsList.filter((event) => {
-      const typeName = (event.eventType || "").toLowerCase();
-      if (typeName === "cells" || typeName === "all cells" || typeName === "cell") return false;
-      if (event.isGlobal !== true) return false;
-      const status = event.status?.toLowerCase() || "";
-      if (["complete", "closed", "cancelled", "did_not_meet"].includes(status)) return false;
-      if (!event.date) return false;
-      return new Date(event.date).toISOString().split("T")[0] === todayStr;
-    });
-  }, [events]);
+const getFilteredEvents = useCallback((eventsList = events) => {
+  const todayStr = new Date().toISOString().split("T")[0];
+  return eventsList.filter((event) => {
+    const typeName = (event.eventType || "").toLowerCase();
+    if (typeName === "cells" || typeName === "all cells" || typeName === "cell") return false;
+    if (event.isGlobal !== true) return false;
+    const status = event.status?.toLowerCase() || "";
+    if (["complete", "closed", "cancelled", "did_not_meet"].includes(status)) return false;
+    if (!event.date) return false;
+    return new Date(event.date).toISOString().split("T")[0] === todayStr;
+  });
+}, [events]);
 
   const getFilteredClosedEvents = useCallback(() => {
     const closed = events.filter((event) => {
@@ -908,94 +1012,93 @@ useEffect(() => {
     setContextMenu({ mouseX: null, mouseY: null, data: null, type: null });
   }, []);
 
-  const handleToggleCheckIn = useCallback(
-    async (attendee) => {
-      if (!currentEventId) { toast.error("Please select an event"); return; }
-      if (checkInLoading.has(attendee._id)) return;
+const handleToggleCheckIn = useCallback(
+  async (attendee) => {
+    if (!currentEventId) { 
+      toast.error("Please select an event"); 
+      return; 
+    }
+    
+    // ✅ Add this debug logging
+    console.log("Current Event ID:", currentEventId);
+    console.log("Is valid ObjectId?", /^[0-9a-fA-F]{24}$/.test(currentEventId));
+    
+    if (checkInLoading.has(attendee._id)) return;
 
-      setCheckInLoading((prev) => new Set(prev).add(attendee._id));
-      const fullName = `${attendee.name} ${attendee.surname}`.trim();
-      const isCurrentlyPresent = presentIds.has(attendee._id);
-      const personId = attendee._id;
-      const optimisticEntry = {
-        id: personId, _id: personId,
-        name: attendee.name, surname: attendee.surname,
-        email: attendee.email,
-        phone: attendee.phone || attendee.number || "",
-        leader1: attendee.leader1 || "",
-        leader12: attendee.leader12 || "",
-        leader144: attendee.leader144 || "",
-      };
-
-      setRealTimeData((prev) => {
-        if (!prev) return prev;
-        if (!isCurrentlyPresent) {
-          const alreadyThere = (prev.present_attendees || []).some((a) => a.id === personId || a._id === personId);
-          if (alreadyThere) return prev;
-          return { ...prev, present_attendees: [...(prev.present_attendees || []), optimisticEntry], present_count: (prev.present_count || 0) + 1 };
-        } else {
-          const filtered = (prev.present_attendees || []).filter((a) => a.id !== personId && a._id !== personId);
-          return { ...prev, present_attendees: filtered, present_count: filtered.length };
-        }
-      });
-
-      try {
-        let success = false;
-        if (!isCurrentlyPresent) {
-          const response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
-            method: "POST",
-            body: JSON.stringify({
-              event_id: currentEventId,
-              person_data: { id: personId, name: attendee.name, fullName, email: attendee.email, phone: attendee.phone, number: attendee.number, leader12: attendee.leader12 },
-              type: "attendee",
-            }),
-          });
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success) { toast.success(`${fullName} checked in`); success = true; }
-            else if (data.message?.includes("already checked in")) { toast.warning(`${fullName} is already checked in`); success = true; }
-          }
-        } else {
-          const response = await authFetch(`${BASE_URL}/service-checkin/remove`, {
-            method: "DELETE",
-            body: JSON.stringify({ event_id: currentEventId, person_id: personId, type: "attendees" }),
-          });
-          if (response.ok) {
-            const data = await response.json();
-            if (data.success) { toast.info(`${fullName} removed from check-in`); success = true; }
-          }
-        }
-
-        if (!success) {
-          setRealTimeData((prev) => {
-            if (!prev) return prev;
-            if (!isCurrentlyPresent) {
-              const filtered = (prev.present_attendees || []).filter((a) => a.id !== personId && a._id !== personId);
-              return { ...prev, present_attendees: filtered, present_count: filtered.length };
-            } else {
-              return { ...prev, present_attendees: [...(prev.present_attendees || []), optimisticEntry], present_count: (prev.present_count || 0) + 1 };
-            }
-          });
-          toast.error(`Failed to update check-in for ${fullName}`);
-        }
-        fetchRealTimeEventData(currentEventId).then((freshData) => { if (freshData) setRealTimeData(freshData); });
-      } catch (err) {
-        setRealTimeData((prev) => {
-          if (!prev) return prev;
-          if (!isCurrentlyPresent) {
-            const filtered = (prev.present_attendees || []).filter((a) => a.id !== personId && a._id !== personId);
-            return { ...prev, present_attendees: filtered, present_count: filtered.length };
-          } else {
-            return { ...prev, present_attendees: [...(prev.present_attendees || []), optimisticEntry], present_count: (prev.present_count || 0) + 1 };
-          }
+    setCheckInLoading((prev) => new Set(prev).add(attendee._id));
+    const fullName = `${attendee.name} ${attendee.surname}`.trim();
+    const isCurrentlyPresent = presentIds.has(attendee._id);
+    const personId = attendee._id;
+    
+    try {
+      let response;
+      
+      if (!isCurrentlyPresent) {
+        console.log("Checking in with event ID:", currentEventId); // Debug log
+        
+        response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            event_id: currentEventId, // Make sure this is a valid 24-char string
+            person_data: {
+              id: personId,
+              name: attendee.name,
+              surname: attendee.surname,
+              email: attendee.email,
+              number: attendee.phone || attendee.number || "",
+              phone: attendee.phone || attendee.number || "",
+              leader1: attendee.leader1 || "",
+              leader12: attendee.leader12 || "",
+              leader144: attendee.leader144 || "",
+            },
+            type: "attendee"
+          }),
         });
-        toast.error(err.message || "Failed to toggle check-in");
-      } finally {
-        setCheckInLoading((prev) => { const s = new Set(prev); s.delete(personId); return s; });
+      } else {
+        response = await authFetch(`${BASE_URL}/service-checkin/remove`, {
+          method: "DELETE",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ 
+            event_id: currentEventId, 
+            person_id: personId, 
+            type: "attendees" 
+          }),
+        });
       }
-    },
-    [currentEventId, checkInLoading, presentIds, authFetch, fetchRealTimeEventData]
-  );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Check-in error response:", errorData);
+        toast.error(errorData.detail || `Failed to update check-in for ${fullName}`);
+        return;
+      }
+
+      const data = await response.json();
+      if (data.success) {
+        toast.success(!isCurrentlyPresent ? `${fullName} checked in` : `${fullName} removed from check-in`);
+        // Refresh data
+        const freshData = await fetchRealTimeEventData(currentEventId);
+        if (freshData) setRealTimeData(freshData);
+      }
+      
+    } catch (err) {
+      console.error("Check-in error:", err);
+      toast.error(err.message || "Failed to toggle check-in");
+    } finally {
+      setCheckInLoading((prev) => { 
+        const s = new Set(prev); 
+        s.delete(personId); 
+        return s; 
+      });
+    }
+  },
+  [currentEventId, presentIds, authFetch, fetchRealTimeEventData]
+);
 
   const handlePersonSave = useCallback(
     async (responseData) => {
