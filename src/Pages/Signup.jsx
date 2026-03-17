@@ -130,10 +130,12 @@ const initialForm = {
   date_of_birth: "",
   home_address: "",
   invited_by: "",
+  invited_by_id: "",
   leader: "",
   phone_number: "",
   email: "",
   gender: "",
+  organization: "",
   password: "",
   confirm_password: "",
 };
@@ -164,6 +166,22 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+
+  // Organizations (dynamic from backend)
+  const [organizations, setOrganizations] = useState([]);
+
+  useEffect(() => {
+    const fetchOrgs = async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/organizations`);
+        const data = await res.json();
+        if (data.success) setOrganizations(data.organizations || []);
+      } catch (e) {
+        console.warn("Could not load organizations:", e);
+      }
+    };
+    fetchOrgs();
+  }, []);
 
   // People cache + invited by
   const [allPeople, setAllPeople] = useState([]);
@@ -408,30 +426,57 @@ const Signup = ({ onSignup, mode, setMode }) => {
   };
 
   const handleChange = (e) => {
-    setForm({ ...form, [e.target.name]: e.target.value });
-    if (errors[e.target.name]) {
-      setErrors((prev) => ({ ...prev, [e.target.name]: "" }));
+    const { name, value } = e.target;
+
+    // Special logic for organization change: reset leader if not Active Church
+    if (name === "organization") {
+      const isMainChurch = value.toLowerCase() === "active church";
+      setForm((prev) => ({
+        ...prev,
+        [name]: value,
+        leader: isMainChurch ? prev.leader : ""
+      }));
+    } else {
+      setForm((prev) => ({ ...prev, [name]: value }));
+    }
+
+    if (errors[name]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
     }
   };
 
   const handleInvitedByChange = (event, newValue) => {
-    const invitedByValue = newValue ? newValue.label : "";
-    setForm((prev) => ({ ...prev, invited_by: invitedByValue }));
+    const invitedByValue = newValue && typeof newValue === "object" ? (newValue.label || "") : (newValue || "");
+    const invitedById =
+      newValue && typeof newValue === "object"
+        ? (newValue._id || newValue.key || "")
+        : "";
+
+    setForm((prev) => ({ ...prev, invited_by: invitedByValue, invited_by_id: invitedById }));
     if (errors.invited_by) setErrors((prev) => ({ ...prev, invited_by: "" }));
   };
 
   const handleGenderChange = (e) => {
     const genderVal = e.target.value;
+    const isMainChurch = form.organization?.toLowerCase() === "active church";
+
     setForm((prev) => ({
       ...prev,
       gender: genderVal,
-      leader: genderVal === "male" ? "Gavin Enslin" : "Vicky Enslin",
+      leader: isMainChurch
+        ? (genderVal === "male" ? "Gavin Enslin" : "Vicky Enslin")
+        : "",
     }));
     if (errors.gender) setErrors((prev) => ({ ...prev, gender: "" }));
   };
 
-  const handleSearchChange = (event, value) => {
+  const handleSearchChange = (event, value, reason) => {
     setSearchQuery(value);
+    // If the user types manually, clear the selected inviter id to avoid stale IDs.
+    if (reason === "input") {
+      setForm((prev) => ({ ...prev, invited_by: value || "", invited_by_id: "" }));
+      if (errors.invited_by) setErrors((prev) => ({ ...prev, invited_by: "" }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -688,18 +733,18 @@ const Signup = ({ onSignup, mode, setMode }) => {
                           borderColor: errors.home_address
                             ? theme.palette.error.main
                             : isDark
-                            ? "#333333"
-                            : "#e0e0e0",
+                              ? "#333333"
+                              : "#e0e0e0",
                         },
                       },
                       "& .MuiFormHelperText-root": {
                         color: errors.home_address
                           ? theme.palette.error.main
                           : addressError
-                          ? theme.palette.warning.main
-                          : isDark
-                          ? "#999999"
-                          : "#666666",
+                            ? theme.palette.warning.main
+                            : isDark
+                              ? "#999999"
+                              : "#666666",
                         mx: 0,
                       },
                     }}
@@ -743,6 +788,66 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 },
               }}
             />
+
+            {/* Organization (dynamic dropdown) */}
+            <FormControl fullWidth sx={inputFieldSx}>
+              <InputLabel
+                sx={{
+                  color: isDark ? "#999999" : "#666666",
+                  "&.Mui-focused": { color: "#42a5f5" },
+                }}
+              >
+                Organization (Church)
+              </InputLabel>
+              <Select
+                name="organization"
+                value={form.organization}
+                label="Organization (Church)"
+                onChange={handleChange}
+                sx={{
+                  bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+                  borderRadius: 3,
+                  color: isDark ? "#ffffff" : "#000000",
+                  "& .MuiOutlinedInput-notchedOutline": {
+                    borderColor: isDark ? "#333333" : "#e0e0e0",
+                  },
+                  "&:hover .MuiOutlinedInput-notchedOutline": {
+                    borderColor: isDark ? "#555555" : "#b0b0b0",
+                  },
+                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
+                    borderColor: "#42a5f5",
+                  },
+                }}
+                MenuProps={{
+                  PaperProps: {
+                    sx: {
+                      bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                      "& .MuiMenuItem-root": {
+                        color: isDark ? "#ffffff" : "#000000",
+                        "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" },
+                        "&.Mui-selected": { bgcolor: isDark ? "#333" : "#e0e0e0" },
+                      },
+                    },
+                  },
+                }}
+              >
+                <MenuItem value="">— No Organization —</MenuItem>
+                {organizations.map((org) => (
+                  <MenuItem key={org._id} value={org.name}>
+                    {org.name}
+                    {org.tag && org.tag !== org.name && (
+                      <Typography
+                        component="span"
+                        variant="caption"
+                        sx={{ ml: 1, color: isDark ? "#aaa" : "#666" }}
+                      >
+                        ({org.tag})
+                      </Typography>
+                    )}
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
 
             {/* Invited By (LEFT) */}
             <Box sx={{ gridColumn: { xs: "1", sm: "1" } }}>
@@ -830,30 +935,32 @@ const Signup = ({ onSignup, mode, setMode }) => {
               />
             </Box>
 
-            {/* Leader (RIGHT) */}
-            <TextField
-              readOnly
-              label="Leader@1"
-              name="leader"
-              type="text"
-              value={form.leader}
-              error={!!errors.leader}
-              helperText={errors.leader}
-              fullWidth
-              sx={{
-                ...inputFieldSx,
-                pointerEvents: "none",
-                "& .MuiOutlinedInput-root": {
-                  ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  "& fieldset": {
-                    borderColor: errors.leader ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
+            {/* Leader (RIGHT) - Only for Active Church */}
+            {form.organization?.toLowerCase() === "active church" && (
+              <TextField
+                readOnly
+                label="Leader@1"
+                name="leader"
+                type="text"
+                value={form.leader}
+                error={!!errors.leader}
+                helperText={errors.leader}
+                fullWidth
+                sx={{
+                  ...inputFieldSx,
+                  pointerEvents: "none",
+                  "& .MuiOutlinedInput-root": {
+                    ...inputFieldSx["& .MuiOutlinedInput-root"],
+                    "& fieldset": {
+                      borderColor: errors.leader ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
+                    },
                   },
-                },
-                "& .MuiFormHelperText-root": {
-                  color: errors.leader ? theme.palette.error.main : isDark ? "#999999" : "#666666",
-                },
-              }}
-            />
+                  "& .MuiFormHelperText-root": {
+                    color: errors.leader ? theme.palette.error.main : isDark ? "#999999" : "#666666",
+                  },
+                }}
+              />
+            )}
 
             {/* Gender (LEFT) */}
             <FormControl fullWidth error={!!errors.gender}>
@@ -993,8 +1100,8 @@ const Signup = ({ onSignup, mode, setMode }) => {
                     borderColor: errors.confirm_password
                       ? theme.palette.error.main
                       : isDark
-                      ? "#333333"
-                      : "#e0e0e0",
+                        ? "#333333"
+                        : "#e0e0e0",
                   },
                 },
               }}
