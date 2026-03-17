@@ -1408,9 +1408,6 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
     </Box>
   )}
 </Box>
-
-      {/* Dynamic Stats Cards */}
-      {/* Dynamic Stats Cards */}
 <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
   {/* Total People Card */}
   <Grid item xs={6} sm={4} md={2}>
@@ -1546,7 +1543,6 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
             <Tab label="ACTIVITY LOG" />
           </Tabs>
 
-          {/* Supreme Admin Modal */}
 <Dialog 
   open={showSupremeAdminModal} 
   onClose={() => !addingSupremeAdmin && setShowSupremeAdminModal(false)} 
@@ -1799,7 +1795,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
   onRowsPerPageChange={(e) => { 
     setRowsPerPage(parseInt(e.target.value, 10)); 
     setPage(0); 
-    globalDataLoaded = false; // Force refresh when rows per page changes
+    globalDataLoaded = false; 
   }} 
   rowsPerPageOptions={[5, 10, 20, 50, 100]} 
 />
@@ -1951,9 +1947,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
           <Stack spacing={3} sx={{ mt: 1 }}>
             {editingOrg && (
               <Alert severity="info" sx={{ mb: 2 }}>
-                {/* <Typography variant="body2">
-                  Members: {editingOrg.user_count || 0}
-                </Typography> */}
+      
               </Alert>
             )}
             
@@ -2094,7 +2088,6 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
           const isActiveChurch = currentOrg.trim().toLowerCase() === 'active church';
           
           if (isActiveChurch) {
-            /* ACTIVE CHURCH - Simple dropdown with standard roles (NO ADD BUTTON) */
             return (
               <>
                 <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
@@ -2149,7 +2142,6 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                     Available Roles for {currentOrg}:
                   </Typography>
                   
-                  {/* Add Role button ONLY for non-Active Church organizations */}
                   <Button
                     variant="outlined"
                     size="small"
@@ -2160,12 +2152,11 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                     }}
                     sx={{ borderRadius: 2 }}
                   >
-                    + ADD ROLE
+                     ADD ROLE
                   </Button>
                 </Box>
                 
                 <Stack spacing={1} sx={{ maxHeight: 400, overflowY: 'auto', pr: 1 }}>
-                  {/* Show system roles first */}
                   {organizationRoles.filter(r => r.is_system).map(role => (
                     <RoleOption
                       key={role.name}
@@ -2174,9 +2165,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                       onSelect={() => handleRoleChange(selectedUser.id, role.name)}
                     />
                   ))}
-                  
-                  {/* Show custom roles */}
-                  {organizationRoles.filter(r => !r.is_system).length > 0 && (
+                                    {organizationRoles.filter(r => !r.is_system).length > 0 && (
                     <>
                      
                       
@@ -2276,7 +2265,6 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
     </Button>
   </DialogActions>
 </Dialog>
-      {/* Delete Confirmation Modal */}
       <Dialog 
         open={showDeleteConfirm} 
         onClose={() => !deletingUser && setShowDeleteConfirm(false)} 
