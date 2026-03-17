@@ -76,7 +76,7 @@ const CreateEvents = ({
   const { authFetch } = useContext(AuthContext);
   const navigate = useNavigate();
   const { id: paramEventID } = useParams();
-  //changed eventId initial value to first check if there's an Id in the params
+  //changed eventId's initial value to first check if there's an Id in the params
   const [eventId,setEventId] = useState(paramEventID?paramEventID:null)
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
