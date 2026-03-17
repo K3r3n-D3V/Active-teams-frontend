@@ -28,11 +28,14 @@ import {
 import NewUserModal from '../components/NewUserModal';
 
 // Add this with your other global variables at the top of the file
+// At the top of your file, make sure these are defined
 let globalUsersData = null;
 let globalDataLoaded = false;
 let globalDataTimestamp = null;
 let globalOrgFilter = null;
-let globalRolesCache = {};  // <-- ADD THIS LINE
+let globalRolesCache = {};
+let fetchInProgressRef = { current: false }; 
+console.log( "------>", fetchInProgressRef)
 const CACHE_DURATION = 5 * 60 * 1000;
 
 const SUPREME_ADMIN_EMAIL = "tkgenia1234@gmail.com";
@@ -41,7 +44,7 @@ export default function AdminDashboard() {
   const theme = useTheme();
   const { authFetch, isRefreshingToken, user: currentUser } = useContext(AuthContext);
   
-  const isSupremeAdmin = currentUser?.email === SUPREME_ADMIN_EMAIL;
+ const isSupremeAdmin = currentUser?.is_supreme_admin || currentUser?.email === SUPREME_ADMIN_EMAIL;
   
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
@@ -58,14 +61,14 @@ export default function AdminDashboard() {
 
   const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
-
+const [, setSwitchingOrg] = useState(false);
   const [selectedRole, setSelectedRole] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(!globalDataLoaded);
   
   const [users, setUsers] = useState(globalUsersData || []);
-  const [totalUsers, setTotalUsers] = useState(0); // <-- ADD THIS LINE
+  const [totalUsers, setTotalUsers] = useState(0); 
   const [activityLog, setActivityLog] = useState([]);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -79,8 +82,11 @@ export default function AdminDashboard() {
   const [organizations, setOrganizations] = useState([]);
 const [selectedOrg, setSelectedOrg] = useState("Active Church");
   const [orgAnchorEl, setOrgAnchorEl] = useState(null);
-  const [loadingOrgs, setLoadingOrgs] = useState(false);
-  const [switchingOrg, setSwitchingOrg] = useState(false);
+  const [, setLoadingOrgs] = useState(false);
+  const [showSupremeAdminModal, setShowSupremeAdminModal] = useState(false);
+const [supremeAdminEmail, setSupremeAdminEmail] = useState('');
+const [addingSupremeAdmin, setAddingSupremeAdmin] = useState(false);
+const [supremeAdminError, setSupremeAdminError] = useState('');
   
   // Organization Modal state
   const [showOrgModal, setShowOrgModal] = useState(false);
@@ -101,8 +107,6 @@ const [selectedOrg, setSelectedOrg] = useState("Active Church");
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
   
   const initialLoadRef = useRef(true);
-  const fetchInProgressRef = useRef(false);
-
   // Add these state variables near your other useState declarations
 const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
 const [newRoleName, setNewRoleName] = useState('');
@@ -258,59 +262,47 @@ const fetchOrganizations = useCallback(async () => {
   }
 }, [API_BASE_URL, authFetch, isSupremeAdmin, selectedOrg]);
 
-const fetchAllData = useCallback(async (forceRefresh = false) => {  
-  const now = Date.now();
-  const cacheValid = globalDataLoaded && 
-                     globalDataTimestamp && 
-                     (now - globalDataTimestamp < CACHE_DURATION) &&
-                     globalOrgFilter === selectedOrg &&
-                     !forceRefresh;
+const fetchAllData = useCallback(async (forceRefresh = false) => {
+  const currentOrg = selectedOrg;
   
-  if (cacheValid) {
-    console.log('🔵 Using cached data for:', selectedOrg);
-    setUsers(globalUsersData);
-    setTotalUsers(globalUsersData?.length || 0);
-    setLoading(false);
-    return;
+  if (!currentOrg) {
+    setUsers([]);
+    setTotalUsers(0);
+    return [];
   }
-
-  if (isRefreshingToken) {
-    console.log(' Token refreshing, waiting...');
-    return;
-  }
-
-  if (fetchInProgressRef.current) {
-    console.log(' Fetch already in progress, skipping...');
-    return;
-  }
-
-  fetchInProgressRef.current = true;
-  setLoading(true);
   
-  try {
-    // Build URL - Use limit 500 (backend maximum)
-    let url = `${API_BASE_URL}/admin/users?skip=0&limit=500`;
+  // Don't use cache if force refresh
+  if (!forceRefresh) {
+    const now = Date.now();
+    const cacheValid = globalDataLoaded && 
+                       globalDataTimestamp && 
+                       (now - globalDataTimestamp < CACHE_DURATION) &&
+                       globalOrgFilter === currentOrg;
     
-    // Add organization filter if selected
-    if (selectedOrg) {
-      url += `&organization=${encodeURIComponent(selectedOrg)}`;
+    if (cacheValid) {
+      console.log('Using cached data for:', currentOrg);
+      setUsers(globalUsersData);
+      setTotalUsers(globalUsersData?.length || 0);
+      return globalUsersData;
     }
-      
+  }
+
+  try {
+    console.log('Fetching users for:', currentOrg);
+    let url = `${API_BASE_URL}/admin/users?skip=0&limit=500`;
+    url += `&organization=${encodeURIComponent(currentOrg)}`;
+    
     const response = await authFetch(url, {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' }
     });
 
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error(' Response not OK:', response.status, errorText);
       throw new Error(`Failed to fetch users: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log(' Raw API response:', data);
     
-    // Handle different response formats
     let usersArray = [];
     let totalCount = 0;
     
@@ -320,15 +312,10 @@ const fetchAllData = useCallback(async (forceRefresh = false) => {
     } else if (data && Array.isArray(data)) {
       usersArray = data;
       totalCount = usersArray.length;
-    } else {
-      console.error('❌ Invalid response format:', data);
-      usersArray = [];
-      totalCount = 0;
     }
     
-    console.log(`📊 Loaded ${usersArray.length} users for ${selectedOrg}`);
+    console.log(`Loaded ${usersArray.length} users for ${currentOrg}`);
     
-    // Transform data
     const transformedUsers = usersArray.map(user => ({
       id: user.id || user._id,
       name: user.name && user.surname 
@@ -337,76 +324,63 @@ const fetchAllData = useCallback(async (forceRefresh = false) => {
       email: user.email || '',
       role: user.role || 'Unknown',
       phoneNumber: user.phone_number,
-      dateOfBirth: user.date_of_birth,
-      address: user.address,
-      gender: user.gender,
-      invitedBy: user.invitedBy,
       organization: user.organization || user.Organization,
       createdAt: user.created_at
     }));
 
-    console.log(' Transformed users sample:', transformedUsers.slice(0, 2));
-
     // Update cache
     globalUsersData = transformedUsers;
     globalDataLoaded = true;
-    globalDataTimestamp = now;
-    globalOrgFilter = selectedOrg;
+    globalDataTimestamp = Date.now();
+    globalOrgFilter = currentOrg;
 
-    // Update state
     setUsers(transformedUsers);
     setTotalUsers(totalCount);
     
-    console.log(` State updated for ${selectedOrg}:`, {
-      usersCount: transformedUsers.length,
-      totalUsers: totalCount
-    });
+    return transformedUsers;
     
   } catch (err) {
-    console.error('🔴 Error fetching data:', err);
-    
-    if (globalUsersData) {
-      console.log('⚠️ Showing stale cached data');
-      setUsers(globalUsersData);
-      setTotalUsers(globalUsersData.length);
-    } else {
-      setUsers([]);
-      setTotalUsers(0);
-    }
-  } finally {
-    setLoading(false);
-    fetchInProgressRef.current = false;
+    console.error('Error fetching data:', err);
+    setUsers([]);
+    setTotalUsers(0);
+    return [];
   }
-}, [API_BASE_URL, authFetch, isRefreshingToken, selectedOrg]);
-// Handle organization change
+}, [API_BASE_URL, authFetch, selectedOrg]);
+
 const handleOrgChange = async (orgName) => {
-  console.log(' handleOrgChange called with:', orgName);
-  console.log('Current selectedOrg before change:', selectedOrg);
+  if (orgName === selectedOrg) {
+    setOrgAnchorEl(null);
+    return;
+  }
   
-  // Show loading state
   setSwitchingOrg(true);
+  
+  // Clear ALL caches
+  globalDataLoaded = false;
+  globalOrgFilter = null;
+  globalUsersData = null;
+  
+  // Clear all data from state immediately
+  setUsers([]);
+  setTotalUsers(0);
+  setOrganizationRoles([]);
   
   // Update the selected organization
   setSelectedOrg(orgName);
   setOrgAnchorEl(null);
   
-  // Reset all filters
+  // Reset filters
   setSelectedRole('all');
   setSearchTerm('');
   setPage(0);
   
-  // Clear cache for this organization
-  globalDataLoaded = false;
-  globalOrgFilter = null;
-  globalUsersData = null; // Also clear the user data cache
-  
-  console.log('SelectedOrg after update:', orgName);
-  console.log('Cache cleared, forcing refresh...');
+  console.log('Switching to organization:', orgName);
   
   try {
-    // Fetch fresh data
+    // Fetch fresh data for the new organization
     await fetchAllData(true);
-    await fetchOrganizationRoles();
+    await fetchOrganizationRoles(true);
+    console.log('Data loaded for:', orgName);
   } catch (error) {
     console.error('Error switching organization:', error);
   } finally {
@@ -414,7 +388,6 @@ const handleOrgChange = async (orgName) => {
   }
 };
 
-  // Open organization modal for create
   const handleOpenCreateOrg = () => {
     setEditingOrg(null);
     setOrgFormData({
@@ -428,7 +401,7 @@ const handleOrgChange = async (orgName) => {
   };
 // Open organization modal for edit
 const handleOpenEditOrg = (org) => {
-  console.log('Editing organization:', org); // Debug log
+  console.log('Editing organization:', org); 
   
   // Make sure we have a valid ID
   const orgId = org.id || org._id;
@@ -457,6 +430,58 @@ const handleOpenEditOrg = (org) => {
   setOrgAnchorEl(null);
 };
 
+const handleAddSupremeAdmin = async () => {
+  if (!supremeAdminEmail.trim()) {
+    setSupremeAdminError('Email is required');
+    return;
+  }
+  
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(supremeAdminEmail)) {
+    setSupremeAdminError('Invalid email format');
+    return;
+  }
+  
+  setAddingSupremeAdmin(true);
+  setSupremeAdminError('');
+  
+  try {
+    const response = await authFetch(`${API_BASE_URL}/admin/supreme/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: supremeAdminEmail })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to add supreme admin');
+    }
+    
+    const result = await response.json();
+    console.log('Supreme admin added:', result);
+    
+    addActivityLog('SUPREME_ADMIN_ADDED', `Added ${supremeAdminEmail} as supreme admin`);
+    
+    setShowSupremeAdminModal(false);
+    setSupremeAdminEmail('');
+    
+    alert(`Successfully added ${supremeAdminEmail} as supreme admin`);
+    
+    // DON'T refresh organizations or data here - it causes the org to reset
+    // Remove these lines if they exist:
+    // await fetchOrganizations();
+    // globalDataLoaded = false;
+    // await fetchAllData(true);
+    
+  } catch (err) {
+    console.error('Error adding supreme admin:', err);
+    setSupremeAdminError(err.message);
+    alert(`Error: ${err.message}`);
+  } finally {
+    setAddingSupremeAdmin(false);
+  }
+};
+
   // Validate organization form
   const validateOrgForm = () => {
     const errors = {};
@@ -472,7 +497,7 @@ const handleOpenEditOrg = (org) => {
     return Object.keys(errors).length === 0;
   };
 
-// Save organization (create or update) - SIMPLIFIED
+// Save organization (create or update)
 const handleSaveOrganization = async () => {
   if (!validateOrgForm()) return;
   
@@ -484,31 +509,21 @@ const handleSaveOrganization = async () => {
     const isNameChanged = editingOrg && oldOrgName !== newOrgName;
     
     if (editingOrg) {
-      // Make sure we have a valid ID for update
       const orgId = editingOrg.id || editingOrg._id;
       if (!orgId || orgId === 'undefined') {
         throw new Error('Invalid organization ID for update');
       }
       url = `${API_BASE_URL}/organizations/${orgId}`;
       method = 'PUT';
-      console.log('Updating organization:', { 
-        id: orgId, 
-        oldName: oldOrgName, 
-        newName: newOrgName,
-        isNameChanged 
-      });
     } else {
       url = `${API_BASE_URL}/organizations`;
       method = 'POST';
-      console.log('Creating new organization:', orgFormData);
     }
     
-    // Only send the fields that exist
     const payload = {
       name: orgFormData.name
     };
     
-    // Add optional fields if they exist
     if (orgFormData.address) payload.address = orgFormData.address;
     if (orgFormData.phone) payload.phone = orgFormData.phone;
     if (orgFormData.email) payload.email = orgFormData.email;
@@ -532,47 +547,19 @@ const handleSaveOrganization = async () => {
       `${editingOrg ? 'Updated' : 'Created'} organization: ${orgFormData.name}`
     );
     
-    // Refresh organizations list
+    // Refresh organizations list but KEEP current selected org
     await fetchOrganizations();
     
-    // If this was an update and the name changed
-    if (editingOrg && isNameChanged) {
-      console.log(` Organization name changed from "${oldOrgName}" to "${newOrgName}"`);
+    // If name changed and it's the current org, update selected org
+    if (editingOrg && isNameChanged && selectedOrg === oldOrgName) {
+      setSelectedOrg(newOrgName);
       
-      // If this was the currently selected organization
-      if (selectedOrg === oldOrgName) {
-        console.log(` This is the current selected organization, updating to new name...`);
-        
-        // Update selected organization to new name
-        setSelectedOrg(newOrgName);
-        
-        // CRITICAL: Clear ALL cache to force fresh data fetch
-        globalDataLoaded = false;
-        globalOrgFilter = null;
-        globalUsersData = null;
-        
-        // Also clear role cache for this organization
-        if (globalRolesCache[oldOrgName]) {
-          delete globalRolesCache[oldOrgName];
-        }
-        
-        // Wait a moment for backend to finish updating users
-        console.log(' Waiting for backend to update users...');
-        await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Force refresh data with the new organization name
-        console.log(` Fetching fresh data for "${newOrgName}"...`);
-        await fetchAllData(true);
-        await fetchOrganizationRoles(true);
-        
-        console.log(` Data refreshed for "${newOrgName}"`);
-      } else {
-        console.log(` Not the current selected org, just refreshing org list`);
+      // Clear cache for this organization
+      if (globalRolesCache[oldOrgName]) {
+        delete globalRolesCache[oldOrgName];
       }
-    } 
-    // If this was an update but name didn't change, and this is the selected org
-    else if (editingOrg && selectedOrg === oldOrgName) {
-      console.log(` Organization updated but name unchanged, refreshing data...`);
+      
+      // Refresh data for the new org name
       globalDataLoaded = false;
       await fetchAllData(true);
       await fetchOrganizationRoles(true);
@@ -678,27 +665,67 @@ const handleDeleteOrganization = async (orgId, orgName) => {
     }
   }, [isRefreshingToken, fetchAllData]);
 
-// Fetch data when organization changes
 useEffect(() => {
-  // console.log(' selectedOrg useEffect triggered with:', selectedOrg);
+  console.log(' selectedOrg useEffect triggered with:', selectedOrg);
   
   if (selectedOrg) {
-    console.log(` Organization changed to: ${selectedOrg}, fetching data...`);
-    
-    // Reset filters
-    setSelectedRole('all');
-    setSearchTerm('');
-    setPage(0);
-    
-    // Clear cache
-    globalDataLoaded = false;
-    globalOrgFilter = null;
-    
-    // Fetch fresh data
-    fetchAllData(true);
-    fetchOrganizationRoles();
+    // This prevents double fetching
   }
-}, [selectedOrg]); // Remove other dependencies to avoid loops
+}, [selectedOrg]);
+useEffect(() => {
+  if (currentUser) {
+    console.log('👤 Current user from context:', {
+      email: currentUser.email,
+      role: currentUser.role,
+      is_supreme_admin: currentUser.is_supreme_admin,
+      organization: currentUser.organization
+    });
+  }
+}, [currentUser]);
+
+// Initial data fetch
+useEffect(() => {
+  const initializeData = async () => {
+    setLoading(true);
+    if (!selectedOrg) {
+      setSelectedOrg('Active Church');
+    }
+    
+    if (isSupremeAdmin) {
+      await fetchOrganizations();
+    }
+    
+    await fetchAllData(true);
+    await fetchOrganizationRoles(true);
+    setLoading(false);
+  };
+  
+  initializeData();
+}, []);
+
+// Fetch when organization changes
+useEffect(() => {
+  if (selectedOrg) {
+    setLoading(true);
+    fetchAllData(true);
+    fetchOrganizationRoles(true).finally(() => setLoading(false));
+  }
+}, [selectedOrg]);
+
+// Fetch when page/rows change
+useEffect(() => {
+  if (globalDataLoaded && selectedOrg) {
+    fetchAllData(true);
+  }
+}, [page, rowsPerPage]);
+
+useEffect(() => {
+  if (selectedOrg) {
+    fetchAllData(true);
+    fetchOrganizationRoles(true);
+  }
+}, [selectedOrg]);
+
   useEffect(() => {
     if (selectedOrg !== undefined) {
       globalDataLoaded = false;
@@ -1290,8 +1317,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
 
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-      {/* Header with Organization Switcher for Supreme Admin */}
-  {/* Header with Organization Switcher for Supreme Admin */}
+{/* Header with Organization Switcher for Supreme Admin */}
 <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
   <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
     <Typography variant="h4" fontWeight="bold">
@@ -1332,48 +1358,47 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
           sx: { maxHeight: 400, width: 300 }
         }}
       >
-      {organizations.map((org) => {
-  // Get the ID safely
-  const orgId = org.id || org._id;
-  
-  return (
-    <MenuItem 
-      key={orgId}
-      onClick={() => {
-        handleOrgChange(org.name);
-        setOrgAnchorEl(null);
-      }}
-      selected={selectedOrg === org.name}
-      sx={{ 
-        justifyContent: 'space-between',
-        flexDirection: 'column',
-        alignItems: 'flex-start',
-        py: 1.5,
-        bgcolor: selectedOrg === org.name ? 'action.selected' : 'transparent'
-      }}
-    >
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', mb: 0.5 }}>
-        <Typography variant="body2" fontWeight="medium">{org.name}</Typography>
-        <Badge badgeContent={org.user_count} color="primary" max={999} />
-      </Box>
-      <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
-        <Typography variant="caption" color="text.secondary" noWrap>
-          {org.email}
-        </Typography>
-        <IconButton 
-          size="small" 
-          onClick={(e) => {
-            e.stopPropagation();
-            handleOpenEditOrg(org);
-          }}
-          sx={{ ml: 'auto' }}
-        >
-          <EditIcon fontSize="small" />
-        </IconButton>
-      </Box>
-    </MenuItem>
-  );
-})}
+        {organizations.map((org) => {
+          const orgId = org.id || org._id;
+          
+          return (
+            <MenuItem 
+              key={orgId}
+              onClick={() => {
+                handleOrgChange(org.name);
+                setOrgAnchorEl(null);
+              }}
+              selected={selectedOrg === org.name}
+              sx={{ 
+                justifyContent: 'space-between',
+                flexDirection: 'column',
+                alignItems: 'flex-start',
+                py: 1.5,
+                bgcolor: selectedOrg === org.name ? 'action.selected' : 'transparent'
+              }}
+            >
+              <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', mb: 0.5 }}>
+                <Typography variant="body2" fontWeight="medium">{org.name}</Typography>
+                <Badge badgeContent={org.user_count} color="primary" max={999} />
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
+                <Typography variant="caption" color="text.secondary" noWrap>
+                  {org.email}
+                </Typography>
+                <IconButton 
+                  size="small" 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleOpenEditOrg(org);
+                  }}
+                  sx={{ ml: 'auto' }}
+                >
+                  <EditIcon fontSize="small" />
+                </IconButton>
+              </Box>
+            </MenuItem>
+          );
+        })}
         <Divider />
         <MenuItem onClick={handleOpenCreateOrg} sx={{ color: 'primary.main' }}>
           <AddIcon fontSize="small" sx={{ mr: 1 }} />
@@ -1520,24 +1545,96 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
             <Tab label="ROLES & PERMISSIONS" />
             <Tab label="ACTIVITY LOG" />
           </Tabs>
+
+          {/* Supreme Admin Modal */}
+<Dialog 
+  open={showSupremeAdminModal} 
+  onClose={() => !addingSupremeAdmin && setShowSupremeAdminModal(false)} 
+  maxWidth="xs" 
+  fullWidth
+  PaperProps={{ sx: { borderRadius: 2 } }}
+>
+  <DialogTitle>
+    <Typography variant="h6" fontWeight="bold">Add Supreme Admin</Typography>
+  </DialogTitle>
+  <DialogContent>
+    <Box sx={{ mt: 2 }}>
+      
+      <TextField
+        fullWidth
+        label="User Email"
+        type="email"
+        value={supremeAdminEmail}
+        onChange={(e) => {
+          setSupremeAdminEmail(e.target.value);
+          setSupremeAdminError('');
+        }}
+        error={!!supremeAdminError}
+        helperText={supremeAdminError}
+        disabled={addingSupremeAdmin}
+        autoFocus
+      />
+      
+    </Box>
+  </DialogContent>
+  <DialogActions sx={{ p: 2, gap: 1 }}>
+    <Button 
+      onClick={() => {
+        setShowSupremeAdminModal(false);
+        setSupremeAdminEmail('');
+        setSupremeAdminError('');
+      }} 
+      disabled={addingSupremeAdmin}
+      variant="outlined"
+    >
+      Cancel
+    </Button>
+    <Button 
+      variant="contained" 
+      color="primary"
+      onClick={handleAddSupremeAdmin}
+      disabled={addingSupremeAdmin || !supremeAdminEmail.trim()}
+      startIcon={addingSupremeAdmin ? <CircularProgress size={20} /> : <AdminPanelSettings />}
+    >
+      {addingSupremeAdmin ? 'Adding...' : 'Add Supreme Admin'}
+    </Button>
+  </DialogActions>
+</Dialog>
           
-          <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button 
-              variant="outlined" 
-              startIcon={<Refresh />} 
-              onClick={handleManualRefresh}
-              sx={{ 
-                boxShadow: 1, 
-                borderRadius: 2, 
-                height: 40,
-                minWidth: getResponsiveValue('auto', 'auto', 100, 100, 100)
-              }}
-              size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-            >
-              Refresh
-            </Button>
-   
-          </Box>
+      <Box sx={{ display: 'flex', gap: 1 }}>
+  <Button 
+    variant="outlined" 
+    startIcon={<Refresh />} 
+    onClick={handleManualRefresh}
+    sx={{ 
+      boxShadow: 1, 
+      borderRadius: 2, 
+      height: 40,
+      minWidth: getResponsiveValue('auto', 'auto', 100, 100, 100)
+    }}
+    size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+  >
+    Refresh
+  </Button>
+  
+  {isSupremeAdmin && (
+    <Button
+      variant="contained"
+      color="primary"
+      startIcon={<AdminPanelSettings />}
+      onClick={() => setShowSupremeAdminModal(true)}
+      sx={{ 
+        boxShadow: 1, 
+        borderRadius: 2, 
+        height: 40,
+        minWidth: getResponsiveValue('auto', 'auto', 100, 100, 100)
+      }}
+      size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+    >
+      Add Supreme
+    </Button>
+  )}
+</Box>
         </Box>
 
         {/* Users Tab */}
@@ -2081,9 +2178,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                   {/* Show custom roles */}
                   {organizationRoles.filter(r => !r.is_system).length > 0 && (
                     <>
-                      <Divider sx={{ my: 1 }}>
-                        <Chip label="Custom Roles" size="small" />
-                      </Divider>
+                     
                       
                       {organizationRoles.filter(r => !r.is_system).map(role => (
                         <RoleOption
@@ -2128,10 +2223,6 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
   </DialogTitle>
   <DialogContent>
     <Box sx={{ mt: 2 }}>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Create a custom role for <strong>{selectedOrg || currentUser?.organization}</strong>
-      </Typography>
-      
       <TextField
         fullWidth
         label="Role Name"
@@ -2141,7 +2232,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
           setRoleCreateError('');
         }}
         placeholder="e.g., Welcome Team, Sound Tech, Kitchen Volunteer"
-        helperText={roleCreateError || "Role names will be formatted as lowercase_with_underscores"}
+        
         error={!!roleCreateError}
         disabled={creatingRole}
         autoFocus

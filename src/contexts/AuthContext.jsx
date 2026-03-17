@@ -233,43 +233,45 @@ export const AuthProvider = ({ children }) => {
   }
 }, [refreshInProgress, attemptRefresh, logout]);
 
-  const login = async (email, password) => {
-    const res = await fetch(`${BACKEND_URL}/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password })
-    });
+const login = async (email, password) => {
+  const res = await fetch(`${BACKEND_URL}/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password })
+  });
 
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      throw new Error(err.detail || 'Login failed');
-    }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || 'Login failed');
+  }
 
-    const data = await res.json();
-    
-    localStorage.setItem(KEY_ACCESS, data.access_token);
-    localStorage.setItem(KEY_REFRESH, data.refresh_token);
-    localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
-    
-    const mergedUserData = {
-      ...data.user,
-      ...(data.leaders || {})
-    };
-    
-    const userWithAvatar = ensureUserWithAvatar(mergedUserData);
-    
-    persistUser(userWithAvatar);
-    persistLeadersData(data.leaders, data.isLeader);
-    
-    if (userWithAvatar.profile_picture) {
-      localStorage.setItem(KEY_PROFILE_PIC, userWithAvatar.profile_picture);
-    }
-
-    setUser(userWithAvatar);
-    setIsAuthenticated(true);
-    
-    return data;
+  const data = await res.json();
+  
+  localStorage.setItem(KEY_ACCESS, data.access_token);
+  localStorage.setItem(KEY_REFRESH, data.refresh_token);
+  localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
+  
+  // Make sure is_supreme_admin is in the user object
+  const mergedUserData = {
+    ...data.user,
+    ...(data.leaders || {}),
+    is_supreme_admin: data.user.is_supreme_admin || false // ADD THIS
   };
+  
+  const userWithAvatar = ensureUserWithAvatar(mergedUserData);
+  
+  persistUser(userWithAvatar);
+  persistLeadersData(data.leaders, data.isLeader);
+  
+  if (userWithAvatar.profile_picture) {
+    localStorage.setItem(KEY_PROFILE_PIC, userWithAvatar.profile_picture);
+  }
+
+  setUser(userWithAvatar);
+  setIsAuthenticated(true);
+  
+  return data;
+};
 
   const updateProfilePicture = useCallback((newPictureUrl) => {
     if (user) {
