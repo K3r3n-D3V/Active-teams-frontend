@@ -514,7 +514,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       );
     },
   };
-// RECURRING column
+  // RECURRING column
   const recurringCol = {
     field: "recurring_info",
     headerName: "Recurring",
@@ -600,7 +600,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       "has_person_steps", "is_recurring", "isrecurring", "recurring", "recurring_days",
       "is_active", "Is_active", "Is active", "time", "Time", "isGlobal", "isTicketed",
       "description", "new_people", "consolidations", "total_attendance", "closed_by",
-      "closed_at", "created_at", "updated_at", "new_people_count","consolidation_count"
+      "closed_at", "created_at", "updated_at", "new_people_count", "consolidation_count"
     ];
     const exactMatch = excludedFields.includes(key);
     const caseInsensitiveMatch = excludedFields.some((excluded) => excluded.toLowerCase() === keyLower);
@@ -618,7 +618,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     return !(exactMatch || caseInsensitiveMatch || containsOverdue || containsDisplayDate || containsOriginated || containsLeader12 || shouldExcludeLeader1 || containsPersonSteps);
   });
 
-  const columns = [statusCol,recurringCol];
+  const columns = [statusCol, recurringCol];
   columns.push(
     ...filteredFields.map((key) => ({
       field: key,
@@ -759,42 +759,42 @@ ${xmlCols}
     }, 100);
   };
 
-const normalizeEventAttendance = (event) => {
-  if (!event) return [];
-  
-  const eventDate = event.date;
-  let attendees = [];
+  const normalizeEventAttendance = (event) => {
+    if (!event) return [];
 
-  // Check attendance object by date key first
-  if (event.attendance && typeof event.attendance === "object") {
-    const dateAttendance = event.attendance[eventDate];
-    if (dateAttendance) {
-      attendees = dateAttendance.attendees || [];
+    const eventDate = event.date;
+    let attendees = [];
+
+    // Check attendance object by date key first
+    if (event.attendance && typeof event.attendance === "object") {
+      const dateAttendance = event.attendance[eventDate];
+      if (dateAttendance) {
+        attendees = dateAttendance.attendees || [];
+      }
     }
-  }
 
-  if (attendees.length === 0) {
-    attendees = event.attendees || [];
-  }
+    if (attendees.length === 0) {
+      attendees = event.attendees || [];
+    }
 
-  if (attendees.length === 0) return [];
+    if (attendees.length === 0) return [];
 
-  return attendees.map((att) => ({
-    "Event Name": event.eventName || event["Event Name"] || "",
-    "Event Date": eventDate,
-    "Name": att.fullName || att.name || "",
-    "Email": att.email || "",
-    "Event Leader Name": event.eventLeaderName || event.Leader || "",
-    "Leader @12": event.leader12 || "",
-    "Phone": att.phone || "",
-    "Decision": att.decision || "",
-    "Price Tier": att.priceTier || "",
-    "Payment Method": att.paymentMethod || "",
-    "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-    "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-    "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-  }));
-};
+    return attendees.map((att) => ({
+      "Event Name": event.eventName || event["Event Name"] || "",
+      "Event Date": eventDate,
+      "Name": att.fullName || att.name || "",
+      "Email": att.email || "",
+      "Event Leader Name": event.eventLeaderName || event.Leader || "",
+      "Leader @12": event.leader12 || "",
+      "Phone": att.phone || "",
+      "Decision": att.decision || "",
+      "Price Tier": att.priceTier || "",
+      "Payment Method": att.paymentMethod || "",
+      "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
+      "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
+      "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
+    }));
+  };
 
   const fetchEventFull = async (event) => {
 
@@ -905,7 +905,7 @@ const normalizeEventAttendance = (event) => {
             </Typography>
           </Box>
         )}
-      {isOverdue && (
+      {isOverdue && isCellEvent && (
         <Typography
           variant="caption"
           sx={{ color: theme.palette.error.main, fontWeight: "bold" }}
@@ -1194,18 +1194,18 @@ ${xmlCols}
       hasPersonSteps: false,
     };
   };
-const fetchInBatches = async (items, fn, batchSize = 6) => {
+  const fetchInBatches = async (items, fn, batchSize = 6) => {
     const results = [];
     for (let i = 0; i < items.length; i += batchSize) {
       const batch = items.slice(i, i + batchSize);
-  
+
       const res = await Promise.all(batch.map((it) => fn(it)));
       results.push(...res);
     }
     return results;
   };
 
-const downloadEventAttendance = async (event) => {
+  const downloadEventAttendance = async (event) => {
     const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
     try {
       toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
@@ -1241,43 +1241,43 @@ const downloadEventAttendance = async (event) => {
     }
   };
 
-const normalizeEventAttendance = (event) => {
-  if (!event) return [];
-  
-  const eventDate = event.date;
-  let attendees = [];
+  const normalizeEventAttendance = (event) => {
+    if (!event) return [];
 
-  // Check attendance object by date key first
-  if (event.attendance && typeof event.attendance === "object") {
-    const dateAttendance = event.attendance[eventDate];
-    if (dateAttendance) {
-      attendees = dateAttendance.attendees || [];
+    const eventDate = event.date;
+    let attendees = [];
+
+    // Check attendance object by date key first
+    if (event.attendance && typeof event.attendance === "object") {
+      const dateAttendance = event.attendance[eventDate];
+      if (dateAttendance) {
+        attendees = dateAttendance.attendees || [];
+      }
     }
-  }
 
-  // Fall back to top-level attendees
-  if (attendees.length === 0) {
-    attendees = event.attendees || [];
-  }
+    // Fall back to top-level attendees
+    if (attendees.length === 0) {
+      attendees = event.attendees || [];
+    }
 
-  if (attendees.length === 0) return [];
+    if (attendees.length === 0) return [];
 
-  return attendees.map((att) => ({
-    "Event Name": event.eventName || event["Event Name"] || "",
-    "Event Date": eventDate,
-    "Name": att.fullName || att.name || "",
-    "Email": att.email || "",
-    "Event Leader Name": event.eventLeaderName || event.Leader || "",
-    "Leader @12": event.leader12 || "",
-    "Phone": att.phone || "",
-    "Decision": att.decision || "",
-    "Price Tier": att.priceTier || "",
-    "Payment Method": att.paymentMethod || "",
-    "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-    "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-    "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-  }));
-};
+    return attendees.map((att) => ({
+      "Event Name": event.eventName || event["Event Name"] || "",
+      "Event Date": eventDate,
+      "Name": att.fullName || att.name || "",
+      "Email": att.email || "",
+      "Event Leader Name": event.eventLeaderName || event.Leader || "",
+      "Leader @12": event.leader12 || "",
+      "Phone": att.phone || "",
+      "Decision": att.decision || "",
+      "Price Tier": att.priceTier || "",
+      "Payment Method": att.paymentMethod || "",
+      "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
+      "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
+      "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
+    }));
+  };
 
   const fetchEventFull = async (event) => {
     try {
@@ -2331,46 +2331,46 @@ const normalizeEventAttendance = (event) => {
   }, [selectedEventTypeFilter, selectedStatus, viewFilter]);
 
 
-const handleCaptureClick = useCallback(async (event) => {
-  try {
-    const token = localStorage.getItem("access_token");
-    let eventId = event._id || event.id;
-    const originalId = eventId; 
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
+  const handleCaptureClick = useCallback(async (event) => {
+    try {
+      const token = localStorage.getItem("access_token");
+      let eventId = event._id || event.id;
+      const originalId = eventId;
+      if (eventId && eventId.includes("_")) {
+        eventId = eventId.split("_")[0];
+      }
 
-    if (!eventId || eventId === "undefined") {
-      console.error("handleCaptureClick: no valid ID on event", event);
+      if (!eventId || eventId === "undefined") {
+        console.error("handleCaptureClick: no valid ID on event", event);
+        setSelectedEvent(event);
+        setAttendanceModalOpen(true);
+        return;
+      }
+
+      const response = await fetch(`${BACKEND_URL}/events/${eventId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (!response.ok) {
+        console.error("Failed to fetch full event, using local event data");
+        setSelectedEvent(event);
+        setAttendanceModalOpen(true);
+        return;
+      }
+      const fullEvent = await response.json();
+      const enrichedEvent = {
+        ...event,
+        ...fullEvent,
+        _id: originalId,
+        original_event_id: eventId,
+      };
+      setSelectedEvent(enrichedEvent);
+      setAttendanceModalOpen(true);
+    } catch (err) {
+      console.error("Failed to fetch full event:", err);
       setSelectedEvent(event);
       setAttendanceModalOpen(true);
-      return;
     }
-
-    const response = await fetch(`${BACKEND_URL}/events/${eventId}`, {
-      headers: { Authorization: `Bearer ${token}` }
-    });
-    if (!response.ok) {
-      console.error("Failed to fetch full event, using local event data");
-      setSelectedEvent(event); 
-      setAttendanceModalOpen(true);
-      return;
-    }
-    const fullEvent = await response.json();
-    const enrichedEvent = {
-      ...event,           
-      ...fullEvent,      
-      _id: originalId,   
-      original_event_id: eventId,  
-    };
-    setSelectedEvent(enrichedEvent);
-    setAttendanceModalOpen(true);
-  } catch (err) {
-    console.error("Failed to fetch full event:", err);
-    setSelectedEvent(event); 
-    setAttendanceModalOpen(true);
-  }
-}, [BACKEND_URL]);
+  }, [BACKEND_URL]);
 
   const handleCloseCreateEventModal = useCallback(
     (shouldRefresh = false) => {
@@ -2766,112 +2766,112 @@ const handleCaptureClick = useCallback(async (event) => {
     ],
   );
 
-const handleCloseEditModal = useCallback(
-  async (shouldRefresh = false, updatedEventData = null) => {
-    setEditModalOpen(false);
+  const handleCloseEditModal = useCallback(
+    async (shouldRefresh = false, updatedEventData = null) => {
+      setEditModalOpen(false);
 
-    if (shouldRefresh) {
-      // Read selectedEvent BEFORE clearing it
-      const originalDay = selectedEvent?.Day || selectedEvent?.day;
-      const newDay = updatedEventData?.Day || updatedEventData?.day;
+      if (shouldRefresh) {
+        // Read selectedEvent BEFORE clearing it
+        const originalDay = selectedEvent?.Day || selectedEvent?.day;
+        const newDay = updatedEventData?.Day || updatedEventData?.day;
 
-      if (originalDay && newDay && originalDay !== newDay) {
-        toast.info(
-          `Cell moved from ${originalDay} to ${newDay}!\n\nNote: The cell has been updated but may not appear in the current view. Check the ${newDay} filter to see it.`,
-          {
-            autoClose: 8000,
-            position: "top-center",
-          },
-        );
-      }
-      setSelectedEvent(null);
-      if (updatedEventData) {
-        setEvents((prev) =>
-          prev.map((ev) => {
-            const evId = ev._id?.includes("_") ? ev._id.split("_")[0] : ev._id;
-            const updatedId = updatedEventData._id?.includes("_")
-              ? updatedEventData._id.split("_")[0]
-              : updatedEventData._id;
-            if (evId === updatedId) {
-              return { ...ev, ...updatedEventData };
-            }
-            return ev;
-          }),
-        );
-      }
-
-      eventsCache.current = {};
-      if (cacheRef.current) {
-        cacheRef.current.data.clear();
-        cacheRef.current.timestamp.clear();
-      }
-
-      // Build refresh parameters
-      const refreshParams = {
-        page: currentPage,
-        limit: rowsPerPage,
-        start_date: DEFAULT_API_START_DATE,
-        _t: Date.now(),
-        status: selectedStatus !== "all" ? selectedStatus : undefined,
-        event_type:
-          selectedEventTypeFilter === "all"
-            ? "CELLS"
-            : selectedEventTypeFilter,
-      };
-
-      if (searchQuery && searchQuery.trim()) {
-        refreshParams.search = searchQuery.trim();
-      }
-
-      if (
-        selectedEventTypeFilter === "all" ||
-        selectedEventTypeFilter === "CELLS"
-      ) {
-        if (isLeaderAt12) {
-          refreshParams.leader_at_12_view = true;
-          refreshParams.include_subordinate_cells = true;
-
-          if (currentUserLeaderAt1) {
-            refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
-          }
-
-          if (viewFilter === "personal") {
-            refreshParams.show_personal_cells = true;
-            refreshParams.personal = true;
-          } else {
-            refreshParams.show_all_authorized = true;
-          }
-        } else if (isAdmin && viewFilter === "personal") {
-          refreshParams.personal = true;
+        if (originalDay && newDay && originalDay !== newDay) {
+          toast.info(
+            `Cell moved from ${originalDay} to ${newDay}!\n\nNote: The cell has been updated but may not appear in the current view. Check the ${newDay} filter to see it.`,
+            {
+              autoClose: 8000,
+              position: "top-center",
+            },
+          );
         }
+        setSelectedEvent(null);
+        if (updatedEventData) {
+          setEvents((prev) =>
+            prev.map((ev) => {
+              const evId = ev._id?.includes("_") ? ev._id.split("_")[0] : ev._id;
+              const updatedId = updatedEventData._id?.includes("_")
+                ? updatedEventData._id.split("_")[0]
+                : updatedEventData._id;
+              if (evId === updatedId) {
+                return { ...ev, ...updatedEventData };
+              }
+              return ev;
+            }),
+          );
+        }
+
+        eventsCache.current = {};
+        if (cacheRef.current) {
+          cacheRef.current.data.clear();
+          cacheRef.current.timestamp.clear();
+        }
+
+        // Build refresh parameters
+        const refreshParams = {
+          page: currentPage,
+          limit: rowsPerPage,
+          start_date: DEFAULT_API_START_DATE,
+          _t: Date.now(),
+          status: selectedStatus !== "all" ? selectedStatus : undefined,
+          event_type:
+            selectedEventTypeFilter === "all"
+              ? "CELLS"
+              : selectedEventTypeFilter,
+        };
+
+        if (searchQuery && searchQuery.trim()) {
+          refreshParams.search = searchQuery.trim();
+        }
+
+        if (
+          selectedEventTypeFilter === "all" ||
+          selectedEventTypeFilter === "CELLS"
+        ) {
+          if (isLeaderAt12) {
+            refreshParams.leader_at_12_view = true;
+            refreshParams.include_subordinate_cells = true;
+
+            if (currentUserLeaderAt1) {
+              refreshParams.leader_at_1_identifier = currentUserLeaderAt1;
+            }
+
+            if (viewFilter === "personal") {
+              refreshParams.show_personal_cells = true;
+              refreshParams.personal = true;
+            } else {
+              refreshParams.show_all_authorized = true;
+            }
+          } else if (isAdmin && viewFilter === "personal") {
+            refreshParams.personal = true;
+          }
+        }
+
+        Object.keys(refreshParams).forEach(
+          (key) =>
+            (refreshParams[key] === undefined || refreshParams[key] === "") &&
+            delete refreshParams[key],
+        );
+
+        await fetchEvents(refreshParams, true);
+      } else {
+        setSelectedEvent(null);
       }
-
-      Object.keys(refreshParams).forEach(
-        (key) =>
-          (refreshParams[key] === undefined || refreshParams[key] === "") &&
-          delete refreshParams[key],
-      );
-
-      await fetchEvents(refreshParams, true);
-    } else {
-      setSelectedEvent(null);
-    }
-  },
-  [
-    selectedEvent,
-    currentPage,
-    rowsPerPage,
-    selectedStatus,
-    searchQuery,
-    selectedEventTypeFilter,
-    fetchEvents,
-    DEFAULT_API_START_DATE,
-    isLeaderAt12,
-    currentUserLeaderAt1,
-    viewFilter,
-    isAdmin,
-  ],
-);
+    },
+    [
+      selectedEvent,
+      currentPage,
+      rowsPerPage,
+      selectedStatus,
+      searchQuery,
+      selectedEventTypeFilter,
+      fetchEvents,
+      DEFAULT_API_START_DATE,
+      isLeaderAt12,
+      currentUserLeaderAt1,
+      viewFilter,
+      isAdmin,
+    ],
+  );
 
   const handleCloseEventTypesModal = useCallback(() => {
     setEventTypesModalOpen(false);
@@ -3074,20 +3074,20 @@ const handleCloseEditModal = useCallback(
     setSelectedEventTypeObj,
   ]);
 
- const handlePageChange = useCallback(
-  (newPage) => {
-    const cacheKey = `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
-    const cached = eventsCache.current[cacheKey];
+  const handlePageChange = useCallback(
+    (newPage) => {
+      const cacheKey = `${selectedEventTypeFilter}_${selectedStatus}_${viewFilter}`;
+      const cached = eventsCache.current[cacheKey];
 
-    setCurrentPage(newPage);
+      setCurrentPage(newPage);
 
-    if (cached) {
-      const skip = (newPage - 1) * rowsPerPage;
-      setEvents(cached.slice(skip, skip + rowsPerPage)); 
-    }
-  },
-  [selectedEventTypeFilter, selectedStatus, viewFilter, rowsPerPage]
-);
+      if (cached) {
+        const skip = (newPage - 1) * rowsPerPage;
+        setEvents(cached.slice(skip, skip + rowsPerPage));
+      }
+    },
+    [selectedEventTypeFilter, selectedStatus, viewFilter, rowsPerPage]
+  );
   const handleNextPage = useCallback(() => {
     if (currentPage < totalPages && !isLoading) {
       handlePageChange(currentPage + 1);
@@ -3401,20 +3401,20 @@ const handleCloseEditModal = useCallback(
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data = await response.json();
         const allFetched = data.events || [];
-      //Events sort day order
+        //Events sort day order
 
-allFetched.sort((a, b) => {
-  const aOverdue = a._is_overdue || false;
-  const bOverdue = b._is_overdue || false;
+        allFetched.sort((a, b) => {
+          const aOverdue = a._is_overdue || false;
+          const bOverdue = b._is_overdue || false;
 
-  if (aOverdue !== bOverdue) return aOverdue ? 1 : -1;
-  return new Date(b.date) - new Date(a.date);
-});
+          if (aOverdue !== bOverdue) return aOverdue ? 1 : -1;
+          return new Date(b.date) - new Date(a.date);
+        });
         eventsCache.current[cacheKey] = allFetched;
         setTotalEvents(allFetched.length);
         setTotalPages(Math.ceil(allFetched.length / rowsPerPage) || 1);
         setCurrentPage(1);
-        setEvents(allFetched.slice(0, rowsPerPage)); 
+        setEvents(allFetched.slice(0, rowsPerPage));
       } catch (error) {
         console.error("Fetch error:", error);
         setEvents([]);
@@ -5005,8 +5005,8 @@ allFetched.sort((a, b) => {
                         "& .MuiDataGrid-cell": {
                           alignItems: "center",
                           borderBottom: `1px solid ${isDarkMode
-                              ? "rgba(255,255,255,0.1)"
-                              : "rgba(0,0,0,0.08)"
+                            ? "rgba(255,255,255,0.1)"
+                            : "rgba(0,0,0,0.08)"
                             }`,
                           color: isDarkMode
                             ? theme.palette.text.primary
@@ -5893,14 +5893,14 @@ allFetched.sort((a, b) => {
           </Box>
         </Box>
       )}
-<EditEventModal
-  isOpen={editModalOpen}
-  onClose={(shouldRefresh = false, updatedEventData = null) => {
-    handleCloseEditModal(shouldRefresh, updatedEventData);
-  }}
-  event={selectedEvent}
-  token={token}
-/>
+      <EditEventModal
+        isOpen={editModalOpen}
+        onClose={(shouldRefresh = false, updatedEventData = null) => {
+          handleCloseEditModal(shouldRefresh, updatedEventData);
+        }}
+        event={selectedEvent}
+        token={token}
+      />
 
       <Dialog
         open={confirmDeleteOpen}
