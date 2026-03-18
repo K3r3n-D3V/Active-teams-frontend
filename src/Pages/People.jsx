@@ -18,11 +18,12 @@ import {
 } from '@mui/icons-material';
 import AddPersonDialog from '../components/AddPersonDialog';
 import PeopleListView from '../components/PeopleListView';
-
+import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
 // Global cache outside component to persist across remounts
 if (!window.globalPeopleCache) window.globalPeopleCache = null;
 if (!window.globalCacheTimestamp) window.globalCacheTimestamp = null;
 const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
 
 // ---------------- Stages ----------------
 const stages = [
@@ -36,12 +37,13 @@ const stages = [
 const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
-
   const handleMenuClick = e => { e.stopPropagation(); setAnchorEl(e.currentTarget); };
   const handleMenuClose = () => setAnchorEl(null);
   const handleEdit = () => { onEdit(person); handleMenuClose(); };
-  const handleDelete = () => { onDelete(person._id); handleMenuClose(); };
-
+  const handleDelete = () => { 
+          onDelete(person._id);  
+          handleMenuClose(); 
+        };
   const getInitials = useCallback(name => name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || "?", []);
   const getAvatarColor = useCallback(name => ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3'][(name?.length || 0) % 6], []);
   const formatDate = useCallback(date => date ? new Date(date).toLocaleDateString() : "-", []);
@@ -251,7 +253,7 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
       alert(`Failed to update stage: ${err.message || 'Unknown error'}`);
     }
   };
-
+    
   // Only show skeleton if loading AND no data at all (first ever load)
   if (loading && people.length === 0 && !window.globalPeopleCache) {
     return (
@@ -315,7 +317,7 @@ export const PeopleSection = () => {
   const currentUserName = (user?.name && user?.surname)
     ? `${(user.name || '').trim()} ${(user.surname || '').trim()}`.toLowerCase()
     : (userProfile?.name ? userProfile.name.toLowerCase() : '').trim();
-  
+  const [personToDelete,setPersonToDelete]=useState(null);
   const [allPeople, setAllPeople] = useState(window.globalPeopleCache || []);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -705,7 +707,10 @@ export const PeopleSection = () => {
     });
     setIsModalOpen(true);
   };
-
+  const handleDeletePerson = (personId) => {
+    const person = allPeople.find(p => String(p._id) === String(personId));
+    setPersonToDelete(person);
+  };
   const handleSaveFromDialog = (savedPerson) => {
     const mappedPerson = {
       _id: savedPerson._id || editingPerson?._id,
@@ -929,9 +934,7 @@ export const PeopleSection = () => {
                 }
               }}
               onEditPerson={handleEditPerson}
-              onDeletePerson={(id) => {
-                removePersonFromCache(id);
-              }}
+               onDeletePerson={handleDeletePerson} 
               loading={loading}
               updatePersonInCache={updatePersonInCache}
               allPeople={allPeople}
@@ -957,9 +960,7 @@ export const PeopleSection = () => {
             <PeopleListView
               people={filteredPeople}
               onEdit={handleEditPerson}
-              onDelete={(id) => {
-                removePersonFromCache(id);
-              }}
+              onDelete={handleDeletePerson}
               loading={loading}
             />
           </Box>
@@ -973,6 +974,19 @@ export const PeopleSection = () => {
           setFormData={setFormData}
           isEdit={!!editingPerson}
           personId={editingPerson?._id || null}
+        />
+        <DeleteConfirmationModal
+          open={!!personToDelete}
+          onClose={handleCloseDialog}
+          onConfirm={() => {
+            if (editingPerson) {
+              removePersonFromCache(editingPerson._id);
+              setSnackbar({ open: true, message: 'Person deleted successfully', severity: 'success' });
+            }
+            handleCloseDialog();
+          }}
+          title="Delete Person"
+          content={`Are you sure you want to delete ${editingPerson?.fullName || 'this person'}? This action cannot be undone.`}
         />
 
         <Snackbar

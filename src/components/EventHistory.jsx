@@ -9,20 +9,13 @@ import {
   IconButton,
   Tooltip,
   Skeleton,
-  Stack,
-  Chip,
 } from '@mui/material';
-import { DataGrid, GridToolbar } from '@mui/x-data-grid';
+import { DataGrid } from '@mui/x-data-grid';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import PersonIcon from '@mui/icons-material/Person';
 import EmojiPeopleIcon from '@mui/icons-material/EmojiPeople';
 import UndoIcon from '@mui/icons-material/Undo';
-import GroupIcon from '@mui/icons-material/Group';
-import PersonAddAltIcon from '@mui/icons-material/PersonAddAlt';
-import MergeIcon from '@mui/icons-material/Merge';
-import CalendarTodayIcon from '@mui/icons-material/CalendarToday';
-
 
 const EventHistory = React.memo(function EventHistory({
   onViewDetails,
@@ -32,454 +25,282 @@ const EventHistory = React.memo(function EventHistory({
   events = [],
   isLoading = false,
   onRefresh,
-  searchTerm = ""
+  searchTerm = '',
 }) {
   const theme = useTheme();
-  const isXsDown = useMediaQuery(theme.breakpoints.down('xs'));
-  const isSmDown = useMediaQuery(theme.breakpoints.down('sm'));
-  const isMdDown = useMediaQuery(theme.breakpoints.down('md'));
-  const isLgDown = useMediaQuery(theme.breakpoints.down('lg'));
-  const isDarkMode = theme.palette.mode === 'dark';
+  const isXs  = useMediaQuery('(max-width:480px)'); 
+  const isSm  = useMediaQuery(theme.breakpoints.down('sm'));
+  const isMd  = useMediaQuery(theme.breakpoints.down('md'));
 
-  const canUnsaveEvent = React.useCallback((event) => {
-    if (!event || !event.date) return false;
+  const canUnsaveEvent = React.useCallback((row) => {
+    if (!row?.date) return false;
     try {
-      const eventDate = new Date(event.date);
+      const ed = new Date(row.date);
       const today = new Date();
-      const eventDay = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
-      const todayDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-      return eventDay.getTime() === todayDay.getTime();
-    } catch {
-      return false;
-    }
+      return (
+        new Date(ed.getFullYear(), ed.getMonth(), ed.getDate()).getTime() ===
+        new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+      );
+    } catch { return false; }
   }, []);
 
-  const filteredEvents = React.useMemo(() => {
+  const getAttendanceCount = React.useCallback((row) => {
+    if (!row) return 0;
+    if (typeof row.total_attendance === 'number') return row.total_attendance;
+    if (typeof row.attendance       === 'number') return row.attendance;
+    if (Array.isArray(row.attendees))     return row.attendees.length;
+    if (Array.isArray(row.attendanceData)) return row.attendanceData.length;
+    return 0;
+  }, []);
+
+  const getNewPeopleCount = React.useCallback((row) => {
+    if (!row) return 0;
+    if (typeof row.new_people_count === 'number') return row.new_people_count;
+    if (typeof row.newPeople        === 'number') return row.newPeople;
+    if (Array.isArray(row.new_people))   return row.new_people.length;
+    if (Array.isArray(row.newPeopleData)) return row.newPeopleData.length;
+    return 0;
+  }, []);
+
+  const getConsolidatedCount = React.useCallback((row) => {
+    if (!row) return 0;
+    if (typeof row.consolidation_count === 'number') return row.consolidation_count;
+    if (typeof row.consolidated        === 'number') return row.consolidated;
+    if (Array.isArray(row.consolidations))   return row.consolidations.length;
+    if (Array.isArray(row.consolidatedData)) return row.consolidatedData.length;
+    return 0;
+  }, []);
+
+  const sortAlpha = (arr) =>
+    [...arr].sort((a, b) =>
+      `${a.name || ''} ${a.surname || ''}`.toLowerCase()
+        .localeCompare(`${b.name || ''} ${b.surname || ''}`.toLowerCase()),
+    );
+
+  const handleView = React.useCallback((row, type) => {
+    if (!row) return;
+    if (type === 'attendance'  && onViewDetails)  onViewDetails(row,  sortAlpha(row.attendanceData  || row.attendees     || []));
+    if (type === 'newPeople'   && onViewNewPeople) onViewNewPeople(row, sortAlpha(row.newPeopleData  || row.new_people    || []));
+    if (type === 'consolidated'&& onViewConverts)  onViewConverts(row,  sortAlpha(row.consolidatedData || row.consolidations || []));
+  }, [onViewDetails, onViewNewPeople, onViewConverts]);
+
+  const handleUnsave = React.useCallback((row) => {
+    if (!row || !canUnsaveEvent(row)) return;
+    if (onUnsaveEvent) onUnsaveEvent(row);
+  }, [onUnsaveEvent, canUnsaveEvent]);
+
+  const filtered = React.useMemo(() => {
     if (!Array.isArray(events)) return [];
     if (!searchTerm.trim()) return events;
     const term = searchTerm.toLowerCase().trim();
-    return events.filter(event => {
-      if (!event) return false;
-      return (
-        (event.eventName && event.eventName.toLowerCase().includes(term)) ||
-        (event.date && event.date.toString().toLowerCase().includes(term)) ||
-        (event.status && event.status.toLowerCase().includes(term)) ||
-        (event.closed_by && event.closed_by.toLowerCase().includes(term))
-      );
-    });
+    return events.filter((e) =>
+      e && (
+        (e.eventName  && e.eventName.toLowerCase().includes(term))  ||
+        (e.date       && e.date.toString().toLowerCase().includes(term)) ||
+        (e.status     && e.status.toLowerCase().includes(term))     ||
+        (e.closed_by  && e.closed_by.toLowerCase().includes(term))
+      ),
+    );
   }, [events, searchTerm]);
 
-  const getAttendanceCount = React.useCallback((event) => {
-    if (!event) return 0;
-    if (typeof event.total_attendance === 'number') return event.total_attendance;
-    if (typeof event.attendance === 'number') return event.attendance;
-    if (Array.isArray(event.attendees)) return event.attendees.length;
-    if (Array.isArray(event.attendanceData)) return event.attendanceData.length;
-    return 0;
-  }, []);
-
-  const getNewPeopleCount = React.useCallback((event) => {
-    if (!event) return 0;
-    if (typeof event.new_people_count === 'number') return event.new_people_count;
-    if (typeof event.newPeople === 'number') return event.newPeople;
-    if (Array.isArray(event.new_people)) return event.new_people.length;
-    if (Array.isArray(event.newPeopleData)) return event.newPeopleData.length;
-    return 0;
-  }, []);
-
-  const getConsolidatedCount = React.useCallback((event) => {
-    if (!event) return 0;
-    if (typeof event.consolidation_count === 'number') return event.consolidation_count;
-    if (typeof event.consolidated === 'number') return event.consolidated;
-    if (Array.isArray(event.consolidations)) return event.consolidations.length;
-    if (Array.isArray(event.consolidatedData)) return event.consolidatedData.length;
-    return 0;
-  }, []);
-
-  const handleViewDetails = React.useCallback((event, type) => {
-    if (!event) return;
-
-    const sortAlphabetically = (arr) =>
-      [...arr].sort((a, b) =>
-        `${a.name || ''} ${a.surname || ''}`.toLowerCase()
-          .localeCompare(`${b.name || ''} ${b.surname || ''}`.toLowerCase())
-      );
-
-    switch (type) {
-      case 'attendance': {
-        const data = sortAlphabetically(event.attendanceData || event.attendees || []);
-        if (onViewDetails) onViewDetails(event, data);
-        break;
-      }
-      case 'newPeople': {
-        const data = sortAlphabetically(event.newPeopleData || event.new_people || []);
-        if (onViewNewPeople) onViewNewPeople(event, data);
-        break;
-      }
-      case 'consolidated': {
-        const data = sortAlphabetically(event.consolidatedData || event.consolidations || []);
-        if (onViewConverts) onViewConverts(event, data);
-        break;
-      }
-      default:
-        break;
-    }
-  }, [onViewDetails, onViewNewPeople, onViewConverts]);
-
-  const handleUnsaveEvent = React.useCallback((event) => {
-    if (!event || !canUnsaveEvent(event)) return;
-    if (onUnsaveEvent) onUnsaveEvent(event);
-  }, [onUnsaveEvent, canUnsaveEvent]);
-
   const columns = React.useMemo(() => {
-    const eventNameCol = {
+    const cols = [];
+    cols.push({
       field: 'eventName',
       headerName: 'Event',
-      flex: 1.4,
-      minWidth: isSmDown ? 160 : 220,
+      flex: 1,
+      minWidth: isXs ? 100 : isSm ? 120 : 200,
       sortable: true,
-      valueGetter: (params) => params.row?.eventName || 'Unnamed Event',
-      renderCell: (params) => {
-        const event = params.row || {};
-        const eventName = event.eventName || 'Unnamed Event';
-        const eventDate = event.date
-          ? new Date(event.date).toLocaleDateString('en-ZA', {
-            year: 'numeric',
-            month: isSmDown ? 'short' : 'long',
-            day: 'numeric',
-          })
+      valueGetter: (value, row) => {
+        if (!row) return '';
+        const date = row.date
+          ? new Date(row.date).toLocaleDateString('en-ZA', {
+              year: isXs ? '2-digit' : 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })
           : 'No date';
-
-        return (
-          <Box sx={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', py: 0.5 }}>
-            <Typography
-              variant="body2"
-              fontWeight={600}
-              sx={{
-                fontSize: isXsDown ? '0.7rem' : isSmDown ? '0.75rem' : '0.9rem',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                lineHeight: 1.3,
-              }}
-            >
-              {eventName}
-            </Typography>
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              sx={{ fontSize: isXsDown ? '0.6rem' : '0.75rem', display: 'flex', alignItems: 'center', gap: 0.3, mt: 0.2 }}
-            >
-              <CalendarTodayIcon sx={{ fontSize: '0.7rem' }} />
-              {eventDate}
-            </Typography>
-          </Box>
-        );
+        return `${date} — ${row.eventName || 'Unnamed Event'}`;
       },
-    };
+      sortComparator: (v1, v2, p1, p2) => {
+        const t1 = p1.api.getRow(p1.id)?.date ? new Date(p1.api.getRow(p1.id).date).getTime() : 0;
+        const t2 = p2.api.getRow(p2.id)?.date ? new Date(p2.api.getRow(p2.id).date).getTime() : 0;
+        return t1 - t2;
+      },
+      renderCell: (params) => (
+        <Typography variant="body2" fontWeight={500} noWrap
+          sx={{ fontSize: isXs ? '0.67rem' : isSm ? '0.73rem' : '0.85rem', lineHeight: 1.2 }}>
+          {params.value}
+        </Typography>
+      ),
+    });
 
-    const attendanceCol = {
-      field: 'attendance',
-      headerName: isXsDown ? 'Att' : isSmDown ? 'Att' : 'Attendance',
-      width: isXsDown ? 55 : isSmDown ? 65 : 100,
+    cols.push({
+      field: 'attendanceCount',
+      headerName: isXs ? '#' : isSm ? 'Att' : 'Attendance',
+      width: isXs ? 34 : isSm ? 42 : 96,
       sortable: true,
       align: 'center',
       headerAlign: 'center',
-      valueGetter: (params) => getAttendanceCount(params.row),
+      valueGetter: (value, row) => getAttendanceCount(row),
+      renderCell: (params) => (
+        <Typography fontWeight={700}
+          color={params.value > 0 ? 'primary.main' : 'text.disabled'}
+          sx={{ fontSize: isXs ? '0.7rem' : isSm ? '0.78rem' : '0.9rem' }}>
+          {params.value}
+        </Typography>
+      ),
+    });
+
+    if (!isXs) {
+      cols.push({
+        field: 'newPeopleCount',
+        headerName: isSm ? 'New' : 'New People',
+        width: isSm ? 42 : 96,
+        sortable: true,
+        align: 'center',
+        headerAlign: 'center',
+        valueGetter: (value, row) => getNewPeopleCount(row),
+        renderCell: (params) => (
+          <Typography fontWeight={700}
+            color={params.value > 0 ? 'success.main' : 'text.disabled'}
+            sx={{ fontSize: isSm ? '0.78rem' : '0.9rem' }}>
+            {params.value}
+          </Typography>
+        ),
+      });
+    }
+
+    if (!isSm) {
+      cols.push({
+        field: 'consolidatedCount',
+        headerName: 'Consolidated',
+        width: 108,
+        sortable: true,
+        align: 'center',
+        headerAlign: 'center',
+        valueGetter: (value, row) => getConsolidatedCount(row),
+        renderCell: (params) => (
+          <Typography fontWeight={700}
+            color={params.value > 0 ? 'secondary.main' : 'text.disabled'}
+            sx={{ fontSize: '0.9rem' }}>
+            {params.value}
+          </Typography>
+        ),
+      });
+    }
+
+    cols.push({
+      field: 'viewAttendance',
+      headerName: '',
+      width: isSm ? 34 : 108,
+      sortable: false, filterable: false,
+      align: 'center', headerAlign: 'center',
       renderCell: (params) => {
         const count = getAttendanceCount(params.row);
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.4 }}>
-            <GroupIcon sx={{ fontSize: isXsDown ? '0.75rem' : '0.85rem', color: 'primary.main', opacity: 0.7 }} />
-            <Typography
-              fontWeight={600}
-              color="primary"
-              fontSize={isXsDown ? '0.7rem' : isSmDown ? '0.75rem' : '0.9rem'}
-            >
-              {count}
-            </Typography>
-          </Box>
-        );
+        return isSm
+          ? <SmIconBtn onClick={() => handleView(params.row, 'attendance')} disabled={count === 0} color="primary"   icon={<VisibilityIcon />}  title="View Attendance" />
+          : <MdViewBtn onClick={() => handleView(params.row, 'attendance')} disabled={count === 0} color="primary"   icon={<VisibilityIcon />} />;
       },
-    };
+    });
 
-    const newPeopleCol = {
-      field: 'newPeople',
-      headerName: isXsDown ? 'New' : isSmDown ? 'New' : 'New People',
-      width: isXsDown ? 55 : isSmDown ? 65 : 100,
-      sortable: true,
-      align: 'center',
-      headerAlign: 'center',
-      valueGetter: (params) => getNewPeopleCount(params.row),
+    cols.push({
+      field: 'viewNewPeople',
+      headerName: '',
+      width: isSm ? 34 : 108,
+      sortable: false, filterable: false,
+      align: 'center', headerAlign: 'center',
       renderCell: (params) => {
         const count = getNewPeopleCount(params.row);
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.4 }}>
-            <PersonAddAltIcon sx={{ fontSize: isXsDown ? '0.75rem' : '0.85rem', color: 'success.main', opacity: 0.7 }} />
-            <Typography
-              fontWeight={600}
-              color="success.main"
-              fontSize={isXsDown ? '0.7rem' : isSmDown ? '0.75rem' : '0.9rem'}
-            >
-              {count}
-            </Typography>
-          </Box>
-        );
+        return isSm
+          ? <SmIconBtn onClick={() => handleView(params.row, 'newPeople')} disabled={count === 0} color="success"    icon={<PersonIcon />}       title="View New People" />
+          : <MdViewBtn onClick={() => handleView(params.row, 'newPeople')} disabled={count === 0} color="success"    icon={<PersonIcon />} />;
       },
-    };
+    });
 
-    const consolidatedCol = {
-      field: 'consolidated',
-      headerName: isXsDown ? 'Con' : isSmDown ? 'Cons' : 'Consolidated',
-      width: isXsDown ? 55 : isSmDown ? 65 : 110,
-      sortable: true,
-      align: 'center',
-      headerAlign: 'center',
-      valueGetter: (params) => getConsolidatedCount(params.row),
-      renderCell: (params) => {
-        const count = getConsolidatedCount(params.row);
-        return (
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.4 }}>
-            <MergeIcon sx={{ fontSize: isXsDown ? '0.75rem' : '0.85rem', color: 'secondary.main', opacity: 0.7 }} />
-            <Typography
-              fontWeight={600}
-              color="secondary.main"
-              fontSize={isXsDown ? '0.7rem' : isSmDown ? '0.75rem' : '0.9rem'}
-            >
-              {count}
-            </Typography>
-          </Box>
-        );
-      },
-    };
+    if (!isXs) {
+      cols.push({
+        field: 'viewConsolidated',
+        headerName: '',
+        width: isSm ? 34 : 118,
+        sortable: false, filterable: false,
+        align: 'center', headerAlign: 'center',
+        renderCell: (params) => {
+          const count = getConsolidatedCount(params.row);
+          return isSm
+            ? <SmIconBtn onClick={() => handleView(params.row, 'consolidated')} disabled={count === 0} color="secondary" icon={<EmojiPeopleIcon />}  title="View Consolidated" />
+            : <MdViewBtn onClick={() => handleView(params.row, 'consolidated')} disabled={count === 0} color="secondary" icon={<EmojiPeopleIcon />} />;
+        },
+      });
+    }
 
-    const actionsCol = {
-      field: 'actions',
-      headerName: 'Actions',
-      flex: isSmDown ? 0 : 0.8,
-      width: isSmDown ? 140 : undefined,
-      minWidth: isSmDown ? 130 : 200,
-      sortable: false,
-      filterable: false,
-      renderCell: (params) => {
-        const event = params.row || {};
-        const attendanceCount = getAttendanceCount(event);
-        const newPeopleCount = getNewPeopleCount(event);
-        const consolidatedCount = getConsolidatedCount(event);
-        const canUnsave = canUnsaveEvent(event);
-
-        if (isSmDown) {
+    if (onUnsaveEvent) {
+      cols.push({
+        field: 'unsave',
+        headerName: '',
+        width: isSm ? 34 : 50,
+        sortable: false, filterable: false,
+        align: 'center', headerAlign: 'center',
+        renderCell: (params) => {
+          const canUnsave = canUnsaveEvent(params.row);
           return (
-            <Stack direction="row" spacing={0.3} alignItems="center" justifyContent="center">
-              <Tooltip title="View Attendance">
-                <span>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleViewDetails(event, 'attendance')}
-                    disabled={attendanceCount === 0}
-                    color="primary"
-                    sx={{ padding: '4px', opacity: attendanceCount === 0 ? 0.3 : 1 }}
-                  >
-                    <VisibilityIcon sx={{ fontSize: '18px' }} />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title="View New People">
-                <span>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleViewDetails(event, 'newPeople')}
-                    disabled={newPeopleCount === 0}
-                    color="success"
-                    sx={{ padding: '4px', opacity: newPeopleCount === 0 ? 0.3 : 1 }}
-                  >
-                    <PersonIcon sx={{ fontSize: '18px' }} />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title="View Consolidated">
-                <span>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleViewDetails(event, 'consolidated')}
-                    disabled={consolidatedCount === 0}
-                    color="secondary"
-                    sx={{ padding: '4px', opacity: consolidatedCount === 0 ? 0.3 : 1 }}
-                  >
-                    <EmojiPeopleIcon sx={{ fontSize: '18px' }} />
-                  </IconButton>
-                </span>
-              </Tooltip>
-              <Tooltip title={canUnsave ? 'Unsave event' : "Only today's events can be unsaved"}>
-                <span>
-                  <IconButton
-                    size="small"
-                    onClick={() => handleUnsaveEvent(event)}
-                    disabled={!canUnsave}
-                    color="warning"
-                    sx={{ padding: '4px', opacity: !canUnsave ? 0.3 : 1 }}
-                  >
-                    <UndoIcon sx={{ fontSize: '18px' }} />
-                  </IconButton>
-                </span>
-              </Tooltip>
-            </Stack>
+            <Tooltip title={canUnsave ? 'Unsave event' : "Only today's events can be unsaved"}>
+              <span>
+                <IconButton size="small" color="warning" disabled={!canUnsave}
+                  onClick={() => handleUnsave(params.row)}
+                  sx={{ opacity: !canUnsave ? 0.22 : 1, p: isSm ? '3px' : '5px' }}>
+                  <UndoIcon sx={{ fontSize: isSm ? '0.9rem' : '1.1rem' }} />
+                </IconButton>
+              </span>
+            </Tooltip>
           );
-        }
+        },
+      });
+    }
 
-        return (
-          <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="center">
-            <Tooltip title={attendanceCount === 0 ? 'No attendance data' : 'View Attendance'}>
-              <span>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  startIcon={<VisibilityIcon />}
-                  onClick={() => handleViewDetails(event, 'attendance')}
-                  disabled={attendanceCount === 0}
-                  sx={{
-                    fontSize: '0.72rem',
-                    padding: '3px 8px',
-                    minWidth: 'auto',
-                    opacity: attendanceCount === 0 ? 0.4 : 1,
-                  }}
-                >
-                  Attend
-                </Button>
-              </span>
-            </Tooltip>
-            <Tooltip title={newPeopleCount === 0 ? 'No new people' : 'View New People'}>
-              <span>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="success"
-                  startIcon={<PersonIcon />}
-                  onClick={() => handleViewDetails(event, 'newPeople')}
-                  disabled={newPeopleCount === 0}
-                  sx={{
-                    fontSize: '0.72rem',
-                    padding: '3px 8px',
-                    minWidth: 'auto',
-                    opacity: newPeopleCount === 0 ? 0.4 : 1,
-                  }}
-                >
-                  New
-                </Button>
-              </span>
-            </Tooltip>
-            <Tooltip title={consolidatedCount === 0 ? 'No consolidations' : 'View Consolidated'}>
-              <span>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="secondary"
-                  startIcon={<EmojiPeopleIcon />}
-                  onClick={() => handleViewDetails(event, 'consolidated')}
-                  disabled={consolidatedCount === 0}
-                  sx={{
-                    fontSize: '0.72rem',
-                    padding: '3px 8px',
-                    minWidth: 'auto',
-                    opacity: consolidatedCount === 0 ? 0.4 : 1,
-                  }}
-                >
-                  Cons
-                </Button>
-              </span>
-            </Tooltip>
-            <Tooltip title={canUnsave ? 'Unsave this event' : "Only today's events can be unsaved"}>
-              <span>
-                <Button
-                  size="small"
-                  variant="outlined"
-                  color="warning"
-                  startIcon={<UndoIcon />}
-                  onClick={() => handleUnsaveEvent(event)}
-                  disabled={!canUnsave}
-                  sx={{
-                    fontSize: '0.72rem',
-                    padding: '3px 8px',
-                    minWidth: 'auto',
-                    opacity: !canUnsave ? 0.3 : 1,
-                  }}
-                >
-                  Unsave
-                </Button>
-              </span>
-            </Tooltip>
-          </Stack>
-        );
-      },
-    };
-
-    return [eventNameCol, attendanceCol, newPeopleCol, consolidatedCol, actionsCol];
+    return cols;
   }, [
-    isXsDown, isSmDown,
+    isXs, isSm,
     getAttendanceCount, getNewPeopleCount, getConsolidatedCount,
-    handleViewDetails, handleUnsaveEvent, canUnsaveEvent,
+    handleView, handleUnsave, canUnsaveEvent, onUnsaveEvent,
   ]);
 
-  if (isLoading && filteredEvents.length === 0) {
+  const gridHeight    = isSm ? 'calc(100vh - 240px)' : isMd ? 'calc(100vh - 220px)' : 620;
+  const gridMinHeight = isSm ? 360 : isMd ? 480 : 560;
+  const gridMaxHeight = isSm ? 600 : isMd ? 660 : 700;
+  const rowH          = isSm ? 44 : 52;
+  const headerH       = isSm ? 40 : 48;
+
+  if (isLoading && filtered.length === 0) {
     return (
-      <Box sx={{ width: '100%' }}>
-        <Paper
-          variant="outlined"
-          sx={{
-            boxShadow: 3,
-            overflow: 'hidden',
-            width: '100%',
-            height: isMdDown ? 'calc(100vh - 220px)' : 650,
-            minHeight: isMdDown ? 400 : 650,
-          }}
-        >
-          <Box sx={{ p: 2 }}>
-            <Skeleton variant="rounded" height={56} sx={{ mb: 1 }} />
-            <Skeleton variant="rounded" height={400} sx={{ mb: 1 }} />
-            <Skeleton variant="rounded" height={52} />
-          </Box>
-        </Paper>
-      </Box>
+      <Paper variant="outlined" sx={{ boxShadow: 3, overflow: 'hidden', width: '100%', height: gridHeight, minHeight: gridMinHeight }}>
+        <Box sx={{ p: isSm ? 1 : 2, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Skeleton variant="rounded" height={headerH} />
+          {Array.from({ length: isSm ? 6 : 9 }).map((_, i) => <Skeleton key={i} variant="rounded" height={rowH} />)}
+        </Box>
+      </Paper>
     );
   }
 
-  if (!filteredEvents || filteredEvents.length === 0) {
+  if (!filtered || filtered.length === 0) {
     return (
-      <Paper
-        variant="outlined"
-        sx={{
-          boxShadow: 3,
-          overflow: 'hidden',
-          width: '100%',
-          height: isMdDown ? 'calc(100vh - 220px)' : 650,
-          minHeight: isMdDown ? 400 : 650,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 2,
-          p: isSmDown ? 2 : 4,
-        }}
-      >
-        <Typography
-          variant={isSmDown ? 'body1' : 'h6'}
-          color="text.secondary"
-          textAlign="center"
-        >
+      <Paper variant="outlined" sx={{
+        boxShadow: 3, overflow: 'hidden', width: '100%',
+        height: gridHeight, minHeight: gridMinHeight,
+        display: 'flex', flexDirection: 'column',
+        alignItems: 'center', justifyContent: 'center', gap: 2, p: 3,
+      }}>
+        <Typography variant={isSm ? 'subtitle1' : 'h6'} color="text.secondary" textAlign="center">
           {events?.length === 0 ? 'No event history found' : 'No matching events found'}
         </Typography>
-        <Typography variant="body2" color="text.secondary" textAlign="center">
+        <Typography variant="body2" color="text.secondary" textAlign="center"
+          sx={{ fontSize: isSm ? '0.78rem' : '0.875rem' }}>
           {events?.length === 0
             ? 'Closed events with attendance data will appear here'
             : 'Try a different search term'}
         </Typography>
         {onRefresh && (
-          <Button
-            variant="outlined"
-            onClick={onRefresh}
-            startIcon={<RefreshIcon />}
-            size={isSmDown ? 'small' : 'medium'}
-          >
+          <Button variant="outlined" size={isSm ? 'small' : 'medium'} onClick={onRefresh} startIcon={<RefreshIcon />}>
             Refresh Events
           </Button>
         )}
@@ -488,112 +309,122 @@ const EventHistory = React.memo(function EventHistory({
   }
 
   return (
-    <Box sx={{ width: '100%', height: '100%' }}>
-      {/*
-        Paper — exactly matches the ServiceCheckIn DataGrid Paper:
-          variant="outlined"
-          boxShadow: 3
-          overflow: hidden
-          same height formula
-      */}
-      <Paper
-        variant="outlined"
-        sx={{
-          boxShadow: 3,
-          overflow: 'hidden',
-          width: '100%',
-          height: isMdDown
-            ? 'calc(100vh - 220px)'
-            : 650,
-          minHeight: isMdDown ? 500 : 650,
-          maxHeight: isMdDown ? '650px' : 700,
+    <Paper variant="outlined" sx={{
+      boxShadow: 3, overflow: 'hidden', width: '100%',
+      height: gridHeight, minHeight: gridMinHeight, maxHeight: gridMaxHeight,
+    }}>
+      <DataGrid
+        rows={filtered}
+        columns={columns}
+        loading={isLoading}
+        disableRowSelectionOnClick
+        disableColumnMenu
+        getRowId={(row) => row.id || row._id || Math.random().toString(36)}
+        rowHeight={rowH}
+        columnHeaderHeight={headerH}
+        initialState={{
+          pagination: { paginationModel: { pageSize: isSm ? 10 : 25 } },
+          sorting:    { sortModel: [{ field: 'eventName', sort: 'desc' }] },
         }}
-      >
-        <DataGrid
-          rows={filteredEvents}
-          columns={columns}
-          loading={isLoading}
+        pageSizeOptions={isSm ? [10, 25] : [10, 25, 50]}
+        sx={{
+          width: '100%',
+          height: '100%',
+          border: 'none',
+          '& .MuiDataGrid-virtualScroller':       { overflowX: 'hidden !important' },
+          '& .MuiDataGrid-columnHeadersInner':     { width: '100% !important' },
 
-          slots={{ toolbar: GridToolbar }}
-          slotProps={{
-            toolbar: {
-              showQuickFilter: true,
-              quickFilterProps: { debounceMs: 500 },
-            },
-          }}
+          '& .MuiDataGrid-columnHeaders': {
+            backgroundColor: theme.palette.background.paper,
+            borderBottom: `1px solid ${theme.palette.divider}`,
+            minHeight: `${headerH}px !important`,
+            maxHeight: `${headerH}px !important`,
+          },
+          '& .MuiDataGrid-columnHeader': {
+            height: `${headerH}px !important`,
+            px: isXs ? '3px' : isSm ? '4px' : '12px',
+            '& .MuiDataGrid-iconButtonContainer': { visibility: 'visible', width: 'auto' },
+            '& .MuiDataGrid-sortIcon': { opacity: 0.5 },
+          },
+          '& .MuiDataGrid-columnHeaderTitle': {
+            fontWeight: 700,
+            fontSize: isXs ? '0.62rem' : isSm ? '0.68rem' : '0.8rem',
+            color: theme.palette.text.primary,
+            whiteSpace: 'nowrap',
+          },
+          '& .MuiDataGrid-columnSeparator': { display: 'none' },
 
-          initialState={{
-            pagination: {
-              paginationModel: { pageSize: isSmDown ? 10 : 25 },
-            },
-            sorting: {
-              sortModel: [{ field: 'eventName', sort: 'desc' }],
-            },
-          }}
-          pageSizeOptions={isSmDown ? [5, 10, 25] : [10, 25, 50]}
-          disableRowSelectionOnClick
-          getRowId={(row) => row.id || row._id || Math.random().toString(36)}
-          rowHeight={56}
-          sx={{
-            width: '100%',
-            height: '100%',
-            '& .MuiDataGrid-columnHeaders': {
-              width: '100% !important',
-              backgroundColor: theme.palette.action.hover,
-              borderBottom: `1px solid ${theme.palette.divider}`,
-            },
-            '& .MuiDataGrid-columnHeader': {
-              fontWeight: 600,
-              minWidth: '40px',
-              fontSize: isXsDown ? '0.7rem' : '0.8rem',
-              padding: isXsDown ? '4px 2px' : '6px 4px',
-              '& .MuiDataGrid-iconButtonContainer': { visibility: 'visible !important' },
-              '& .MuiDataGrid-sortIcon': { opacity: 1 },
-            },
-            '& .MuiDataGrid-cell': {
-              display: 'flex',
-              alignItems: 'center',
-              padding: isXsDown ? '2px 4px' : '4px 6px',
-              fontSize: isXsDown ? '0.7rem' : '0.8rem',
-              minWidth: '40px',
-            },
-            '& .MuiDataGrid-cell[data-field="eventName"]': {
-              justifyContent: 'flex-start',
-              textAlign: 'left',
-              paddingLeft: isSmDown ? '8px' : '12px',
-            },
-            '& .MuiDataGrid-cell[data-field="attendance"]': { justifyContent: 'center' },
-            '& .MuiDataGrid-cell[data-field="newPeople"]': { justifyContent: 'center' },
-            '& .MuiDataGrid-cell[data-field="consolidated"]': { justifyContent: 'center' },
-            '& .MuiDataGrid-cell[data-field="actions"]': { justifyContent: 'center' },
-            '& .MuiDataGrid-row:hover': {
-              backgroundColor: theme.palette.action.hover,
-            },
-            '& .MuiDataGrid-toolbarContainer': {
-              padding: isXsDown ? '4px 2px' : '12px 8px',
-              borderBottom: `1px solid ${theme.palette.divider}`,
-              ...(isSmDown && { flexDirection: 'column', alignItems: 'flex-start', gap: 1 }),
-            },
-            '& .MuiDataGrid-footerContainer': {
-              display: 'flex',
-              borderTop: `1px solid ${theme.palette.divider}`,
-              backgroundColor: theme.palette.background.paper,
-              minHeight: '52px',
-            },
-            '& .MuiTablePagination-root': {
-              flexWrap: 'wrap',
-              justifyContent: 'center',
-              padding: '8px 4px',
-              fontSize: '0.75rem',
-            },
-            ...(isSmDown && {
-              '& .MuiDataGrid-columnSeparator': { display: 'none' },
-            }),
-          }}
-        />
-      </Paper>
-    </Box>
+          '& .MuiDataGrid-row': {
+            '&:hover': { backgroundColor: theme.palette.action.hover },
+            '&.Mui-selected': { backgroundColor: 'transparent' },
+            '&.Mui-selected:hover': { backgroundColor: theme.palette.action.hover },
+            width: '100% !important'
+          },
+          '& .MuiDataGrid-cell': {
+            borderBottom: `1px solid ${theme.palette.divider}`,
+            display: 'flex',
+            alignItems: 'center',
+            px: isXs ? '2px' : isSm ? '3px' : '12px',
+            fontSize: isXs ? '0.67rem' : isSm ? '0.75rem' : '0.875rem',
+            outline: 'none !important',
+            '&:focus, &:focus-within': { outline: 'none' },
+          },
+          '& .MuiDataGrid-cell[data-field="eventName"]':         { justifyContent: 'flex-start' },
+          '& .MuiDataGrid-cell[data-field="attendanceCount"]':   { justifyContent: 'center' },
+          '& .MuiDataGrid-cell[data-field="newPeopleCount"]':    { justifyContent: 'center' },
+          '& .MuiDataGrid-cell[data-field="consolidatedCount"]': { justifyContent: 'center' },
+          '& .MuiDataGrid-cell[data-field="viewAttendance"]':    { justifyContent: 'center', px: '1px' },
+          '& .MuiDataGrid-cell[data-field="viewNewPeople"]':     { justifyContent: 'center', px: '1px' },
+          '& .MuiDataGrid-cell[data-field="viewConsolidated"]':  { justifyContent: 'center', px: '1px' },
+          '& .MuiDataGrid-cell[data-field="unsave"]':            { justifyContent: 'center', px: '1px' },
+
+          '& .MuiDataGrid-footerContainer': {
+            borderTop: `1px solid ${theme.palette.divider}`,
+            backgroundColor: theme.palette.background.paper,
+            minHeight: '48px',
+          },
+          '& .MuiTablePagination-root': { fontSize: isSm ? '0.65rem' : '0.75rem', flexWrap: 'wrap' },
+          '& .MuiTablePagination-selectLabel, & .MuiTablePagination-displayedRows': {
+            fontSize: isSm ? '0.63rem' : '0.75rem',
+          },
+          '& .MuiDataGrid-row:last-child .MuiDataGrid-cell': { borderBottom: 'none' },
+          '& .MuiDataGrid-overlayWrapper': { minHeight: 80 },
+        }}
+      />
+    </Paper>
   );
 });
+
+function SmIconBtn({ onClick, disabled, color, icon, title }) {
+  return (
+    <Tooltip title={disabled ? 'No data' : title}>
+      <span>
+        <IconButton size="small" color={color} disabled={disabled} onClick={onClick}
+          sx={{ opacity: disabled ? 0.25 : 1, p: '3px' }}>
+          {React.cloneElement(icon, { sx: { fontSize: '1rem' } })}
+        </IconButton>
+      </span>
+    </Tooltip>
+  );
+}
+
+function MdViewBtn({ onClick, disabled, color, icon }) {
+  return (
+    <Tooltip title={disabled ? 'No data' : 'View'}>
+      <span>
+        <Button size="small" variant="outlined" color={color} startIcon={icon}
+          onClick={onClick} disabled={disabled}
+          sx={{
+            fontSize: '0.7rem', fontWeight: 700, letterSpacing: '0.05em',
+            px: 1.1, py: '3px', minWidth: 68, borderRadius: '6px',
+            opacity: disabled ? 0.25 : 1,
+            '&.Mui-disabled': { borderColor: 'currentColor', color: 'currentColor' },
+          }}>
+          VIEW
+        </Button>
+      </span>
+    </Tooltip>
+  );
+}
 
 export default EventHistory;

@@ -128,6 +128,9 @@ const initialForm = {
   surname: "",
   date_of_birth: "",
   home_address: "",
+  invited_by: "",
+  invited_by_id: "",
+  leader: "",
   phone_number: "",
   email: "",
   gender: "",
@@ -337,6 +340,17 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
+  const handleInvitedByChange = (event, newValue) => {
+    const invitedByValue = newValue && typeof newValue === "object" ? (newValue.label || "") : (newValue || "");
+    const invitedById =
+      newValue && typeof newValue === "object"
+        ? (newValue._id || newValue.key || "")
+        : "";
+
+    setForm((prev) => ({ ...prev, invited_by: invitedByValue, invited_by_id: invitedById }));
+    if (errors.invited_by) setErrors((prev) => ({ ...prev, invited_by: "" }));
+  };
+
   const handleGenderChange = (e) => {
     const genderVal = e.target.value;
     setForm((prev) => ({
@@ -344,6 +358,15 @@ const Signup = ({ onSignup, mode, setMode }) => {
       gender: genderVal,
     }));
     if (errors.gender) setErrors((prev) => ({ ...prev, gender: "" }));
+  };
+
+  const handleSearchChange = (event, value, reason) => {
+    setSearchQuery(value);
+    // If the user types manually, clear the selected inviter id to avoid stale IDs.
+    if (reason === "input") {
+      setForm((prev) => ({ ...prev, invited_by: value || "", invited_by_id: "" }));
+      if (errors.invited_by) setErrors((prev) => ({ ...prev, invited_by: "" }));
+    }
   };
 
   const handleSubmit = async (e) => {

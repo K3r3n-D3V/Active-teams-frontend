@@ -35,13 +35,20 @@ export const AuthProvider = ({ children }) => {
 
   const ensureUserWithAvatar = (userData) => {
     if (!userData) return null;
+    const normalizedRole = userData.role && String(userData.role).trim().length
+      ? userData.role
+      : 'user';
     const profilePicture = userData.profile_picture || 
                           userData.avatarUrl || 
                           userData.profilePicUrl || 
                           localStorage.getItem(KEY_PROFILE_PIC) || 
                           getDefaultAvatar(userData);
+    const isSupremeAdmin = userData.is_supreme_admin === true;
+    
     return {
       ...userData,
+      role: normalizedRole,
+      is_supreme_admin: isSupremeAdmin,
       profile_picture: profilePicture,
       avatarUrl: profilePicture,
       profilePicUrl: profilePicture
@@ -68,6 +75,11 @@ export const AuthProvider = ({ children }) => {
       return;
     }
     const withAvatar = ensureUserWithAvatar(u);
+    console.log('Persisting user:', {
+      email: withAvatar.email,
+      role: withAvatar.role,
+      is_supreme_admin: withAvatar.is_supreme_admin
+    });
     localStorage.setItem(KEY_USER, JSON.stringify(withAvatar));
     if (withAvatar.profile_picture) {
       localStorage.setItem(KEY_PROFILE_PIC, withAvatar.profile_picture);
@@ -103,26 +115,25 @@ const logout = useCallback(() => {
     setIsAuthenticated(false);
   }, []);
 
- 
-  const attemptRefresh = useCallback(async () => {
+ const attemptRefresh = useCallback(async () => {
   const refresh = localStorage.getItem(KEY_REFRESH);
   const refreshId = localStorage.getItem(KEY_REFRESH_ID);
   
   if (!refresh || !refreshId) {
-    console.error(' No refresh token or refresh ID found');
+    console.error('No refresh token or refresh ID found');
     logout();
     return false;
   }
 
   if (refreshInProgress) {
-    console.log('⏳ Refresh already in progress, skipping...');
+    console.log('Refresh already in progress, skipping...');
     return false;
   }
   
   setRefreshInProgress(true);
 
   try {
-    console.log(' Attempting token refresh...');
+    console.log('Attempting token refresh...');
     const res = await fetch(`${BACKEND_URL}/refresh-token`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -134,7 +145,7 @@ const logout = useCallback(() => {
 
     if (!res.ok) {
       const errorData = await res.json().catch(() => ({}));
-      console.error(' Token refresh failed:', res.status, errorData);
+      console.error('Token refresh failed:', res.status, errorData);
       
       if (res.status === 401 || res.status === 403) {
         logout();
@@ -144,7 +155,7 @@ const logout = useCallback(() => {
     }
 
     const data = await res.json();
-    console.log(' Token refresh successful');
+    console.log('Token refresh successful');
     
     localStorage.setItem(KEY_ACCESS, data.access_token);
     localStorage.setItem(KEY_REFRESH, data.refresh_token);
@@ -154,24 +165,21 @@ const logout = useCallback(() => {
     
     return true;
   } catch (e) {
-    console.error(' Refresh attempt error:', e);
+    console.error('Refresh attempt error:', e);
     return false;
   } finally {
     setRefreshInProgress(false);
   }
 }, [refreshInProgress, logout]);
 
-
-  const authFetch = useCallback(async (url, options = {}) => {
+const authFetch = useCallback(async (url, options = {}) => {
   let accessToken = localStorage.getItem(KEY_ACCESS);
   
-  // Check if token is expired
   if (accessToken && isTokenExpired(accessToken)) {
-    console.log(' Access token expired, attempting refresh...');
+    console.log('Access token expired, attempting refresh...');
     const refreshed = await attemptRefresh();
     if (!refreshed) {
-      console.error(' Token refresh failed during pre-check');
-      // Don't logout here - let the calling code handle it
+      console.error('Token refresh failed during pre-check');
       throw new Error('Token refresh failed');
     }
     accessToken = localStorage.getItem(KEY_ACCESS);
@@ -189,9 +197,8 @@ const logout = useCallback(() => {
   try {
     const res = await fetch(url, { ...options, headers });
     
-    // Only try refresh once on 401
     if (res.status === 401 && !refreshInProgress) {
-      console.log(' Got 401, attempting token refresh...');
+      console.log('Got 401, attempting token refresh...');
       const refreshed = await attemptRefresh();
       
       if (refreshed) {
@@ -199,18 +206,15 @@ const logout = useCallback(() => {
         headers['Authorization'] = `Bearer ${newToken}`;
         const retryRes = await fetch(url, { ...options, headers });
         
-        // If still 401 after refresh, it's a permission/auth issue
         if (retryRes.status === 401) {
-          console.warn(' Still 401 after token refresh - likely auth expired completely');
-          // Only NOW should we consider logging out
+          console.warn('Still 401 after token refresh - likely auth expired completely');
           logout();
           throw new Error('Authentication expired');
         }
         
         return retryRes;
       } else {
-        // Refresh failed - session is truly dead
-        console.error(' Token refresh failed on 401 retry');
+        console.error('Token refresh failed on 401 retry');
         logout();
         throw new Error('Authentication failed - please log in again');
       }
@@ -219,15 +223,6 @@ const logout = useCallback(() => {
     return res;
   } catch (error) {
     console.error('authFetch error:', error);
-    
-    // Only logout on specific auth failures, not network errors
-    if (error.message && (
-      error.message.includes('Authentication expired') || 
-      error.message.includes('Authentication failed')
-    )) {
-      // Already logged out above
-    }
-    
     throw error;
   }
 }, [refreshInProgress, attemptRefresh, logout]);
@@ -423,19 +418,9 @@ const login = async (email, password) => {
     persistLeadersData(leadersData, leaderStatus);
   };
 
-  // Role sync
   const fetchCurrentUser = useCallback(async () => {
     if (!localStorage.getItem('access_token')) return;
-  
   }, [authFetch]);
-  
-  // useEffect(() => {
-  //   // Only poll when actually logged in
-  //   if (!user?.id || !isAuthenticated) return;
-  
-  //   const interval = setInterval(fetchCurrentUser, 1_000);
-  //   return () => clearInterval(interval);  
-  // }, [user?.id, isAuthenticated, fetchCurrentUser]); 
 
   const requestPasswordReset = async (email) => {
     try {
