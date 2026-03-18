@@ -26,26 +26,20 @@ import {
   Coffee as CoffeeIcon
 } from '@mui/icons-material';
 import NewUserModal from '../components/NewUserModal';
-
-// Add this with your other global variables at the top of the file
-// At the top of your file, make sure these are defined
 let globalUsersData = null;
 let globalDataLoaded = false;
 let globalDataTimestamp = null;
 let globalOrgFilter = null;
 let globalRolesCache = {};
-let fetchInProgressRef = { current: false }; 
-console.log( "------>", fetchInProgressRef)
+let globalRolesTimestamp = {};
+
 const CACHE_DURATION = 5 * 60 * 1000;
-
+const ROLES_CACHE_DURATION = 10 * 60 * 1000; 
 const SUPREME_ADMIN_EMAIL = "tkgenia1234@gmail.com";
-
 export default function AdminDashboard() {
   const theme = useTheme();
   const { authFetch, isRefreshingToken, user: currentUser } = useContext(AuthContext);
-  
- const isSupremeAdmin = currentUser?.is_supreme_admin || currentUser?.email === SUPREME_ADMIN_EMAIL;
-  
+  const isSupremeAdmin = currentUser?.email === SUPREME_ADMIN_EMAIL;
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
@@ -58,17 +52,16 @@ export default function AdminDashboard() {
     if (isLgDown) return lg;
     return xl;
   };
-
   const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
-const [, setSwitchingOrg] = useState(false);
+  // const [, setSwitchingOrg] = useState(false);
   const [selectedRole, setSelectedRole] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState(0);
   const [loading, setLoading] = useState(!globalDataLoaded);
-  
+
   const [users, setUsers] = useState(globalUsersData || []);
-  const [totalUsers, setTotalUsers] = useState(0); 
+  const [totalUsers, setTotalUsers] = useState(0);
   const [activityLog, setActivityLog] = useState([]);
   const [showAddUserModal, setShowAddUserModal] = useState(false);
   const [showRoleModal, setShowRoleModal] = useState(false);
@@ -77,17 +70,16 @@ const [, setSwitchingOrg] = useState(false);
   const [updatingRole, setUpdatingRole] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [deletingUser, setDeletingUser] = useState(false);
-
   // Organization state
   const [organizations, setOrganizations] = useState([]);
-const [selectedOrg, setSelectedOrg] = useState("Active Church");
+  const [selectedOrg, setSelectedOrg] = useState("Active Church");
   const [orgAnchorEl, setOrgAnchorEl] = useState(null);
   const [, setLoadingOrgs] = useState(false);
   const [showSupremeAdminModal, setShowSupremeAdminModal] = useState(false);
-const [supremeAdminEmail, setSupremeAdminEmail] = useState('');
-const [addingSupremeAdmin, setAddingSupremeAdmin] = useState(false);
-const [supremeAdminError, setSupremeAdminError] = useState('');
-  
+  const [supremeAdminEmail, setSupremeAdminEmail] = useState('');
+  const [addingSupremeAdmin, setAddingSupremeAdmin] = useState(false);
+  const [supremeAdminError, setSupremeAdminError] = useState('');
+
   // Organization Modal state
   const [showOrgModal, setShowOrgModal] = useState(false);
   const [editingOrg, setEditingOrg] = useState(null);
@@ -100,52 +92,48 @@ const [supremeAdminError, setSupremeAdminError] = useState('');
   const [orgFormErrors, setOrgFormErrors] = useState({});
   const [savingOrg, setSavingOrg] = useState(false);
   const [deletingOrg, setDeletingOrg] = useState(false);
-
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
-
+const fetchInProgressRef = useRef(false);
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
-  
-  const initialLoadRef = useRef(true);
-  // Add these state variables near your other useState declarations
-const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
-const [newRoleName, setNewRoleName] = useState('');
-const [creatingRole, setCreatingRole] = useState(false);
-const [organizationRoles, setOrganizationRoles] = useState([]);
-const [roleCreateError, setRoleCreateError] = useState('');
 
-const roleStats = useMemo(() => {
-  const stats = {};
-  if (users && users.length > 0) {
+  const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
+  const [newRoleName, setNewRoleName] = useState('');
+  const [creatingRole, setCreatingRole] = useState(false);
+  const [organizationRoles, setOrganizationRoles] = useState([]);
+  const [roleCreateError, setRoleCreateError] = useState('');
+  const roleStats = useMemo(() => {
+    const stats = {};
+    if (users && users.length > 0) {
+      users.forEach(user => {
+        const role = user.role || 'Unknown';
+        stats[role] = (stats[role] || 0) + 1;
+      });
+    }
+    console.log('Role stats:', stats);
+    return stats;
+  }, [users]);
+
+  // Get unique roles for filter dropdown
+  const uniqueRoles = useMemo(() => {
+    if (!users || users.length === 0) {
+      return [];
+    }
+
+    const roles = new Set();
     users.forEach(user => {
-      const role = user.role || 'Unknown';
-      stats[role] = (stats[role] || 0) + 1;
+      if (user.role) roles.add(user.role);
     });
-  }
-  console.log('Role stats:', stats);
-  return stats;
-}, [users]);
-
-// Get unique roles for filter dropdown
-const uniqueRoles = useMemo(() => {
-  if (!users || users.length === 0) {
-    return [];
-  }
-  
-  const roles = new Set();
-  users.forEach(user => {
-    if (user.role) roles.add(user.role);
-  });
-  const sortedRoles = Array.from(roles).sort();
-  console.log('Unique roles:', sortedRoles);
-  return sortedRoles;
-}, [users]);
+    const sortedRoles = Array.from(roles).sort();
+    console.log('Unique roles:', sortedRoles);
+    return sortedRoles;
+  }, [users]);
 
   // Dynamic role icon based on role name
   const getRoleIcon = (roleName) => {
     if (!roleName) return <PersonIcon />;
     const lowerRole = roleName.toLowerCase();
-    
+
     if (lowerRole.includes('main leader') || lowerRole.includes('head')) return <AdminPanelSettings />;
     if (lowerRole.includes('shepard') || lowerRole.includes('shepherd')) return <HandshakeIcon />;
     if (lowerRole.includes('logic')) return <SettingsIcon />;
@@ -158,14 +146,14 @@ const uniqueRoles = useMemo(() => {
     if (lowerRole.includes('kitchen') || lowerRole.includes('cleaning')) return <RestaurantIcon />;
     if (lowerRole.includes('worship') || lowerRole.includes('music')) return <MusicIcon />;
     if (lowerRole.includes('coffee') || lowerRole.includes('hospitality')) return <CoffeeIcon />;
-    
+
     return <PersonIcon />;
   };
 
   // Dynamic role color
   const getRoleColor = (role) => {
     if (!role) return 'default';
-    
+
     const roleColors = {
       'Main Leader': 'error',
       'Logic': 'primary',
@@ -188,14 +176,14 @@ const uniqueRoles = useMemo(() => {
       'user': 'success',
       'registrant': 'warning'
     };
-    
-    return roleColors[role] || 
+
+    return roleColors[role] ||
       ['error', 'primary', 'secondary', 'success', 'warning', 'info'][
-        role.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 6
+      role.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0) % 6
       ];
   };
 
-    const addActivityLog = useCallback((action, details) => {
+  const addActivityLog = useCallback((action, details) => {
     const newLog = {
       id: Date.now(),
       action,
@@ -209,126 +197,113 @@ const uniqueRoles = useMemo(() => {
     if (!role) return 'Unknown';
     return role.charAt(0).toUpperCase() + role.slice(1);
   };
-  
+
   const getInitials = (name) => {
     if (!name) return '??';
     return name.split(' ').map(word => word[0]).join('').toUpperCase().slice(0, 2);
   };
 
-// Fetch organizations for supreme admin
-const fetchOrganizations = useCallback(async () => {
-  if (!isSupremeAdmin) return;
-  
-  setLoadingOrgs(true);
-  try {
-    const response = await authFetch(`${API_BASE_URL}/organizations`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log('Raw organizations data:', data); // Debug log
-      
-      // Transform the data to ensure id field exists
-      const transformedOrgs = (data.organizations || []).map(org => ({
-        id: org._id || org.id,  // Handle both _id and id
-        _id: org._id || org.id,  // Keep both for compatibility
-        name: org.name,
-        address: org.address,
-        phone: org.phone,
-        email: org.email,
-        user_count: org.user_count || 0,
-        created_at: org.created_at
-      }));
-      
-      console.log('Transformed organizations:', transformedOrgs);
-      setOrganizations(transformedOrgs);
-      
-      // Set default organization if none selected
-      if (!selectedOrg && transformedOrgs.length > 0) {
-        const activeChurch = transformedOrgs.find(org => 
-          org.name.toLowerCase() === 'active church'
-        );
-        setSelectedOrg(activeChurch ? activeChurch.name : transformedOrgs[0].name);
-      }
-    } else {
-      console.error('Failed to fetch organizations');
-    }
-  } catch (err) {
-    console.error('Error fetching organizations:', err);
-  } finally {
-    setLoadingOrgs(false);
-  }
-}, [API_BASE_URL, authFetch, isSupremeAdmin, selectedOrg]);
+  // Fetch organizations for supreme admin
+  const fetchOrganizations = useCallback(async () => {
+    if (!isSupremeAdmin) return;
 
+    setLoadingOrgs(true);
+    try {
+      const response = await authFetch(`${API_BASE_URL}/organizations`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Raw organizations data:', data);
+        const transformedOrgs = (data.organizations || []).map(org => ({
+          id: org._id || org.id,  // Handle both _id and id
+          _id: org._id || org.id,
+          name: org.name,
+          address: org.address,
+          phone: org.phone,
+          email: org.email,
+          user_count: org.user_count || 0,
+          created_at: org.created_at
+        }));
+
+        console.log('Transformed organizations:', transformedOrgs);
+        setOrganizations(transformedOrgs);
+
+        // Set default organization if none selected
+        if (!selectedOrg && transformedOrgs.length > 0) {
+          const activeChurch = transformedOrgs.find(org =>
+            org.name.toLowerCase() === 'active church'
+          );
+          setSelectedOrg(activeChurch ? activeChurch.name : transformedOrgs[0].name);
+        }
+      } else {
+        console.error('Failed to fetch organizations');
+      }
+    } catch (err) {
+      console.error('Error fetching organizations:', err);
+    } finally {
+      setLoadingOrgs(false);
+    }
+  }, [API_BASE_URL, authFetch, isSupremeAdmin, selectedOrg]);
 const fetchAllData = useCallback(async (forceRefresh = false) => {
+  if (fetchInProgressRef.current) return;
+  fetchInProgressRef.current = true;
+
   const currentOrg = selectedOrg;
   
   if (!currentOrg) {
     setUsers([]);
     setTotalUsers(0);
+    fetchInProgressRef.current = false;
     return [];
   }
-  
-  // Don't use cache if force refresh
-  if (!forceRefresh) {
-    const now = Date.now();
-    const cacheValid = globalDataLoaded && 
-                       globalDataTimestamp && 
-                       (now - globalDataTimestamp < CACHE_DURATION) &&
-                       globalOrgFilter === currentOrg;
-    
-    if (cacheValid) {
-      console.log('Using cached data for:', currentOrg);
-      setUsers(globalUsersData);
-      setTotalUsers(globalUsersData?.length || 0);
-      return globalUsersData;
-    }
+
+  const now = Date.now();
+  const cacheValid = globalDataLoaded &&
+    globalDataTimestamp &&
+    (now - globalDataTimestamp < CACHE_DURATION) &&
+    globalOrgFilter === currentOrg;
+
+  if (cacheValid && !forceRefresh) {
+    setUsers(globalUsersData);
+    setTotalUsers(globalUsersData?.length || 0);
+    fetchInProgressRef.current = false;
+    return globalUsersData;
+  }
+
+  // Show stale data immediately while fresh data loads
+  if (globalUsersData && globalOrgFilter === currentOrg) {
+    setUsers(globalUsersData);
+    setTotalUsers(globalUsersData.length);
   }
 
   try {
-    console.log('Fetching users for:', currentOrg);
-    let url = `${API_BASE_URL}/admin/users?skip=0&limit=500`;
-    url += `&organization=${encodeURIComponent(currentOrg)}`;
-    
-    const response = await authFetch(url, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
+    const url = `${API_BASE_URL}/admin/users?skip=0&limit=500&organization=${encodeURIComponent(currentOrg)}`;
+    const response = await authFetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch users: ${response.status}`);
-    }
+    if (!response.ok) throw new Error(`Failed to fetch users: ${response.status}`);
 
     const data = await response.json();
-    
     let usersArray = [];
     let totalCount = 0;
-    
+
     if (data && data.users && Array.isArray(data.users)) {
       usersArray = data.users;
       totalCount = data.total || usersArray.length;
-    } else if (data && Array.isArray(data)) {
-      usersArray = data;
-      totalCount = usersArray.length;
     }
-    
-    console.log(`Loaded ${usersArray.length} users for ${currentOrg}`);
-    
-    const transformedUsers = usersArray.map(user => ({
-      id: user.id || user._id,
-      name: user.name && user.surname 
-        ? `${user.name} ${user.surname}`.trim() 
-        : user.name || user.surname || 'Unknown',
-      email: user.email || '',
-      role: user.role || 'Unknown',
-      phoneNumber: user.phone_number,
-      organization: user.organization || user.Organization,
-      createdAt: user.created_at
-    }));
 
-    // Update cache
+const transformedUsers = usersArray.map(user => ({
+  id: user.id || user._id,
+  name: user.name && user.surname ? `${user.name} ${user.surname}`.trim() : user.name || user.surname || 'Unknown',
+  email: user.email || '',
+  role: user.role || 'Unknown',
+  phoneNumber: user.phone_number || user.phone || '',
+  organization: user.Organization || user.organization || '',
+  createdAt: user.created_at || user.createdAt
+}));
+
     globalUsersData = transformedUsers;
     globalDataLoaded = true;
     globalDataTimestamp = Date.now();
@@ -336,58 +311,33 @@ const fetchAllData = useCallback(async (forceRefresh = false) => {
 
     setUsers(transformedUsers);
     setTotalUsers(totalCount);
-    
     return transformedUsers;
-    
+
   } catch (err) {
-    console.error('Error fetching data:', err);
     setUsers([]);
     setTotalUsers(0);
     return [];
+  } finally {
+    fetchInProgressRef.current = false;
   }
 }, [API_BASE_URL, authFetch, selectedOrg]);
 
-const handleOrgChange = async (orgName) => {
-  if (orgName === selectedOrg) {
-    setOrgAnchorEl(null);
-    return;
-  }
-  
-  setSwitchingOrg(true);
-  
-  // Clear ALL caches
+const handleOrgChange = (orgName) => {
+  if (orgName === selectedOrg) { setOrgAnchorEl(null); return; }
+
   globalDataLoaded = false;
   globalOrgFilter = null;
   globalUsersData = null;
-  
-  // Clear all data from state immediately
+
   setUsers([]);
   setTotalUsers(0);
   setOrganizationRoles([]);
-  
-  // Update the selected organization
-  setSelectedOrg(orgName);
-  setOrgAnchorEl(null);
-  
-  // Reset filters
   setSelectedRole('all');
   setSearchTerm('');
   setPage(0);
-  
-  console.log('Switching to organization:', orgName);
-  
-  try {
-    // Fetch fresh data for the new organization
-    await fetchAllData(true);
-    await fetchOrganizationRoles(true);
-    console.log('Data loaded for:', orgName);
-  } catch (error) {
-    console.error('Error switching organization:', error);
-  } finally {
-    setSwitchingOrg(false);
-  }
+  setOrgAnchorEl(null);
+  setSelectedOrg(orgName);
 };
-
   const handleOpenCreateOrg = () => {
     setEditingOrg(null);
     setOrgFormData({
@@ -399,89 +349,74 @@ const handleOrgChange = async (orgName) => {
     setOrgFormErrors({});
     setShowOrgModal(true);
   };
-// Open organization modal for edit
-const handleOpenEditOrg = (org) => {
-  console.log('Editing organization:', org); 
-  
-  // Make sure we have a valid ID
-  const orgId = org.id || org._id;
-  if (!orgId || orgId === 'undefined') {
-    console.error('Invalid organization object:', org);
-    alert('Error: Cannot edit organization - invalid ID');
-    return;
-  }
-  
-  // Create a clean copy with proper id
-  const cleanOrg = {
-    ...org,
-    id: orgId,
-    _id: orgId
-  };
-  
-  setEditingOrg(cleanOrg);
-  setOrgFormData({
-    name: org.name || '',
-    address: org.address || '',
-    phone: org.phone || '',
-    email: org.email || ''
-  });
-  setOrgFormErrors({});
-  setShowOrgModal(true);
-  setOrgAnchorEl(null);
-};
-
-const handleAddSupremeAdmin = async () => {
-  if (!supremeAdminEmail.trim()) {
-    setSupremeAdminError('Email is required');
-    return;
-  }
-  
-  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailRegex.test(supremeAdminEmail)) {
-    setSupremeAdminError('Invalid email format');
-    return;
-  }
-  
-  setAddingSupremeAdmin(true);
-  setSupremeAdminError('');
-  
-  try {
-    const response = await authFetch(`${API_BASE_URL}/admin/supreme/add`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: supremeAdminEmail })
-    });
-    
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || 'Failed to add supreme admin');
+  const handleOpenEditOrg = (org) => {
+    console.log('Editing organization:', org);
+    const orgId = org.id || org._id;
+    if (!orgId || orgId === 'undefined') {
+      console.error('Invalid organization object:', org);
+      alert('Error: Cannot edit organization - invalid ID');
+      return;
     }
-    
-    const result = await response.json();
-    console.log('Supreme admin added:', result);
-    
-    addActivityLog('SUPREME_ADMIN_ADDED', `Added ${supremeAdminEmail} as supreme admin`);
-    
-    setShowSupremeAdminModal(false);
-    setSupremeAdminEmail('');
-    
-    alert(`Successfully added ${supremeAdminEmail} as supreme admin`);
-    
-    // DON'T refresh organizations or data here - it causes the org to reset
-    // Remove these lines if they exist:
-    // await fetchOrganizations();
-    // globalDataLoaded = false;
-    // await fetchAllData(true);
-    
-  } catch (err) {
-    console.error('Error adding supreme admin:', err);
-    setSupremeAdminError(err.message);
-    alert(`Error: ${err.message}`);
-  } finally {
-    setAddingSupremeAdmin(false);
-  }
-};
+    const cleanOrg = {
+      ...org,
+      id: orgId,
+      _id: orgId
+    };
 
+    setEditingOrg(cleanOrg);
+    setOrgFormData({
+      name: org.name || '',
+      address: org.address || '',
+      phone: org.phone || '',
+      email: org.email || ''
+    });
+    setOrgFormErrors({});
+    setShowOrgModal(true);
+    setOrgAnchorEl(null);
+  };
+
+  const handleAddSupremeAdmin = async () => {
+    if (!supremeAdminEmail.trim()) {
+      setSupremeAdminError('Email is required');
+      return;
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(supremeAdminEmail)) {
+      setSupremeAdminError('Invalid email format');
+      return;
+    }
+
+    setAddingSupremeAdmin(true);
+    setSupremeAdminError('');
+
+    try {
+      const response = await authFetch(`${API_BASE_URL}/admin/supreme/add`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: supremeAdminEmail })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to add supreme admin');
+      }
+
+      const result = await response.json();
+      console.log('Supreme admin added:', result);
+      addActivityLog('SUPREME_ADMIN_ADDED', `Added ${supremeAdminEmail} as supreme admin`);
+      setShowSupremeAdminModal(false);
+      setSupremeAdminEmail('');
+      alert(`Successfully added ${supremeAdminEmail} as supreme admin`);
+
+    } catch (err) {
+      console.error('Error adding supreme admin:', err);
+      setSupremeAdminError(err.message);
+      alert(`Error: ${err.message}`);
+    } finally {
+      setAddingSupremeAdmin(false);
+    }
+  };
   // Validate organization form
   const validateOrgForm = () => {
     const errors = {};
@@ -497,139 +432,126 @@ const handleAddSupremeAdmin = async () => {
     return Object.keys(errors).length === 0;
   };
 
-// Save organization (create or update)
-const handleSaveOrganization = async () => {
-  if (!validateOrgForm()) return;
-  
-  setSavingOrg(true);
-  try {
-    let url, method;
-    const oldOrgName = editingOrg?.name;
-    const newOrgName = orgFormData.name;
-    const isNameChanged = editingOrg && oldOrgName !== newOrgName;
-    
-    if (editingOrg) {
-      const orgId = editingOrg.id || editingOrg._id;
-      if (!orgId || orgId === 'undefined') {
-        throw new Error('Invalid organization ID for update');
+  // Save organization (create or update)
+  const handleSaveOrganization = async () => {
+    if (!validateOrgForm()) return;
+
+    setSavingOrg(true);
+    try {
+      let url, method;
+      const oldOrgName = editingOrg?.name;
+      const newOrgName = orgFormData.name;
+      const isNameChanged = editingOrg && oldOrgName !== newOrgName;
+
+      if (editingOrg) {
+        const orgId = editingOrg.id || editingOrg._id;
+        if (!orgId || orgId === 'undefined') {
+          throw new Error('Invalid organization ID for update');
+        }
+        url = `${API_BASE_URL}/organizations/${orgId}`;
+        method = 'PUT';
+      } else {
+        url = `${API_BASE_URL}/organizations`;
+        method = 'POST';
       }
-      url = `${API_BASE_URL}/organizations/${orgId}`;
-      method = 'PUT';
-    } else {
-      url = `${API_BASE_URL}/organizations`;
-      method = 'POST';
-    }
-    
-    const payload = {
-      name: orgFormData.name
-    };
-    
-    if (orgFormData.address) payload.address = orgFormData.address;
-    if (orgFormData.phone) payload.phone = orgFormData.phone;
-    if (orgFormData.email) payload.email = orgFormData.email;
-    
-    const response = await authFetch(url, {
-      method: method,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.detail || 'Failed to save organization');
-    }
-    
-    const result = await response.json();
-    console.log('Save result:', result);
-    
-    addActivityLog(
-      editingOrg ? 'ORGANIZATION_UPDATED' : 'ORGANIZATION_CREATED',
-      `${editingOrg ? 'Updated' : 'Created'} organization: ${orgFormData.name}`
-    );
-    
-    // Refresh organizations list but KEEP current selected org
-    await fetchOrganizations();
-    
-    // If name changed and it's the current org, update selected org
-    if (editingOrg && isNameChanged && selectedOrg === oldOrgName) {
-      setSelectedOrg(newOrgName);
-      
-      // Clear cache for this organization
-      if (globalRolesCache[oldOrgName]) {
-        delete globalRolesCache[oldOrgName];
+      const payload = {
+        name: orgFormData.name
+      };
+
+      if (orgFormData.address) payload.address = orgFormData.address;
+      if (orgFormData.phone) payload.phone = orgFormData.phone;
+      if (orgFormData.email) payload.email = orgFormData.email;
+
+      const response = await authFetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || 'Failed to save organization');
       }
-      
-      // Refresh data for the new org name
-      globalDataLoaded = false;
-      await fetchAllData(true);
-      await fetchOrganizationRoles(true);
-    }
-    
-    setShowOrgModal(false);
-    
-  } catch (err) {
-    console.error('Error saving organization:', err);
-    alert(`Error: ${err.message}`);
-  } finally {
-    setSavingOrg(false);
-  }
-};
 
-// Delete organization
-const handleDeleteOrganization = async (orgId, orgName) => {
-  console.log('Attempting to delete organization:', { orgId, orgName }); // Debug log
-  
-  // Validate that we have a valid ID
-  if (!orgId || orgId === 'undefined' || orgId === 'null') {
-    console.error('Invalid organization ID:', orgId);
-    alert('Error: Invalid organization ID. Cannot delete.');
-    return;
-  }
-  
-  if (!window.confirm(`Are you sure you want to delete "${orgName}"? This action cannot be undone.`)) {
-    return;
-  }
-  
-  setDeletingOrg(true);
-  try {
-    console.log(`Sending DELETE request to: ${API_BASE_URL}/organizations/${orgId}`);
-    
-    const response = await authFetch(`${API_BASE_URL}/organizations/${orgId}`, {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' }
-    });
+      const result = await response.json();
+      console.log('Save result:', result);
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      console.error('Delete response error:', errorData);
-      throw new Error(errorData.detail || 'Failed to delete organization');
+      addActivityLog(
+        editingOrg ? 'ORGANIZATION_UPDATED' : 'ORGANIZATION_CREATED',
+        `${editingOrg ? 'Updated' : 'Created'} organization: ${orgFormData.name}`
+      );
+      await fetchOrganizations();
+      if (editingOrg && isNameChanged && selectedOrg === oldOrgName) {
+        setSelectedOrg(newOrgName);
+
+        // Clear cache for this organization
+        if (globalRolesCache[oldOrgName]) {
+          delete globalRolesCache[oldOrgName];
+        }
+        // Refresh data for the new org name
+        globalDataLoaded = false;
+        await fetchAllData(true);
+        await fetchOrganizationRoles(true);
+      }
+
+      setShowOrgModal(false);
+
+    } catch (err) {
+      console.error('Error saving organization:', err);
+      alert(`Error: ${err.message}`);
+    } finally {
+      setSavingOrg(false);
     }
-    
-    const result = await response.json();
-    console.log('Delete successful:', result);
-    
-    addActivityLog('ORGANIZATION_DELETED', `Deleted organization: ${orgName}`);
-    
-    // Refresh the organizations list
-    await fetchOrganizations();
-    
-    // If the deleted organization was selected, switch to Active Church or first available
-    if (selectedOrg === orgName) {
-      const orgs = await fetchOrganizations(); // This should update the state
-      // After refresh, set to Active Church or first org
-      setSelectedOrg('Active Church');
-      globalDataLoaded = false;
+  };
+  const handleDeleteOrganization = async (orgId, orgName) => {
+    console.log('Attempting to delete organization:', { orgId, orgName });
+    if (!orgId || orgId === 'undefined' || orgId === 'null') {
+      console.error('Invalid organization ID:', orgId);
+      alert('Error: Invalid organization ID. Cannot delete.');
+      return;
     }
-    
-    setShowOrgModal(false);
-    
-  } catch (err) {
-    console.error('Error deleting organization:', err);
-    alert(`Error: ${err.message}`);
-  } finally {
-    setDeletingOrg(false);
-  }
-};
+
+    if (!window.confirm(`Are you sure you want to delete "${orgName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    setDeletingOrg(true);
+    try {
+      console.log(`Sending DELETE request to: ${API_BASE_URL}/organizations/${orgId}`);
+
+      const response = await authFetch(`${API_BASE_URL}/organizations/${orgId}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Delete response error:', errorData);
+        throw new Error(errorData.detail || 'Failed to delete organization');
+      }
+
+      const result = await response.json();
+      console.log('Delete successful:', result);
+      addActivityLog('ORGANIZATION_DELETED', `Deleted organization: ${orgName}`);
+      await fetchOrganizations();
+
+      if (selectedOrg === orgName) {
+        const orgs = await fetchOrganizations();
+        console.log('Organizations after deletion:', orgs);
+        setSelectedOrg('Active Church');
+        globalDataLoaded = false;
+      }
+
+      setShowOrgModal(false);
+
+    } catch (err) {
+      console.error('Error deleting organization:', err);
+      alert(`Error: ${err.message}`);
+    } finally {
+      setDeletingOrg(false);
+    }
+  };
 
   const handleManualRefresh = useCallback(async () => {
     globalDataLoaded = false;
@@ -639,110 +561,40 @@ const handleDeleteOrganization = async (orgId, orgName) => {
     }
   }, [fetchAllData, fetchOrganizations, isSupremeAdmin]);
 
-  // Initial data fetch
   useEffect(() => {
-    if (!globalDataLoaded && !isRefreshingToken) {
-      fetchAllData();
-    } else {
-      setUsers(globalUsersData);
-      setLoading(false);
+    if (currentUser) {
+      console.log('👤 Current user from context:', {
+        email: currentUser.email,
+        role: currentUser.role,
+        is_supreme_admin: currentUser.is_supreme_admin,
+        organization: currentUser.organization
+      });
     }
-    
-    if (isSupremeAdmin) {
-      fetchOrganizations();
-    }
-    
-    initialLoadRef.current = false;
-  }, [fetchAllData, isRefreshingToken, isSupremeAdmin, fetchOrganizations]);
+  }, [currentUser]);
 
-  useEffect(() => {
-    if (isRefreshingToken) {
-      setLoading(true);
-    } else if (initialLoadRef.current === false && !globalDataLoaded) {
-      fetchAllData();
-    } else if (globalDataLoaded) {
-      setLoading(false);
-    }
-  }, [isRefreshingToken, fetchAllData]);
+  const mountedRef = useRef(false);
 
 useEffect(() => {
-  console.log(' selectedOrg useEffect triggered with:', selectedOrg);
-  
-  if (selectedOrg) {
-    // This prevents double fetching
-  }
-}, [selectedOrg]);
-useEffect(() => {
-  if (currentUser) {
-    console.log('👤 Current user from context:', {
-      email: currentUser.email,
-      role: currentUser.role,
-      is_supreme_admin: currentUser.is_supreme_admin,
-      organization: currentUser.organization
-    });
-  }
-}, [currentUser]);
-
-// Initial data fetch
-useEffect(() => {
-  const initializeData = async () => {
+  const init = async () => {
     setLoading(true);
-    if (!selectedOrg) {
-      setSelectedOrg('Active Church');
-    }
-    
-    if (isSupremeAdmin) {
-      await fetchOrganizations();
-    }
-    
-    await fetchAllData(true);
-    await fetchOrganizationRoles(true);
+    if (isSupremeAdmin) await fetchOrganizations();
+    await Promise.all([fetchAllData(true), fetchOrganizationRoles(true)]);
     setLoading(false);
+    mountedRef.current = true;
   };
-  
-  initializeData();
+  init();
 }, []);
 
-// Fetch when organization changes
 useEffect(() => {
-  if (selectedOrg) {
-    setLoading(true);
-    fetchAllData(true);
-    fetchOrganizationRoles(true).finally(() => setLoading(false));
-  }
+  if (!mountedRef.current) return;
+  setLoading(true);
+  Promise.all([fetchAllData(true), fetchOrganizationRoles(true)])
+    .finally(() => setLoading(false));
 }, [selectedOrg]);
-
-// Fetch when page/rows change
-useEffect(() => {
-  if (globalDataLoaded && selectedOrg) {
-    fetchAllData(true);
-  }
-}, [page, rowsPerPage]);
-
-useEffect(() => {
-  if (selectedOrg) {
-    fetchAllData(true);
-    fetchOrganizationRoles(true);
-  }
-}, [selectedOrg]);
-
-  useEffect(() => {
-    if (selectedOrg !== undefined) {
-      globalDataLoaded = false;
-      fetchAllData(true);
-    }
-  }, [selectedOrg, fetchAllData]);
-// Fetch data when page or rowsPerPage changes
-useEffect(() => {
-  if (globalDataLoaded) {
-    console.log(`Page changed to ${page}, fetching new data...`);
-    fetchAllData(true);
-  }
-}, [page, rowsPerPage]);
 
   const handleCreateUser = async (userData) => {
     setCreatingUser(true);
-    
+
     try {
       if (isRefreshingToken) {
         await new Promise((resolve) => {
@@ -785,10 +637,10 @@ useEffect(() => {
 
       addActivityLog('USER_CREATED', `Created new user: ${userData.name} ${userData.surname} (${userData.role})`);
       setShowAddUserModal(false);
-      
+
       globalDataLoaded = false;
       await fetchAllData(true);
-      
+
     } catch (err) {
       console.error('Error creating user:', err);
       alert(`Error: ${err.message}`);
@@ -801,7 +653,7 @@ useEffect(() => {
 
   const handleRoleChange = async (userId, newRole) => {
     setUpdatingRole(true);
-    
+
     try {
       const response = await authFetch(`${API_BASE_URL}/admin/users/${userId}/role`, {
         method: 'PUT',
@@ -817,16 +669,16 @@ useEffect(() => {
       const user = users.find(u => u.id === userId);
       addActivityLog('ROLE_UPDATED', `Updated ${user?.name}'s role to ${newRole}`);
 
-      const updatedUsers = users.map(user => 
+      const updatedUsers = users.map(user =>
         user.id === userId ? { ...user, role: newRole } : user
       );
-      
+
       setUsers(updatedUsers);
       globalUsersData = updatedUsers;
-      
+
       setShowRoleModal(false);
       setSelectedUser(null);
-      
+
     } catch (err) {
       console.error('Error updating role:', err);
       alert(err.message);
@@ -837,9 +689,9 @@ useEffect(() => {
 
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
-    
+
     setDeletingUser(true);
-    
+
     try {
       if (isRefreshingToken) {
         await new Promise((resolve) => {
@@ -862,15 +714,15 @@ useEffect(() => {
       }
 
       addActivityLog('USER_DELETED', `Deleted user: ${selectedUser.name}`);
-      
+
       const updatedUsers = users.filter(user => user.id !== selectedUser.id);
-      
+
       setUsers(updatedUsers);
       globalUsersData = updatedUsers;
-      
+
       setShowDeleteConfirm(false);
       setSelectedUser(null);
-      
+
     } catch (err) {
       console.error('Error deleting user:', err);
       alert(`Error: ${err.message}`);
@@ -878,49 +730,36 @@ useEffect(() => {
       setDeletingUser(false);
     }
   };
-// Fetch distinct roles for the current organization
-const fetchOrganizationRoles = useCallback(async () => {
+const fetchOrganizationRoles = useCallback(async (forceRefresh = false) => {
+  const currentOrg = selectedOrg || currentUser?.Organization || '';
+  
+  if (!currentOrg) {
+    setOrganizationRoles([]);
+    return;
+  }
+
+  const now = Date.now();
+  if (!forceRefresh && 
+      globalRolesCache[currentOrg] && 
+      globalRolesTimestamp[currentOrg] && 
+      (now - globalRolesTimestamp[currentOrg] < ROLES_CACHE_DURATION)) {
+    setOrganizationRoles(globalRolesCache[currentOrg]);
+    return;
+  }
+
   try {
-    const currentOrg = selectedOrg || currentUser?.organization;
-    
-    // Don't fetch roles if no organization
-    if (!currentOrg) {
-      setOrganizationRoles([]);
-      return;
-    }
-    
-    const isActiveChurch = currentOrg.trim().toLowerCase() === 'active church';
-    
     const response = await authFetch(`${API_BASE_URL}/admin/roles/distinct?organization=${encodeURIComponent(currentOrg)}`);
+    
     if (response.ok) {
       const data = await response.json();
+      console.log('Roles data from backend:', data);
       
-      if (isActiveChurch) {
-        // For Active Church, filter to ONLY show the 5 standard roles
-        const standardRoles = ['admin', 'leader', 'leaderAt12', 'user', 'registrant'];
-        const filteredRoles = (data.roles || [])
-          .filter(role => standardRoles.includes(role.name))
-          .map(role => ({
-            ...role,
-            is_system: true
-          }));
-        
-        // Ensure all standard roles are present (even if count is 0)
-        const completeRoles = standardRoles.map(roleName => {
-          const existing = filteredRoles.find(r => r.name === roleName);
-          return existing || {
-            name: roleName,
-            count: 0,
-            is_system: true,
-            color: getRoleColor(roleName)
-          };
-        });
-        
-        setOrganizationRoles(completeRoles);
-      } else {
-        // For other churches, use all roles
-        setOrganizationRoles(data.roles || []);
-      }
+      // The backend returns { roles: [...], organization, can_create_custom_roles }
+      const roles = data.roles || [];
+      
+      setOrganizationRoles(roles);
+      globalRolesCache[currentOrg] = roles;
+      globalRolesTimestamp[currentOrg] = Date.now();
     }
   } catch (err) {
     console.error('Error fetching roles:', err);
@@ -928,61 +767,64 @@ const fetchOrganizationRoles = useCallback(async () => {
   }
 }, [API_BASE_URL, authFetch, selectedOrg, currentUser]);
 
-// Call when organization changes
-useEffect(() => {
-  if (selectedOrg || currentUser?.organization) {
-    fetchOrganizationRoles();
-  }
-}, [selectedOrg, fetchOrganizationRoles]);
-
 const handleCreateRole = async () => {
-  // Double-check we're not in Active Church
   if (!selectedOrg || selectedOrg === "Active Church") {
     setRoleCreateError('Cannot create custom roles for Active Church');
     return;
   }
-  
+
   if (!newRoleName.trim()) {
     setRoleCreateError('Role name is required');
     return;
   }
-  
-  // Format role name: lowercase, replace spaces with underscores
+
   const formattedRoleName = newRoleName.trim()
     .toLowerCase()
     .replace(/\s+/g, '_')
     .replace(/[^a-z0-9_]/g, '');
-  
+
   if (!formattedRoleName) {
     setRoleCreateError('Invalid role name. Use letters, numbers, and spaces only.');
     return;
   }
-  
-  // Check if role already exists
+
   if (organizationRoles.some(r => r.name === formattedRoleName)) {
     setRoleCreateError(`Role "${formattedRoleName}" already exists`);
     return;
   }
-  
+
   setCreatingRole(true);
   setRoleCreateError('');
-  
+
   try {
-    // Add the new role to the local list
-    const newRole = {
-      name: formattedRoleName,
-      count: 0,
-      is_system: false,
-      color: getRoleColor(formattedRoleName)
-    };
-    
-    setOrganizationRoles(prev => [...prev, newRole]);
-    addActivityLog('ROLE_CREATED', `Created new role: ${formattedRoleName} for ${selectedOrg}`);
-    
-    // Close modal and reset
-    setShowCreateRoleModal(false);
-    setNewRoleName('');
-    
+    // You need a backend endpoint to create roles
+    const response = await authFetch(`${API_BASE_URL}/admin/roles/create`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        organization: selectedOrg,
+        role_name: formattedRoleName
+      })
+    });
+
+    if (response.ok) {
+      const newRole = {
+        name: formattedRoleName,
+        count: 0,
+        is_system: false,
+        color: getRoleColor(formattedRoleName),
+        can_create_custom: true
+      };
+
+      setOrganizationRoles(prev => [...prev, newRole]);
+      addActivityLog('ROLE_CREATED', `Created new role: ${formattedRoleName} for ${selectedOrg}`);
+      setShowCreateRoleModal(false);
+      setNewRoleName('');
+    } else {
+      const errorData = await response.json();
+      throw new Error(errorData.detail || 'Failed to create role');
+    }
+
   } catch (err) {
     console.error('Error creating role:', err);
     setRoleCreateError(err.message);
@@ -990,53 +832,43 @@ const handleCreateRole = async () => {
     setCreatingRole(false);
   }
 };
-useEffect(() => {
-  if (selectedOrg || currentUser?.organization) {
-    fetchOrganizationRoles();
-  }
-}, [selectedOrg, fetchOrganizationRoles]);
-
-// Also refresh roles when users data changes (to update counts)
-useEffect(() => {
-  if (users.length > 0) {
-    // Update counts in organizationRoles
-    setOrganizationRoles(prev => 
-      prev.map(role => ({
-        ...role,
-        count: users.filter(u => u.role === role.name).length
-      }))
-    );
-  }
-}, [users]);
+  useEffect(() => {
+    if (users.length > 0) {
+      setOrganizationRoles(prev =>
+        prev.map(role => ({
+          ...role,
+          count: users.filter(u => u.role === role.name).length
+        }))
+      );
+    }
+  }, [users]);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
   const filterKey = `${normalizedSearch}|${selectedRole}`;
+  const filteredUsers = useMemo(() => {
+    if (!users || users.length === 0) {
+      return [];
+    }
 
-// Filter users based on search term and selected role
-const filteredUsers = useMemo(() => {
-  if (!users || users.length === 0) {
-    return [];
-  }
-  
-  console.log('Filtering users:', { 
-    totalUsers: users.length, 
-    searchTerm, 
-    selectedRole 
-  });
-  
-  return users.filter(user => {
-    // Search filter
-    const searchLower = searchTerm.toLowerCase().trim();
-    const matchesSearch = searchTerm === '' || 
-      (user.name && user.name.toLowerCase().includes(searchLower)) ||
-      (user.email && user.email.toLowerCase().includes(searchLower));
-    
-    // Role filter
-    const matchesRole = selectedRole === 'all' || user.role === selectedRole;
-    
-    return matchesSearch && matchesRole;
-  }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-}, [users, searchTerm, selectedRole]);
+    console.log('Filtering users:', {
+      totalUsers: users.length,
+      searchTerm,
+      selectedRole
+    });
+
+    return users.filter(user => {
+      // Search filter
+      const searchLower = searchTerm.toLowerCase().trim();
+      const matchesSearch = searchTerm === '' ||
+        (user.name && user.name.toLowerCase().includes(searchLower)) ||
+        (user.email && user.email.toLowerCase().includes(searchLower));
+
+      // Role filter
+      const matchesRole = selectedRole === 'all' || user.role === selectedRole;
+
+      return matchesSearch && matchesRole;
+    }).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  }, [users, searchTerm, selectedRole]);
 
   const pageMemoryRef = useRef({});
   const prevFilterKeyRef = useRef(filterKey);
@@ -1067,16 +899,16 @@ const filteredUsers = useMemo(() => {
     }
   }, [filteredUsers.length, rowsPerPage, page, filterKey]);
 
-// Get paginated users for current page
-const paginatedUsers = useMemo(() => {
-  if (!filteredUsers || filteredUsers.length === 0) {
-    return [];
-  }
-  
-  const start = page * rowsPerPage;
-  const end = start + rowsPerPage;
-  return filteredUsers.slice(start, end);
-}, [filteredUsers, page, rowsPerPage]);
+  // Get paginated users for current page
+  const paginatedUsers = useMemo(() => {
+    if (!filteredUsers || filteredUsers.length === 0) {
+      return [];
+    }
+
+    const start = page * rowsPerPage;
+    const end = start + rowsPerPage;
+    return filteredUsers.slice(start, end);
+  }, [filteredUsers, page, rowsPerPage]);
 
   const cardStyles = {
     boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
@@ -1114,10 +946,10 @@ const paginatedUsers = useMemo(() => {
                   <BusinessIcon fontSize="inherit" /> {user.organization}
                 </Typography>
               )}
-              <Chip 
-                label={getRoleDisplay(user.role)} 
-                color={getRoleColor(user.role)} 
-                size="small" 
+              <Chip
+                label={getRoleDisplay(user.role)}
+                color={getRoleColor(user.role)}
+                size="small"
                 icon={getRoleIcon(user.role)}
                 sx={{ mt: 0.5 }}
               />
@@ -1136,8 +968,8 @@ const paginatedUsers = useMemo(() => {
           </Box>
           <Stack direction="row" spacing={0.5}>
             <Tooltip title="Change Role">
-              <IconButton 
-                size="small" 
+              <IconButton
+                size="small"
                 onClick={() => { setSelectedUser(user); setShowRoleModal(true); }}
                 sx={{ boxShadow: 1, borderRadius: 1 }}
               >
@@ -1145,9 +977,9 @@ const paginatedUsers = useMemo(() => {
               </IconButton>
             </Tooltip>
             <Tooltip title="Delete User">
-              <IconButton 
-                size="small" 
-                onClick={() => { setSelectedUser(user); setShowDeleteConfirm(true); }} 
+              <IconButton
+                size="small"
+                onClick={() => { setSelectedUser(user); setShowDeleteConfirm(true); }}
                 sx={{ color: 'error.main', boxShadow: 1, borderRadius: 1 }}
               >
                 <Delete fontSize="small" />
@@ -1210,7 +1042,7 @@ const paginatedUsers = useMemo(() => {
             <Skeleton variant="rounded" width={200} height={40} />
           </Box>
         )}
-        
+
         <Typography variant="h4" fontWeight="bold" textAlign="center" gutterBottom>
           Admin Dashboard
         </Typography>
@@ -1267,271 +1099,267 @@ const paginatedUsers = useMemo(() => {
       </Box>
     );
   }
-const RoleOption = ({ role, selectedUser, onSelect }) => {
-  // Add safety check for selectedUser
-  if (!selectedUser) return null;
-  
-  return (
-    <Paper
-      variant="outlined"
-      sx={{ 
-        p: 2, 
-        cursor: 'pointer',
-        border: selectedUser?.role === role.name ? 2 : 1,
-        borderColor: selectedUser?.role === role.name ? 'primary.main' : 'divider',
-        borderRadius: 1,
-        transition: 'all 0.2s',
-        '&:hover': { 
-          borderColor: 'primary.main', 
-          bgcolor: 'action.hover',
-          transform: 'translateY(-1px)',
-          boxShadow: 1
-        }
-      }}
-      onClick={onSelect}
-    >
-      <Stack direction="row" justifyContent="space-between" alignItems="center">
-        <Stack direction="row" spacing={1} alignItems="center">
-          <Avatar sx={{ width: 24, height: 24, bgcolor: role.color || '#9c27b0' }}>
-            <PersonIcon fontSize="small" />
-          </Avatar>
-          <Typography variant="body1" fontWeight="medium">
-            {role.name}
+  const RoleOption = ({ role, selectedUser, onSelect }) => {
+    // Add safety check for selectedUser
+    if (!selectedUser) return null;
+
+    return (
+      <Paper
+        variant="outlined"
+        sx={{
+          p: 2,
+          cursor: 'pointer',
+          border: selectedUser?.role === role.name ? 2 : 1,
+          borderColor: selectedUser?.role === role.name ? 'primary.main' : 'divider',
+          borderRadius: 1,
+          transition: 'all 0.2s',
+          '&:hover': {
+            borderColor: 'primary.main',
+            bgcolor: 'action.hover',
+            transform: 'translateY(-1px)',
+            boxShadow: 1
+          }
+        }}
+        onClick={onSelect}
+      >
+        <Stack direction="row" justifyContent="space-between" alignItems="center">
+          <Stack direction="row" spacing={1} alignItems="center">
+            <Avatar sx={{ width: 24, height: 24, bgcolor: role.color || '#9c27b0' }}>
+              <PersonIcon fontSize="small" />
+            </Avatar>
+            <Typography variant="body1" fontWeight="medium">
+              {role.name}
+            </Typography>
+            {!role.is_system && (
+              <Chip
+                label="custom"
+                size="small"
+                variant="outlined"
+                sx={{ height: 20, fontSize: '0.625rem' }}
+              />
+            )}
+          </Stack>
+          <Typography variant="body2" color="text.secondary">
+            {role.count} {role.count === 1 ? 'person' : 'people'}
           </Typography>
-          {!role.is_system && (
-            <Chip 
-              label="custom" 
-              size="small" 
-              variant="outlined" 
-              sx={{ height: 20, fontSize: '0.625rem' }}
-            />
-          )}
         </Stack>
-        <Typography variant="body2" color="text.secondary">
-          {role.count} {role.count === 1 ? 'person' : 'people'}
-        </Typography>
-      </Stack>
-    </Paper>
-  );
-};
+      </Paper>
+    );
+  };
 
   return (
     <Box p={containerPadding} sx={{ maxWidth: "1400px", margin: "0 auto", mt: getResponsiveValue(2, 3, 4, 5, 5), minHeight: "100vh" }}>
-{/* Header with Organization Switcher for Supreme Admin */}
-<Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
-  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-    <Typography variant="h4" fontWeight="bold">
-      Admin Dashboard
-    </Typography>
-    {selectedOrg && (
-      <Chip
-        icon={<BusinessIcon />}
-        label={selectedOrg}
-        color="primary"
-        variant="outlined"
-        size="medium"
-      />
-    )}
-  </Box>
-  
-  {isSupremeAdmin && (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-      <Button
-        variant="outlined"
-        onClick={(e) => setOrgAnchorEl(e.currentTarget)}
-        startIcon={<BusinessIcon />}
-        endIcon={<ArrowDropDown />}
-        sx={{ 
-          boxShadow: 1, 
-          borderRadius: 2,
-          minWidth: 200,
-          justifyContent: 'space-between'
-        }}
-      >
-        {selectedOrg || 'Active Church'}
-      </Button>
-      <Menu
-        anchorEl={orgAnchorEl}
-        open={Boolean(orgAnchorEl)}
-        onClose={() => setOrgAnchorEl(null)}
-        PaperProps={{
-          sx: { maxHeight: 400, width: 300 }
-        }}
-      >
-        {organizations.map((org) => {
-          const orgId = org.id || org._id;
-          
-          return (
-            <MenuItem 
-              key={orgId}
-              onClick={() => {
-                handleOrgChange(org.name);
-                setOrgAnchorEl(null);
-              }}
-              selected={selectedOrg === org.name}
-              sx={{ 
-                justifyContent: 'space-between',
-                flexDirection: 'column',
-                alignItems: 'flex-start',
-                py: 1.5,
-                bgcolor: selectedOrg === org.name ? 'action.selected' : 'transparent'
+      {/* Header with Organization Switcher for Supreme Admin */}
+      <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography variant="h4" fontWeight="bold">
+            Admin Dashboard
+          </Typography>
+          {selectedOrg && (
+            <Chip
+              icon={<BusinessIcon />}
+              label={selectedOrg}
+              color="primary"
+              variant="outlined"
+              size="medium"
+            />
+          )}
+        </Box>
+        {isSupremeAdmin && (
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            <Button
+              variant="outlined"
+              onClick={(e) => setOrgAnchorEl(e.currentTarget)}
+              startIcon={<BusinessIcon />}
+              endIcon={<ArrowDropDown />}
+              sx={{
+                boxShadow: 1,
+                borderRadius: 2,
+                minWidth: 200,
+                justifyContent: 'space-between'
               }}
             >
-              <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', mb: 0.5 }}>
-                <Typography variant="body2" fontWeight="medium">{org.name}</Typography>
-                <Badge badgeContent={org.user_count} color="primary" max={999} />
-              </Box>
-              <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
-                <Typography variant="caption" color="text.secondary" noWrap>
-                  {org.email}
-                </Typography>
-                <IconButton 
-                  size="small" 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleOpenEditOrg(org);
-                  }}
-                  sx={{ ml: 'auto' }}
-                >
-                  <EditIcon fontSize="small" />
-                </IconButton>
-              </Box>
-            </MenuItem>
-          );
-        })}
-        <Divider />
-        <MenuItem onClick={handleOpenCreateOrg} sx={{ color: 'primary.main' }}>
-          <AddIcon fontSize="small" sx={{ mr: 1 }} />
-          <Typography variant="body2">Add New Organization</Typography>
-        </MenuItem>
-      </Menu>
-    </Box>
-  )}
-</Box>
-<Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
-  {/* Total People Card */}
-  <Grid item xs={6} sm={4} md={2}>
-    <Card sx={cardStyles}>
-      <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-        <Avatar sx={{ bgcolor: '#2196f3', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
-          <People />
-        </Avatar>
-        <Typography variant="h4" fontWeight="bold">{totalUsers}</Typography>
-        <Typography variant="body2" color="text.secondary">Total People</Typography>
-      </CardContent>
-    </Card>
-  </Grid>
-  
-  {/* Role Cards - Different based on organization */}
-  {(() => {
-    const currentOrg = selectedOrg || currentUser?.organization || '';
-    const isActiveChurch = currentOrg.trim().toLowerCase() === 'active church';
-    
-    if (isActiveChurch) {
-      /* Active Church - Show specific role cards in exact order */
-      return (
-        <>
-          <Grid item xs={6} sm={4} md={2}>
-            <Card sx={cardStyles}>
-              <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-                <Avatar sx={{ bgcolor: '#f44336', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
-                  <AdminPanelSettings />
-                </Avatar>
-                <Typography variant="h4" fontWeight="bold">{roleStats['admin'] || 0}</Typography>
-                <Typography variant="body2" color="text.secondary">admin</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={6} sm={4} md={2}>
-            <Card sx={cardStyles}>
-              <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-                <Avatar sx={{ bgcolor: '#9c27b0', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
-                  <HandshakeIcon />
-                </Avatar>
-                <Typography variant="h4" fontWeight="bold">{roleStats['leader'] || 0}</Typography>
-                <Typography variant="body2" color="text.secondary">leader</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={6} sm={4} md={2}>
-            <Card sx={cardStyles}>
-              <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-                <Avatar sx={{ bgcolor: '#2196f3', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
-                  <People />
-                </Avatar>
-                <Typography variant="h4" fontWeight="bold">{roleStats['leaderAt12'] || 0}</Typography>
-                <Typography variant="body2" color="text.secondary">leaderAt12</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={6} sm={4} md={2}>
-            <Card sx={cardStyles}>
-              <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-                <Avatar sx={{ bgcolor: '#4caf50', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
-                  <PersonIcon />
-                </Avatar>
-                <Typography variant="h4" fontWeight="bold">{roleStats['user'] || 0}</Typography>
-                <Typography variant="body2" color="text.secondary">user</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-          <Grid item xs={6} sm={4} md={2}>
-            <Card sx={cardStyles}>
-              <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-                <Avatar sx={{ bgcolor: '#ff9800', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
-                  <RegistrantIcon />
-                </Avatar>
-                <Typography variant="h4" fontWeight="bold">{roleStats['registrant'] || 0}</Typography>
-                <Typography variant="body2" color="text.secondary">registrant</Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        </>
-      );
-    } else {
-      /* Other Churches - Show dynamic role cards (up to 5 most populated) */
-      return Object.entries(roleStats)
-        .sort((a, b) => b[1] - a[1]) // Sort by count descending
-        .slice(0, 5) // Take top 5
-        .map(([role, count], index) => {
-          const colorIndex = index % roleCardColors.length;
-          
-          return (
-            <Grid item xs={6} sm={4} md={2} key={role}>
-              <Card sx={cardStyles}>
-                <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
-                  <Avatar sx={{ bgcolor: roleCardColors[colorIndex], width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
-                    {getRoleIcon(role)}
-                  </Avatar>
-                  <Typography variant="h4" fontWeight="bold">{count}</Typography>
-                  <Typography variant="body2" color="text.secondary">{role}</Typography>
-                </CardContent>
-              </Card>
-            </Grid>
-          );
-        });
-    }
-  })()}
-</Grid>
-      {/* Main Content */}
+              {selectedOrg || 'Active Church'}
+            </Button>
+            <Menu
+              anchorEl={orgAnchorEl}
+              open={Boolean(orgAnchorEl)}
+              onClose={() => setOrgAnchorEl(null)}
+              PaperProps={{
+                sx: { maxHeight: 400, width: 300 }
+              }}
+            >
+              {organizations.map((org) => {
+                const orgId = org.id || org._id;
+
+                return (
+                  <MenuItem
+                    key={orgId}
+                    onClick={() => {
+                      handleOrgChange(org.name);
+                      setOrgAnchorEl(null);
+                    }}
+                    selected={selectedOrg === org.name}
+                    sx={{
+                      justifyContent: 'space-between',
+                      flexDirection: 'column',
+                      alignItems: 'flex-start',
+                      py: 1.5,
+                      bgcolor: selectedOrg === org.name ? 'action.selected' : 'transparent'
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', justifyContent: 'space-between', width: '100%', mb: 0.5 }}>
+                      <Typography variant="body2" fontWeight="medium">{org.name}</Typography>
+                      <Badge badgeContent={org.user_count} color="primary" max={999} />
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1, width: '100%' }}>
+                      <Typography variant="caption" color="text.secondary" noWrap>
+                        {org.email}
+                      </Typography>
+                      <IconButton
+                        size="small"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenEditOrg(org);
+                        }}
+                        sx={{ ml: 'auto' }}
+                      >
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </MenuItem>
+                );
+              })}
+              <Divider />
+              <MenuItem onClick={handleOpenCreateOrg} sx={{ color: 'primary.main' }}>
+                <AddIcon fontSize="small" sx={{ mr: 1 }} />
+                <Typography variant="body2">Add New Organization</Typography>
+              </MenuItem>
+            </Menu>
+          </Box>
+        )}
+      </Box>
+      <Grid container spacing={cardSpacing} sx={{ mb: cardSpacing }}>
+        {/* Total People Card */}
+        <Grid item xs={6} sm={4} md={2}>
+          <Card sx={cardStyles}>
+            <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+              <Avatar sx={{ bgcolor: '#2196f3', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+                <People />
+              </Avatar>
+              <Typography variant="h4" fontWeight="bold">{totalUsers}</Typography>
+              <Typography variant="body2" color="text.secondary">Total People</Typography>
+            </CardContent>
+          </Card>
+        </Grid>
+
+        {/* Role Cards - Different based on organization */}
+        {(() => {
+          const currentOrg = selectedOrg || currentUser?.Organization || '';
+          const isActiveChurch = currentOrg.trim().toLowerCase() === 'active church';
+          if (isActiveChurch) {
+            return (
+              <>
+                <Grid item xs={6} sm={4} md={2}>
+                  <Card sx={cardStyles}>
+                    <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+                      <Avatar sx={{ bgcolor: '#f44336', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+                        <AdminPanelSettings />
+                      </Avatar>
+                      <Typography variant="h4" fontWeight="bold">{roleStats['admin'] || 0}</Typography>
+                      <Typography variant="body2" color="text.secondary">admin</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={6} sm={4} md={2}>
+                  <Card sx={cardStyles}>
+                    <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+                      <Avatar sx={{ bgcolor: '#9c27b0', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+                        <HandshakeIcon />
+                      </Avatar>
+                      <Typography variant="h4" fontWeight="bold">{roleStats['leader'] || 0}</Typography>
+                      <Typography variant="body2" color="text.secondary">leader</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={6} sm={4} md={2}>
+                  <Card sx={cardStyles}>
+                    <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+                      <Avatar sx={{ bgcolor: '#2196f3', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+                        <People />
+                      </Avatar>
+                      <Typography variant="h4" fontWeight="bold">{roleStats['leaderAt12'] || 0}</Typography>
+                      <Typography variant="body2" color="text.secondary">leaderAt12</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={6} sm={4} md={2}>
+                  <Card sx={cardStyles}>
+                    <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+                      <Avatar sx={{ bgcolor: '#4caf50', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+                        <PersonIcon />
+                      </Avatar>
+                      <Typography variant="h4" fontWeight="bold">{roleStats['user'] || 0}</Typography>
+                      <Typography variant="body2" color="text.secondary">user</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+                <Grid item xs={6} sm={4} md={2}>
+                  <Card sx={cardStyles}>
+                    <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+                      <Avatar sx={{ bgcolor: '#ff9800', width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+                        <RegistrantIcon />
+                      </Avatar>
+                      <Typography variant="h4" fontWeight="bold">{roleStats['registrant'] || 0}</Typography>
+                      <Typography variant="body2" color="text.secondary">registrant</Typography>
+                    </CardContent>
+                  </Card>
+                </Grid>
+              </>
+            );
+          } else {
+            /* Other Churches - Show dynamic role cards (up to 5 most populated) */
+            return Object.entries(roleStats)
+              .sort((a, b) => b[1] - a[1]) // Sort by count descending
+              .slice(0, 5) // Take top 5  org roles
+              .map(([role, count], index) => {
+                const colorIndex = index % roleCardColors.length;
+
+                return (
+                  <Grid item xs={6} sm={4} md={2} key={role}>
+                    <Card sx={cardStyles}>
+                      <CardContent sx={{ textAlign: 'center', p: getResponsiveValue(1.5, 2, 2.5, 3, 3) }}>
+                        <Avatar sx={{ bgcolor: roleCardColors[colorIndex], width: 56, height: 56, mb: 2, mx: 'auto', boxShadow: 2 }}>
+                          {getRoleIcon(role)}
+                        </Avatar>
+                        <Typography variant="h4" fontWeight="bold">{count}</Typography>
+                        <Typography variant="body2" color="text.secondary">{role}</Typography>
+                      </CardContent>
+                    </Card>
+                  </Grid>
+                );
+              });
+          }
+        })()}
+      </Grid>
       <Paper sx={{ boxShadow: 3, borderRadius: 2, overflow: 'hidden' }}>
-        <Box sx={{ 
-          borderBottom: 1, 
-          borderColor: 'divider', 
-          display: 'flex', 
+        <Box sx={{
+          borderBottom: 1,
+          borderColor: 'divider',
+          display: 'flex',
           flexDirection: getResponsiveValue('column', 'column', 'row', 'row', 'row'),
-          justifyContent: 'space-between', 
+          justifyContent: 'space-between',
           alignItems: getResponsiveValue('stretch', 'stretch', 'center', 'center', 'center'),
           p: 2,
           gap: getResponsiveValue(2, 2, 0, 0, 0)
         }}>
-          <Tabs 
-            value={activeTab} 
+          <Tabs
+            value={activeTab}
             onChange={(e, v) => setActiveTab(v)}
             variant={isMdDown ? "fullWidth" : "standard"}
-            sx={{ 
-              '& .MuiTab-root': { 
-                fontWeight: 600, 
+            sx={{
+              '& .MuiTab-root': {
+                fontWeight: 600,
                 borderRadius: 1,
                 fontSize: getResponsiveValue('0.75rem', '0.875rem', '0.875rem', '1rem', '1rem'),
                 minWidth: isMdDown ? 'auto' : 120
@@ -1543,77 +1371,74 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
             <Tab label="ACTIVITY LOG" />
           </Tabs>
 
-<Dialog 
-  open={showSupremeAdminModal} 
-  onClose={() => !addingSupremeAdmin && setShowSupremeAdminModal(false)} 
-  maxWidth="xs" 
-  fullWidth
-  PaperProps={{ sx: { borderRadius: 2 } }}
->
-  <DialogTitle>
-    <Typography variant="h6" fontWeight="bold">Add Supreme Admin</Typography>
-  </DialogTitle>
-  <DialogContent>
-    <Box sx={{ mt: 2 }}>
-      
-      <TextField
-        fullWidth
-        label="User Email"
-        type="email"
-        value={supremeAdminEmail}
-        onChange={(e) => {
-          setSupremeAdminEmail(e.target.value);
-          setSupremeAdminError('');
-        }}
-        error={!!supremeAdminError}
-        helperText={supremeAdminError}
-        disabled={addingSupremeAdmin}
-        autoFocus
-      />
-      
-    </Box>
-  </DialogContent>
-  <DialogActions sx={{ p: 2, gap: 1 }}>
-    <Button 
-      onClick={() => {
-        setShowSupremeAdminModal(false);
-        setSupremeAdminEmail('');
-        setSupremeAdminError('');
-      }} 
-      disabled={addingSupremeAdmin}
-      variant="outlined"
-    >
-      Cancel
-    </Button>
-    <Button 
-      variant="contained" 
-      color="primary"
-      onClick={handleAddSupremeAdmin}
-      disabled={addingSupremeAdmin || !supremeAdminEmail.trim()}
-      startIcon={addingSupremeAdmin ? <CircularProgress size={20} /> : <AdminPanelSettings />}
-    >
-      {addingSupremeAdmin ? 'Adding...' : 'Add Supreme Admin'}
-    </Button>
-  </DialogActions>
-</Dialog>
-          
-      <Box sx={{ display: 'flex', gap: 1 }}>
-  <Button 
-    variant="outlined" 
-    startIcon={<Refresh />} 
-    onClick={handleManualRefresh}
-    sx={{ 
-      boxShadow: 1, 
-      borderRadius: 2, 
-      height: 40,
-      minWidth: getResponsiveValue('auto', 'auto', 100, 100, 100)
-    }}
-    size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-  >
-    Refresh
-  </Button>
-  
-  {isSupremeAdmin && (
+          <Dialog
+            open={showSupremeAdminModal}
+            onClose={() => !addingSupremeAdmin && setShowSupremeAdminModal(false)}
+            maxWidth="xs"
+            fullWidth
+            PaperProps={{ sx: { borderRadius: 2 } }}
+          >
+            <DialogTitle>
+              <Typography variant="h6" fontWeight="bold">Add Supreme Admin</Typography>
+            </DialogTitle>
+            <DialogContent>
+              <Box sx={{ mt: 2 }}>
+                <TextField
+                  fullWidth
+                  label="User Email"
+                  type="email"
+                  value={supremeAdminEmail}
+                  onChange={(e) => {
+                    setSupremeAdminEmail(e.target.value);
+                    setSupremeAdminError('');
+                  }}
+                  error={!!supremeAdminError}
+                  helperText={supremeAdminError}
+                  disabled={addingSupremeAdmin}
+                  autoFocus
+                />
+
+              </Box>
+            </DialogContent>
+            <DialogActions sx={{ p: 2, gap: 1 }}>
+              <Button
+                onClick={() => {
+                  setShowSupremeAdminModal(false);
+                  setSupremeAdminEmail('');
+                  setSupremeAdminError('');
+                }}
+                disabled={addingSupremeAdmin}
+                variant="outlined"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="contained"
+                color="primary"
+                onClick={handleAddSupremeAdmin}
+                disabled={addingSupremeAdmin || !supremeAdminEmail.trim()}
+                startIcon={addingSupremeAdmin ? <CircularProgress size={20} /> : <AdminPanelSettings />}
+              >
+                {addingSupremeAdmin ? 'Adding...' : 'Add Supreme Admin'}
+              </Button>
+            </DialogActions>
+          </Dialog>
+          <Box sx={{ display: 'flex', gap: 1 }}>
+            <Button
+              variant="outlined"
+              startIcon={<Refresh />}
+              onClick={handleManualRefresh}
+              sx={{
+                boxShadow: 1,
+                borderRadius: 2,
+                height: 40,
+                minWidth: getResponsiveValue('auto', 'auto', 100, 100, 100)
+              }}
+              size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+            >
+              Refresh
+            </Button>
+ {currentUser?.email === SUPREME_ADMIN_EMAIL && (
     <Button
       variant="contained"
       color="primary"
@@ -1623,7 +1448,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
         boxShadow: 1, 
         borderRadius: 2, 
         height: 40,
-        minWidth: getResponsiveValue('auto', 'auto', 100, 100, 100)
+        minWidth: getResponsiveValue('auto', 'auto', 150, 150, 150)
       }}
       size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
     >
@@ -1632,8 +1457,6 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
   )}
 </Box>
         </Box>
-
-        {/* Users Tab */}
         {activeTab === 0 && (
           <Box sx={{ p: getResponsiveValue(1, 2, 3, 3, 3) }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3 }}>
@@ -1649,13 +1472,13 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
               />
               <FormControl sx={{ minWidth: getResponsiveValue('100%', 200, 200, 200, 200) }}>
                 <InputLabel>Filter Role</InputLabel>
-                <Select 
-                  value={selectedRole} 
-                  label="Filter Role" 
+                <Select
+                  value={selectedRole}
+                  label="Filter Role"
                   onChange={(e) => setSelectedRole(e.target.value)}
                   size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
                 >
-                 <MenuItem value="all">All Roles ({totalUsers})</MenuItem> 
+                  <MenuItem value="all">All Roles ({totalUsers})</MenuItem>
                   {uniqueRoles.map(role => (
                     <MenuItem key={role} value={role}>
                       {role} ({roleStats[role]})
@@ -1677,9 +1500,9 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
               <>
                 {isMdDown ? (
                   <Box>
-                    <Box 
-                      sx={{ 
-                        maxHeight: 500, 
+                    <Box
+                      sx={{
+                        maxHeight: 500,
                         overflowY: "auto",
                         border: `1px solid ${theme.palette.divider}`,
                         borderRadius: 1,
@@ -1690,18 +1513,18 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                         <UserCard key={user.id} user={user} />
                       ))}
                     </Box>
-                 <TablePagination 
-  component="div" 
-  count={filteredUsers.length} // Use filtered count, not totalUsers
-  page={page} 
-  onPageChange={handlePageChange} 
-  rowsPerPage={rowsPerPage} 
-  onRowsPerPageChange={(e) => { 
-    setRowsPerPage(parseInt(e.target.value, 10)); 
-    setPage(0); 
-  }} 
-  rowsPerPageOptions={[5, 10, 20, 50, 100]} 
-/>
+                    <TablePagination
+                      component="div"
+                      count={filteredUsers.length}
+                      page={page}
+                      onPageChange={handlePageChange}
+                      rowsPerPage={rowsPerPage}
+                      onRowsPerPageChange={(e) => {
+                        setRowsPerPage(parseInt(e.target.value, 10));
+                        setPage(0);
+                      }}
+                      rowsPerPageOptions={[5, 10, 20, 50, 100]}
+                    />
                   </Box>
                 ) : (
                   <Box>
@@ -1734,10 +1557,10 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                                 </Stack>
                               </TableCell>
                               <TableCell>
-                                <Chip 
-                                  label={getRoleDisplay(user.role)} 
-                                  color={getRoleColor(user.role)} 
-                                  size="small" 
+                                <Chip
+                                  label={getRoleDisplay(user.role)}
+                                  color={getRoleColor(user.role)}
+                                  size="small"
                                   icon={getRoleIcon(user.role)}
                                   sx={{ boxShadow: 1 }}
                                 />
@@ -1762,8 +1585,8 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                               <TableCell align="right">
                                 <Stack direction="row" spacing={1} justifyContent="flex-end">
                                   <Tooltip title="Change Role">
-                                    <IconButton 
-                                      size="small" 
+                                    <IconButton
+                                      size="small"
                                       onClick={() => { setSelectedUser(user); setShowRoleModal(true); }}
                                       sx={{ boxShadow: 1, borderRadius: 1 }}
                                     >
@@ -1771,9 +1594,9 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                                     </IconButton>
                                   </Tooltip>
                                   <Tooltip title="Delete User">
-                                    <IconButton 
-                                      size="small" 
-                                      onClick={() => { setSelectedUser(user); setShowDeleteConfirm(true); }} 
+                                    <IconButton
+                                      size="small"
+                                      onClick={() => { setSelectedUser(user); setShowDeleteConfirm(true); }}
                                       sx={{ color: 'error.main', boxShadow: 1, borderRadius: 1 }}
                                     >
                                       <Delete fontSize="small" />
@@ -1786,19 +1609,19 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                         </TableBody>
                       </Table>
                     </TableContainer>
-                 <TablePagination 
-  component="div" 
-  count={totalUsers} // Use total from backend, not filteredUsers.length
-  page={page} 
-  onPageChange={handlePageChange} 
-  rowsPerPage={rowsPerPage} 
-  onRowsPerPageChange={(e) => { 
-    setRowsPerPage(parseInt(e.target.value, 10)); 
-    setPage(0); 
-    globalDataLoaded = false; 
-  }} 
-  rowsPerPageOptions={[5, 10, 20, 50, 100]} 
-/>
+                    <TablePagination
+                      component="div"
+                      count={totalUsers} // Use total from backend, not filteredUsers.length
+                      page={page}
+                      onPageChange={handlePageChange}
+                      rowsPerPage={rowsPerPage}
+                      onRowsPerPageChange={(e) => {
+                        setRowsPerPage(parseInt(e.target.value, 10));
+                        setPage(0);
+                        globalDataLoaded = false;
+                      }}
+                      rowsPerPageOptions={[5, 10, 20, 50, 100]}
+                    />
                   </Box>
                 )}
               </>
@@ -1813,7 +1636,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
               <AlertTitle>Role Distribution</AlertTitle>
               {uniqueRoles.length} unique roles found in this organization
             </Alert>
-            
+
             <Grid container spacing={cardSpacing}>
               {uniqueRoles.map((role, idx) => {
                 const colorIndex = idx % roleCardColors.length;
@@ -1822,9 +1645,9 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                     <Card sx={cardStyles}>
                       <CardContent>
                         <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
-                          <Avatar sx={{ 
-                            bgcolor: roleCardColors[colorIndex], 
-                            width: 48, 
+                          <Avatar sx={{
+                            bgcolor: roleCardColors[colorIndex],
+                            width: 48,
                             height: 48,
                             boxShadow: 2
                           }}>
@@ -1845,7 +1668,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                           {role === 'leaderAt12' && 'Leaders at 12 level'}
                           {role === 'user' && 'Regular members'}
                           {role === 'registrant' && 'Event check-in volunteers'}
-                          {!['admin', 'leader', 'leaderAt12', 'user', 'registrant'].includes(role) && 
+                          {!['admin', 'leader', 'leaderAt12', 'user', 'registrant'].includes(role) &&
                             `${role} role in this organization`}
                         </Typography>
                       </CardContent>
@@ -1862,11 +1685,11 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
           <Box sx={{ p: getResponsiveValue(1, 2, 3, 3, 3) }}>
             <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
               <Typography variant="h6" fontWeight="bold">Recent Activity</Typography>
-              <Chip 
-                icon={<History />} 
-                label={`${activityLog.length} events`} 
-                size="small" 
-                variant="outlined" 
+              <Chip
+                icon={<History />}
+                label={`${activityLog.length} events`}
+                size="small"
+                variant="outlined"
                 sx={{ boxShadow: 1 }}
               />
             </Stack>
@@ -1879,9 +1702,9 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                 </Typography>
               </Box>
             ) : (
-              <Box 
-                sx={{ 
-                  maxHeight: 500, 
+              <Box
+                sx={{
+                  maxHeight: 500,
                   overflowY: "auto",
                   border: `1px solid ${theme.palette.divider}`,
                   borderRadius: 1,
@@ -1923,8 +1746,8 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
       />
 
       {/* Organization Modal */}
-      <Dialog 
-        open={showOrgModal} 
+      <Dialog
+        open={showOrgModal}
         onClose={() => !savingOrg && setShowOrgModal(false)}
         maxWidth="sm"
         fullWidth
@@ -1940,44 +1763,44 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
             <CloseIcon />
           </IconButton>
         </DialogTitle>
-        
+
         <Divider />
-        
+
         <DialogContent>
           <Stack spacing={3} sx={{ mt: 1 }}>
             {editingOrg && (
               <Alert severity="info" sx={{ mb: 2 }}>
-      
+
               </Alert>
             )}
-            
+
             <TextField
               label="Organization Name *"
               value={orgFormData.name}
-              onChange={(e) => setOrgFormData({...orgFormData, name: e.target.value})}
+              onChange={(e) => setOrgFormData({ ...orgFormData, name: e.target.value })}
               error={!!orgFormErrors.name}
               helperText={orgFormErrors.name}
               fullWidth
               required
               disabled={savingOrg}
             />
-            
+
             <TextField
               label="Address"
               value={orgFormData.address}
-              onChange={(e) => setOrgFormData({...orgFormData, address: e.target.value})}
+              onChange={(e) => setOrgFormData({ ...orgFormData, address: e.target.value })}
               fullWidth
               multiline
               rows={2}
               disabled={savingOrg}
             />
-            
+
             <Grid container spacing={2}>
               <Grid item xs={6}>
                 <TextField
                   label="Phone"
                   value={orgFormData.phone}
-                  onChange={(e) => setOrgFormData({...orgFormData, phone: e.target.value})}
+                  onChange={(e) => setOrgFormData({ ...orgFormData, phone: e.target.value })}
                   fullWidth
                   disabled={savingOrg}
                 />
@@ -1987,7 +1810,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
                   label="Email *"
                   type="email"
                   value={orgFormData.email}
-                  onChange={(e) => setOrgFormData({...orgFormData, email: e.target.value})}
+                  onChange={(e) => setOrgFormData({ ...orgFormData, email: e.target.value })}
                   error={!!orgFormErrors.email}
                   helperText={orgFormErrors.email}
                   fullWidth
@@ -1998,36 +1821,36 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
             </Grid>
           </Stack>
         </DialogContent>
-        
+
         <DialogActions sx={{ p: 3, gap: 1 }}>
-{editingOrg && (
-  <Button
-    variant="outlined"
-    color="error"
-    onClick={() => {
-      const orgId = editingOrg.id || editingOrg._id;
-      if (!orgId || orgId === 'undefined') {
-        alert('Error: Invalid organization ID');
-        return;
-      }
-      handleDeleteOrganization(orgId, editingOrg.name);
-    }}
-    disabled={savingOrg || deletingOrg}
-    startIcon={deletingOrg ? <CircularProgress size={20} /> : <Delete />}
-    sx={{ mr: 'auto' }}
-  >
-    {deletingOrg ? 'Deleting...' : 'Delete'}
-  </Button>
-)}
-          <Button 
-            variant="outlined" 
+          {editingOrg && (
+            <Button
+              variant="outlined"
+              color="error"
+              onClick={() => {
+                const orgId = editingOrg.id || editingOrg._id;
+                if (!orgId || orgId === 'undefined') {
+                  alert('Error: Invalid organization ID');
+                  return;
+                }
+                handleDeleteOrganization(orgId, editingOrg.name);
+              }}
+              disabled={savingOrg || deletingOrg}
+              startIcon={deletingOrg ? <CircularProgress size={20} /> : <Delete />}
+              sx={{ mr: 'auto' }}
+            >
+              {deletingOrg ? 'Deleting...' : 'Delete'}
+            </Button>
+          )}
+          <Button
+            variant="outlined"
             onClick={() => setShowOrgModal(false)}
             disabled={savingOrg}
           >
             Cancel
           </Button>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             onClick={handleSaveOrganization}
             disabled={savingOrg}
             startIcon={savingOrg ? <CircularProgress size={20} /> : <CheckIcon />}
@@ -2054,223 +1877,223 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
           <AddIcon />
         </Fab>
       )}
-{/* Role Change Modal - With strict Active Church check */}
-<Dialog 
-  open={showRoleModal} 
-  onClose={() => !updatingRole && setShowRoleModal(false)} 
-  maxWidth="sm" 
-  fullWidth
-  PaperProps={{ sx: { borderRadius: 2 } }}
->
-  <DialogTitle>
-    <Typography variant="h6" fontWeight="bold">Change User Role</Typography>
-  </DialogTitle>
-  <DialogContent>
-    {selectedUser && (
-      <>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
-          User: <strong>{selectedUser.name}</strong>
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-          Current Role: <Chip 
-            label={selectedUser.role} 
-            size="small"
-            sx={{ 
-              bgcolor: getRoleColor(selectedUser.role),
-              color: 'white'
-            }}
-          />
-        </Typography>
-        
-        {/* Determine the organization - handle both selectedOrg and currentUser */}
-        {(() => {
-          const currentOrg = selectedOrg || currentUser?.organization || '';
-          const isActiveChurch = currentOrg.trim().toLowerCase() === 'active church';
-          
-          if (isActiveChurch) {
-            return (
-              <>
-                <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
-                  Select New Role:
-                </Typography>
-                <FormControl fullWidth size="medium">
-                  <Select
-                    value={selectedUser.role}
-                    onChange={(e) => handleRoleChange(selectedUser.id, e.target.value)}
-                    disabled={updatingRole}
-                  >
-                    <MenuItem value="admin">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <AdminPanelSettings fontSize="small" />
-                        Admin
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="leader">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <HandshakeIcon fontSize="small" />
-                        Leader
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="leaderAt12">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <People fontSize="small" />
-                        LeaderAt12
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="user">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <PersonIcon fontSize="small" />
-                        User
-                      </Box>
-                    </MenuItem>
-                    <MenuItem value="registrant">
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <RegistrantIcon fontSize="small" />
-                        Registrant
-                      </Box>
-                    </MenuItem>
-                  </Select>
-                </FormControl>
-              </>
-            );
-          } else {
-            /* OTHER CHURCHES - Role cards with Add Role button */
-            return (
-              <>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="subtitle2" fontWeight="bold">
-                    Available Roles for {currentOrg}:
-                  </Typography>
-                  
-                  <Button
-                    variant="outlined"
-                    size="small"
-                    startIcon={<AddIcon />}
-                    onClick={() => {
-                      setShowRoleModal(false);
-                      setShowCreateRoleModal(true);
-                    }}
-                    sx={{ borderRadius: 2 }}
-                  >
-                     ADD ROLE
-                  </Button>
-                </Box>
-                
-                <Stack spacing={1} sx={{ maxHeight: 400, overflowY: 'auto', pr: 1 }}>
-                  {organizationRoles.filter(r => r.is_system).map(role => (
-                    <RoleOption
-                      key={role.name}
-                      role={role}
-                      selectedUser={selectedUser}
-                      onSelect={() => handleRoleChange(selectedUser.id, role.name)}
-                    />
-                  ))}
-                                    {organizationRoles.filter(r => !r.is_system).length > 0 && (
+      {/* Role Change Modal - With strict Active Church check */}
+      <Dialog
+        open={showRoleModal}
+        onClose={() => !updatingRole && setShowRoleModal(false)}
+        maxWidth="sm"
+        fullWidth
+        PaperProps={{ sx: { borderRadius: 2 } }}
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight="bold">Change User Role</Typography>
+        </DialogTitle>
+        <DialogContent>
+          {selectedUser && (
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                User: <strong>{selectedUser.name}</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Current Role: <Chip
+                  label={selectedUser.role}
+                  size="small"
+                  sx={{
+                    bgcolor: getRoleColor(selectedUser.role),
+                    color: 'white'
+                  }}
+                />
+              </Typography>
+
+              {/* Determine the organization - handle both selectedOrg and currentUser */}
+              {(() => {
+                const currentOrg = selectedOrg || currentUser?.Organization || '';
+                const isActiveChurch = currentOrg.trim().toLowerCase() === 'active church';
+
+                if (isActiveChurch) {
+                  return (
                     <>
-                     
-                      
-                      {organizationRoles.filter(r => !r.is_system).map(role => (
-                        <RoleOption
-                          key={role.name}
-                          role={role}
-                          selectedUser={selectedUser}
-                          onSelect={() => handleRoleChange(selectedUser.id, role.name)}
-                        />
-                      ))}
+                      <Typography variant="subtitle2" fontWeight="bold" sx={{ mb: 2 }}>
+                        Select New Role:
+                      </Typography>
+                      <FormControl fullWidth size="medium">
+                        <Select
+                          value={selectedUser.role}
+                          onChange={(e) => handleRoleChange(selectedUser.id, e.target.value)}
+                          disabled={updatingRole}
+                        >
+                          <MenuItem value="admin">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <AdminPanelSettings fontSize="small" />
+                              Admin
+                            </Box>
+                          </MenuItem>
+                          <MenuItem value="leader">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <HandshakeIcon fontSize="small" />
+                              Leader
+                            </Box>
+                          </MenuItem>
+                          <MenuItem value="leaderAt12">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <People fontSize="small" />
+                              LeaderAt12
+                            </Box>
+                          </MenuItem>
+                          <MenuItem value="user">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <PersonIcon fontSize="small" />
+                              User
+                            </Box>
+                          </MenuItem>
+                          <MenuItem value="registrant">
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <RegistrantIcon fontSize="small" />
+                              Registrant
+                            </Box>
+                          </MenuItem>
+                        </Select>
+                      </FormControl>
                     </>
-                  )}
-                </Stack>
-              </>
-            );
-          }
-        })()}
-      </>
-    )}
-  </DialogContent>
-  <DialogActions sx={{ p: 2 }}>
-    <Button 
-      onClick={() => setShowRoleModal(false)} 
-      disabled={updatingRole}
-      variant="outlined"
-    >
-      CANCEL
-    </Button>
-  </DialogActions>
-</Dialog>
+                  );
+                } else {
+                  /* OTHER CHURCHES - Role cards with Add Role button */
+                  return (
+                    <>
+                      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                        <Typography variant="subtitle2" fontWeight="bold">
+                          Available Roles for {currentOrg}:
+                        </Typography>
+
+                        <Button
+                          variant="outlined"
+                          size="small"
+                          startIcon={<AddIcon />}
+                          onClick={() => {
+                            setShowRoleModal(false);
+                            setShowCreateRoleModal(true);
+                          }}
+                          sx={{ borderRadius: 2 }}
+                        >
+                          ADD ROLE
+                        </Button>
+                      </Box>
+
+                      <Stack spacing={1} sx={{ maxHeight: 400, overflowY: 'auto', pr: 1 }}>
+                        {organizationRoles.filter(r => r.is_system).map(role => (
+                          <RoleOption
+                            key={role.name}
+                            role={role}
+                            selectedUser={selectedUser}
+                            onSelect={() => handleRoleChange(selectedUser.id, role.name)}
+                          />
+                        ))}
+                        {organizationRoles.filter(r => !r.is_system).length > 0 && (
+                          <>
 
 
-{/* Create Role Modal - Only for non-Active Church */}
-<Dialog 
-  open={showCreateRoleModal} 
-  onClose={() => !creatingRole && setShowCreateRoleModal(false)} 
-  maxWidth="xs" 
-  fullWidth
-  PaperProps={{ sx: { borderRadius: 2 } }}
->
-  <DialogTitle>
-    <Typography variant="h6" fontWeight="bold">Create New Role</Typography>
-  </DialogTitle>
-  <DialogContent>
-    <Box sx={{ mt: 2 }}>
-      <TextField
+                            {organizationRoles.filter(r => !r.is_system).map(role => (
+                              <RoleOption
+                                key={role.name}
+                                role={role}
+                                selectedUser={selectedUser}
+                                onSelect={() => handleRoleChange(selectedUser.id, role.name)}
+                              />
+                            ))}
+                          </>
+                        )}
+                      </Stack>
+                    </>
+                  );
+                }
+              })()}
+            </>
+          )}
+        </DialogContent>
+        <DialogActions sx={{ p: 2 }}>
+          <Button
+            onClick={() => setShowRoleModal(false)}
+            disabled={updatingRole}
+            variant="outlined"
+          >
+            CANCEL
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+
+      {/* Create Role Modal - Only for non-Active Church */}
+      <Dialog
+        open={showCreateRoleModal}
+        onClose={() => !creatingRole && setShowCreateRoleModal(false)}
+        maxWidth="xs"
         fullWidth
-        label="Role Name"
-        value={newRoleName}
-        onChange={(e) => {
-          setNewRoleName(e.target.value);
-          setRoleCreateError('');
-        }}
-        placeholder="e.g., Welcome Team, Sound Tech, Kitchen Volunteer"
-        
-        error={!!roleCreateError}
-        disabled={creatingRole}
-        autoFocus
-      />
-      
-      <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
-        <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
-          Preview:
-        </Typography>
-        <Chip 
-          label={newRoleName.trim() || 'New Role'} 
-          color={getRoleColor(newRoleName)}
-          icon={getRoleIcon(newRoleName)}
-          sx={{ boxShadow: 1 }}
-        />
-        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
-          Will be stored as: <strong>{newRoleName.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') || 'new_role'}</strong>
-        </Typography>
-      </Box>
-    </Box>
-  </DialogContent>
-  <DialogActions sx={{ p: 2, gap: 1 }}>
-    <Button 
-      onClick={() => {
-        setShowCreateRoleModal(false);
-        setNewRoleName('');
-        setRoleCreateError('');
-      }} 
-      disabled={creatingRole}
-      variant="outlined"
-    >
-      Cancel
-    </Button>
-    <Button 
-      variant="contained" 
-      onClick={handleCreateRole}
-      disabled={creatingRole || !newRoleName.trim()}
-      startIcon={creatingRole ? <CircularProgress size={20} /> : <CheckIcon />}
-    >
-      {creatingRole ? 'Creating...' : 'Create Role'}
-    </Button>
-  </DialogActions>
-</Dialog>
-      <Dialog 
-        open={showDeleteConfirm} 
-        onClose={() => !deletingUser && setShowDeleteConfirm(false)} 
-        maxWidth="xs" 
+        PaperProps={{ sx: { borderRadius: 2 } }}
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight="bold">Create New Role</Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Box sx={{ mt: 2 }}>
+            <TextField
+              fullWidth
+              label="Role Name"
+              value={newRoleName}
+              onChange={(e) => {
+                setNewRoleName(e.target.value);
+                setRoleCreateError('');
+              }}
+              placeholder="e.g., Welcome Team, Sound Tech, Kitchen Volunteer"
+
+              error={!!roleCreateError}
+              disabled={creatingRole}
+              autoFocus
+            />
+
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'background.default', borderRadius: 1 }}>
+              <Typography variant="caption" color="text.secondary" display="block" gutterBottom>
+                Preview:
+              </Typography>
+              <Chip
+                label={newRoleName.trim() || 'New Role'}
+                color={getRoleColor(newRoleName)}
+                icon={getRoleIcon(newRoleName)}
+                sx={{ boxShadow: 1 }}
+              />
+              <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 1 }}>
+                Will be stored as: <strong>{newRoleName.trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '') || 'new_role'}</strong>
+              </Typography>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button
+            onClick={() => {
+              setShowCreateRoleModal(false);
+              setNewRoleName('');
+              setRoleCreateError('');
+            }}
+            disabled={creatingRole}
+            variant="outlined"
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="contained"
+            onClick={handleCreateRole}
+            disabled={creatingRole || !newRoleName.trim()}
+            startIcon={creatingRole ? <CircularProgress size={20} /> : <CheckIcon />}
+          >
+            {creatingRole ? 'Creating...' : 'Create Role'}
+          </Button>
+        </DialogActions>
+      </Dialog>
+      <Dialog
+        open={showDeleteConfirm}
+        onClose={() => !deletingUser && setShowDeleteConfirm(false)}
+        maxWidth="xs"
         fullWidth
-        PaperProps={{ 
+        PaperProps={{
           sx: { borderRadius: 2 }
         }}
       >
@@ -2295,15 +2118,15 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
           )}
         </DialogContent>
         <DialogActions sx={{ p: 2, gap: 1 }}>
-          <Button 
-            onClick={() => setShowDeleteConfirm(false)} 
+          <Button
+            onClick={() => setShowDeleteConfirm(false)}
             disabled={deletingUser}
             variant="outlined"
           >
             Cancel
           </Button>
-          <Button 
-            variant="contained" 
+          <Button
+            variant="contained"
             color="error"
             onClick={handleDeleteUser}
             disabled={deletingUser || (selectedUser?.role === 'admin' && !isSupremeAdmin)}
