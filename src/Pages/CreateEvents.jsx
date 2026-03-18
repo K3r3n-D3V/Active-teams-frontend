@@ -1597,15 +1597,6 @@ window.history.replaceState({}, "", window.location.pathname);
                   ))}
                 </Box>
               )}
-
-              {isSearchingPeople && (
-                <Typography
-                  variant="body2"
-                  sx={{ color: "text.secondary", mt: 0.5 }}
-                >
-                  Searching...
-                </Typography>
-              )}
             </Box>
 
             {hasPersonSteps && !isGlobalEvent && (
