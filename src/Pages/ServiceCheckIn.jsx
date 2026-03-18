@@ -77,12 +77,11 @@ function buildSearchableText(person) {
     person.leader1 || "",
     person.leader12 || "",
     person.leader144 || "",
+    person.leaderName || "",
+    ...(person.leaderPathNames || []),
     person.gender || "",
-    person.cellGroup || "",
-    person.zone || "",
     person.invitedBy || "",
     person.address || "",
-    person.homeAddress || "",
     person.stage || "",
   ]
     .join(" ")
@@ -153,9 +152,14 @@ function normalisePerson(p) {
     email: p.Email || "",
     phone: p.Number || "",
     number: p.Number || "",
-    leader1: p["Leader @1"] || "",
-    leader12: p["Leader @12"] || "",
-    leader144: p["Leader @144"] || "",
+    // New schema fields
+    leaderId: p.LeaderId || "",
+    leaderPath: p.LeaderPath || [],
+    leaderName: p.LeaderName || "",
+    leaderPathNames: p.LeaderPathNames || [],
+    leader1:   p.LeaderPathNames?.[0] || p["Leader @1"] || "",
+    leader12:  p.LeaderPathNames?.[1] || p["Leader @12"] || "",
+    leader144: p.LeaderPathNames?.[2] || p["Leader @144"] || "",
     gender: p.Gender || "",
     address: p.Address || "",
     birthday: p.Birthday || "",
@@ -364,9 +368,9 @@ function ServiceCheckIn() {
                   surname: entry.surname || entry.Surname || fp?.Surname || "",
                   email: entry.email || entry.Email || fp?.Email || "",
                   phone: entry.phone || entry.Number || fp?.Number || "",
-                  leader1: fp?.["Leader @1"] || entry.leader1 || "",
-                  leader12: fp?.["Leader @12"] || entry.leader12 || "",
-                  leader144: fp?.["Leader @144"] || entry.leader144 || "",
+                  leader1:   fp?.leaderPathNames?.[0] || fp?.["Leader @1"] || entry.leader1 || "",
+                  leader12:  fp?.leaderPathNames?.[1] || fp?.["Leader @12"] || entry.leader12 || "",
+                  leader144: fp?.leaderPathNames?.[2] || fp?.["Leader @144"] || entry.leader144 || "",
                   id: id || Math.random().toString(36),
                   _id: id,
                   ...(type === "new" && { isNew: true }),
@@ -504,9 +508,10 @@ function ServiceCheckIn() {
               surname: entry.surname || entry.Surname || fp?.Surname || "",
               email: entry.email || entry.Email || fp?.Email || "",
               phone: entry.phone || entry.Number || fp?.Number || "",
-              leader1: fp?.["Leader @1"] || entry.leader1 || "",
-              leader12: fp?.["Leader @12"] || entry.leader12 || "",
-              leader144: fp?.["Leader @144"] || entry.leader144 || "",
+              // Use resolved names from new schema, fall back to old
+              leader1: fp?.leaderName || fp?.["Leader @1"] || entry.leader1 || "",
+              leader12: fp?.leaderPathNames?.[fp.leaderPathNames.length - 2] || fp?.["Leader @12"] || entry.leader12 || "",
+              leader144: fp?.leaderPathNames?.[fp.leaderPathNames.length - 3] || fp?.["Leader @144"] || entry.leader144 || "",
               id: id || Math.random().toString(36),
               _id: id,
               ...(isNew && { isNew: true }),
@@ -612,6 +617,12 @@ useEffect(() => {
     setSortModel([]);
   }
 }, [search]);
+
+  useEffect(() => {
+    if (!search.trim()) {
+      setSortModel([]);
+    }
+  }, [search]);
 
   useEffect(() => {
     if (!currentEventId) {
