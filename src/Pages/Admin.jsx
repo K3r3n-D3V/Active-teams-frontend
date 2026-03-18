@@ -58,7 +58,7 @@ export default function AdminDashboard() {
   const [selectedRole, setSelectedRole] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState(0);
-  const [loading, setLoading] = useState(!globalDataLoaded);
+  const [loading, setLoading] = useState(true); 
 
   const [users, setUsers] = useState(globalUsersData || []);
   const [totalUsers, setTotalUsers] = useState(0);
@@ -94,6 +94,7 @@ export default function AdminDashboard() {
   const [deletingOrg, setDeletingOrg] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
+  const [skip, setSkip] = useState(0); 
 const fetchInProgressRef = useRef(false);
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
 
@@ -247,19 +248,17 @@ const fetchInProgressRef = useRef(false);
       setLoadingOrgs(false);
     }
   }, [API_BASE_URL, authFetch, isSupremeAdmin, selectedOrg]);
-const fetchAllData = useCallback(async (forceRefresh = false) => {
-  if (fetchInProgressRef.current) return;
-  fetchInProgressRef.current = true;
 
+const fetchAllData = useCallback(async (forceRefresh = false) => {
   const currentOrg = selectedOrg;
   
   if (!currentOrg) {
     setUsers([]);
     setTotalUsers(0);
-    fetchInProgressRef.current = false;
     return [];
   }
 
+  // Check cache first
   const now = Date.now();
   const cacheValid = globalDataLoaded &&
     globalDataTimestamp &&
@@ -269,23 +268,23 @@ const fetchAllData = useCallback(async (forceRefresh = false) => {
   if (cacheValid && !forceRefresh) {
     setUsers(globalUsersData);
     setTotalUsers(globalUsersData?.length || 0);
-    fetchInProgressRef.current = false;
     return globalUsersData;
   }
 
-  // Show stale data immediately while fresh data loads
-  if (globalUsersData && globalOrgFilter === currentOrg) {
-    setUsers(globalUsersData);
-    setTotalUsers(globalUsersData.length);
-  }
-
   try {
-    const url = `${API_BASE_URL}/admin/users?skip=0&limit=500&organization=${encodeURIComponent(currentOrg)}`;
-    const response = await authFetch(url, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+    // Calculate skip from page and rowsPerPage
+    const calculatedSkip = page * rowsPerPage;
+    const url = `${API_BASE_URL}/admin/users?skip=${calculatedSkip}&limit=${rowsPerPage}&organization=${encodeURIComponent(currentOrg)}`;
+    
+    const response = await authFetch(url, { 
+      method: 'GET', 
+      headers: { 'Content-Type': 'application/json' } 
+    });
 
     if (!response.ok) throw new Error(`Failed to fetch users: ${response.status}`);
 
     const data = await response.json();
+    
     let usersArray = [];
     let totalCount = 0;
 
@@ -294,16 +293,17 @@ const fetchAllData = useCallback(async (forceRefresh = false) => {
       totalCount = data.total || usersArray.length;
     }
 
-const transformedUsers = usersArray.map(user => ({
-  id: user.id || user._id,
-  name: user.name && user.surname ? `${user.name} ${user.surname}`.trim() : user.name || user.surname || 'Unknown',
-  email: user.email || '',
-  role: user.role || 'Unknown',
-  phoneNumber: user.phone_number || user.phone || '',
-  organization: user.Organization || user.organization || '',
-  createdAt: user.created_at || user.createdAt
-}));
+    const transformedUsers = usersArray.map(user => ({
+      id: user.id || user._id,
+      name: user.name && user.surname ? `${user.name} ${user.surname}`.trim() : user.name || user.surname || 'Unknown',
+      email: user.email || '',
+      role: user.role || 'Unknown',
+      phoneNumber: user.phone_number || user.phone || '',
+      organization: user.Organization || user.organization || '',
+      createdAt: user.created_at || user.createdAt
+    }));
 
+    // Update cache
     globalUsersData = transformedUsers;
     globalDataLoaded = true;
     globalDataTimestamp = Date.now();
@@ -311,24 +311,25 @@ const transformedUsers = usersArray.map(user => ({
 
     setUsers(transformedUsers);
     setTotalUsers(totalCount);
+    
     return transformedUsers;
 
   } catch (err) {
+    console.error('Error fetching data:', err);
     setUsers([]);
     setTotalUsers(0);
     return [];
-  } finally {
-    fetchInProgressRef.current = false;
   }
-}, [API_BASE_URL, authFetch, selectedOrg]);
-
+}, [API_BASE_URL, authFetch, selectedOrg, page, rowsPerPage]);
 const handleOrgChange = (orgName) => {
-  if (orgName === selectedOrg) { setOrgAnchorEl(null); return; }
-
-  globalDataLoaded = false;
-  globalOrgFilter = null;
-  globalUsersData = null;
-
+  if (orgName === selectedOrg) { 
+    setOrgAnchorEl(null); 
+    return; 
+  }
+  if (!isSupremeAdmin) {
+    setOrgAnchorEl(null);
+    return;
+  }
   setUsers([]);
   setTotalUsers(0);
   setOrganizationRoles([]);
@@ -560,6 +561,20 @@ const handleOrgChange = (orgName) => {
       await fetchOrganizations();
     }
   }, [fetchAllData, fetchOrganizations, isSupremeAdmin]);
+useEffect(() => {
+  if (!isSupremeAdmin && currentUser) {
+    const userOrg = currentUser.Organization || currentUser.organization;
+    console.log('Setting org from user:', { 
+      userOrg, 
+      currentOrg: selectedOrg,
+      userData: currentUser 
+    });
+    
+    if (userOrg && userOrg !== selectedOrg) {
+      setSelectedOrg(userOrg);
+    }
+  }
+}, [currentUser, isSupremeAdmin]);
 
   useEffect(() => {
     if (currentUser) {
@@ -572,25 +587,33 @@ const handleOrgChange = (orgName) => {
     }
   }, [currentUser]);
 
-  const mountedRef = useRef(false);
 
 useEffect(() => {
-  const init = async () => {
+  const loadInitialData = async () => {
     setLoading(true);
-    if (isSupremeAdmin) await fetchOrganizations();
-    await Promise.all([fetchAllData(true), fetchOrganizationRoles(true)]);
+    
+    // If we have cached data, show it immediately
+    if (globalDataLoaded && globalUsersData && globalOrgFilter === selectedOrg) {
+      setUsers(globalUsersData);
+      setTotalUsers(globalUsersData.length);
+      setLoading(false);
+      return;
+    }
+    
+    // Otherwise fetch fresh data
+    await Promise.all([
+      fetchAllData(true),
+      fetchOrganizationRoles(true),
+      isSupremeAdmin ? fetchOrganizations() : Promise.resolve()
+    ]);
     setLoading(false);
-    mountedRef.current = true;
   };
-  init();
-}, []);
+  
+  if (currentUser) {
+    loadInitialData();
+  }
+}, []); // Empty array - runs once
 
-useEffect(() => {
-  if (!mountedRef.current) return;
-  setLoading(true);
-  Promise.all([fetchAllData(true), fetchOrganizationRoles(true)])
-    .finally(() => setLoading(false));
-}, [selectedOrg]);
 
   const handleCreateUser = async (userData) => {
     setCreatingUser(true);
@@ -1100,7 +1123,6 @@ const handleCreateRole = async () => {
     );
   }
   const RoleOption = ({ role, selectedUser, onSelect }) => {
-    // Add safety check for selectedUser
     if (!selectedUser) return null;
 
     return (
@@ -1423,30 +1445,36 @@ const handleCreateRole = async () => {
               </Button>
             </DialogActions>
           </Dialog>
+
+
+  
+
           <Box sx={{ display: 'flex', gap: 1 }}>
-            <Button
-              variant="outlined"
-              startIcon={<Refresh />}
-              onClick={handleManualRefresh}
-              sx={{
-                boxShadow: 1,
-                borderRadius: 2,
-                height: 40,
-                minWidth: getResponsiveValue('auto', 'auto', 100, 100, 100)
-              }}
-              size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
-            >
-              Refresh
-            </Button>
- {currentUser?.email === SUPREME_ADMIN_EMAIL && (
+  <Button
+    variant="outlined"
+    startIcon={<Refresh />}
+    onClick={handleManualRefresh}
+    sx={{
+      boxShadow: 1,
+      borderRadius: 2,
+      height: 40,
+      minWidth: getResponsiveValue('auto', 'auto', 100, 100, 100)
+    }}
+    size={getResponsiveValue("small", "small", "medium", "medium", "medium")}
+  >
+    Refresh
+  </Button>
+
+  {/* Supreme Admin button - ONLY for supreme admin */}
+  {isSupremeAdmin && (
     <Button
       variant="contained"
       color="primary"
       startIcon={<AdminPanelSettings />}
       onClick={() => setShowSupremeAdminModal(true)}
-      sx={{ 
-        boxShadow: 1, 
-        borderRadius: 2, 
+      sx={{
+        boxShadow: 1,
+        borderRadius: 2,
         height: 40,
         minWidth: getResponsiveValue('auto', 'auto', 150, 150, 150)
       }}
@@ -1455,7 +1483,8 @@ const handleCreateRole = async () => {
       Add Supreme
     </Button>
   )}
-</Box>
+
+          </Box>
         </Box>
         {activeTab === 0 && (
           <Box sx={{ p: getResponsiveValue(1, 2, 3, 3, 3) }}>
