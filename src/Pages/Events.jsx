@@ -929,10 +929,10 @@ ${xmlCols}
           <span style={styles.mobileCardValue}>{event.leader1 || "N/A"}</span>
         </div>
       )}
-      <div style={styles.mobileCardRow}>
+      {!event.isTicketed && <div style={styles.mobileCardRow}>
         <span style={styles.mobileCardLabel}>Leader @12:</span>
         <span style={styles.mobileCardValue}>{event.leader12 || "N/A"}</span>
-      </div>
+      </div>}
       <div style={styles.mobileActions}>
         <Tooltip title={`View Attendance (${attendeesCount} people)`}>
           <IconButton
@@ -2630,16 +2630,29 @@ ${xmlCols}
   useEffect(() => {
     eventsCache.current = {};
   }, []);
-
   const handleEditEvent = useCallback((event) => {
+    console.log("THE EVENT",event)
+    
     let eventId = event._id;
     let eventDate = event.date;
-
     if (eventId && eventId.includes("_")) {
       const parts = eventId.split("_");
       if (parts.length > 0 && isValidObjectId(parts[0])) {
         eventId = parts[0];
       }
+    }
+
+    if (event.isTicketed === true){
+      //checking if event is a ticketed event and setting it as a query
+      let url = new URL(window.location.href);
+      url.searchParams.set("eventId", eventId);
+      window.history.pushState({}, "", url);
+      setSelectedEventTypeObj(event)
+      //open create event model and it will fetch events data so it can be editted
+      //  - will get event from query string
+      setCreateEventModalOpen(true);
+      //return so editEvent model does not open
+      return
     }
 
     const eventToEdit = {
@@ -2656,8 +2669,8 @@ ${xmlCols}
       );
       return;
     }
-
     setSelectedEvent(eventToEdit);
+    if (event.isTicketed === true) return //extra precaustion to not open edit event model if it is a ticketed event
     setEditModalOpen(true);
   }, []);
 
