@@ -2631,18 +2631,8 @@ const handleCaptureClick = useCallback(async (event) => {
     eventsCache.current = {};
   }, []);
   const handleEditEvent = useCallback((event) => {
-    if (event.isTicketed === true){
-      //checking if event is a ticketed event and setting it as a query
-      let url = new URL(window.location.href);
-      url.searchParams.set("eventId", event._id);
-      window.history.pushState({}, "", url);
-      setSelectedEventTypeObj(event)
-      //open create event model and it will fetch events data so it can be editted
-      //  - will get event from query string
-      setCreateEventModalOpen(true);
-      //return so editEvent model does not open
-      return
-    }
+    console.log("THE EVENT",event)
+    
     let eventId = event._id;
     let eventDate = event.date;
     if (eventId && eventId.includes("_")) {
@@ -2651,6 +2641,20 @@ const handleCaptureClick = useCallback(async (event) => {
         eventId = parts[0];
       }
     }
+
+    if (event.isTicketed === true){
+      //checking if event is a ticketed event and setting it as a query
+      let url = new URL(window.location.href);
+      url.searchParams.set("eventId", eventId);
+      window.history.pushState({}, "", url);
+      setSelectedEventTypeObj(event)
+      //open create event model and it will fetch events data so it can be editted
+      //  - will get event from query string
+      setCreateEventModalOpen(true);
+      //return so editEvent model does not open
+      return
+    }
+
     const eventToEdit = {
       ...event,
       _id: eventId,
