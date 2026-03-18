@@ -1649,50 +1649,42 @@ const AttendanceModal = ({
   };
 
 const loadPersistentAttendees = async (eventId) => {
-  if (!eventId || eventId === "undefined") {
-    console.error("loadPersistentAttendees called with invalid eventId:", eventId);
-    return;
-  }
-  const actualEventId = eventId.includes("_") ? eventId.split("_")[0] : eventId;
-
-  if (!actualEventId || actualEventId === "undefined") {
-    console.error("Could not resolve a valid event ID from:", eventId);
-    return;
-  }
+  if (!eventId || eventId === "undefined") return;
 
   try {
-    const token = localStorage.getItem("token");
     const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-      { headers: { Authorization: `Bearer ${token}` } }
+      `${BACKEND_URL}/events/${eventId}/persistent-attendees`
     );
-    if (!response.ok) {
-      console.error("Failed to load persistent attendees:", response.status);
-      return;
-    }
+    if (!response.ok) return;
+    
     const data = await response.json();
     const persistentList = data.persistent_attendees || [];
     const checkedInList = data.checked_in_attendees || [];
+    const attendanceStatus = data.attendance_status || "incomplete";
+    const isCompleted = attendanceStatus === "complete";
+    const isDidNotMeet = attendanceStatus === "did_not_meet";
+
     setPersistentCommonAttendees(persistentList);
-    const isCompleted =
-      data.attendance_status === "complete" ||
-      data.attendance_status === "did_not_meet";
+
+    // Set all persistent as unchecked initially
     const newCheckedIn = {};
     persistentList.forEach(att => {
       if (att.id) newCheckedIn[att.id] = false;
     });
 
-    // Only tick people if this specific date's attendance is complete
-    if (isCompleted && data.attendance_status !== "did_not_meet") {
+    // If this week is complete, tick whoever was checked in
+    if (isCompleted && checkedInList.length > 0) {
       checkedInList.forEach(att => {
         if (att.id) newCheckedIn[att.id] = true;
       });
     }
 
     setCheckedIn(newCheckedIn);
+
+    // Restore decisions
     const newDecisions = {};
     const newDecisionTypes = {};
-    if (isCompleted && data.attendance_status !== "did_not_meet") {
+    if (isCompleted) {
       checkedInList.forEach(att => {
         if (att.id && att.decision) {
           newDecisions[att.id] = true;
@@ -1702,34 +1694,9 @@ const loadPersistentAttendees = async (eventId) => {
     }
     setDecisions(newDecisions);
     setDecisionTypes(newDecisionTypes);
-    if (isTicketedEvent) {
-      const newTicketInfo = {};
-      persistentList.forEach(att => {
-        if (att.id && att.priceName && att.priceName.trim() !== "") {
-          newTicketInfo[att.id] = {
-            priceName: att.priceName,
-            price: att.price != null ? att.price : 0,
-            ageGroup: att.ageGroup || "",
-            paymentMethod: att.paymentMethod || "",
-          };
-        }
-      });
-      if (isCompleted) {
-        checkedInList.forEach(att => {
-          if (att.id && att.priceName && att.priceName.trim() !== "") {
-            newTicketInfo[att.id] = {
-              priceName: att.priceName,
-              price: att.price != null ? att.price : 0,
-              ageGroup: att.ageGroup || "",
-              paymentMethod: att.paymentMethod || "",
-            };
-          }
-        });
-      }
-      setAttendeeTicketInfo(prev => ({ ...newTicketInfo, ...prev }));
-    }
 
-    if (data.attendance_status === "did_not_meet") {
+    // Restore headcount
+    if (isDidNotMeet) {
       setDidNotMeet(true);
       setManualHeadcount("0");
     } else if (isCompleted && data.total_headcounts > 0) {
