@@ -929,10 +929,10 @@ ${xmlCols}
           <span style={styles.mobileCardValue}>{event.leader1 || "N/A"}</span>
         </div>
       )}
-      <div style={styles.mobileCardRow}>
+      {!event.isTicketed && <div style={styles.mobileCardRow}>
         <span style={styles.mobileCardLabel}>Leader @12:</span>
         <span style={styles.mobileCardValue}>{event.leader12 || "N/A"}</span>
-      </div>
+      </div>}
       <div style={styles.mobileActions}>
         <Tooltip title={`View Attendance (${attendeesCount} people)`}>
           <IconButton
