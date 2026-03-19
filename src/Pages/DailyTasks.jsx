@@ -683,18 +683,27 @@ export default function DailyTasks() {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to create task");
+
       if (data.task) {
-        setTasks((prev) => [
-          {
-            ...data.task,
-            assignedTo: data.task.name || `${user.name} ${user.surname}`,
-            date: data.task.followup_date,
-            status: (data.task.status || "Open").toLowerCase(),
-            taskName: data.task.name,
-            type: data.task.type,
-          },
-          ...prev,
-        ]);
+        const isAssignedToMe =
+          data.task.assignedfor === user.email ||
+          data.task.assigned_to_email === user.email;
+
+        // Only add to local state if assigned to current user
+        if (isAssignedToMe) {
+          setTasks((prev) => [
+            {
+              ...data.task,
+              assignedTo: data.task.name || `${user.name} ${user.surname}`,
+              date: data.task.followup_date,
+              status: (data.task.status || "Open").toLowerCase(),
+              taskName: data.task.name,
+              type: data.task.type,
+            },
+            ...prev,
+          ]);
+        }
+        // If assigned to someone else, just silently succeed
       }
       return data;
     } catch (err) {
@@ -892,9 +901,21 @@ export default function DailyTasks() {
         );
       } else {
         await createTask(taskPayload);
-        toast.success(
-          `You have successfully captured ${person.Name} ${person.Surname}`,
-        );
+
+        // Check if task was assigned to someone else
+        const isAssignedToSomeoneElse =
+          taskData.assignedEmail &&
+          taskData.assignedEmail.toLowerCase() !== user.email.toLowerCase();
+
+        if (isAssignedToSomeoneElse) {
+          toast.success(
+            `You have successfully assigned a task to ${taskData.assignedTo} for ${person.Name} ${person.Surname}`,
+          );
+        } else {
+          toast.success(
+            `You have successfully captured ${person.Name} ${person.Surname}`,
+          );
+        }
       }
       handleClose();
     } catch (err) {
@@ -1477,22 +1498,14 @@ export default function DailyTasks() {
                     <p
                       style={{
                         fontSize: "13px",
-                        color: task.isAssignedToOther
-                          ? isDarkMode
-                            ? "#60a5fa"
-                            : "#2563eb" // blue if assigned to someone else
-                          : isDarkMode
-                            ? "#aaa"
-                            : "#6b7280",
+                        color: isDarkMode ? "#00ffdd" : "#ff0000",
                         margin: "0 0 4px 0",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {task.isAssignedToOther
-                        ? `→ Assigned to: ${assignedDisplay}`
-                        : assignedDisplay || "Not assigned"}
+                      {assignedDisplay || "Not assigned"}
                     </p>
 
                     {isConsolidation &&
