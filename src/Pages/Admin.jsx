@@ -61,7 +61,7 @@ export default function AdminDashboard() {
 
   const containerPadding = getResponsiveValue(1, 2, 3, 4, 4);
   const cardSpacing = getResponsiveValue(1, 2, 2, 3, 3);
-const [, setSwitchingOrg] = useState(false);
+const [switchingOrg, setSwitchingOrg] = useState(false); // Add the variable
   const [selectedRole, setSelectedRole] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [activeTab, setActiveTab] = useState(0);
@@ -77,17 +77,15 @@ const [, setSwitchingOrg] = useState(false);
   const [updatingRole, setUpdatingRole] = useState(false);
   const [creatingUser, setCreatingUser] = useState(false);
   const [deletingUser, setDeletingUser] = useState(false);
-
   // Organization state
   const [organizations, setOrganizations] = useState([]);
 const [selectedOrg, setSelectedOrg] = useState("Active Church");
   const [orgAnchorEl, setOrgAnchorEl] = useState(null);
-  const [, setLoadingOrgs] = useState(false);
+const [, setLoadingOrgs] = useState(false); // Add the variable
   const [showSupremeAdminModal, setShowSupremeAdminModal] = useState(false);
 const [supremeAdminEmail, setSupremeAdminEmail] = useState('');
 const [addingSupremeAdmin, setAddingSupremeAdmin] = useState(false);
 const [supremeAdminError, setSupremeAdminError] = useState('');
-  
   // Organization Modal state
   const [showOrgModal, setShowOrgModal] = useState(false);
   const [editingOrg, setEditingOrg] = useState(null);
@@ -102,11 +100,12 @@ const [supremeAdminError, setSupremeAdminError] = useState('');
   const [deletingOrg, setDeletingOrg] = useState(false);
 
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(100);
+  const [rowsPerPage, setRowsPerPage] = useState(500);
 
   const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
   
-  const initialLoadRef = useRef(true);
+  // const initialLoadRef = useRef(true);
+  const initialLoadDone = useRef(false);
   // Add these state variables near your other useState declarations
 const [showCreateRoleModal, setShowCreateRoleModal] = useState(false);
 const [newRoleName, setNewRoleName] = useState('');
@@ -131,7 +130,6 @@ const uniqueRoles = useMemo(() => {
   if (!users || users.length === 0) {
     return [];
   }
-  
   const roles = new Set();
   users.forEach(user => {
     if (user.role) roles.add(user.role);
@@ -205,6 +203,38 @@ const uniqueRoles = useMemo(() => {
     };
     setActivityLog(prev => [newLog, ...prev].slice(0, 50));
   }, [currentUser]);
+
+  // Set organization from user for non-supreme admins
+useEffect(() => {
+  if (!isSupremeAdmin && currentUser) {
+    // Try both capital O and lowercase organization
+    const userOrg = currentUser.Organization || currentUser.organization;
+    console.log('Setting org from user:', { 
+      userOrg, 
+      currentOrg: selectedOrg,
+      userData: currentUser 
+    });
+    
+    if (userOrg && userOrg !== selectedOrg) {
+      setSelectedOrg(userOrg);
+    }
+  }
+}, [currentUser, isSupremeAdmin]);
+// Load data when organization changes
+useEffect(() => {
+  if (!initialLoadDone.current) return;
+  
+  if (selectedOrg) {
+    const loadOrgData = async () => {
+      setLoading(true);
+      await fetchAllData(true);
+      await fetchOrganizationRoles(true);
+      setLoading(false);
+    };
+    loadOrgData();
+  }
+}, [selectedOrg]);
+
   const getRoleDisplay = (role) => {
     if (!role) return 'Unknown';
     return role.charAt(0).toUpperCase() + role.slice(1);
@@ -271,6 +301,9 @@ const fetchAllData = useCallback(async (forceRefresh = false) => {
     return [];
   }
   
+  // Calculate skip from page and rowsPerPage
+  const skip = page * rowsPerPage;
+  
   // Don't use cache if force refresh
   if (!forceRefresh) {
     const now = Date.now();
@@ -288,8 +321,8 @@ const fetchAllData = useCallback(async (forceRefresh = false) => {
   }
 
   try {
-    console.log('Fetching users for:', currentOrg);
-    let url = `${API_BASE_URL}/admin/users?skip=0&limit=500`;
+    console.log(`Fetching users for: ${currentOrg} (skip: ${skip}, limit: ${rowsPerPage})`);
+   let url = `${API_BASE_URL}/admin/users?skip=${skip}&limit=${rowsPerPage}`;// Load all users at once
     url += `&organization=${encodeURIComponent(currentOrg)}`;
     
     const response = await authFetch(url, {
@@ -306,16 +339,13 @@ const fetchAllData = useCallback(async (forceRefresh = false) => {
     let usersArray = [];
     let totalCount = 0;
     
-    if (data && data.users && Array.isArray(data.users)) {
-      usersArray = data.users;
-      totalCount = data.total || usersArray.length;
-    } else if (data && Array.isArray(data)) {
-      usersArray = data;
-      totalCount = usersArray.length;
-    }
-    
-    console.log(`Loaded ${usersArray.length} users for ${currentOrg}`);
-    
+   // In your fetchAllData function, ensure you're using data.total
+if (data && data.users && Array.isArray(data.users)) {
+  usersArray = data.users;
+  totalCount = data.total || usersArray.length; // data.total should be 115
+  console.log(`Loaded ${usersArray.length} users for ${currentOrg} (total: ${totalCount})`);
+}
+    console.log(`Loaded ${usersArray.length} users for ${currentOrg} (total: ${totalCount})`);
     const transformedUsers = usersArray.map(user => ({
       id: user.id || user._id,
       name: user.name && user.surname 
@@ -327,16 +357,8 @@ const fetchAllData = useCallback(async (forceRefresh = false) => {
       organization: user.organization || user.Organization,
       createdAt: user.created_at
     }));
-
-    // Update cache
-    globalUsersData = transformedUsers;
-    globalDataLoaded = true;
-    globalDataTimestamp = Date.now();
-    globalOrgFilter = currentOrg;
-
     setUsers(transformedUsers);
     setTotalUsers(totalCount);
-    
     return transformedUsers;
     
   } catch (err) {
@@ -345,7 +367,7 @@ const fetchAllData = useCallback(async (forceRefresh = false) => {
     setTotalUsers(0);
     return [];
   }
-}, [API_BASE_URL, authFetch, selectedOrg]);
+}, [API_BASE_URL, authFetch, selectedOrg, page, rowsPerPage]);
 
 const handleOrgChange = async (orgName) => {
   if (orgName === selectedOrg) {
@@ -410,7 +432,6 @@ const handleOpenEditOrg = (org) => {
     alert('Error: Cannot edit organization - invalid ID');
     return;
   }
-  
   // Create a clean copy with proper id
   const cleanOrg = {
     ...org,
@@ -558,7 +579,6 @@ const handleSaveOrganization = async () => {
       if (globalRolesCache[oldOrgName]) {
         delete globalRolesCache[oldOrgName];
       }
-      
       // Refresh data for the new org name
       globalDataLoaded = false;
       await fetchAllData(true);
@@ -638,59 +658,11 @@ const handleDeleteOrganization = async (orgId, orgName) => {
       await fetchOrganizations();
     }
   }, [fetchAllData, fetchOrganizations, isSupremeAdmin]);
-
-  // Initial data fetch
-  useEffect(() => {
-    if (!globalDataLoaded && !isRefreshingToken) {
-      fetchAllData();
-    } else {
-      setUsers(globalUsersData);
-      setLoading(false);
-    }
-    
-    if (isSupremeAdmin) {
-      fetchOrganizations();
-    }
-    
-    initialLoadRef.current = false;
-  }, [fetchAllData, isRefreshingToken, isSupremeAdmin, fetchOrganizations]);
-
-  useEffect(() => {
-    if (isRefreshingToken) {
-      setLoading(true);
-    } else if (initialLoadRef.current === false && !globalDataLoaded) {
-      fetchAllData();
-    } else if (globalDataLoaded) {
-      setLoading(false);
-    }
-  }, [isRefreshingToken, fetchAllData]);
-
-useEffect(() => {
-  console.log(' selectedOrg useEffect triggered with:', selectedOrg);
-  
-  if (selectedOrg) {
-    // This prevents double fetching
-  }
-}, [selectedOrg]);
-useEffect(() => {
-  if (currentUser) {
-    console.log('👤 Current user from context:', {
-      email: currentUser.email,
-      role: currentUser.role,
-      is_supreme_admin: currentUser.is_supreme_admin,
-      organization: currentUser.organization
-    });
-  }
-}, [currentUser]);
-
 // Initial data fetch
 useEffect(() => {
   const initializeData = async () => {
     setLoading(true);
-    if (!selectedOrg) {
-      setSelectedOrg('Active Church');
-    }
-    
+        
     if (isSupremeAdmin) {
       await fetchOrganizations();
     }
@@ -702,43 +674,6 @@ useEffect(() => {
   
   initializeData();
 }, []);
-
-// Fetch when organization changes
-useEffect(() => {
-  if (selectedOrg) {
-    setLoading(true);
-    fetchAllData(true);
-    fetchOrganizationRoles(true).finally(() => setLoading(false));
-  }
-}, [selectedOrg]);
-
-// Fetch when page/rows change
-useEffect(() => {
-  if (globalDataLoaded && selectedOrg) {
-    fetchAllData(true);
-  }
-}, [page, rowsPerPage]);
-
-useEffect(() => {
-  if (selectedOrg) {
-    fetchAllData(true);
-    fetchOrganizationRoles(true);
-  }
-}, [selectedOrg]);
-
-  useEffect(() => {
-    if (selectedOrg !== undefined) {
-      globalDataLoaded = false;
-      fetchAllData(true);
-    }
-  }, [selectedOrg, fetchAllData]);
-// Fetch data when page or rowsPerPage changes
-useEffect(() => {
-  if (globalDataLoaded) {
-    console.log(`Page changed to ${page}, fetching new data...`);
-    fetchAllData(true);
-  }
-}, [page, rowsPerPage]);
 
   const handleCreateUser = async (userData) => {
     setCreatingUser(true);
@@ -796,8 +731,6 @@ useEffect(() => {
       setCreatingUser(false);
     }
   };
-
-
 
   const handleRoleChange = async (userId, newRole) => {
     setUpdatingRole(true);
@@ -878,34 +811,29 @@ useEffect(() => {
       setDeletingUser(false);
     }
   };
-// Fetch distinct roles for the current organization
-const fetchOrganizationRoles = useCallback(async () => {
+
+  const fetchOrganizationRoles = useCallback(async () => {
+  // Use selectedOrg first, fall back to user's organization
+  const currentOrg = selectedOrg || currentUser?.Organization || currentUser?.organization;
+  
+  if (!currentOrg) {
+    setOrganizationRoles([]);
+    return;
+  }
+  
+  const isActiveChurch = currentOrg.trim().toLowerCase() === 'active church';
+  
   try {
-    const currentOrg = selectedOrg || currentUser?.organization;
-    
-    // Don't fetch roles if no organization
-    if (!currentOrg) {
-      setOrganizationRoles([]);
-      return;
-    }
-    
-    const isActiveChurch = currentOrg.trim().toLowerCase() === 'active church';
-    
     const response = await authFetch(`${API_BASE_URL}/admin/roles/distinct?organization=${encodeURIComponent(currentOrg)}`);
     if (response.ok) {
       const data = await response.json();
       
       if (isActiveChurch) {
-        // For Active Church, filter to ONLY show the 5 standard roles
         const standardRoles = ['admin', 'leader', 'leaderAt12', 'user', 'registrant'];
         const filteredRoles = (data.roles || [])
           .filter(role => standardRoles.includes(role.name))
-          .map(role => ({
-            ...role,
-            is_system: true
-          }));
+          .map(role => ({ ...role, is_system: true }));
         
-        // Ensure all standard roles are present (even if count is 0)
         const completeRoles = standardRoles.map(roleName => {
           const existing = filteredRoles.find(r => r.name === roleName);
           return existing || {
@@ -918,7 +846,6 @@ const fetchOrganizationRoles = useCallback(async () => {
         
         setOrganizationRoles(completeRoles);
       } else {
-        // For other churches, use all roles
         setOrganizationRoles(data.roles || []);
       }
     }
@@ -928,12 +855,8 @@ const fetchOrganizationRoles = useCallback(async () => {
   }
 }, [API_BASE_URL, authFetch, selectedOrg, currentUser]);
 
-// Call when organization changes
-useEffect(() => {
-  if (selectedOrg || currentUser?.organization) {
-    fetchOrganizationRoles();
-  }
-}, [selectedOrg, fetchOrganizationRoles]);
+
+
 
 const handleCreateRole = async () => {
   // Double-check we're not in Active Church
@@ -990,11 +913,7 @@ const handleCreateRole = async () => {
     setCreatingRole(false);
   }
 };
-useEffect(() => {
-  if (selectedOrg || currentUser?.organization) {
-    fetchOrganizationRoles();
-  }
-}, [selectedOrg, fetchOrganizationRoles]);
+
 
 // Also refresh roles when users data changes (to update counts)
 useEffect(() => {
@@ -1700,7 +1619,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
     setRowsPerPage(parseInt(e.target.value, 10)); 
     setPage(0); 
   }} 
-  rowsPerPageOptions={[5, 10, 20, 50, 100]} 
+  rowsPerPageOptions={[25, 50, 100, 500, 1000]}
 />
                   </Box>
                 ) : (
@@ -1797,7 +1716,7 @@ const RoleOption = ({ role, selectedUser, onSelect }) => {
     setPage(0); 
     globalDataLoaded = false; 
   }} 
-  rowsPerPageOptions={[5, 10, 20, 50, 100]} 
+rowsPerPageOptions={[25, 50, 100, 500, 1000]}
 />
                   </Box>
                 )}
