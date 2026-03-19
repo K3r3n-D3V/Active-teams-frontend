@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
-
+import { useOrgConfig } from "../contexts/OrgConfigContext";
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
@@ -1100,7 +1100,7 @@ const LeaderSelectionModal = ({
           { headers },
         );
         const data = await res.json();
-        const peopleArray = data.people || data.results || [];
+        const peopleArray = Array.isArray(data) ? data : (data.results || data.people || []);
 
         const formatted = peopleArray.map((p) => {
           const leader1 =
@@ -1409,6 +1409,7 @@ const AttendanceModal = ({
   currentUser,
 }) => {
   const { authFetch } = useContext(AuthContext);
+  const { getHierarchyLabel, getHierarchyField, getAllHierarchyLevels } = useOrgConfig();
   const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
@@ -1648,74 +1649,63 @@ const AttendanceModal = ({
     }
   };
 
-const loadPersistentAttendees = async (eventId) => {
-  if (!eventId || eventId === "undefined") {
-    console.error("loadPersistentAttendees called with invalid eventId:", eventId);
-    return;
-  }
-  const actualEventId = eventId.includes("_") ? eventId.split("_")[0] : eventId;
-
-  if (!actualEventId || actualEventId === "undefined") {
-    console.error("Could not resolve a valid event ID from:", eventId);
-    return;
-  }
-
-  try {
-    const token = localStorage.getItem("token");
-    const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-      { headers: { Authorization: `Bearer ${token}` } }
-    );
-    if (!response.ok) {
-      console.error("Failed to load persistent attendees:", response.status);
+  const loadPersistentAttendees = async (eventId) => {
+    if (!eventId || eventId === "undefined") {
+      console.error("loadPersistentAttendees called with invalid eventId:", eventId);
       return;
     }
-    const data = await response.json();
-    const persistentList = data.persistent_attendees || [];
-    const checkedInList = data.checked_in_attendees || [];
-    setPersistentCommonAttendees(persistentList);
-    const isCompleted =
-      data.attendance_status === "complete" ||
-      data.attendance_status === "did_not_meet";
-    const newCheckedIn = {};
-    persistentList.forEach(att => {
-      if (att.id) newCheckedIn[att.id] = false;
-    });
+    const actualEventId = eventId.includes("_") ? eventId.split("_")[0] : eventId;
 
-    // Only tick people if this specific date's attendance is complete
-    if (isCompleted && data.attendance_status !== "did_not_meet") {
-      checkedInList.forEach(att => {
-        if (att.id) newCheckedIn[att.id] = true;
-      });
+    if (!actualEventId || actualEventId === "undefined") {
+      console.error("Could not resolve a valid event ID from:", eventId);
+      return;
     }
 
-    setCheckedIn(newCheckedIn);
-    const newDecisions = {};
-    const newDecisionTypes = {};
-    if (isCompleted && data.attendance_status !== "did_not_meet") {
-      checkedInList.forEach(att => {
-        if (att.id && att.decision) {
-          newDecisions[att.id] = true;
-          newDecisionTypes[att.id] = att.decision;
-        }
-      });
-    }
-    setDecisions(newDecisions);
-    setDecisionTypes(newDecisionTypes);
-    if (isTicketedEvent) {
-      const newTicketInfo = {};
+    try {
+      const token = localStorage.getItem("token");
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (!response.ok) {
+        console.error("Failed to load persistent attendees:", response.status);
+        return;
+      }
+      const data = await response.json();
+      const persistentList = data.persistent_attendees || [];
+      const checkedInList = data.checked_in_attendees || [];
+      setPersistentCommonAttendees(persistentList);
+      const isCompleted =
+        data.attendance_status === "complete" ||
+        data.attendance_status === "did_not_meet";
+      const newCheckedIn = {};
       persistentList.forEach(att => {
-        if (att.id && att.priceName && att.priceName.trim() !== "") {
-          newTicketInfo[att.id] = {
-            priceName: att.priceName,
-            price: att.price != null ? att.price : 0,
-            ageGroup: att.ageGroup || "",
-            paymentMethod: att.paymentMethod || "",
-          };
-        }
+        if (att.id) newCheckedIn[att.id] = false;
       });
-      if (isCompleted) {
+
+      // Only tick people if this specific date's attendance is complete
+      if (isCompleted && data.attendance_status !== "did_not_meet") {
         checkedInList.forEach(att => {
+          if (att.id) newCheckedIn[att.id] = true;
+        });
+      }
+
+      setCheckedIn(newCheckedIn);
+      const newDecisions = {};
+      const newDecisionTypes = {};
+      if (isCompleted && data.attendance_status !== "did_not_meet") {
+        checkedInList.forEach(att => {
+          if (att.id && att.decision) {
+            newDecisions[att.id] = true;
+            newDecisionTypes[att.id] = att.decision;
+          }
+        });
+      }
+      setDecisions(newDecisions);
+      setDecisionTypes(newDecisionTypes);
+      if (isTicketedEvent) {
+        const newTicketInfo = {};
+        persistentList.forEach(att => {
           if (att.id && att.priceName && att.priceName.trim() !== "") {
             newTicketInfo[att.id] = {
               priceName: att.priceName,
@@ -1725,25 +1715,36 @@ const loadPersistentAttendees = async (eventId) => {
             };
           }
         });
+        if (isCompleted) {
+          checkedInList.forEach(att => {
+            if (att.id && att.priceName && att.priceName.trim() !== "") {
+              newTicketInfo[att.id] = {
+                priceName: att.priceName,
+                price: att.price != null ? att.price : 0,
+                ageGroup: att.ageGroup || "",
+                paymentMethod: att.paymentMethod || "",
+              };
+            }
+          });
+        }
+        setAttendeeTicketInfo(prev => ({ ...newTicketInfo, ...prev }));
       }
-      setAttendeeTicketInfo(prev => ({ ...newTicketInfo, ...prev }));
-    }
 
-    if (data.attendance_status === "did_not_meet") {
-      setDidNotMeet(true);
-      setManualHeadcount("0");
-    } else if (isCompleted && data.total_headcounts > 0) {
-      setDidNotMeet(false);
-      setManualHeadcount(data.total_headcounts.toString());
-    } else {
-      setDidNotMeet(false);
-      setManualHeadcount("0");
-    }
+      if (data.attendance_status === "did_not_meet") {
+        setDidNotMeet(true);
+        setManualHeadcount("0");
+      } else if (isCompleted && data.total_headcounts > 0) {
+        setDidNotMeet(false);
+        setManualHeadcount(data.total_headcounts.toString());
+      } else {
+        setDidNotMeet(false);
+        setManualHeadcount("0");
+      }
 
-  } catch (error) {
-    console.error("Error loading persistent attendees:", error);
-  }
-};
+    } catch (error) {
+      console.error("Error loading persistent attendees:", error);
+    }
+  };
 
   const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
@@ -1777,20 +1778,27 @@ const loadPersistentAttendees = async (eventId) => {
       const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
 
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-
       const data = await res.json();
-      const peopleArray = data.people || data.results || [];
+      const peopleArray = Array.isArray(data) ? data : (data.results || data.people || []);
 
-      const formatted = peopleArray.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p.leader1 || p.leaders?.[0] || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || p.leaders?.[1] || "",
-        leader144: p["Leader @144"] || p["Leader at 144"] || p.leader144 || p.leaders?.[2] || "",
-        phone: p.Number || p.Phone || p.phone || "",
-        searchText: `${(p.Name || p.name || "")} ${(p.Surname || p.surname || "")} ${(p.Email || p.email || "")}`.toLowerCase()
-      }));
+      // REPLACE WITH:
+      const formatted = peopleArray.map((p) => {
+        const hierarchyData = {};
+        getAllHierarchyLevels().forEach(h => {
+          hierarchyData[`level_${h.level}`] = p[h.field] || p[h.label] || "";
+        });
+        return {
+          id: p._id,
+          fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+          email: p.Email || p.email || "",
+          leader1: p["Leader @1"] || p[getHierarchyField(1)] || "",
+          leader12: p["Leader @12"] || p[getHierarchyField(2)] || "",
+          leader144: p["Leader @144"] || p[getHierarchyField(3)] || "",
+          phone: p.Number || p.Phone || p.phone || "",
+          ...hierarchyData,
+          searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
+        };
+      });
 
       window.globalPeopleCache = {
         data: formatted,
@@ -1810,148 +1818,151 @@ const loadPersistentAttendees = async (eventId) => {
   };
 
 
-useEffect(() => {
-  if (isOpen && event) {
-    let eventId;
+  useEffect(() => {
+    if (isOpen && event) {
+      let eventId;
 
-    if (event.original_event_id && event.date) {
-      const cleanDate = event.date.split("T")[0].split(" ")[0];
-      eventId = `${event.original_event_id}_${cleanDate}`;
-    } else if (event._id && event.date) {
-      // Regular events - also strip time and append clean date
-      const cleanDate = event.date.split("T")[0].split(" ")[0];
-      eventId = `${event._id}_${cleanDate}`;
-    } else {
-      eventId = event._id || event.id;
+      if (event.original_event_id && event.date) {
+        const cleanDate = event.date.split("T")[0].split(" ")[0];
+        eventId = `${event.original_event_id}_${cleanDate}`;
+      } else if (event._id && event.date) {
+        // Regular events - also strip time and append clean date
+        const cleanDate = event.date.split("T")[0].split(" ")[0];
+        eventId = `${event._id}_${cleanDate}`;
+      } else {
+        eventId = event._id || event.id;
+      }
+
+      if (!eventId || eventId === "undefined") {
+        console.error("useEffect: event has no valid _id or id", event);
+        return;
+      }
+
+      setSearchName("");
+      setAssociateSearch("");
+      setActiveTab(0);
+      setDecisions({});
+      setDecisionTypes({});
+      setAttendeeTicketInfo({});
+      setManualHeadcount("0");
+      setDidNotMeet(false);
+
+      const existingAttendees = event.persistent_attendees || [];
+      if (existingAttendees.length > 0) {
+        setPersistentCommonAttendees(existingAttendees);
+        const initialCheckedIn = {};
+        existingAttendees.forEach(att => {
+          if (att.id) initialCheckedIn[att.id] = false;
+        });
+        setCheckedIn(initialCheckedIn);
+        if (isTicketedEvent) {
+          const initialTicketInfo = {};
+          existingAttendees.forEach(att => {
+            if (att.id && att.priceName?.trim()) {
+              initialTicketInfo[att.id] = {
+                priceName: att.priceName,
+                price: att.price ?? 0,
+                ageGroup: att.ageGroup || "",
+                paymentMethod: att.paymentMethod || "",
+              };
+            }
+          });
+          setAttendeeTicketInfo(initialTicketInfo);
+        }
+      } else {
+        setPersistentCommonAttendees([]);
+        setCheckedIn({});
+      }
+
+      const loadAllData = async () => {
+        await loadPersistentAttendees(eventId);
+        await loadEventStatistics();
+      };
+      loadAllData();
     }
+  }, [isOpen, event?._id, event?.id]);
 
-    if (!eventId || eventId === "undefined") {
-      console.error("useEffect: event has no valid _id or id", event);
+ const fetchPeople = async (q) => {
+    if (!q || !q.trim()) {
+      if (preloadedPeople.length > 0) {
+        setPeople(preloadedPeople.slice(0, 50));
+      } else {
+        setPeople([]);
+      }
       return;
     }
-
-    setSearchName("");
-    setAssociateSearch("");
-    setActiveTab(0);
-    setDecisions({});
-    setDecisionTypes({});
-    setAttendeeTicketInfo({});
-    setManualHeadcount("0");
-    setDidNotMeet(false);
-
-    const existingAttendees = event.persistent_attendees || [];
-    if (existingAttendees.length > 0) {
-      setPersistentCommonAttendees(existingAttendees);
-      const initialCheckedIn = {};
-      existingAttendees.forEach(att => {
-        if (att.id) initialCheckedIn[att.id] = false;
-      });
-      setCheckedIn(initialCheckedIn);
-      if (isTicketedEvent) {
-        const initialTicketInfo = {};
-        existingAttendees.forEach(att => {
-          if (att.id && att.priceName?.trim()) {
-            initialTicketInfo[att.id] = {
-              priceName: att.priceName,
-              price: att.price ?? 0,
-              ageGroup: att.ageGroup || "",
-              paymentMethod: att.paymentMethod || "",
-            };
-          }
-        });
-        setAttendeeTicketInfo(initialTicketInfo);
-      }
-    } else {
-      setPersistentCommonAttendees([]);
-      setCheckedIn({});
-    }
-
-    const loadAllData = async () => {
-      await loadPersistentAttendees(eventId);
-      await loadEventStatistics();
-    };
-    loadAllData();
-  }
-}, [isOpen, event?._id, event?.id]);
-
-const fetchPeople = async (q) => {
-  if (!q || !q.trim()) {
+    const query = q.trim();
+    const queryLower = query.toLowerCase();
+    const searchWords = queryLower.split(/\s+/).filter(w => w.length > 0);
     if (preloadedPeople.length > 0) {
-      setPeople(preloadedPeople.slice(0, 50));
-    } else {
+      const cachedResults = preloadedPeople.filter(person => {
+        const fullNameLower = person.fullName.toLowerCase();
+        const emailLower = person.email.toLowerCase();
+        if (emailLower.includes(queryLower)) return true;
+        return searchWords.every(word => fullNameLower.includes(word));
+      });
+      if (cachedResults.length > 0) {
+        setPeople(cachedResults);
+        return;
+      }
+    }
+    try {
+      let results = [];
+
+      let res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(query)}`);
+      if (res.ok) {
+        const data = await res.json();
+        results = Array.isArray(data) ? data : (data.results || data.people || []);
+      }
+
+      if (results.length === 0 && searchWords.length > 1) {
+        res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(searchWords[0])}`);
+        if (res.ok) {
+          const data = await res.json();
+          const all = Array.isArray(data) ? data : (data.results || data.people || []);
+          results = all.filter(p => {
+            const fullName = `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.toLowerCase();
+            return searchWords.every(word => fullName.includes(word));
+          });
+        }
+      }
+
+      if (results.length === 0) {
+        res = await authFetch(`${BACKEND_URL}/people?perPage=200`);
+        if (res.ok) {
+          const data = await res.json();
+          const all = Array.isArray(data) ? data : (data.results || data.people || []);
+          results = all.filter(p => {
+            const fullName = `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.toLowerCase();
+            return searchWords.every(word => fullName.includes(word));
+          });
+        }
+      }
+
+      const formatted = results.map((p) => {
+        const hierarchyData = {};
+        getAllHierarchyLevels().forEach(h => {
+          hierarchyData[`level_${h.level}`] = p[h.field] || p[h.label] || "";
+        });
+        return {
+          id: p._id,
+          fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+          email: p.Email || p.email || "",
+          leader1: p["Leader @1"] || p[getHierarchyField(1)] || "",
+          leader12: p["Leader @12"] || p[getHierarchyField(2)] || "",
+          leader144: p["Leader @144"] || p[getHierarchyField(3)] || "",
+          phone: p.Number || p.Phone || p.phone || "",
+          ...hierarchyData,
+          searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
+        };
+      });
+      setPeople(formatted);
+    } catch (err) {
+      console.error("Error fetching people:", err);
+      toast.error("Search failed, please try again");
       setPeople([]);
     }
-    return;
-  }
-
-  const query = q.trim();
-  const queryLower = query.toLowerCase();
-  const searchWords = queryLower.split(/\s+/).filter(w => w.length > 0);
-
-  if (preloadedPeople.length > 0) {
-    const cachedResults = preloadedPeople.filter(person => {
-      const fullNameLower = person.fullName.toLowerCase();
-      const emailLower = person.email.toLowerCase();
-      if (emailLower.includes(queryLower)) return true;
-      return searchWords.every(word => fullNameLower.includes(word));
-    });
-
-    if (cachedResults.length > 0) {
-      setPeople(cachedResults);
-      return;
-    }
-  }
-  try {
-    let results = [];
-    // Try exact name search
-    let res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(query)}`);
-    if (res.ok) {
-      const data = await res.json();
-      results = data?.results || data?.people || [];
-    }
-
-    // If multi-word and no results, try first word then filter
-    if (results.length === 0 && searchWords.length > 1) {
-      res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(searchWords[0])}`);
-      if (res.ok) {
-        const data = await res.json();
-        const all = data?.results || data?.people || [];
-        results = all.filter(p => {
-          const fullName = `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.toLowerCase();
-          return searchWords.every(word => fullName.includes(word));
-        });
-      }
-    }
-    if (results.length === 0) {
-      res = await authFetch(`${BACKEND_URL}/people?perPage=200`);
-      if (res.ok) {
-        const data = await res.json();
-        const all = data?.results || data?.people || [];
-        results = all.filter(p => {
-          const fullName = `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.toLowerCase();
-          return searchWords.every(word => fullName.includes(word));
-        });
-      }
-    }
-
-    const formatted = results.map((p) => ({
-      id: p._id,
-      fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-      email: p.Email || p.email || "",
-      leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
-      leader144: p["Leader @144"] || p["Leader at 144"] || p.leader144 || (p.leaders && p.leaders[2]) || "",
-      phone: p.Number || p.Phone || p.phone || "",
-      searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
-    }));
-
-    setPeople(formatted);
-
-  } catch (err) {
-    console.error("Error fetching people:", err);
-    toast.error("Search failed, please try again");
-    setPeople([]);
-  }
-};
+  };
 
   const fetchCommonAttendees = async (cellId) => {
     try {
@@ -2079,23 +2090,23 @@ const fetchPeople = async (q) => {
     setOpenDecisionDropdown(null);
   };
 
-const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
-  if (!event) return false;
+  const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
+    if (!event) return false;
 
- let eventId = event.original_event_id || event._id || event.id;
+    let eventId = event.original_event_id || event._id || event.id;
 
-  if (!eventId || eventId === "undefined") {
-    console.error("saveAllAttendees: no valid eventId found on event object", event);
-    return false;
-  }
+    if (!eventId || eventId === "undefined") {
+      console.error("saveAllAttendees: no valid eventId found on event object", event);
+      return false;
+    }
 
-  if (eventId.includes("_")) {
-    eventId = eventId.split("_")[0];
-  }
+    if (eventId.includes("_")) {
+      eventId = eventId.split("_")[0];
+    }
 
-  const ticketInfoToUse = ticketInfoOverride ?? attendeeTicketInfo;
-  const enriched = isTicketedEvent
-    ? attendees.map(p => {
+    const ticketInfoToUse = ticketInfoOverride ?? attendeeTicketInfo;
+    const enriched = isTicketedEvent
+      ? attendees.map(p => {
         const ticketOverride = ticketInfoToUse[p.id] || {};
         return {
           ...p,
@@ -2108,32 +2119,32 @@ const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
           paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
         };
       })
-    : attendees;
+      : attendees;
 
-  try {
-    const token = localStorage.getItem("token");
-    const response = await authFetch(
-      `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-      {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ persistent_attendees: enriched }),
+    try {
+      const token = localStorage.getItem("token");
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ persistent_attendees: enriched }),
+        }
+      );
+      if (!response.ok) {
+        throw new Error(`Save failed: ${response.status}`);
       }
-    );
-    if (!response.ok) {
-      throw new Error(`Save failed: ${response.status}`);
+      console.log(`Saved ${enriched.length} attendees to database`);
+      return true;
+    } catch (error) {
+      console.error("Failed to save:", error);
+      toast.error("Failed to save attendees list");
+      return false;
     }
-    console.log(`Saved ${enriched.length} attendees to database`);
-    return true;
-  } catch (error) {
-    console.error("Failed to save:", error);
-    toast.error("Failed to save attendees list");
-    return false;
-  }
-};
+  };
 
   const handleAssociatePerson = async (person) => {
     const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
@@ -2301,10 +2312,10 @@ const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
     person.email.toLowerCase().includes(searchName.toLowerCase())
   );
 
-const filteredPeople = people.filter(person =>
-  person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
-  person.email.toLowerCase().includes(associateSearch.toLowerCase())
-);
+  const filteredPeople = people.filter(person =>
+    person.fullName.toLowerCase().includes(associateSearch.toLowerCase()) ||
+    person.email.toLowerCase().includes(associateSearch.toLowerCase())
+  );
   const handleSave = async () => {
     if (isSaving) return;
     setIsSaving(true);
@@ -2794,9 +2805,10 @@ const filteredPeople = people.filter(person =>
       color: theme.palette.text.secondary,
     },
     tableContainer: {
-      marginBottom: 16,overflowX: "auto",WebkitOverflowScrolling: "touch",paddingBottom: 8,
+      marginBottom: 16, overflowX: "auto", WebkitOverflowScrolling: "touch", paddingBottom: 8,
     },
-    table: {width: "100%",borderCollapse: "collapse",minWidth: isTicketedEvent ? 1100 : 780,
+    table: {
+      width: "100%", borderCollapse: "collapse", minWidth: isTicketedEvent ? 1100 : 780,
     },
     th: {
       textAlign: "left",
@@ -3075,8 +3087,8 @@ const filteredPeople = people.filter(person =>
                         <tr>
                           <th style={styles.th}>Attendees Name</th>
                           <th style={styles.th}>Attendees Email</th>
-                          <th style={styles.th}>Attendees Leader @12</th>
-                          <th style={styles.th}>Attendees Leader @144</th>
+                          <th style={styles.th}>Attendees {getHierarchyLabel(2)}</th>
+                          <th style={styles.th}>Attendees {getHierarchyLabel(3)}</th>
                           <th style={styles.th}>Attendees Number</th>
                           {isTicketedEvent && (
                             <>
@@ -3155,7 +3167,7 @@ const filteredPeople = people.filter(person =>
                                                     priceName: tier.name,
                                                     price: tier.price,
                                                     ageGroup: tier.ageGroup,
-                                                    paymentMethod: tier.paymentMethod || " " 
+                                                    paymentMethod: tier.paymentMethod || " "
                                                   }
                                                 }));
                                                 setOpenPriceTierDropdown(null);
@@ -3387,7 +3399,7 @@ const filteredPeople = people.filter(person =>
                             <div style={styles.mobileCardInfo}>
                               <div style={styles.mobileCardName}>{person.fullName}</div>
                               <div style={styles.mobileCardEmail}>{person.email}</div>
-                              <div style={{ fontSize: "12px", color: "#666" }}>Leader @12: {person.leader12}</div>
+                              <div style={{ fontSize: "12px", color: "#666" }}>{getHierarchyLabel(2)}: {person.leader12}</div>
                               <div style={{ fontSize: "12px", color: "#666" }}>Phone: {person.phone}</div>
                             </div>
                             <button
@@ -3410,8 +3422,8 @@ const filteredPeople = people.filter(person =>
                         <tr>
                           <th style={styles.th}>Name</th>
                           <th style={styles.th}>Email</th>
-                          <th style={styles.th}>Leader @12</th>
-                          <th style={styles.th}>Leader @144</th>
+                          <th style={styles.th}>{getHierarchyLabel(2)}</th>
+                          <th style={styles.th}>{getHierarchyLabel(3)}</th>
                           <th style={styles.th}>Phone</th>
                           <th style={{ ...styles.th, textAlign: "center" }}>Add</th>
                         </tr>

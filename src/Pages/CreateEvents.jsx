@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef,useContext } from "react";
 import {
   Button,
   TextField,
@@ -27,6 +27,7 @@ import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Popper } from "@mui/material";
+import { useOrgConfig } from "../contexts/OrgConfigContext";
 
 function generateUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
@@ -58,22 +59,17 @@ const SameWidthPopper = (props) => {
       placement="bottom-start"
       style={{
         zIndex: 20000,
-        width, 
+        width,
       }}
     />
   );
 };
 
-const CreateEvents = ({
-  user,
-  isModal = false,
-  onClose,
-  eventTypes = [],
-  selectedEventType,
-  selectedEventTypeObj = null,
-}) => {
+const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, selectedEventTypeObj }) => {
   const navigate = useNavigate();
-  const { id: eventId } = useParams();
+  const { id: paramEventID } = useParams();
+  //changed eventId initial value to first check if there's an Id in the params
+  const [eventId,setEventId] = useState(paramEventID?paramEventID:null)
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
@@ -87,10 +83,10 @@ const CreateEvents = ({
     isTicketed: isTicketedEvent,
     hasPersonSteps,
   } = eventTypeFlags;
+    const { getHierarchyLabel, getHierarchyField, getAllHierarchyLevels } = useOrgConfig();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
-  const [loadingPeople] = useState(false);
   const [priceTiers, setPriceTiers] = useState([]);
 
   const isSelectingFromDropdown = useRef(false);
@@ -129,7 +125,7 @@ const CreateEvents = ({
   // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
   const searchDebounceRef = useRef(null);
-  
+
   useEffect(() => {
     if (!navigator.geolocation) return;
 
@@ -257,7 +253,7 @@ const CreateEvents = ({
         hasPersonSteps: et.hasPersonSteps,
       })),
     });
-
+  const hierarchyLevels = getAllHierarchyLevels();
     const determineEventType = () => {
       if (selectedEventTypeObj) {
         return {
@@ -270,13 +266,12 @@ const CreateEvents = ({
       }
       if (selectedEventType) {
         console.log("Looking for event type:", selectedEventType);
-        // Handle "all" and convert to "CELLS" - Always set hasPersonSteps to true for CELLS
         if (selectedEventType === "all" || selectedEventType.toUpperCase() === "ALL CELLS") {
           return {
             eventType: "CELLS",
             isGlobal: false,
             isTicketed: false,
-            hasPersonSteps: true, 
+            hasPersonSteps: true,
           };
         }
         const foundEventType = eventTypes.find((et) => {
@@ -303,7 +298,6 @@ const CreateEvents = ({
           };
         } else {
           console.log("Event type not found, using defaults");
-          // For CELLS type specifically, set hasPersonSteps to true
           const isCellsType = selectedEventType.toUpperCase() === "CELLS";
           return {
             eventType: selectedEventType,
@@ -342,8 +336,7 @@ const CreateEvents = ({
       eventType,
       ...(prev.hasPersonSteps && !hasPersonSteps
         ? {
-            leader1: "",
-            leader12: "",
+          ...Object.fromEntries(getAllHierarchyLevels().map(h => [h.field, ""])),
           }
         : {}),
     }));
@@ -384,46 +377,80 @@ const CreateEvents = ({
     }
   }, [isTicketedEvent]);
 
+  // FIXED: Use the exact working fetchPeople logic from the first (working) version
+  // Same backend endpoint, client-side filtering/sorting, full leader field fallbacks
   const fetchPeople = async (q) => {
-    if (!q.trim() || q.trim().length < 2) {
+    if (!q.trim()) {
       setPeopleData([]);
       return;
     }
 
+    const parts = q.trim().split(/\s+/);
+    const name = parts[0];
+    const surname = parts.slice(1).join(" ");
+
     try {
       setIsSearchingPeople(true);
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
 
-      const res = await fetch(
-        `${BACKEND_URL}/people/search-fast?query=${encodeURIComponent(q.trim())}&limit=10`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
-
-      if (!res.ok) throw new Error("Search failed");
+      if (!res.ok) throw new Error("Failed to fetch people");
 
       const data = await res.json();
-      const results = data?.results || [];
 
-      const formatted = results.map((p) => ({
+      let filtered = (data?.results || data?.people || []).filter((p) =>
+        (p.Name && p.Name.toLowerCase().includes(name.toLowerCase())) &&
+        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+      );
+
+      // Sort the results (exact same as working first version)
+      filtered.sort((a, b) => {
+        const nameA = (a.Name || "").toLowerCase();
+        const nameB = (b.Name || "").toLowerCase();
+        const surnameA = (a.Surname || "").toLowerCase();
+        const surnameB = (b.Surname || "").toLowerCase();
+
+        if (nameA < nameB) return -1;
+        if (nameA > nameB) return 1;
+        if (surnameA < surnameB) return -1;
+        if (surnameA > surnameB) return 1;
+        return 0;
+      });
+
+      const formatted = filtered.map((p) => ({
         id: p._id,
-        fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-        email: p.Email || "",
-        leader1: p["Leader @1"] || "",
-        leader12: p["Leader @12"] || "",
-      })).filter((p) => p.fullName);
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
+        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
+      }));
 
       setPeopleData(formatted);
     } catch (err) {
-      console.error("Search error:", err);
+      console.error("Error fetching people:", err);
+      toast.error(err.message);
       setPeopleData([]);
     } finally {
       setIsSearchingPeople(false);
     }
   };
+  
+  //
+  useEffect(()=>{
+    //when create event is rendered it should check if it was opened by a ticketed event
+    const queryString = window.location.search
+    const queries = new URLSearchParams(queryString)
+
+    //checking if opened a ticketed event
+    if (selectedEventTypeObj.isTicketed === true){
+      console.log("Event ID",queries.get("eventId"))
+      //setting event id to query
+      setEventId(queries.get("eventId"))
+    }
+  },[])
 
   useEffect(() => {
+    console.log("dd",eventId)
     if (!eventId) return;
-
     const fetchEventData = async () => {
       try {
         const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
@@ -489,6 +516,8 @@ const CreateEvents = ({
         }
 
         setFormData((prev) => ({ ...prev, ...data }));
+        // Replace current URL without query string
+window.history.replaceState({}, "", window.location.pathname);
       } catch (err) {
         console.error("Failed to fetch event:", err);
         toast.error("Failed to load event data. Please try again.");
@@ -531,19 +560,15 @@ const CreateEvents = ({
     setPriceTiers((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
+      //Add price tiers to formData so when it's updated it can be sent to the backend
+      setFormData((prev) => ({
+      ...prev,
+      "priceTiers": updated,
+      }));
       return updated;
     });
-  };
 
-  const handleLeaderSelect = (person) => {
-    setFormData((prev) => ({
-      ...prev,
-      eventLeader: person.fullName,
-      eventLeaderEmail: person.email,
-    }));
   };
-  
-  console.log("view leadersgip fields", handleLeaderSelect);
 
   const handleRemovePriceTier = (index) => {
     setPriceTiers((prev) => prev.filter((_, i) => i !== index));
@@ -553,12 +578,14 @@ const CreateEvents = ({
     setFormData({
       eventType: selectedEventTypeObj?.name || selectedEventType || "",
       eventName: "",
+      email: "",
       date: "",
       time: "",
       timePeriod: "AM",
       recurringDays: [],
       location: "",
       eventLeader: "",
+      eventLeaderEmail: "",
       description: "",
       leader1: "",
       leader12: "",
@@ -583,11 +610,6 @@ const CreateEvents = ({
     if (!isGlobalEvent) {
       if (hasPersonSteps && formData.recurringDays.length === 0) {
         newErrors.recurringDays = "Select at least one recurring day";
-      }
-
-      if (!hasPersonSteps) {
-        if (!formData.date) newErrors.date = "Date is required";
-        if (!formData.time) newErrors.time = "Time is required";
       }
 
       if (isTicketedEvent) {
@@ -615,10 +637,11 @@ const CreateEvents = ({
         }
       }
 
-      if (hasPersonSteps) {
-        if (!formData.leader1) newErrors.leader1 = "Leader @1 is required";
-        if (!formData.leader12) newErrors.leader12 = "Leader @12 is required";
-      }
+     if (hasPersonSteps) {
+  getAllHierarchyLevels().forEach((h) => {
+    if (!formData[h.field]) newErrors[h.field] = `${h.label} is required`;
+  });
+}
     } else {
       if (!formData.date) newErrors.date = "Date is required";
       if (!formData.time) newErrors.time = "Time is required";
@@ -744,27 +767,30 @@ const CreateEvents = ({
 
       console.log("Final Payload:", payload);
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const headers = {
         Authorization: token ? `Bearer ${token}` : "",
         "Content-Type": "application/json",
       };
 
-      const response = eventId
-        ? await axios.put(
-            `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`,
-            payload,
-            {
-              headers,
+      //updating using auth fetch as endpoint was returning a 401 error
+      const response = eventId?
+      await authFetch(`${BACKEND_URL}/events/${eventId}`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
-          )
+            //sending form data 
+            body: JSON.stringify(formData)
+          })
         : await axios.post(
             `${BACKEND_URL.replace(/\/$/, "")}/events`,
             payload,
             { headers },
           );
 
-      console.log("Response:", response.data.success);
+      console.log("Response:", response.data);
 
       toast.success(
         eventId ? "Event updated successfully!" : "Event created successfully!",
@@ -1072,7 +1098,7 @@ const CreateEvents = ({
               {eventTypes.map((et) => (
                 <MenuItem key={et.id} value={et.name}>
                   {et.name}
-                </MenuItem>                  
+                </MenuItem>
               ))}
             </TextField>
 
@@ -1159,8 +1185,10 @@ const CreateEvents = ({
                     <TextField
                       label="Price Name *"
                       value={tier.name}
-                      onChange={(e) =>
-                        handlePriceTierChange(index, "name", e.target.value)
+                      onChange={(e) =>{
+                        handlePriceTierChange(index, "name", e.target.value);
+                      }
+                        
                       }
                       fullWidth
                       size="small"
@@ -1350,12 +1378,12 @@ const CreateEvents = ({
               }
               filterOptions={(x) => x}
               loading={locationLoading}
-              PopperComponent={SameWidthPopper} 
+              PopperComponent={SameWidthPopper}
               ListboxProps={{ sx: darkModeStyles.autocompleteListbox }}
               PaperComponent={({ children }) => (
                 <Paper
                   sx={{
-                    width: "100%", 
+                    width: "100%",
                     bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
                     border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
                   }}
@@ -1423,7 +1451,7 @@ const CreateEvents = ({
               )}
             />
 
-            {/* Event Leader section */}
+            {/* Event Leader section - FIXED with working logic from first version */}
             <Box sx={{ mb: 3, position: "relative" }}>
               <TextField
                 label="Event Leader *"
@@ -1431,7 +1459,7 @@ const CreateEvents = ({
                 onChange={(e) => {
                   const value = e.target.value;
                   handleChange("eventLeader", value);
-                  setPeopleData([]);
+                  setPeopleData([]); // clear old results immediately
                   if (searchDebounceRef.current)
                     clearTimeout(searchDebounceRef.current);
 
@@ -1447,7 +1475,6 @@ const CreateEvents = ({
                   }
                 }}
                 onBlur={() => {
-                  // Only close dropdown if user is NOT actively clicking a result
                   if (!isSelectingFromDropdown.current) {
                     setTimeout(() => {
                       if (!isSelectingFromDropdown.current) {
@@ -1477,7 +1504,7 @@ const CreateEvents = ({
                 autoComplete="off"
               />
 
-              {/* Dropdown results */}
+              {/* Dropdown results - kept improved mouse handlers from second version */}
               {peopleData.length > 0 && (
                 <Box
                   sx={{
@@ -1515,7 +1542,6 @@ const CreateEvents = ({
                           borderBottom: "none",
                         },
                       }}
-              
                       onMouseDown={() => {
                         isSelectingFromDropdown.current = true;
                       }}
@@ -1523,11 +1549,16 @@ const CreateEvents = ({
                         isSelectingFromDropdown.current = false;
                         const selectedName = person.fullName;
                         const selectedEmail = person.email;
+
+                        // FIXED: Use exact selection logic from first version (auto-fill eventName for cells)
+                        // + keep second version's email handling
                         if (hasPersonSteps && !isGlobalEvent) {
                           setFormData((prev) => ({
                             ...prev,
                             eventLeader: selectedName,
+                            eventName: selectedName, // ← restored from first version
                             eventLeaderEmail: selectedEmail.toLowerCase(),
+                            email: selectedEmail.toLowerCase(), // also populate the Email field
                             leader1: person.leader1 || "",
                             leader12: person.leader12 || "",
                           }));
@@ -1556,58 +1587,36 @@ const CreateEvents = ({
                   ))}
                 </Box>
               )}
-
-              {loadingPeople && (
-                <Typography
-                  variant="body2"
-                  sx={{ color: "text.secondary", mt: 0.5 }}
-                >
-                  Searching...
-                </Typography>
-              )}
             </Box>
 
-            {hasPersonSteps && !isGlobalEvent && (
-              <>
-                <TextField
-                  label="Email *"
-                  value={formData.email || ""}
-                  onChange={(e) => handleChange("email", e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.email}
-                  helperText={errors.email || "Enter the email for this event"}
-                />
+          {hasPersonSteps && !isGlobalEvent && (
+  <>
+    <TextField
+      label="Email *"
+      value={formData.email || ""}
+      onChange={(e) => handleChange("email", e.target.value)}
+      fullWidth
+      size="small"
+      sx={{ mb: 2, ...darkModeStyles.textField }}
+      error={!!errors.email}
+      helperText={errors.email || "Enter the email for this event"}
+    />
 
-                <TextField
-                  label="Leader @1 *"
-                  value={formData.leader1 || ""}
-                  onChange={(e) => handleChange("leader1", e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.leader1}
-                  helperText={
-                    errors.leader1 || "Enter the Leader @1 for this cell"
-                  }
-                />
-
-                <TextField
-                  label="Leader @12 *"
-                  value={formData.leader12 || ""}
-                  onChange={(e) => handleChange("leader12", e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.leader12}
-                  helperText={
-                    errors.leader12 || "Enter the Leader @12 for this cell"
-                  }
-                />
-              </>
-            )}
-
+    {getAllHierarchyLevels().map((h) => (
+      <TextField
+        key={h.field}
+        label={`${h.label} *`}
+        value={formData[h.field] || ""}
+        onChange={(e) => handleChange(h.field, e.target.value)}
+        fullWidth
+        size="small"
+        sx={{ mb: 2, ...darkModeStyles.textField }}
+        error={!!errors[h.field]}
+        helperText={errors[h.field] || `Enter the ${h.label} for this event`}
+      />
+    ))}
+  </>
+)}
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
               {isTicketedEvent && (
                 <Chip label="Ticketed Event" color="warning" size="small" />

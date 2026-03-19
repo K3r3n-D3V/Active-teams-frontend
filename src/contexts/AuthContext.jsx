@@ -25,7 +25,6 @@ export const AuthProvider = ({ children }) => {
   const [refreshInProgress, setRefreshInProgress] = useState(false);
   const [leaders, setLeaders] = useState(null);
   const [isLeader, setIsLeader] = useState(false);
-
   const getDefaultAvatar = (userData) => {
     if (!userData) return DEFAULT_AVATARS.neutral;
     const gender = userData.gender?.toLowerCase();
@@ -99,7 +98,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = useCallback(() => {
+const logout = useCallback(() => {
     localStorage.removeItem(KEY_ACCESS);
     localStorage.removeItem(KEY_REFRESH);
     localStorage.removeItem(KEY_REFRESH_ID);
@@ -107,6 +106,9 @@ export const AuthProvider = ({ children }) => {
     localStorage.removeItem(KEY_PROFILE_PIC);
     localStorage.removeItem(KEY_LEADERS);
     localStorage.removeItem(KEY_IS_LEADER);
+    localStorage.removeItem("customEventTypes");  
+    localStorage.removeItem("eventTypeMap"); 
+          
     setUser(null);
     setLeaders(null);
     setIsLeader(false);
@@ -158,6 +160,8 @@ export const AuthProvider = ({ children }) => {
     localStorage.setItem(KEY_ACCESS, data.access_token);
     localStorage.setItem(KEY_REFRESH, data.refresh_token);
     localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
+    window.location.reload();
+
     
     return true;
   } catch (e) {
@@ -223,57 +227,37 @@ const authFetch = useCallback(async (url, options = {}) => {
   }
 }, [refreshInProgress, attemptRefresh, logout]);
 
-  const login = async (email, password) => {
+const login = async (email, password) => {
+    localStorage.removeItem("customEventTypes");
+    localStorage.removeItem("eventTypeMap");
+    
     const res = await fetch(`${BACKEND_URL}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
     });
-
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       throw new Error(err.detail || 'Login failed');
     }
-
     const data = await res.json();
     
     localStorage.setItem(KEY_ACCESS, data.access_token);
     localStorage.setItem(KEY_REFRESH, data.refresh_token);
     localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
     
-    let isSupremeAdmin = false;
-    try {
-      const tokenParts = data.access_token.split('.');
-      const tokenPayload = JSON.parse(atob(tokenParts[1]));
-      isSupremeAdmin = tokenPayload.is_supreme_admin || false;
-      console.log('Decoded token payload:', tokenPayload);
-    } catch (e) {
-      console.error('Failed to decode token', e);
-    }
-    
-    const mergedUserData = {
-      ...data.user,
-      ...(data.leaders || {}),
-      is_supreme_admin: isSupremeAdmin || data.user?.is_supreme_admin || false
-    };
-    
-    console.log('Merged user data:', {
-      email: mergedUserData.email,
-      role: mergedUserData.role,
-      is_supreme_admin: mergedUserData.is_supreme_admin
-    });
-    
+    const mergedUserData = { ...data.user, ...(data.leaders || {}) };
     const userWithAvatar = ensureUserWithAvatar(mergedUserData);
-    
     persistUser(userWithAvatar);
     persistLeadersData(data.leaders, data.isLeader);
     
     if (userWithAvatar.profile_picture) {
       localStorage.setItem(KEY_PROFILE_PIC, userWithAvatar.profile_picture);
     }
-
     setUser(userWithAvatar);
     setIsAuthenticated(true);
+    
+    window.location.reload();  // ← AFTER everything is saved
     
     return data;
   };

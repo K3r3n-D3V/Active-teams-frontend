@@ -55,18 +55,18 @@ const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 // Updated: Get token from any possible key
 const createAuthenticatedRequest = () => {
   // Try all possible token keys
-  const token =
-    localStorage.getItem("access_token") ||
+  const token = 
+    localStorage.getItem("access_token") || 
     localStorage.getItem("token") ||
     localStorage.getItem("accessToken");
-
+  
   console.log("🔐 Token found:", token ? "✓ Yes" : "✗ No");
-  console.log("🔐 Token key used:",
+  console.log("🔐 Token key used:", 
     localStorage.getItem("access_token") ? "access_token" :
-      localStorage.getItem("token") ? "token" :
-        localStorage.getItem("accessToken") ? "accessToken" : "None"
+    localStorage.getItem("token") ? "token" :
+    localStorage.getItem("accessToken") ? "accessToken" : "None"
   );
-
+  
   return axios.create({
     baseURL: BACKEND_URL,
     headers: {
@@ -79,15 +79,15 @@ const createAuthenticatedRequest = () => {
 // Updated: Handle missing userId and use authFetch
 async function fetchUserProfile(authFetch) {
   console.log("=== FETCH PROFILE START ===");
-
+  
   // If we have authFetch from AuthContext, use it
   if (authFetch) {
     try {
       console.log(" Using authFetch from AuthContext...");
-
+      
       // Get userId first
       let userId = localStorage.getItem("userId");
-
+      
       // If no userId in localStorage, check userProfile
       if (!userId) {
         const userProfileStr = localStorage.getItem("userProfile");
@@ -96,7 +96,7 @@ async function fetchUserProfile(authFetch) {
             const profile = JSON.parse(userProfileStr);
             userId = profile.id || profile._id || profile.userId;
             console.log("Found userId in userProfile:", userId);
-
+            
             // Save it to localStorage for future use
             if (userId) {
               localStorage.setItem("userId", userId);
@@ -107,47 +107,47 @@ async function fetchUserProfile(authFetch) {
           }
         }
       }
-
+      
       if (!userId) {
         console.error(" CRITICAL: No userId found!");
         throw new Error("User ID not found. Please log in again.");
       }
-
+      
       console.log(` Fetching profile for userId: ${userId}`);
-
+      
       const response = await authFetch(`${BACKEND_URL}/profile/${userId}`);
-
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
       }
-
+      
       const data = await response.json();
       console.log(" Profile fetch successful via authFetch!");
       console.log("Response data:", data);
-
+      
       return data;
     } catch (error) {
       console.error(" authFetch failed:", error);
       throw error;
     }
   }
-
+  
   // Fallback to axios if authFetch not available
   console.log(" Using axios fallback...");
-
+  
   // Get token from any possible key
-  const token =
-    localStorage.getItem("access_token") ||
+  const token = 
+    localStorage.getItem("access_token") || 
     localStorage.getItem("token") ||
     localStorage.getItem("accessToken");
-
+  
   console.log("Token exists:", !!token);
-
+  
   // Find userId from multiple sources
   let userId = localStorage.getItem("userId");
   console.log("userId from localStorage:", userId);
-
+  
   // If no userId in localStorage, check userProfile
   if (!userId) {
     const userProfileStr = localStorage.getItem("userProfile");
@@ -156,7 +156,7 @@ async function fetchUserProfile(authFetch) {
         const profile = JSON.parse(userProfileStr);
         userId = profile.id || profile._id || profile.userId;
         console.log("Found userId in userProfile:", userId);
-
+        
         // Save it to localStorage for future use
         if (userId) {
           localStorage.setItem("userId", userId);
@@ -167,7 +167,7 @@ async function fetchUserProfile(authFetch) {
       }
     }
   }
-
+  
   // If still no userId, try to extract from token
   if (!userId && token) {
     try {
@@ -175,7 +175,7 @@ async function fetchUserProfile(authFetch) {
       const payload = JSON.parse(atob(token.split('.')[1]));
       userId = payload.sub || payload.userId || payload.id;
       console.log("Extracted userId from token:", userId);
-
+      
       if (userId) {
         localStorage.setItem("userId", userId);
       }
@@ -183,54 +183,54 @@ async function fetchUserProfile(authFetch) {
       console.error("Failed to decode token:", e);
     }
   }
-
+  
   if (!userId) {
     console.error(" CRITICAL: No userId found anywhere!");
     console.log("Token:", token ? "Exists" : "Missing");
     console.log("userProfile in localStorage:", localStorage.getItem("userProfile"));
     throw new Error("User ID not found. Please log in again.");
   }
-
+  
   if (!token) {
     console.error(" CRITICAL: No authentication token found!");
     throw new Error("Authentication required. Please log in again.");
   }
-
+  
   try {
     console.log(` Fetching profile for userId: ${userId}`);
-
+    
     const api = createAuthenticatedRequest();
     const response = await api.get(`/profile/${userId}`);
-
+    
     console.log(" Profile fetch successful!");
     console.log("Response data:", response.data);
-
+    
     return response.data;
   } catch (error) {
     console.error(" API call failed:", error);
     console.error("Status:", error.response?.status);
     console.error("Error details:", error.response?.data);
-
+    
     if (error.response?.status === 401) {
       // Token expired or invalid
       console.error("Token is invalid or expired!");
       localStorage.removeItem("access_token");
       localStorage.removeItem("token");
       localStorage.removeItem("accessToken");
-
+      
       throw new Error("Session expired. Please log in again.");
     }
-
+    
     if (error.response?.status === 404) {
       throw new Error("Profile not found. The user may have been deleted.");
     }
-
+    
     const errorMessage =
       error.response?.data?.detail ||
       error.response?.data?.message ||
       error.message ||
       "Failed to fetch profile";
-
+    
     throw new Error(errorMessage);
   }
 }
@@ -238,10 +238,10 @@ async function fetchUserProfile(authFetch) {
 // Updated: Use authFetch for profile updates
 async function updateUserProfile(data, authFetch) {
   console.log("=== UPDATE PROFILE START ===");
-
+  
   // Get userId from multiple sources
   let userId = localStorage.getItem("userId");
-
+  
   if (!userId) {
     const userProfileStr = localStorage.getItem("userProfile");
     if (userProfileStr) {
@@ -249,7 +249,7 @@ async function updateUserProfile(data, authFetch) {
         const profile = JSON.parse(userProfileStr);
         userId = profile.id || profile._id || profile.userId;
         console.log("Found userId in userProfile:", userId);
-
+        
         if (userId) {
           localStorage.setItem("userId", userId);
         }
@@ -258,7 +258,7 @@ async function updateUserProfile(data, authFetch) {
       }
     }
   }
-
+  
   if (!userId) {
     console.error(" No userId found for update!");
     throw new Error("User ID not found");
@@ -268,7 +268,7 @@ async function updateUserProfile(data, authFetch) {
     console.log(" Sending profile update to backend...");
     console.log("📤 Payload:", data);
     console.log("👤 User ID:", userId);
-
+    
     // Use authFetch if available
     if (authFetch) {
       console.log("Using authFetch for update...");
@@ -276,12 +276,12 @@ async function updateUserProfile(data, authFetch) {
         method: "PUT",
         body: JSON.stringify(data),
       });
-
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
       }
-
+      
       const responseData = await response.json();
       console.log(" Profile update successful via authFetch:", responseData);
       return responseData;
@@ -289,26 +289,26 @@ async function updateUserProfile(data, authFetch) {
       // Fallback to axios
       const api = createAuthenticatedRequest();
       const response = await api.put(`/profile/${userId}`, data);
-
+      
       console.log(" Profile update successful via axios:", response.data);
       return response.data;
     }
   } catch (error) {
     console.error(" Profile update failed:", error);
-
+    
     const errorMessage =
       error.response?.data?.detail ||
       error.response?.data?.message ||
       error.message ||
       "Unknown error occurred";
-
+    
     throw new Error(errorMessage);
   }
 }
 
 async function uploadAvatarFromDataUrl(dataUrl, authFetch) {
   const userId = localStorage.getItem("userId");
-
+  
   if (!userId) {
     throw new Error("User ID not found");
   }
@@ -319,7 +319,7 @@ async function uploadAvatarFromDataUrl(dataUrl, authFetch) {
 
   try {
     let response;
-
+    
     if (authFetch) {
       console.log("Using authFetch for avatar upload...");
       response = await authFetch(`${BACKEND_URL}/users/${userId}/avatar`, {
@@ -329,27 +329,27 @@ async function uploadAvatarFromDataUrl(dataUrl, authFetch) {
       });
     } else {
       // Fallback to fetch with token
-      const token =
-        localStorage.getItem("access_token") ||
+      const token = 
+        localStorage.getItem("access_token") || 
         localStorage.getItem("token") ||
         localStorage.getItem("accessToken");
-
+      
       if (!token) {
         throw new Error("Authentication required");
       }
-
+      
       response = await fetch(`${BACKEND_URL}/users/${userId}/avatar`, {
         method: "POST",
         headers: { Authorization: `Bearer ${token}` },
         body: form,
       });
     }
-
+    
     if (!response.ok) {
       const error = await response.json().catch(() => ({ message: "Failed to upload avatar" }));
       throw new Error(error.message || "Failed to upload avatar");
     }
-
+    
     return response.json();
   } catch (error) {
     console.error("Avatar upload failed:", error);
@@ -359,33 +359,33 @@ async function uploadAvatarFromDataUrl(dataUrl, authFetch) {
 
 async function updatePassword(currentPassword, newPassword, authFetch) {
   const userId = localStorage.getItem("userId");
-
+  
   if (!userId) {
     throw new Error("User ID not found");
   }
 
   try {
     console.log("Updating password for user:", userId);
-
+    
     if (authFetch) {
       const response = await authFetch(`${BACKEND_URL}/users/${userId}/password`, {
         method: "PUT",
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-
+      
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(errorData.detail || errorData.message || `HTTP ${response.status}`);
       }
-
+      
       return response.json();
     } else {
       // Fallback to axios
-      const token =
-        localStorage.getItem("access_token") ||
+      const token = 
+        localStorage.getItem("access_token") || 
         localStorage.getItem("token") ||
         localStorage.getItem("accessToken");
-
+      
       if (!token) throw new Error("Authentication required");
 
       const res = await axios.put(`${BACKEND_URL}/users/${userId}/password`, {
@@ -416,7 +416,7 @@ export default function Profile() {
   const isDark = theme.palette.mode === "dark";
   const { userProfile, setUserProfile, setProfilePic, profilePic } =
     useContext(UserContext);
-
+  
   // Get authFetch from AuthContext
   const { authFetch, logout, isAuthenticated: authIsAuthenticated } = useContext(AuthContext);
 
@@ -442,17 +442,17 @@ export default function Profile() {
   const [croppingSrc, setCroppingSrc] = useState(null);
   const [croppingOpen, setCroppingOpen] = useState(false);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
-
+  
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [carouselIndex, setCarouselIndex] = useState(0);
-
+  
   //initializing leaders
   const [leaders, setLeaders] = useState({
     leaderAt1: "",
     leaderAt12: "",
     leaderAt144: "",
   });
-
+  
   // Initialize form with empty values to prevent undefined errors
   const [form, setForm] = useState({
     name: "",
@@ -464,28 +464,10 @@ export default function Profile() {
     invitedBy: "",
     leaderAt1: "",
     gender: "",
-    organization: "",
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
-
-  // Organizations list (loaded from backend)
-  const [organizations, setOrganizations] = useState([]);
-  const [orgTag, setOrgTag] = useState("");
-
-  useEffect(() => {
-    const fetchOrgs = async () => {
-      try {
-        const res = await fetch(`${BACKEND_URL}/organizations`);
-        const data = await res.json();
-        if (data.success) setOrganizations(data.organizations || []);
-      } catch (e) {
-        console.warn("Could not load organizations:", e);
-      }
-    };
-    fetchOrgs();
-  }, []);
 
   const [originalForm, setOriginalForm] = useState({ ...form });
   const [showPassword, setShowPassword] = useState({
@@ -524,17 +506,17 @@ export default function Profile() {
     if (!roleToCheck) {
       return false;
     }
-
+    
     const roleStr = String(roleToCheck).toLowerCase().trim();
     const roles = roleStr
       .split(/[\/,\s|]+/)
       .map(r => r.trim())
       .filter(r => r.length > 0);
-
+    
     const hasAdminRole = roles.some(role => role === "admin");
     const hasLeaderRole = roles.some(role => role === "leader");
     const canEdit = hasAdminRole || hasLeaderRole;
-
+    
     return canEdit;
   }, []); // No dependencies - pure function
 
@@ -545,17 +527,17 @@ export default function Profile() {
   // Get display role with proper formatting for multiple roles
   const getUserRole = useCallback(() => {
     if (!loggedInUserRole) return "User";
-
+    
     const roleStr = String(loggedInUserRole).trim();
     const roles = roleStr
       .split(/[\/,\s|]+/)
       .map(role => role.trim())
       .filter(role => role.length > 0)
       .map(role => role.charAt(0).toUpperCase() + role.slice(1).toLowerCase());
-
+    
     const uniqueRoles = [...new Set(roles)];
     if (uniqueRoles.length === 0) return "User";
-
+    
     return uniqueRoles.join(" / ");
   }, [loggedInUserRole]);
 
@@ -580,14 +562,10 @@ export default function Profile() {
       invitedBy: profile?.invited_by || "",
       leaderAt1: profile?.leaderAt1 || "",
       gender: normalizeGender(profile?.gender || ""),
-      organization: profile?.organization || "",
       currentPassword: "",
       newPassword: "",
       confirmPassword: "",
     };
-
-    // Update the org_tag display from profile
-    setOrgTag(profile?.org_tag || "");
 
     //setting leaders state to localstorage leaders field which was set upon login
     const savedLeaders = JSON.parse(localStorage.getItem("leaders")) || {};
@@ -602,19 +580,19 @@ export default function Profile() {
   useEffect(() => {
     const checkAuthentication = () => {
       console.log("🔐 Authentication Check:");
-
-      const hasToken =
-        !!localStorage.getItem("access_token") ||
+      
+      const hasToken = 
+        !!localStorage.getItem("access_token") || 
         !!localStorage.getItem("token") ||
         !!localStorage.getItem("accessToken");
-
+      
       const hasUserProfile = !!localStorage.getItem("userProfile");
-
+      
       console.log("Has token:", hasToken);
       console.log("Has userProfile:", hasUserProfile);
       console.log("AuthContext isAuthenticated:", authIsAuthenticated);
       console.log("AuthContext authFetch available:", !!authFetch);
-
+      
       if (!hasToken) {
         console.error(" No token found! User is not logged in.");
         setSnackbar({
@@ -622,7 +600,7 @@ export default function Profile() {
           message: "You are not logged in. Redirecting to login...",
           severity: "warning",
         });
-
+        
         // Redirect to login after 2 seconds
         setTimeout(() => {
           window.location.href = "/login";
@@ -633,12 +611,12 @@ export default function Profile() {
       } else {
         console.log(" Authentication check passed.");
       }
-
+      
       return true;
     };
-
+    
     const isAuthenticated = checkAuthentication();
-
+    
     if (!isAuthenticated) {
       setLoadingProfile(false);
     }
@@ -659,21 +637,21 @@ export default function Profile() {
           try {
             const parsed = JSON.parse(cachedProfile);
             console.log("📦 Using cached profile:", parsed);
-
+            
             // Update form immediately with cached data
             updateFormWithProfile(parsed);
-
+            
             // Update context
             if (setUserProfile) {
               setUserProfile(parsed);
             }
-
+            
             // Set profile picture
             const pic = parsed?.profile_picture || null;
             if (pic && setProfilePic) {
               setProfilePic(pic);
             }
-
+            
             console.log(" Profile loaded from cache");
           } catch (e) {
             console.error("Failed to parse cached profile:", e);
@@ -683,33 +661,33 @@ export default function Profile() {
         // THEN: Try to fetch fresh data from server
         try {
           const serverProfile = await fetchUserProfile(authFetch);
-
+          
           if (serverProfile && isMounted) {
             console.log("📥 Received fresh profile data:", serverProfile);
             console.log("👤 User role from server:", serverProfile.role);
-
+            
             // CRITICAL: Store the logged-in user's role and NEVER change it
             if (serverProfile.role) {
               setLoggedInUserRole(serverProfile.role);
               console.log("🔐 Logged-in user role set to:", serverProfile.role);
             }
-
+            
             // Update with fresh data
             updateFormWithProfile(serverProfile);
-
+            
             if (setUserProfile) {
               setUserProfile(serverProfile);
             }
-
+            
             // Set profile picture
             const pic = serverProfile?.profile_picture || null;
             if (pic && setProfilePic) {
               setProfilePic(pic);
             }
-
+            
             // Cache data
             localStorage.setItem("userProfile", JSON.stringify(serverProfile));
-
+            
             console.log(" Profile updated with fresh data");
           }
         } catch (fetchError) {
@@ -733,11 +711,11 @@ export default function Profile() {
     };
 
     // Only load profile if we have authentication
-    const hasToken =
-      !!localStorage.getItem("access_token") ||
+    const hasToken = 
+      !!localStorage.getItem("access_token") || 
       !!localStorage.getItem("token") ||
       !!localStorage.getItem("accessToken");
-
+    
     if (hasToken) {
       // Delay loading slightly to ensure context is ready
       setTimeout(() => {
@@ -755,7 +733,7 @@ export default function Profile() {
   // FIXED: Track changes properly
   const hasChanges = React.useMemo(() => {
     const hasPasswordChange = form.newPassword !== "" || form.confirmPassword !== "" || form.currentPassword !== "";
-
+    
     const hasProfileChanges = Object.keys(form).some((key) => {
       if (["currentPassword", "newPassword", "confirmPassword"].includes(key)) {
         return false;
@@ -771,7 +749,7 @@ export default function Profile() {
 
   const validate = () => {
     const n = {};
-
+    
     // Required fields - only validate if user can edit them
     if (canEditProfile) {
       if (!form.name.trim()) n.name = "Name is required";
@@ -783,7 +761,7 @@ export default function Profile() {
       if (!form.email.trim()) n.email = "Email is required";
       else if (!/\S+@\S+\.\S+/.test(form.email)) n.email = "Email is invalid";
     }
-
+    
     // Date validation
     if (form.dob && canEditProfile) {
       const dobDate = new Date(form.dob);
@@ -792,14 +770,14 @@ export default function Profile() {
         n.dob = "Date of birth cannot be in the future";
       }
     }
-
+    
     // Phone validation (optional)
     if (form.phone && form.phone.trim()) {
       const hasNumbers = /\d/.test(form.phone);
       if (!hasNumbers) {
         n.phone = "Phone number should contain numbers";
       }
-
+      
       const cleaned = form.phone.replace(/\D/g, '');
       if (cleaned.length < 7) {
         n.phone = "Phone number seems too short";
@@ -808,7 +786,7 @@ export default function Profile() {
         n.phone = "Phone number seems too long";
       }
     }
-
+    
     // Password validation (only if changing password)
     if (form.newPassword || form.confirmPassword || form.currentPassword) {
       if (!form.currentPassword.trim()) {
@@ -824,7 +802,7 @@ export default function Profile() {
         n.confirmPassword = "Please confirm your new password";
       }
     }
-
+    
     setErrors(n);
     return Object.keys(n).length === 0;
   };
@@ -864,7 +842,7 @@ export default function Profile() {
 
     try {
       const hasPasswordChange = form.newPassword && form.confirmPassword && form.currentPassword;
-
+      
       const hasProfileChanges = Object.keys(form).some((key) => {
         if (["currentPassword", "newPassword", "confirmPassword"].includes(key)) {
           return false;
@@ -890,18 +868,17 @@ export default function Profile() {
             phone_number: form.phone,
             invited_by: form.invitedBy,
             gender: form.gender,
-            organization: form.organization,
           };
 
           console.log("📤 Updating profile with:", profileData);
           await updateUserProfile(profileData, authFetch);
-
+          
           const updatedProfile = { ...userProfile, ...profileData };
           if (setUserProfile) {
             setUserProfile(updatedProfile);
           }
           localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
-
+          
           profileUpdated = true;
         } catch (profileError) {
           console.error(" Profile update failed:", profileError);
@@ -913,13 +890,13 @@ export default function Profile() {
           return;
         }
       }
-
+      
       // Handle password update
       if (hasPasswordChange) {
         try {
           await updatePassword(form.currentPassword, form.newPassword, authFetch);
           passwordUpdated = true;
-
+          
           // Clear password fields after successful update
           setForm(prev => ({
             ...prev,
@@ -989,16 +966,16 @@ export default function Profile() {
   const onCropSave = async () => {
     try {
       const croppedImage = await getCroppedImg(croppingSrc, croppedAreaPixels);
-
+      
       try {
         const res = await uploadAvatarFromDataUrl(croppedImage, authFetch);
         const url = res?.avatarUrl || res?.profile_picture || res?.profilePicUrl;
-
+        
         if (url) {
           if (setProfilePic) setProfilePic(url);
-
-          const updatedProfile = {
-            ...userProfile,
+          
+          const updatedProfile = { 
+            ...userProfile, 
             profile_picture: url,
             avatarUrl: url,
             profilePicUrl: url
@@ -1007,7 +984,7 @@ export default function Profile() {
             setUserProfile(updatedProfile);
           }
           localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
-
+          
           setSnackbar({
             open: true,
             message: "Profile picture uploaded successfully!",
@@ -1017,14 +994,14 @@ export default function Profile() {
       } catch (uploadError) {
         console.error("Avatar upload failed:", uploadError);
         if (setProfilePic) setProfilePic(croppedImage);
-
+        
         setSnackbar({
           open: true,
           message: "Profile picture updated locally",
           severity: "warning",
         });
       }
-
+      
       setCroppingOpen(false);
     } catch (e) {
       console.error("Could not crop image:", e);
@@ -1105,7 +1082,7 @@ export default function Profile() {
                 </Grid>
               ))}
             </Grid>
-
+            
             <Box sx={{ mt: 4, display: "flex", justifyContent: "center" }}>
               <Skeleton variant="rectangular" width={150} height={48} sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', borderRadius: 2 }} />
             </Box>
@@ -1154,10 +1131,10 @@ export default function Profile() {
               {form.name} {form.surname}
             </Typography>
             {/* Role Badge */}
-            <Typography variant="body2" sx={{
+            <Typography variant="body2" sx={{ 
               display: "inline-block",
-              px: 2,
-              py: 0.5,
+              px: 2, 
+              py: 0.5, 
               borderRadius: 2,
               bgcolor: canEditProfile ? currentCarouselItem.color + "20" : isDark ? "#333333" : "#e0e0e0",
               color: canEditProfile ? currentCarouselItem.color : isDark ? "#999999" : "#666666",
@@ -1217,7 +1194,7 @@ export default function Profile() {
                   </Typography>
                   <TextField value={form.dob || ""} onChange={handleChange("dob")} fullWidth type="date" disabled={!canEditProfile} error={!!errors.dob} helperText={errors.dob} InputLabelProps={{ shrink: true }} sx={commonFieldSx} />
                 </Grid>
-                {/* Gender */}
+                 {/* Gender */}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                     Gender
@@ -1247,27 +1224,27 @@ export default function Profile() {
                   <TextField value={form.address || ""} onChange={handleChange("address")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
                 </Grid>
 
-                {/* Phone Number */}
+                {/* Phone Number */}    
                 <Grid item xs={12} sm={6}>
-                  <Typography
-                    variant="body2"
-                    sx={{
-                      mb: 1,
-                      fontWeight: 600,
-                      color: isDark ? "#cccccc" : "#666666",
-                    }}
-                  >
-                    Phone Number
-                  </Typography>
-                  <TextField
-                    value={form.phone || ""}
-                    onChange={handleChange("phone")}
-                    fullWidth
-                    error={!!errors.phone}
-                    helperText={errors.phone}
-                    sx={commonFieldSx}
-                    inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
-                  />
+                <Typography
+                variant="body2"
+                sx={{
+                mb: 1,
+                fontWeight: 600,
+                color: isDark ? "#cccccc" : "#666666",
+                }}
+                >
+                Phone Number
+                </Typography>
+                <TextField
+                value={form.phone || ""}
+                onChange={handleChange("phone")}
+                fullWidth
+                error={!!errors.phone}
+                helperText={errors.phone}
+                sx={commonFieldSx}
+                inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }}
+                />
 
                 </Grid>
 
@@ -1279,71 +1256,35 @@ export default function Profile() {
                   </Typography>
                   <TextField value={form.invitedBy || ""} onChange={handleChange("invitedBy")} fullWidth disabled={!canEditProfile} sx={commonFieldSx} />
                 </Grid>
+             
 
-                {/* Organization (Dynamic Dropdown) */}
+                {/* Leader@1 By */}
                 <Grid item xs={12} sm={6}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                    Organization (Church)
+                    Leader@1
                   </Typography>
-                  <TextField
-                    select
-                    value={form.organization || ""}
-                    onChange={handleChange("organization")}
-                    fullWidth
-                    disabled={!canEditProfile}
-                    sx={commonFieldSx}
-                  >
-                    <MenuItem value="">— No Organization —</MenuItem>
-                    {organizations.map((org) => (
-                      <MenuItem key={org._id} value={org.name}>
-                        {org.name}
-                        {org.tag && org.tag !== org.name && (
-                          <Typography
-                            component="span"
-                            variant="caption"
-                            sx={{ ml: 1, color: isDark ? "#aaa" : "#666" }}
-                          >
-                            ({org.tag})
-                          </Typography>
-                        )}
-                      </MenuItem>
-                    ))}
-                  </TextField>
+                  <TextField value={leaders.leaderAt1 || ""} onChange={handleChange("leader@1")} fullWidth disabled={true} sx={commonFieldSx} />
                 </Grid>
 
-
-                {/* Leader@1 By - Only for Active Church */}
-                {form.organization?.toLowerCase() === "active church" && (
-                  <>
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                        Leader@1
-                      </Typography>
-                      <TextField value={leaders.leaderAt1 || ""} onChange={handleChange("leader@1")} fullWidth disabled={true} sx={commonFieldSx} />
-                    </Grid>
-
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                        Leader@12
-                      </Typography>
-                      <TextField value={leaders.leaderAt12 || ""} onChange={handleChange("leader@12")} fullWidth disabled={true} sx={commonFieldSx} />
-                    </Grid>
-
-                    <Grid item xs={12} sm={6}>
-                      <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
-                        Leader@144
-                      </Typography>
-                      <TextField value={leaders.leaderAt144 || ""} onChange={handleChange("leader@144")} fullWidth disabled={true} sx={commonFieldSx} />
-                    </Grid>
-                  </>
-                )}
+                 <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                    Leader@12
+                  </Typography>
+                  <TextField value={leaders.leaderAt12 || ""} onChange={handleChange("leader@12")} fullWidth disabled={true} sx={commonFieldSx} />
+                </Grid>
+                 <Grid item xs={12} sm={6}>
+                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
+                    Leader@144
+                  </Typography>
+                  <TextField value={leaders.leaderAt144 || ""} onChange={handleChange("leader@144")} fullWidth disabled={true} sx={commonFieldSx} />
+                </Grid>
 
 
               </Grid>
 
+              
 
-
-
+              
 
               {/* Password Section */}
               <>
@@ -1358,7 +1299,7 @@ export default function Profile() {
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                       Current Password
                     </Typography>
-                    <TextField value={form.currentPassword || ""} onChange={handleChange("currentPassword")} type={showPassword.current ? "text" : "password"} fullWidth error={!!errors.currentPassword} helperText={errors.currentPassword} autoComplete="current-password" InputProps={{ endAdornment: (<InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("current")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.current ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment>), }} sx={commonFieldSx} />
+                    <TextField value={form.currentPassword || ""} onChange={handleChange("currentPassword")} type={showPassword.current ? "text" : "password"} fullWidth error={!!errors.currentPassword} helperText={errors.currentPassword} autoComplete="current-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("current")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.current ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
                   </Grid>
 
                   {/* New Password */}
@@ -1366,7 +1307,7 @@ export default function Profile() {
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                       New Password
                     </Typography>
-                    <TextField value={form.newPassword || ""} onChange={handleChange("newPassword")} type={showPassword.new ? "text" : "password"} fullWidth error={!!errors.newPassword} helperText={errors.newPassword} autoComplete="new-password" InputProps={{ endAdornment: (<InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("new")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.new ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment>), }} sx={commonFieldSx} />
+                    <TextField value={form.newPassword || ""} onChange={handleChange("newPassword")} type={showPassword.new ? "text" : "password"} fullWidth error={!!errors.newPassword} helperText={errors.newPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("new")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.new ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
                   </Grid>
 
                   {/* Confirm New Password */}
@@ -1374,7 +1315,7 @@ export default function Profile() {
                     <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666", }}>
                       Confirm New Password
                     </Typography>
-                    <TextField value={form.confirmPassword || ""} onChange={handleChange("confirmPassword")} type={showPassword.confirm ? "text" : "password"} fullWidth error={!!errors.confirmPassword} helperText={errors.confirmPassword} autoComplete="new-password" InputProps={{ endAdornment: (<InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.confirm ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment>), }} sx={commonFieldSx} />
+                    <TextField value={form.confirmPassword || ""} onChange={handleChange("confirmPassword")} type={showPassword.confirm ? "text" : "password"} fullWidth error={!!errors.confirmPassword} helperText={errors.confirmPassword} autoComplete="new-password" InputProps={{ endAdornment: ( <InputAdornment position="end"> <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> {showPassword.confirm ? <VisibilityOff /> : <Visibility />} </IconButton> </InputAdornment> ), }} sx={commonFieldSx} />
                   </Grid>
                 </Grid>
               </>
@@ -1384,7 +1325,7 @@ export default function Profile() {
                 <Button type="submit" variant="contained" startIcon={<Save />} disabled={!hasChanges} sx={{ bgcolor: currentCarouselItem.color, "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
                   {canEditProfile ? "Save Changes" : "Update Password"}
                 </Button>
-
+                
                 {/* Cancel button only if there are changes */}
                 {hasChanges && (
                   <Button variant="outlined" onClick={handleCancel} startIcon={<Cancel />} sx={{ borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", }}>
