@@ -370,71 +370,39 @@ export default function DailyTasks() {
 
   const fetchUserTasks = async () => {
     if (!user?.email) return;
-
     const controller = new AbortController();
     const signal = controller.signal;
 
     try {
       setLoading(true);
-      const res = await authFetch(`${API_URL}/tasks?email=${encodeURIComponent(user.email)}`, {
-        signal,
-      });
-
+      // Fetch tasks assigned TO current user
+      const res = await authFetch(
+        `${API_URL}/tasks?email=${encodeURIComponent(user.email)}`,
+        { signal },
+      );
       if (!res.ok) throw new Error("Failed to fetch tasks");
       const data = await res.json();
-
       const tasksArray = Array.isArray(data) ? data : data.tasks || [];
-
-      console.log("=== DEBUG: Tasks from API ===");
-      tasksArray.forEach((task, index) => {
-        console.log(`Task ${index + 1}:`, {
-          id: task._id,
-          taskType: task.taskType,
-          is_consolidation_task: task.is_consolidation_task,
-          leader_name: task.leader_name,
-          leader_assigned: task.leader_assigned,
-          assignedfor: task.assignedfor,
-          name: task.name,
-          assigned_to: task.assigned_to,
-          source_display: task.source_display,
-          consolidation_source: task.consolidation_source,
-        });
-      });
-      console.log("=== END DEBUG ===");
 
       const normalizedTasks = tasksArray.map((task) => {
         const isConsolidation =
           task.taskType === "consolidation" || task.is_consolidation_task;
 
         let assignedTo = "";
-
         if (isConsolidation) {
           assignedTo =
             task.leader_name ||
             task.leader_assigned ||
             task.assigned_to ||
             `${user.name || ""} ${user.surname || ""}`.trim();
-
-          if (isConsolidation) {
-            console.log(`Consolidation task ${task._id}:`, {
-              leader_name: task.leader_name,
-              leader_assigned: task.leader_assigned,
-              assigned_to: task.assigned_to,
-              assignedfor: task.assignedfor,
-              final_assignedTo: assignedTo,
-            });
-          }
-
-          if (assignedTo.includes("@")) {
-            assignedTo = "Consolidation Leader";
-          }
+          if (assignedTo.includes("@")) assignedTo = "Consolidation Leader";
         } else {
           assignedTo = task.name || task.assignedfor || "";
         }
 
         return {
           ...task,
-          assignedTo: assignedTo,
+          assignedTo,
           date: task.date || task.followup_date,
           status: (task.status || "Open").toLowerCase(),
           taskName: task.name || task.taskName,
@@ -453,6 +421,10 @@ export default function DailyTasks() {
               : task.name),
           decision_display_name: task.decision_display_name,
           is_consolidation_task: isConsolidation,
+          // Flag if this task was assigned to someone else by current user
+          isAssignedToOther:
+            task.assignedfor !== user.email &&
+            task.created_by_email === user.email,
         };
       });
 
@@ -463,9 +435,7 @@ export default function DailyTasks() {
         toast.error(err.message);
       }
     } finally {
-      if (!signal.aborted) {
-        setLoading(false);
-      }
+      if (!signal.aborted) setLoading(false);
     }
 
     return () => controller.abort();
@@ -787,7 +757,7 @@ export default function DailyTasks() {
         updatedData.leader_assigned = selectedTask.leader_assigned;
       }
 
-       if (updatedData.status?.toLowerCase() === "completed") {
+      if (updatedData.status?.toLowerCase() === "completed") {
         updatedData.completedAt = new Date().toISOString();
       }
       const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
@@ -837,7 +807,9 @@ export default function DailyTasks() {
     const lastName = nameParts.slice(1).join(" ") || "";
 
     setTaskData({
-      taskType: taskTypes.find(t => (t._id || t.id) === taskData.taskType)?.name || taskData.taskType,
+      taskType:
+        taskTypes.find((t) => (t._id || t.id) === taskData.taskType)?.name ||
+        taskData.taskType,
       recipient: {
         Name: firstName,
         Surname: lastName,
@@ -881,7 +853,9 @@ export default function DailyTasks() {
         name: isConsolidationTask
           ? taskData.assignedTo
           : taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
-        taskType: taskTypes.find(t => (t._id || t.id) === taskData.taskType)?.name || taskData.taskType ||
+        taskType:
+          taskTypes.find((t) => (t._id || t.id) === taskData.taskType)?.name ||
+          taskData.taskType ||
           (isConsolidationTask
             ? "consolidation"
             : formType === "call"
@@ -895,8 +869,12 @@ export default function DailyTasks() {
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
         type: formType || "call",
+        // Use selected assignee's email, fall back to current user
         assignedfor: taskData.assignedEmail || user.email,
         assigned_to_email: taskData.assignedEmail || user.email,
+        // Track who originally created it
+        created_by_email: user.email,
+        created_by_name: `${user.name} ${user.surname}`.trim(),
       };
 
       if (isConsolidationTask) {
@@ -1499,14 +1477,22 @@ export default function DailyTasks() {
                     <p
                       style={{
                         fontSize: "13px",
-                        color: isDarkMode ? "#aaa" : "#6b7280",
+                        color: task.isAssignedToOther
+                          ? isDarkMode
+                            ? "#60a5fa"
+                            : "#2563eb" // blue if assigned to someone else
+                          : isDarkMode
+                            ? "#aaa"
+                            : "#6b7280",
                         margin: "0 0 4px 0",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {assignedDisplay || "Not assigned"}
+                      {task.isAssignedToOther
+                        ? `→ Assigned to: ${assignedDisplay}`
+                        : assignedDisplay || "Not assigned"}
                     </p>
 
                     {isConsolidation &&
@@ -1661,7 +1647,6 @@ export default function DailyTasks() {
               position: "relative",
             }}
           >
-
             <h2 style={{ margin: "0 0 24px 0", textAlign: "center" }}>
               Edit Task Type
             </h2>
@@ -2101,7 +2086,11 @@ export default function DailyTasks() {
               value={taskData.assignedTo}
               onChange={(e) => {
                 const value = e.target.value;
-                setTaskData({ ...taskData, assignedTo: value, assignedEmail: "" });
+                setTaskData({
+                  ...taskData,
+                  assignedTo: value,
+                  assignedEmail: "",
+                });
                 if (
                   !(
                     selectedTask?.taskType === "consolidation" ||
