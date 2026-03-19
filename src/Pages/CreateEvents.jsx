@@ -1,6 +1,4 @@
-
-
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef,useContext } from "react";
 import {
   Button,
   TextField,
@@ -69,7 +67,9 @@ const SameWidthPopper = (props) => {
 
 const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, selectedEventTypeObj }) => {
   const navigate = useNavigate();
-  const { id: eventId } = useParams();
+  const { id: paramEventID } = useParams();
+  //changed eventId initial value to first check if there's an Id in the params
+  const [eventId,setEventId] = useState(paramEventID?paramEventID:null)
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
@@ -433,10 +433,24 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
       setIsSearchingPeople(false);
     }
   };
+  
+  //
+  useEffect(()=>{
+    //when create event is rendered it should check if it was opened by a ticketed event
+    const queryString = window.location.search
+    const queries = new URLSearchParams(queryString)
+
+    //checking if opened a ticketed event
+    if (selectedEventTypeObj.isTicketed === true){
+      console.log("Event ID",queries.get("eventId"))
+      //setting event id to query
+      setEventId(queries.get("eventId"))
+    }
+  },[])
 
   useEffect(() => {
+    console.log("dd",eventId)
     if (!eventId) return;
-
     const fetchEventData = async () => {
       try {
         const response = await axios.get(`${BACKEND_URL}/events/${eventId}`);
@@ -502,6 +516,8 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
         }
 
         setFormData((prev) => ({ ...prev, ...data }));
+        // Replace current URL without query string
+window.history.replaceState({}, "", window.location.pathname);
       } catch (err) {
         console.error("Failed to fetch event:", err);
         toast.error("Failed to load event data. Please try again.");
@@ -544,8 +560,14 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     setPriceTiers((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
+      //Add price tiers to formData so when it's updated it can be sent to the backend
+      setFormData((prev) => ({
+      ...prev,
+      "priceTiers": updated,
+      }));
       return updated;
     });
+
   };
 
   const handleRemovePriceTier = (index) => {
@@ -751,21 +773,24 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
         "Content-Type": "application/json",
       };
 
-      const response = eventId
-        ? await axios.put(
-            `${BACKEND_URL.replace(/\/$/, "")}/events/${eventId}`,
-            payload,
-            {
-              headers,
+      //updating using auth fetch as endpoint was returning a 401 error
+      const response = eventId?
+      await authFetch(`${BACKEND_URL}/events/${eventId}`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
             },
-          )
+            //sending form data 
+            body: JSON.stringify(formData)
+          })
         : await axios.post(
             `${BACKEND_URL.replace(/\/$/, "")}/events`,
             payload,
             { headers },
           );
 
-      console.log("Response:", response.data.success);
+      console.log("Response:", response.data);
 
       toast.success(
         eventId ? "Event updated successfully!" : "Event created successfully!",
@@ -1160,8 +1185,10 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
                     <TextField
                       label="Price Name *"
                       value={tier.name}
-                      onChange={(e) =>
-                        handlePriceTierChange(index, "name", e.target.value)
+                      onChange={(e) =>{
+                        handlePriceTierChange(index, "name", e.target.value);
+                      }
+                        
                       }
                       fullWidth
                       size="small"
