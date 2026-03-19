@@ -4,6 +4,17 @@ import { AuthContext } from "../contexts/AuthContext";
 import { Box, Typography, Paper, Button, CircularProgress } from "@mui/material";
 import { Block } from "@mui/icons-material";
 
+const SYSTEM_ROLES = ['admin', 'leader', 'leaderAt12', 'user', 'registrant'];
+
+const ROLE_HIERARCHY = {
+  "registrant": 1,
+  "user": 2,
+  "leader": 3,
+  "leaderAt12": 4,
+  "admin": 5,
+  "supreme_admin": 6
+};
+
 const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false) => {
   return function AuthenticatedComponent(props) {
     const { user, loading, authFetch } = useContext(AuthContext);
@@ -11,7 +22,6 @@ const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false
     const [hasCell, setHasCell] = useState(false);
     const [cellLoading, setCellLoading] = useState(true);
 
-    // Check if user has a cell when required
     useEffect(() => {
       const checkUserCell = async () => {
         if (requiresCell && user?.role === 'user') {
@@ -44,7 +54,6 @@ const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false
       }
     }, [user, requiresCell, authFetch]);
 
-    // Show loading indicator while auth is being initialized
     if (loading || (requiresCell && cellLoading)) {
       return (
         <Box sx={{ 
@@ -58,21 +67,95 @@ const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false
       );
     }
 
-    // Redirect to login if not authenticated
     if (!user) {
-      console.log(' No user found, redirecting to login from:', location.pathname);
+      console.log('No user found, redirecting to login from:', location.pathname);
       return <Navigate to="/login" state={{ from: location.pathname }} replace />;
     }
 
-    // Check cell access for regular users
     if (requiresCell && user.role === 'user' && !hasCell) {
-      console.log('🚫 User does not have cell access, redirecting to home');
+      console.log('User does not have cell access, redirecting to home');
       return <Navigate to="/" replace />;
     }
 
-    // Check role-based access
-    if (allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-      console.log('🚫 Access denied. User role:', user.role, 'Required:', allowedRoles);
+    const userRole = user.role;
+    const isSupremeAdmin = user.is_supreme_admin || user.email === "tkgenia1234@gmail.com";
+    const isCustomRole = !SYSTEM_ROLES.includes(userRole);
+
+    if (isSupremeAdmin) {
+      console.log('Supreme admin access granted for:', user.email);
+      return <WrappedComponent {...props} />;
+    }
+
+    if (allowedRoles.length === 0) {
+      console.log('No role restrictions, access granted for:', user.email);
+      return <WrappedComponent {...props} />;
+    }
+
+    if (isCustomRole) {
+      console.log('Custom role detected:', userRole);
+      
+      const userLevel = ROLE_HIERARCHY['user'] || 2;
+      
+      const hasAccess = allowedRoles.some(role => {
+        const roleLevel = ROLE_HIERARCHY[role] || 0;
+        return userLevel >= roleLevel;
+      });
+      
+      const isUserLevelPage = allowedRoles.includes('user') || allowedRoles.includes('registrant');
+      
+      if (isUserLevelPage) {
+        console.log('Custom role', userRole, 'granted user-level access');
+        return <WrappedComponent {...props} />;
+      }
+      
+      if (hasAccess) {
+        console.log('Custom role', userRole, 'granted access based on hierarchy');
+        return <WrappedComponent {...props} />;
+      }
+      
+      const isLeaderPage = allowedRoles.includes('leader') || allowedRoles.includes('leaderAt12');
+      const isAdminPage = allowedRoles.includes('admin');
+      
+      if (isLeaderPage) {
+        const roleLower = userRole.toLowerCase();
+        if (roleLower.includes('leader') || roleLower.includes('head') || roleLower.includes('manager')) {
+          console.log('Custom role', userRole, 'granted leader access based on name');
+          return <WrappedComponent {...props} />;
+        }
+      }
+      
+      if (isAdminPage) {
+        console.log('Custom role', userRole, 'cannot access admin pages');
+        return (
+          <Box sx={{ 
+            display: 'flex', 
+            justifyContent: 'center', 
+            alignItems: 'center', 
+            minHeight: '100vh', 
+            bgcolor: '#f5f5f5', 
+            p: 3 
+          }}>
+            <Paper sx={{ p: 4, maxWidth: 500, textAlign: 'center' }}>
+              <Block sx={{ fontSize: 64, color: 'error.main', mb: 2 }} />
+              <Typography variant="h5" fontWeight="bold" gutterBottom>
+                Access Denied
+              </Typography>
+              <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
+                You don't have permission to access this page.
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+                Your role: <strong>{user.role || 'unknown'}</strong><br />
+                Required: <strong>{allowedRoles.join(' or ')}</strong>
+              </Typography>
+              <Button variant="contained" onClick={() => window.location.href = '/'}>
+                Go to Home
+              </Button>
+            </Paper>
+          </Box>
+        );
+      }
+      
+      console.log('Custom role', userRole, 'access denied to this page');
       return (
         <Box sx={{ 
           display: 'flex', 
@@ -102,8 +185,51 @@ const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false
       );
     }
 
-    console.log(' Auth check passed for:', location.pathname, 'User:', user.email);
-    return <WrappedComponent {...props} />;
+    if (allowedRoles.includes(userRole)) {
+      console.log('System role', userRole, 'access granted');
+      return <WrappedComponent {...props} />;
+    }
+
+    const userLevel = ROLE_HIERARCHY[userRole] || 0;
+    
+    const hasHierarchyAccess = allowedRoles.some(role => {
+      const roleLevel = ROLE_HIERARCHY[role] || 0;
+      return userLevel >= roleLevel;
+    });
+    
+    if (hasHierarchyAccess) {
+      console.log('Hierarchy access granted for', userRole);
+      return <WrappedComponent {...props} />;
+    }
+
+    console.log('Access denied for role:', userRole, 'Required:', allowedRoles);
+    return (
+      <Box sx={{ 
+        display: 'flex', 
+        justifyContent: 'center', 
+        alignItems: 'center', 
+        minHeight: '100vh', 
+        bgcolor: '#f5f5f5', 
+        p: 3 
+      }}>
+        <Paper sx={{ p: 4, maxWidth: 500, textAlign: 'center' }}>
+          <Block sx={{ fontSize: 64, color: 'error.main', mb: 2 }} />
+          <Typography variant="h5" fontWeight="bold" gutterBottom>
+            Access Denied
+          </Typography>
+          <Typography variant="body1" color="text.secondary" sx={{ mb: 1 }}>
+            You don't have permission to access this page.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Your role: <strong>{user.role || 'unknown'}</strong><br />
+            Required: <strong>{allowedRoles.join(' or ')}</strong>
+          </Typography>
+          <Button variant="contained" onClick={() => window.location.href = '/'}>
+            Go to Home
+          </Button>
+        </Paper>
+      </Box>
+    );
   };
 };
 
