@@ -28,62 +28,82 @@ import { useState, useEffect, useContext } from 'react';
 import { AuthContext } from '../contexts/AuthContext';
 import logo from "../assets/active-teams.png"
 
+const SYSTEM_ROLES = ['admin', 'leader', 'leaderAt12', 'user', 'registrant'];
+
+const ROLE_HIERARCHY = {
+  "registrant": 1,
+  "user": 2,
+  "leader": 3,
+  "leaderAt12": 4,
+  "admin": 5,
+  "supreme_admin": 6
+};
+
 const allMenuItems = [
   { 
     label: 'Home', 
     path: '/', 
     icon: Home, 
-    roles: ['admin', 'leader', 'leaderAt12', 'user', 'registrant'] 
+    roles: ['admin', 'leader', 'leaderAt12', 'user', 'registrant'],
+    level: 1 
   },
   { 
     label: 'Profile', 
     path: '/profile', 
     icon: Person, 
-    roles: ['admin', 'leader', 'leaderAt12', 'user', 'registrant'] 
+    roles: ['admin', 'leader', 'leaderAt12', 'user', 'registrant'],
+    level: 1
   },
   { 
     label: 'People', 
     path: '/people', 
     icon: Group, 
-    roles: ['admin', 'leader', 'leaderAt12'] 
+    roles: ['admin', 'leader', 'leaderAt12'],
+    level: 3
   },
   { 
     label: 'Events', 
     path: '/events', 
     icon: Event, 
-    roles: ['admin', 'leader', 'leaderAt12', 'user', 'registrant'], 
-    requiresCell: true 
+    roles: ['admin', 'leader', 'leaderAt12', 'user', 'registrant'],
+    requiresCell: true,
+    level: 1
   },
   { 
     label: 'Stats', 
     path: '/stats', 
     icon: BarChart, 
-    roles: ['admin', 'leader', 'leaderAt12'] 
+    roles: ['admin', 'leader', 'leaderAt12'],
+    level: 3
   },
   { 
     label: 'Service Check-in', 
     path: '/service-check-in', 
     icon: HowToReg, 
-    roles: ['admin', 'registrant', 'leaderAt12', 'leader'] 
+    roles: ['admin', 'registrant', 'leaderAt12', 'leader'],
+    level: 1
   },
   { 
     label: 'Daily Tasks', 
     path: '/daily-tasks', 
     icon: Assignment, 
-    roles: ['admin', 'leader', 'leaderAt12', 'user', 'registrant'] 
+    roles: ['admin', 'leader', 'leaderAt12', 'user', 'registrant'],
+    level: 1
   },
   { 
     label: 'Admin', 
     path: '/admin', 
     icon: AdminPanelSettings, 
-    roles: ['admin'] 
+    roles: ['admin'],
+    level: 5
   },
   { 
     label: 'Help & Support', 
     path: 'https://activemediahelpdesk.netlify.app/', 
     icon: SupportAgentIcon, 
     external: true, 
-    roles: ['admin', 'leader', 'leaderAt12', 'user', 'registrant'] 
+    roles: ['admin', 'leader', 'leaderAt12', 'user', 'registrant'],
+    level: 1
   },
 ];
 
@@ -92,7 +112,7 @@ export default function Sidebar({ mode, setMode }) {
   const isMobile = useMediaQuery('(max-width:900px)');
   const location = useLocation();
   const { user } = useContext(AuthContext);
-  const [userHasCell, setUserHasCell] = useState(true);
+  const [, setUserHasCell] = useState(true);
   const [menuItems, setMenuItems] = useState([]);
 
   useEffect(() => {
@@ -102,9 +122,22 @@ export default function Sidebar({ mode, setMode }) {
 
   useEffect(() => {
     const checkUserAccess = async () => {
+      if (!user) {
+        setMenuItems([]);
+        return;
+      }
+
       const userRole = user?.role?.toLowerCase() || '';
-      let hasCell = true;
+      const isSupremeAdmin = user?.is_supreme_admin || user?.email === "tkgenia1234@gmail.com";
+      const isCustomRole = !SYSTEM_ROLES.includes(userRole);
       
+      console.log(` Sidebar - User role: ${userRole}, Custom: ${isCustomRole}, Supreme: ${isSupremeAdmin}`);
+
+      if (isSupremeAdmin) {
+        setMenuItems(allMenuItems);
+        return;
+      }
+      let hasCell = true;
       if (userRole === 'user') {
         try {
           const token = localStorage.getItem('token');
@@ -125,34 +158,46 @@ export default function Sidebar({ mode, setMode }) {
       } else {
         setUserHasCell(true);
       }
-
       const filteredItems = allMenuItems.filter(item => {
-        const userRoleLower = userRole.toLowerCase();
-        const itemRolesLower = item.roles.map(role => role.toLowerCase());
+        if (isCustomRole) {
+          const userLevel = ROLE_HIERARCHY['user'] || 2;
+                    if (item.level > userLevel) {
+            console.log(` ${item.label}: Custom role ${userRole} level ${userLevel} < required ${item.level}`);
+            return false;
+          }
+          
+          if (item.path === '/events' && userRole === 'user' && !hasCell) {
+            console.log(` ${item.label}: User has no cell`);
+            return false;
+          }
+          
+          console.log(`${item.label}: Custom role ${userRole} granted access (level ${userLevel})`);
+          return true;
+        } 
         
-        if (!itemRolesLower.includes(userRoleLower)) {
-          console.log(` ${item.label}: User role ${userRole} not in ${item.roles}`);
-          return false;
+        else {
+          const itemRolesLower = item.roles.map(role => role.toLowerCase());
+          
+          if (!itemRolesLower.includes(userRole)) {
+            console.log(` ${item.label}: System role ${userRole} not in ${item.roles}`);
+            return false;
+          }
+          
+          if (item.path === '/events' && userRole === 'user' && !hasCell) {
+            console.log(` ${item.label}: User has no cell`);
+            return false;
+          }
+          
+          console.log(`${item.label}: System role ${userRole} granted access`);
+          return true;
         }
-        
-        if (item.path === '/events' && userRoleLower === 'user') {
-          console.log(` Events access for user: ${hasCell ? 'Allowed (has cell)' : 'Denied (no cell)'}`);
-          return hasCell;
-        }
-        
-        console.log(` ${item.label}: Allowed for role ${userRole}`);
-        return true;
       });
 
-      console.log('Final menu items for', userRole, ':', filteredItems.map(item => item.label));
+      console.log(' Final menu items:', filteredItems.map(item => item.label));
       setMenuItems(filteredItems);
     };
 
-    if (user) {
-      checkUserAccess();
-    } else {
-      setMenuItems([]);
-    }
+    checkUserAccess();
   }, [user]);
 
   const handleToggleMode = () => {
@@ -199,8 +244,6 @@ export default function Sidebar({ mode, setMode }) {
           }}
         />
       </Box>
-
-
 
       <List sx={{ flexGrow: 1 }}>
         {menuItems.map(({ label, path, icon: Icon, external }) => {
