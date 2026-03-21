@@ -1022,7 +1022,7 @@ console.log("ORG CONFIG:===============", orgConfig?.org_id, "isActiveTeams:", i
   const [, setActiveFilters] = useState({});
   const [loading, setLoading] = useState(true);
   const [, setUserCreatedEventTypes] = useState([]);
-  const [customEventTypes, setCustomEventTypes] = useState([]);
+  const [, setCustomEventTypes] = useState([]);
   const [, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
@@ -3328,29 +3328,6 @@ const filteredTypes = eventTypesData.filter((type) => {
     fetchEventTypes();
   }, [fetchEventTypes]);
 
-  // useEffect(() => {
-  //   const savedEventTypes = localStorage.getItem("customEventTypes");
-  //   if (savedEventTypes) {
-  //     try {
-  //       const parsed = JSON.parse(savedEventTypes);
-  //       setCustomEventTypes(parsed);
-  //       setUserCreatedEventTypes(parsed);
-  //       setEventTypes(parsed.map((type) => type.name));
-  //     } catch (error) {
-  //       console.error("Error parsing saved event types:", error);
-  //     }
-  //   }
-  // }, []);
-
-  // useEffect(() => {
-  //   if (customEventTypes.length > 0) {
-  //     localStorage.setItem(
-  //       "customEventTypes",
-  //       JSON.stringify(customEventTypes),
-  //     );
-  //   }
-  // }, [customEventTypes]);
-
   useEffect(() => {
     if (!selectedEventTypeFilter || !showingEvents) return;
 
@@ -3979,17 +3956,21 @@ const filteredTypes = eventTypesData.filter((type) => {
           : "0 2px 4px rgba(0,0,0,0.1)",
       },
     };
-   const allTypes = useMemo(() => {
-console.log("orgConfig org_id:", orgConfig?.org_id, "isActiveTeams:", isActiveTeams);
+ const allTypes = useMemo(() => {
+  console.log("orgConfig org_id:", orgConfig?.org_id, "isActiveTeams:", isActiveTeams);
   const availableTypes = filteredEventTypes;
   const shouldSeeAll = computedIsAdmin || computedIsLeaderAt12 || computedIsLeader || computedIsRegistrant || computedIsRegularUser;
 
   if (isActiveTeams && shouldSeeAll) {
-    return ["all", ...availableTypes];
+    // Filter out "CELLS" from available types
+    const typesWithoutCells = availableTypes.filter(type => {
+      const typeName = typeof type === 'string' ? type : type.name || type;
+      return typeName !== "CELLS";
+    });
+    return ["all", ...typesWithoutCells];
   }
   return availableTypes;
 }, [filteredEventTypes, computedIsAdmin, computedIsLeaderAt12, computedIsLeader, computedIsRegistrant, computedIsRegularUser, isActiveTeams]);
-
     const getDisplayName = (type) => {
       if (!type) return "";
       if (type === "all") return isActiveTeams ? "ALL CELLS" : "All Events";
@@ -5446,6 +5427,7 @@ console.log("orgConfig org_id:", orgConfig?.org_id, "isActiveTeams:", isActiveTe
 
                   // Get description from the event type object
                   const description = eventTypeObj.description || "";
+                  console.log("Rendering event type:", typeName, "with description:", description);
 
                   const getEventTypeColor = (typeName) => {
                     const colors = {
@@ -5553,20 +5535,7 @@ console.log("orgConfig org_id:", orgConfig?.org_id, "isActiveTeams:", isActiveTe
                           >
                             {typeName === "all" ? "ALL CELLS" : typeName}
                           </Typography>
-                          {/* SHOW DESCRIPTION */}
-                          <Typography
-                            sx={{
-                              fontSize: "13px",
-                              color: isDarkMode
-                                ? theme.palette.text.secondary
-                                : "#666",
-                              lineHeight: 1.4,
-                              fontStyle: description ? "normal" : "italic",
-                            }}
-                          >
-                            {description ||
-                              "Gatherings for discipleship, community and spiritual growth."}
-                          </Typography>
+                    
                         </Box>
                       </Box>
 

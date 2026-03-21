@@ -180,40 +180,27 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
   const fetchAllPeople = async () => {
     setIsLoadingPeople(true);
     try {
-      const response = await authFetch(`${BACKEND_URL}/cache/people`);
+      const token = localStorage.getItem("access_token");
+      const response = await authFetch(`${BACKEND_URL}/people?perPage=500`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
       if (response.ok) {
         const data = await response.json();
-        const cachedData = data.cached_data || [];
-        setPeopleList(cachedData);
-        console.log(`Loaded ${cachedData.length} people from cache`);
+        const peopleData = data.results || [];
+        setPeopleList(peopleData);
+        console.log(`Loaded ${peopleData.length} people from org`);
       } else {
-        await fetchPeopleFallback();
+        setPeopleList([]);
       }
     } catch (err) {
-      console.error("Error fetching from cache:", err);
-      await fetchPeopleFallback();
+      console.error("Error fetching people:", err);
+      setPeopleList([]);
     } finally {
       setIsLoadingPeople(false);
     }
   };
 
-  const fetchPeopleFallback = async () => {
-    try {
-      const response = await authFetch(
-        `${BACKEND_URL}/people/simple?per_page=1000`,
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const peopleData = data.results || [];
-        setPeopleList(peopleData);
-        console.log(`Loaded ${peopleData.length} people from fallback`);
-      }
-    } catch (fallbackErr) {
-      console.error("Fallback fetch failed:", fallbackErr);
-      setPeopleList([]);
-    }
-  };
 
   const peopleOptions = useMemo(() => {
     return peopleList.map((person) => {
@@ -1750,23 +1737,27 @@ const AttendanceModal = ({
     const now = Date.now();
     const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
-    if (
-      !forceRefresh &&
-      typeof window !== "undefined" &&
-      window.globalPeopleCache &&
-      window.globalPeopleCache.data?.length > 0 &&
-      window.globalPeopleCache.timestamp &&
-      now - window.globalPeopleCache.timestamp < CACHE_DURATION
-    ) {
-      console.log("Using cached people data in AttendanceModal");
-      setPreloadedPeople(window.globalPeopleCache.data);
-
-      if (activeTab === 1 && !associateSearch.trim()) {
-        setPeople(window.globalPeopleCache.data.slice(0, 50));
-      }
-      return;
+  if (
+  !forceRefresh &&
+  typeof window !== "undefined" &&
+  window.globalPeopleCache &&
+  window.globalPeopleCache.data?.length > 0 &&
+  window.globalPeopleCache.timestamp &&
+  now - window.globalPeopleCache.timestamp < CACHE_DURATION
+) {
+  // Check if cached data has the required fields
+  const sample = window.globalPeopleCache.data[0];
+  if (sample && (sample.leader12 !== undefined || sample.invitedBy !== undefined)) {
+    console.log("Using cached people data in AttendanceModal");
+    setPreloadedPeople(window.globalPeopleCache.data);
+    if (activeTab === 1 && !associateSearch.trim()) {
+      setPeople(window.globalPeopleCache.data.slice(0, 50));
     }
-
+    return;
+  }
+  // Cache is stale - force refresh
+  delete window.globalPeopleCache;
+}
     try {
       const token = localStorage.getItem("access_token");
       const headers = { Authorization: `Bearer ${token}` };
@@ -1781,7 +1772,6 @@ const AttendanceModal = ({
       const data = await res.json();
       const peopleArray = Array.isArray(data) ? data : (data.results || data.people || []);
 
-      // REPLACE WITH:
       const formatted = peopleArray.map((p) => {
         const hierarchyData = {};
         getAllHierarchyLevels().forEach(h => {
@@ -1795,6 +1785,7 @@ const AttendanceModal = ({
           leader12: p["Leader @12"] || p[getHierarchyField(2)] || "",
           leader144: p["Leader @144"] || p[getHierarchyField(3)] || "",
           phone: p.Number || p.Phone || p.phone || "",
+          invitedBy: p.InvitedBy || p.invitedBy || p.invited_by || "",
           ...hierarchyData,
           searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
         };
@@ -1816,8 +1807,6 @@ const AttendanceModal = ({
       console.error("Error pre-loading people:", err);
     }
   };
-
-
   useEffect(() => {
     if (isOpen && event) {
       let eventId;
@@ -1882,7 +1871,7 @@ const AttendanceModal = ({
     }
   }, [isOpen, event?._id, event?.id]);
 
- const fetchPeople = async (q) => {
+  const fetchPeople = async (q) => {
     if (!q || !q.trim()) {
       if (preloadedPeople.length > 0) {
         setPeople(preloadedPeople.slice(0, 50));
@@ -1952,6 +1941,7 @@ const AttendanceModal = ({
           leader12: p["Leader @12"] || p[getHierarchyField(2)] || "",
           leader144: p["Leader @144"] || p[getHierarchyField(3)] || "",
           phone: p.Number || p.Phone || p.phone || "",
+          invitedBy: p.InvitedBy || p.invitedBy || p.invited_by || "",
           ...hierarchyData,
           searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
         };
@@ -2038,7 +2028,6 @@ const AttendanceModal = ({
         }
       }
     }, 500);
-
     return () => clearTimeout(timeoutId);
   }, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
@@ -2255,6 +2244,7 @@ const AttendanceModal = ({
             leader12: att.leader12 || "",
             leader144: att.leader144 || "",
             phone: att.phone || "",
+            invitedBy: att.invitedBy || "",
             priceName: att.priceName || "",
             price: att.price || 0,
             ageGroup: att.ageGroup || "",
@@ -2284,6 +2274,7 @@ const AttendanceModal = ({
             leader144: savedAtt.leader144 || existing.leader144 || "",
             phone: savedAtt.phone || existing.phone || "",
             priceName: savedAtt.priceName || existing.priceName || "",
+            invitedBy: savedAtt.invitedBy || existing.invitedBy || "", 
             price: savedAtt.price || existing.price || 0,
             ageGroup: savedAtt.ageGroup || existing.ageGroup || "",
             paymentMethod: savedAtt.paymentMethod || existing.paymentMethod || "",
@@ -2373,12 +2364,13 @@ const AttendanceModal = ({
           const ticketOverride = isTicketedEvent ? (attendeeTicketInfo[p.id] || {}) : {};
           return {
             id: p.id,
-            name: p.fullName,
-            fullName: p.fullName,
-            email: p.email,
-            leader12: p.leader12,
-            leader144: p.leader144,
-            phone: p.phone,
+    name: p.fullName,
+    fullName: p.fullName,
+    email: p.email,
+    leader12: p.leader12,
+    leader144: p.leader144,
+    phone: p.phone,
+    invitedBy: p.invitedBy || "",
             ...(isTicketedEvent && {
               priceName: ticketOverride.priceName || p.priceName || "",
               price: ticketOverride.price != null && ticketOverride.price !== ""
@@ -2387,7 +2379,7 @@ const AttendanceModal = ({
               ageGroup: ticketOverride.ageGroup || p.ageGroup || "",
               paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
             }),
-          };
+          }; 
         }),
         leaderEmail: currentUser?.email || "",
         leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
@@ -3087,8 +3079,14 @@ const AttendanceModal = ({
                         <tr>
                           <th style={styles.th}>Attendees Name</th>
                           <th style={styles.th}>Attendees Email</th>
-                          <th style={styles.th}>Attendees {getHierarchyLabel(2)}</th>
-                          <th style={styles.th}>Attendees {getHierarchyLabel(3)}</th>
+                          {(event?.hasPersonSteps === true || event?.hasPersonSteps === "true" || event?.eventType === "Cells" || event?.eventTypeName === "CELLS") ? (
+                            <>
+                              <th style={styles.th}>Attendees {getHierarchyLabel(2)}</th>
+                              <th style={styles.th}>Attendees {getHierarchyLabel(3)}</th>
+                            </>
+                          ) : (
+                            <th style={styles.th}>Invited By</th>
+                          )}
                           <th style={styles.th}>Attendees Number</th>
                           {isTicketedEvent && (
                             <>
@@ -3134,8 +3132,14 @@ const AttendanceModal = ({
                             <tr key={person.id}>
                               <td style={styles.td}>{person.fullName || "Unknown Name"}</td>
                               <td style={styles.td}>{person.email || "No email"}</td>
-                              <td style={styles.td}>{person.leader12 || ""}</td>
-                              <td style={styles.td}>{person.leader144 || ""}</td>
+                              {(event?.hasPersonSteps === true || event?.hasPersonSteps === "true" || event?.eventType === "Cells" || event?.eventTypeName === "CELLS") ? (
+                                <>
+                                  <td style={styles.td}>{person.leader12 || ""}</td>
+                                  <td style={styles.td}>{person.leader144 || ""}</td>
+                                </>
+                              ) : (
+                                <td style={styles.td}>{person.invitedBy || ""}</td>
+                              )}
                               <td style={styles.td}>{person.phone || ""}</td>
 
 
@@ -3422,8 +3426,14 @@ const AttendanceModal = ({
                         <tr>
                           <th style={styles.th}>Name</th>
                           <th style={styles.th}>Email</th>
-                          <th style={styles.th}>{getHierarchyLabel(2)}</th>
-                          <th style={styles.th}>{getHierarchyLabel(3)}</th>
+                          {(event?.hasPersonSteps === true || event?.hasPersonSteps === "true" || event?.eventType === "Cells" || event?.eventTypeName === "CELLS") ? (
+                            <>
+                              <th style={styles.th}>{getHierarchyLabel(2)}</th>
+                              <th style={styles.th}>{getHierarchyLabel(3)}</th>
+                            </>
+                          ) : (
+                            <th style={styles.th}>Invited By</th>
+                          )}
                           <th style={styles.th}>Phone</th>
                           <th style={{ ...styles.th, textAlign: "center" }}>Add</th>
                         </tr>
@@ -3444,8 +3454,14 @@ const AttendanceModal = ({
                                 {isAlreadyAdded && <span style={styles.persistentBadge}>ADDED</span>}
                               </td>
                               <td style={styles.td}>{person.email}</td>
-                              <td style={styles.td}>{person.leader12}</td>
-                              <td style={styles.td}>{person.leader144}</td>
+                              {(event?.hasPersonSteps === true || event?.hasPersonSteps === "true" || event?.eventType === "Cells" || event?.eventTypeName === "CELLS") ? (
+                                <>
+                                  <td style={styles.td}>{person.leader12}</td>
+                                  <td style={styles.td}>{person.leader144}</td>
+                                </>
+                              ) : (
+                                <td style={styles.td}>{person.invitedBy || ""}</td>
+                              )}
                               <td style={styles.td}>{person.phone}</td>
                               <td style={{ ...styles.td, textAlign: "center" }}>
                                 <button

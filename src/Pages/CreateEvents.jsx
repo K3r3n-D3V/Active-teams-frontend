@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef,useContext } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Button,
   TextField,
@@ -69,7 +69,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
   const navigate = useNavigate();
   const { id: paramEventID } = useParams();
   //changed eventId initial value to first check if there's an Id in the params
-  const [eventId,setEventId] = useState(paramEventID?paramEventID:null)
+  const [eventId, setEventId] = useState(paramEventID ? paramEventID : null)
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
@@ -83,7 +83,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     isTicketed: isTicketedEvent,
     hasPersonSteps,
   } = eventTypeFlags;
-    const { getHierarchyLabel, getHierarchyField, getAllHierarchyLevels } = useOrgConfig();
+  const { getHierarchyLabel, getHierarchyField, getAllHierarchyLevels } = useOrgConfig();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
@@ -179,8 +179,8 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
 
         const biasParam = biasLonLat
           ? `&bias=proximity:${encodeURIComponent(
-              biasLonLat.lon,
-            )},${encodeURIComponent(biasLonLat.lat)}`
+            biasLonLat.lon,
+          )},${encodeURIComponent(biasLonLat.lat)}`
           : "";
 
         const url =
@@ -253,7 +253,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
         hasPersonSteps: et.hasPersonSteps,
       })),
     });
-  const hierarchyLevels = getAllHierarchyLevels();
+    const hierarchyLevels = getAllHierarchyLevels();
     const determineEventType = () => {
       if (selectedEventTypeObj) {
         return {
@@ -337,7 +337,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
       ...(prev.hasPersonSteps && !hasPersonSteps
         ? {
           ...Object.fromEntries(getAllHierarchyLevels().map(h => [h.field, ""])),
-          }
+        }
         : {}),
     }));
   }, [selectedEventTypeObj, selectedEventType, eventTypes]);
@@ -377,52 +377,58 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     }
   }, [isTicketedEvent]);
 
-  // FIXED: Use the exact working fetchPeople logic from the first (working) version
-  // Same backend endpoint, client-side filtering/sorting, full leader field fallbacks
   const fetchPeople = async (q) => {
     if (!q.trim()) {
       setPeopleData([]);
       return;
     }
 
-    const parts = q.trim().split(/\s+/);
-    const name = parts[0];
-    const surname = parts.slice(1).join(" ");
-
     try {
       setIsSearchingPeople(true);
       const token = localStorage.getItem("access_token");
 
+      const res = await fetch(
+        `${BACKEND_URL}/people?name=${encodeURIComponent(q.trim())}&perPage=20`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
       if (!res.ok) throw new Error("Failed to fetch people");
 
       const data = await res.json();
+      const people = data?.results || [];
+      const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
+      const userOrg = (userProfile?.org_id || "").toLowerCase();
+      const userOrgName = (userProfile?.organization || userProfile?.Organization || "").toLowerCase();
 
-      let filtered = (data?.results || data?.people || []).filter((p) =>
-        (p.Name && p.Name.toLowerCase().includes(name.toLowerCase())) &&
-        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
-      );
+      const formatted = people.map((p) => {
+        const personOrg = (p.org_id || p.Organization || p.Organisation || "").toLowerCase();
+        const personOrgAsId = personOrg.replace(/\s+/g, "-");
+        const userOrgAsName = userOrg.replace(/-/g, " ");
 
-      // Sort the results (exact same as working first version)
-      filtered.sort((a, b) => {
-        const nameA = (a.Name || "").toLowerCase();
-        const nameB = (b.Name || "").toLowerCase();
-        const surnameA = (a.Surname || "").toLowerCase();
-        const surnameB = (b.Surname || "").toLowerCase();
+        const isDifferentOrg = userOrg && personOrg &&
+          personOrg !== userOrg &&
+          personOrgAsId !== userOrg &&
+          personOrg !== userOrgAsName &&
+          !personOrg.includes(userOrgAsName) &&
+          !userOrgAsName.includes(personOrg) &&
+          !(userOrgName && personOrg.includes(userOrgName)) &&
+          !(userOrgName && userOrgName.includes(personOrg));
 
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        if (surnameA < surnameB) return -1;
-        if (surnameA > surnameB) return 1;
-        return 0;
+        return {
+          id: p._id,
+          fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+          email: p.Email || p.email || "",
+          leader1: p["Leader @1"] || p["Leader at 1"] || p.leader1 || "",
+          leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || "",
+          org: personOrg,
+          isDifferentOrg,
+        };
       });
-
-      const formatted = filtered.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
-      }));
 
       setPeopleData(formatted);
     } catch (err) {
@@ -433,23 +439,21 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
       setIsSearchingPeople(false);
     }
   };
-  
   //
-  useEffect(()=>{
-    //when create event is rendered it should check if it was opened by a ticketed event
+  useEffect(() => {
     const queryString = window.location.search
     const queries = new URLSearchParams(queryString)
 
     //checking if opened a ticketed event
-    if (selectedEventTypeObj.isTicketed === true){
-      console.log("Event ID",queries.get("eventId"))
+    if (selectedEventTypeObj.isTicketed === true) {
+      console.log("Event ID", queries.get("eventId"))
       //setting event id to query
       setEventId(queries.get("eventId"))
     }
-  },[])
+  }, [])
 
   useEffect(() => {
-    console.log("dd",eventId)
+    console.log("dd", eventId)
     if (!eventId) return;
     const fetchEventData = async () => {
       try {
@@ -516,8 +520,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
         }
 
         setFormData((prev) => ({ ...prev, ...data }));
-        // Replace current URL without query string
-window.history.replaceState({}, "", window.location.pathname);
+        window.history.replaceState({}, "", window.location.pathname);
       } catch (err) {
         console.error("Failed to fetch event:", err);
         toast.error("Failed to load event data. Please try again.");
@@ -560,10 +563,9 @@ window.history.replaceState({}, "", window.location.pathname);
     setPriceTiers((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
-      //Add price tiers to formData so when it's updated it can be sent to the backend
       setFormData((prev) => ({
-      ...prev,
-      "priceTiers": updated,
+        ...prev,
+        "priceTiers": updated,
       }));
       return updated;
     });
@@ -637,11 +639,11 @@ window.history.replaceState({}, "", window.location.pathname);
         }
       }
 
-     if (hasPersonSteps) {
-  getAllHierarchyLevels().forEach((h) => {
-    if (!formData[h.field]) newErrors[h.field] = `${h.label} is required`;
-  });
-}
+      if (hasPersonSteps) {
+        getAllHierarchyLevels().forEach((h) => {
+          if (!formData[h.field]) newErrors[h.field] = `${h.label} is required`;
+        });
+      }
     } else {
       if (!formData.date) newErrors.date = "Date is required";
       if (!formData.time) newErrors.time = "Time is required";
@@ -772,23 +774,21 @@ window.history.replaceState({}, "", window.location.pathname);
         Authorization: token ? `Bearer ${token}` : "",
         "Content-Type": "application/json",
       };
-
-      //updating using auth fetch as endpoint was returning a 401 error
-      const response = eventId?
-      await authFetch(`${BACKEND_URL}/events/${eventId}`, {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            //sending form data 
-            body: JSON.stringify(formData)
-          })
+      const response = eventId ?
+        await authFetch(`${BACKEND_URL}/events/${eventId}`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          //sending form data 
+          body: JSON.stringify(formData)
+        })
         : await axios.post(
-            `${BACKEND_URL.replace(/\/$/, "")}/events`,
-            payload,
-            { headers },
-          );
+          `${BACKEND_URL.replace(/\/$/, "")}/events`,
+          payload,
+          { headers },
+        );
 
       console.log("Response:", response.data);
 
@@ -849,40 +849,40 @@ window.history.replaceState({}, "", window.location.pathname);
 
   const containerStyle = isModal
     ? {
-        padding: "0",
-        minHeight: "auto",
-        backgroundColor: "transparent",
-        width: "100%",
-        height: "100%",
-        maxHeight: "none",
-        overflowY: "auto",
-      }
+      padding: "0",
+      minHeight: "auto",
+      backgroundColor: "transparent",
+      width: "100%",
+      height: "100%",
+      maxHeight: "none",
+      overflowY: "auto",
+    }
     : {
-        minHeight: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
-        px: 2,
-      };
+      minHeight: "100vh",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
+      px: 2,
+    };
 
   const cardStyle = isModal
     ? {
-        width: "100%",
-        height: "100%",
-        padding: "1.5rem",
-        borderRadius: 0,
-        boxShadow: "none",
-        backgroundColor: "transparent",
-        maxHeight: "none",
-        overflow: "visible",
-      }
+      width: "100%",
+      height: "100%",
+      padding: "1.5rem",
+      borderRadius: 0,
+      boxShadow: "none",
+      backgroundColor: "transparent",
+      maxHeight: "none",
+      overflow: "visible",
+    }
     : {
-        width: { xs: "100%", sm: "85%", md: "700px" },
-        p: 5,
-        borderRadius: "20px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-      };
+      width: { xs: "100%", sm: "85%", md: "700px" },
+      p: 5,
+      borderRadius: "20px",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+    };
 
   const darkModeStyles = {
     textField: {
@@ -1028,10 +1028,10 @@ window.history.replaceState({}, "", window.location.pathname);
           ...cardStyle,
           ...(isDarkMode && !isModal
             ? {
-                bgcolor: theme.palette.background.paper,
-                color: theme.palette.text.primary,
-                border: `1px solid ${theme.palette.divider}`,
-              }
+              bgcolor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              border: `1px solid ${theme.palette.divider}`,
+            }
             : {}),
         }}
       >
@@ -1185,10 +1185,10 @@ window.history.replaceState({}, "", window.location.pathname);
                     <TextField
                       label="Price Name *"
                       value={tier.name}
-                      onChange={(e) =>{
+                      onChange={(e) => {
                         handlePriceTierChange(index, "name", e.target.value);
                       }
-                        
+
                       }
                       fullWidth
                       size="small"
@@ -1435,17 +1435,17 @@ window.history.replaceState({}, "", window.location.pathname);
                       option.city ||
                       option.state ||
                       option.postcode) && (
-                      <Typography variant="caption" color="text.secondary">
-                        {[
-                          option.suburb,
-                          option.city,
-                          option.state,
-                          option.postcode,
-                        ]
-                          .filter(Boolean)
-                          .join(" • ")}
-                      </Typography>
-                    )}
+                        <Typography variant="caption" color="text.secondary">
+                          {[
+                            option.suburb,
+                            option.city,
+                            option.state,
+                            option.postcode,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        </Typography>
+                      )}
                   </Box>
                 </li>
               )}
@@ -1529,36 +1529,31 @@ window.history.replaceState({}, "", window.location.pathname);
                       key={person.id || `${person.fullName}-${person.email}`}
                       sx={{
                         padding: "12px",
-                        cursor: "pointer",
-                        borderBottom: `1px solid ${
-                          isDarkMode ? theme.palette.divider : "#f0f0f0"
-                        }`,
+                        borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : "#f0f0f0"}`,
                         "&:hover": {
-                          backgroundColor: isDarkMode
-                            ? "rgba(255,255,255,0.1)"
-                            : "#f5f5f5",
+                          backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "#f5f5f5",
                         },
-                        "&:last-child": {
-                          borderBottom: "none",
-                        },
+                        "&:last-child": { borderBottom: "none" },
+                        opacity: person.isDifferentOrg ? 0.5 : 1,
+                        cursor: person.isDifferentOrg ? "not-allowed" : "pointer",
                       }}
                       onMouseDown={() => {
+                        if (person.isDifferentOrg) return;
                         isSelectingFromDropdown.current = true;
                       }}
                       onMouseUp={() => {
+                        if (person.isDifferentOrg) return;
                         isSelectingFromDropdown.current = false;
                         const selectedName = person.fullName;
                         const selectedEmail = person.email;
 
-                        // FIXED: Use exact selection logic from first version (auto-fill eventName for cells)
-                        // + keep second version's email handling
                         if (hasPersonSteps && !isGlobalEvent) {
                           setFormData((prev) => ({
                             ...prev,
                             eventLeader: selectedName,
-                            eventName: selectedName, // ← restored from first version
+                            eventName: selectedName,
                             eventLeaderEmail: selectedEmail.toLowerCase(),
-                            email: selectedEmail.toLowerCase(), // also populate the Email field
+                            email: selectedEmail.toLowerCase(),
                             leader1: person.leader1 || "",
                             leader12: person.leader12 || "",
                           }));
@@ -1574,14 +1569,17 @@ window.history.replaceState({}, "", window.location.pathname);
                     >
                       <Typography variant="body1" fontWeight="500">
                         {person.fullName}
+                        {person.isDifferentOrg && (
+                          <span style={{ color: "red", fontSize: "0.75rem", marginLeft: 8 }}>
+                            Different organisation — cannot select
+                          </span>
+                        )}
                       </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary", fontSize: "0.75rem" }}
-                      >
+                      <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.75rem" }}>
                         {person.email}
                         {person.leader1 && ` • L@1: ${person.leader1}`}
                         {person.leader12 && ` • L@12: ${person.leader12}`}
+                        {person.org && ` • Org: ${person.org}`}
                       </Typography>
                     </Box>
                   ))}
@@ -1589,34 +1587,34 @@ window.history.replaceState({}, "", window.location.pathname);
               )}
             </Box>
 
-          {hasPersonSteps && !isGlobalEvent && (
-  <>
-    <TextField
-      label="Email *"
-      value={formData.email || ""}
-      onChange={(e) => handleChange("email", e.target.value)}
-      fullWidth
-      size="small"
-      sx={{ mb: 2, ...darkModeStyles.textField }}
-      error={!!errors.email}
-      helperText={errors.email || "Enter the email for this event"}
-    />
+            {hasPersonSteps && !isGlobalEvent && (
+              <>
+                <TextField
+                  label="Email *"
+                  value={formData.email || ""}
+                  onChange={(e) => handleChange("email", e.target.value)}
+                  fullWidth
+                  size="small"
+                  sx={{ mb: 2, ...darkModeStyles.textField }}
+                  error={!!errors.email}
+                  helperText={errors.email || "Enter the email for this event"}
+                />
 
-    {getAllHierarchyLevels().map((h) => (
-      <TextField
-        key={h.field}
-        label={`${h.label} *`}
-        value={formData[h.field] || ""}
-        onChange={(e) => handleChange(h.field, e.target.value)}
-        fullWidth
-        size="small"
-        sx={{ mb: 2, ...darkModeStyles.textField }}
-        error={!!errors[h.field]}
-        helperText={errors[h.field] || `Enter the ${h.label} for this event`}
-      />
-    ))}
-  </>
-)}
+                {getAllHierarchyLevels().map((h) => (
+                  <TextField
+                    key={h.field}
+                    label={`${h.label} *`}
+                    value={formData[h.field] || ""}
+                    onChange={(e) => handleChange(h.field, e.target.value)}
+                    fullWidth
+                    size="small"
+                    sx={{ mb: 2, ...darkModeStyles.textField }}
+                    error={!!errors[h.field]}
+                    helperText={errors[h.field] || `Enter the ${h.label} for this event`}
+                  />
+                ))}
+              </>
+            )}
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
               {isTicketedEvent && (
                 <Chip label="Ticketed Event" color="warning" size="small" />

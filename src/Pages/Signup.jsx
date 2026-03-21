@@ -136,6 +136,7 @@ const initialForm = {
   gender: "",
   password: "",
   confirm_password: "",
+  organization: "", // Added organization field
 };
 
 const Signup = ({ onSignup, mode, setMode }) => {
@@ -164,6 +165,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Organizations state
+  const [organizations, setOrganizations] = useState([]);
+  const [orgsLoading, setOrgsLoading] = useState(false);
+  const [orgsError, setOrgsError] = useState("");
 
   // Geoapify address autocomplete
   const [addressOptions, setAddressOptions] = useState([]);
@@ -173,6 +179,34 @@ const Signup = ({ onSignup, mode, setMode }) => {
 
   // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
+
+  // Fetch organizations on component mount
+  useEffect(() => {
+    const fetchOrganizations = async () => {
+      setOrgsLoading(true);
+      setOrgsError("");
+      try {
+        const response = await fetch(`${BACKEND_URL}/organizations`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch organizations");
+        }
+        const data = await response.json();
+        if (data.success && Array.isArray(data.organizations)) {
+          setOrganizations(data.organizations);
+        } else {
+          setOrganizations([]);
+        }
+      } catch (error) {
+        console.error("Error fetching organizations:", error);
+        setOrgsError("Could not load organizations. You can still type manually.");
+        setOrganizations([]);
+      } finally {
+        setOrgsLoading(false);
+      }
+    };
+
+    fetchOrganizations();
+  }, [BACKEND_URL]);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -324,6 +358,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
     if (!form.email?.trim()) newErrors.email = "Email is required";
     else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = "Invalid email";
     if (!form.gender) newErrors.gender = "Select a gender";
+    if (!form.organization?.trim()) newErrors.organization = "Organization/Church is required";
     if (!form.password) newErrors.password = "Password is required";
     else if (form.password.length < 6) newErrors.password = "Password must be at least 6 characters";
     if (!form.confirm_password) newErrors.confirm_password = "Confirm your password";
@@ -337,6 +372,14 @@ const Signup = ({ onSignup, mode, setMode }) => {
     setForm({ ...form, [e.target.name]: e.target.value });
     if (errors[e.target.name]) {
       setErrors((prev) => ({ ...prev, [e.target.name]: "" }));
+    }
+  };
+
+  const handleOrganizationChange = (e) => {
+    const orgValue = e.target.value;
+    setForm((prev) => ({ ...prev, organization: orgValue }));
+    if (errors.organization) {
+      setErrors((prev) => ({ ...prev, organization: "" }));
     }
   };
 
@@ -358,15 +401,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
       gender: genderVal,
     }));
     if (errors.gender) setErrors((prev) => ({ ...prev, gender: "" }));
-  };
-
-  const handleSearchChange = (event, value, reason) => {
-    setSearchQuery(value);
-    // If the user types manually, clear the selected inviter id to avoid stale IDs.
-    if (reason === "input") {
-      setForm((prev) => ({ ...prev, invited_by: value || "", invited_by_id: "" }));
-      if (errors.invited_by) setErrors((prev) => ({ ...prev, invited_by: "" }));
-    }
   };
 
   const handleSubmit = async (e) => {
@@ -398,6 +432,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           phone_number: submitData.phone_number,
           email: submitData.email,
           gender: submitData.gender,
+          organization: submitData.organization,
         };
 
         setUserProfile(userData);
@@ -784,6 +819,101 @@ const Signup = ({ onSignup, mode, setMode }) => {
                   {errors.gender}
                 </Typography>
               )}
+            </FormControl>
+
+            {/* Organization Field - Dropdown with Autocomplete */}
+            <FormControl fullWidth error={!!errors.organization}>
+              <Autocomplete
+                freeSolo
+                options={organizations}
+                value={organizations.find(org => org.name === form.organization) || null}
+                inputValue={form.organization}
+                onInputChange={(event, newInputValue) => {
+                  setForm((prev) => ({ ...prev, organization: newInputValue }));
+                  if (errors.organization) {
+                    setErrors((prev) => ({ ...prev, organization: "" }));
+                  }
+                }}
+                onChange={(event, newValue) => {
+                  const orgName = newValue?.name || newValue || "";
+                  setForm((prev) => ({ ...prev, organization: orgName }));
+                  if (errors.organization) {
+                    setErrors((prev) => ({ ...prev, organization: "" }));
+                  }
+                }}
+                getOptionLabel={(option) => {
+                  if (typeof option === "string") return option;
+                  return option.name || "";
+                }}
+                loading={orgsLoading}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Organization / Church"
+                    error={!!errors.organization}
+                    helperText={
+                      errors.organization || 
+                      orgsError ||
+                      (orgsLoading ? "Loading organizations..." : "Select or type your organization")
+                    }
+                    fullWidth
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {orgsLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                    sx={{
+                      ...inputFieldSx,
+                      "& .MuiOutlinedInput-root": {
+                        ...inputFieldSx["& .MuiOutlinedInput-root"],
+                        "& fieldset": {
+                          borderColor: errors.organization
+                            ? theme.palette.error.main
+                            : isDark
+                            ? "#333333"
+                            : "#e0e0e0",
+                        },
+                      },
+                      "& .MuiFormHelperText-root": {
+                        color: errors.organization
+                          ? theme.palette.error.main
+                          : orgsError
+                          ? theme.palette.warning.main
+                          : isDark
+                          ? "#999999"
+                          : "#666666",
+                      },
+                    }}
+                  />
+                )}
+                ListboxProps={{
+                  sx: {
+                    bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                    "& .MuiAutocomplete-option": {
+                      color: isDark ? "#ffffff" : "#000000",
+                      "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" },
+                      "&[aria-selected='true']": {
+                        bgcolor: isDark ? "#333333" : "#e0e0e0",
+                        "&:hover": { bgcolor: isDark ? "#3a3a3a" : "#d5d5d5" },
+                      },
+                    },
+                  },
+                }}
+                PaperComponent={({ children }) => (
+                  <Paper
+                    sx={{
+                      bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                      border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}`,
+                    }}
+                  >
+                    {children}
+                  </Paper>
+                )}
+              />
             </FormControl>
 
             {/* Password */}
