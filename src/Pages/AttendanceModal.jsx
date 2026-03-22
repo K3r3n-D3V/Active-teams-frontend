@@ -1733,80 +1733,79 @@ const AttendanceModal = ({
     }
   };
 
+
   const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
-    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+    const CACHE_DURATION = 5 * 60 * 1000;
 
-  if (
-  !forceRefresh &&
-  typeof window !== "undefined" &&
-  window.globalPeopleCache &&
-  window.globalPeopleCache.data?.length > 0 &&
-  window.globalPeopleCache.timestamp &&
-  now - window.globalPeopleCache.timestamp < CACHE_DURATION
-) {
-  // Check if cached data has the required fields
-  const sample = window.globalPeopleCache.data[0];
-  if (sample && (sample.leader12 !== undefined || sample.invitedBy !== undefined)) {
-    console.log("Using cached people data in AttendanceModal");
-    setPreloadedPeople(window.globalPeopleCache.data);
-    if (activeTab === 1 && !associateSearch.trim()) {
-      setPeople(window.globalPeopleCache.data.slice(0, 50));
+    if (!forceRefresh && window.globalPeopleCache?.data?.length > 0 &&
+        now - window.globalPeopleCache.timestamp < CACHE_DURATION) {
+        console.log("Using cached people data in AttendanceModal");
+        setPreloadedPeople(window.globalPeopleCache.data);
+        if (activeTab === 1 && !associateSearch.trim()) {
+            setPeople(window.globalPeopleCache.data.slice(0, 50));
+        }
+        return;
     }
-    return;
-  }
-  // Cache is stale - force refresh
-  delete window.globalPeopleCache;
-}
+
+    delete window.globalPeopleCache;
+
     try {
-      const token = localStorage.getItem("access_token");
-      const headers = { Authorization: `Bearer ${token}` };
+        const token = localStorage.getItem("access_token");
+        const headers = { Authorization: `Bearer ${token}` };
+        const params = new URLSearchParams();
+        params.append("perPage", "600");
+        params.append("page", "1");
 
-      const params = new URLSearchParams();
-      params.append("perPage", "200");
-      params.append("page", "1");
+        const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+const data = await res.json();
+console.log("ALL KEYS OF FIRST PERSON:", Object.keys(data.results?.[0] || {}));
+console.log("TOTAL PEOPLE:", data.results?.length, "of", data.total);
+console.log("SAMPLE LEADER @12:", data.results?.[0]?.["Leader @12"]);
+console.log("SAMPLE LEADERPATH:", data.results?.[0]?.LeaderPath);;
 
-      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        const peopleArray = Array.isArray(data) ? data : (data.results || data.people || []);
 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
-      const peopleArray = Array.isArray(data) ? data : (data.results || data.people || []);
+ const formatted = peopleArray.map((p) => {
+    const hierarchyData = {};
+    getAllHierarchyLevels().forEach(h => {
+        hierarchyData[`level_${h.level}`] = p[h.field] || p[h.label] || "";
+    });
+    return {
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p[getHierarchyField(1)] || "",
+        leader12: p["Leader @12"] || p[getHierarchyField(2)] || "",
+        leader144: p["Leader @144"] || p[getHierarchyField(3)] || "",
+        phone: p.Number || p.Phone || p.phone || "",
+        invitedBy: p.InvitedBy || p.invitedBy || p.invited_by || "",
+        ...hierarchyData,
+        searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
+    };
+});
 
-      const formatted = peopleArray.map((p) => {
-        const hierarchyData = {};
-        getAllHierarchyLevels().forEach(h => {
-          hierarchyData[`level_${h.level}`] = p[h.field] || p[h.label] || "";
-        });
-        return {
-          id: p._id,
-          fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-          email: p.Email || p.email || "",
-          leader1: p["Leader @1"] || p[getHierarchyField(1)] || "",
-          leader12: p["Leader @12"] || p[getHierarchyField(2)] || "",
-          leader144: p["Leader @144"] || p[getHierarchyField(3)] || "",
-          phone: p.Number || p.Phone || p.phone || "",
-          invitedBy: p.InvitedBy || p.invitedBy || p.invited_by || "",
-          ...hierarchyData,
-          searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
+// ADD HERE
+const sample = formatted.find(p => p.fullName === "Lesedi Naomi Malobane");
+console.log("LESEDI FORMATTED:", sample);
+        window.globalPeopleCache = {
+            data: formatted,
+            timestamp: now,
+            expiry: CACHE_DURATION,
         };
-      });
 
-      window.globalPeopleCache = {
-        data: formatted,
-        timestamp: now,
-        expiry: 5 * 60 * 1000,
-      };
+        setPreloadedPeople(formatted);
+        console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
 
-      setPreloadedPeople(formatted);
-      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
-
-      if (activeTab === 1 && !associateSearch.trim()) {
-        setPeople(formatted.slice(0, 50));
-      }
+        if (activeTab === 1 && !associateSearch.trim()) {
+            setPeople(formatted.slice(0, 50));
+        }
     } catch (err) {
-      console.error("Error pre-loading people:", err);
+        console.error("Error pre-loading people:", err);
     }
-  };
+};
+
   useEffect(() => {
     if (isOpen && event) {
       let eventId;
@@ -2009,27 +2008,35 @@ const AttendanceModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      loadPreloadedPeople();
+      loadPreloadedPeople(true);
     }
   }, [isOpen]);
 
-  useEffect(() => {
+useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (isOpen && activeTab === 1) {
-        if (associateSearch.trim()) {
-          fetchPeople(associateSearch);
-        } else {
-          // Use cached/preloaded people when no search term
-          if (preloadedPeople.length > 0) {
-            setPeople(preloadedPeople.slice(0, 50));
-          } else {
-            fetchPeople("");
-          }
+        if (isOpen && activeTab === 1) {
+            if (associateSearch.trim()) {
+                fetchPeople(associateSearch);
+            } else {
+                if (preloadedPeople.length > 0) {
+                    // Check if leader12 is populated
+                    const hasLeaders = preloadedPeople.some(p => p.leader12);
+                    if (hasLeaders) {
+                        setPeople(preloadedPeople.slice(0, 50));
+                    } else {
+                        // Force reload if no leaders
+                        loadPreloadedPeople(true).then(() => {
+                            setPeople(preloadedPeople.slice(0, 50));
+                        });
+                    }
+                } else {
+                    loadPreloadedPeople(true);
+                }
+            }
         }
-      }
     }, 500);
     return () => clearTimeout(timeoutId);
-  }, [associateSearch, isOpen, activeTab, preloadedPeople]);
+}, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
   const handleCheckIn = (id) => {
     setCheckedIn((prev) => {
@@ -2274,7 +2281,7 @@ const AttendanceModal = ({
             leader144: savedAtt.leader144 || existing.leader144 || "",
             phone: savedAtt.phone || existing.phone || "",
             priceName: savedAtt.priceName || existing.priceName || "",
-            invitedBy: savedAtt.invitedBy || existing.invitedBy || "", 
+            invitedBy: savedAtt.invitedBy || existing.invitedBy || "",
             price: savedAtt.price || existing.price || 0,
             ageGroup: savedAtt.ageGroup || existing.ageGroup || "",
             paymentMethod: savedAtt.paymentMethod || existing.paymentMethod || "",
@@ -2364,13 +2371,13 @@ const AttendanceModal = ({
           const ticketOverride = isTicketedEvent ? (attendeeTicketInfo[p.id] || {}) : {};
           return {
             id: p.id,
-    name: p.fullName,
-    fullName: p.fullName,
-    email: p.email,
-    leader12: p.leader12,
-    leader144: p.leader144,
-    phone: p.phone,
-    invitedBy: p.invitedBy || "",
+            name: p.fullName,
+            fullName: p.fullName,
+            email: p.email,
+            leader12: p.leader12,
+            leader144: p.leader144,
+            phone: p.phone,
+            invitedBy: p.invitedBy || "",
             ...(isTicketedEvent && {
               priceName: ticketOverride.priceName || p.priceName || "",
               price: ticketOverride.price != null && ticketOverride.price !== ""
@@ -2379,7 +2386,7 @@ const AttendanceModal = ({
               ageGroup: ticketOverride.ageGroup || p.ageGroup || "",
               paymentMethod: ticketOverride.paymentMethod || p.paymentMethod || "",
             }),
-          }; 
+          };
         }),
         leaderEmail: currentUser?.email || "",
         leaderName: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),

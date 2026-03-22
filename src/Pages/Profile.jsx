@@ -26,6 +26,10 @@ import {
   Divider,
   Skeleton,
   MenuItem,
+  Collapse,
+  Accordion,
+  AccordionSummary,
+  AccordionDetails,
 } from "@mui/material";
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
@@ -37,6 +41,8 @@ import {
   Visibility,
   VisibilityOff,
   CameraAlt,
+  ExpandMore,
+  Security,
 } from "@mui/icons-material";
 import axios from "axios";
 
@@ -265,6 +271,7 @@ export default function Profile() {
   
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   
   const [leaders, setLeaders] = useState({
     leaderAt1: "",
@@ -302,7 +309,6 @@ export default function Profile() {
     severity: "success",
   });
 
-  // Flag to prevent multiple fetches
   const hasFetchedProfile = useRef(false);
 
   const genderOptions = [
@@ -349,6 +355,9 @@ export default function Profile() {
   }, []);
 
   const updateFormWithProfile = useCallback((profile) => {
+    console.log("Profile data received:", profile);
+    console.log("Leaders data:", profile.leaders);
+    
     const orgValue = profile?.organization || profile?.Organization || "";
     setOrganization(orgValue);
     
@@ -367,16 +376,31 @@ export default function Profile() {
       confirmPassword: "",
     };
 
-    const savedLeaders = JSON.parse(localStorage.getItem("leaders")) || {};
-    setLeaders(savedLeaders);
+    if (profile?.leaders) {
+      const leaderNames = {
+        leaderAt1: profile.leaders.leaderAt1 
+          ? `${profile.leaders.leaderAt1.name} ${profile.leaders.leaderAt1.surname}`
+          : profile.invited_by || "",
+        leaderAt12: profile.leaders.leaderAt12 
+          ? `${profile.leaders.leaderAt12.name} ${profile.leaders.leaderAt12.surname}`
+          : profile.invited_by || "",
+        leaderAt144: profile.leaders.leaderAt144 
+          ? `${profile.leaders.leaderAt144.name} ${profile.leaders.leaderAt144.surname}`
+          : "",
+      };
+      console.log("Setting leaders:", leaderNames);
+      setLeaders(leaderNames);
+      localStorage.setItem("leaders", JSON.stringify(leaderNames));
+    } else {
+      const savedLeaders = JSON.parse(localStorage.getItem("leaders")) || {};
+      setLeaders(savedLeaders);
+    }
 
     setForm(formData);
     setOriginalForm(formData);
   }, []);
 
-  // Fixed useEffect - only runs once
   useEffect(() => {
-    // Prevent multiple fetches
     if (hasFetchedProfile.current) {
       return;
     }
@@ -457,7 +481,6 @@ export default function Profile() {
             localStorage.setItem("userRole", profileData.role);
           }
           
-          // Mark as fetched to prevent future fetches
           hasFetchedProfile.current = true;
         }
       } catch (error) {
@@ -474,7 +497,7 @@ export default function Profile() {
     return () => {
       isMounted = false;
     };
-  }, [authFetch, setUserProfile, setProfilePic, updateFormWithProfile]); // Empty dependency array ensures it runs once
+  }, [authFetch, setUserProfile, setProfilePic, updateFormWithProfile]);
 
   const hasChanges = React.useMemo(() => {
     const hasPasswordChange = form.newPassword !== "" || form.confirmPassword !== "" || form.currentPassword !== "";
@@ -696,7 +719,7 @@ export default function Profile() {
           <CardContent sx={{ p: { xs: 3, sm: 4 }, pt: 4 }}>
             <Grid container spacing={3}>
               {[...Array(9)].map((_, index) => (
-                <Grid item xs={12} sm={6} key={index}>
+                <Grid size={{ xs: 12, sm: 6 }} key={index}>
                   <Skeleton variant="text" width="40%" height={20} sx={{ mb: 1, bgcolor: isDark ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)', borderRadius: 1 }} />
                   <Skeleton variant="rectangular" height={56} sx={{ bgcolor: isDark ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)', borderRadius: 1 }} />
                 </Grid>
@@ -715,38 +738,118 @@ export default function Profile() {
 
   return (
     <Box sx={{ minHeight: "100vh", bgcolor: isDark ? "#0a0a0a" : "#f8f9fa", pb: 4 }}>
-      <Box sx={{ position: "relative", minHeight: "30vh", background: isDark ? `linear-gradient(135deg, ${currentCarouselItem.color}15 0%, ${currentCarouselItem.color}25 100%)` : `linear-gradient(135deg, ${currentCarouselItem.color}10 0%, ${currentCarouselItem.color}20 100%)`, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", transition: "background 1s ease-in-out", overflow: "hidden", pt: 6, pb: 12, }}>
-        <Box sx={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, "&::before": { content: '""', position: "absolute", width: "200%", height: "200%", background: `radial-gradient(circle at 50% 50%, ${currentCarouselItem.color}08 0%, transparent 70%)`, animation: "pulse 4s ease-in-out infinite alternate", }, }} />
-        <Box sx={{ position: "relative", zIndex: 2, textAlign: "center", px: 2, }}>
+      <Box sx={{ 
+        position: "relative", 
+        minHeight: "30vh", 
+        background: isDark 
+          ? `linear-gradient(135deg, ${currentCarouselItem.color}15 0%, ${currentCarouselItem.color}25 100%)` 
+          : `linear-gradient(135deg, ${currentCarouselItem.color}10 0%, ${currentCarouselItem.color}20 100%)`, 
+        display: "flex", 
+        flexDirection: "column", 
+        alignItems: "center", 
+        justifyContent: "center", 
+        transition: "background 1s ease-in-out", 
+        overflow: "hidden", 
+        pt: 6, 
+        pb: 12,
+      }}>
+        <Box sx={{ 
+          position: "absolute", 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          "&::before": { 
+            content: '""', 
+            position: "absolute", 
+            width: "200%", 
+            height: "200%", 
+            background: `radial-gradient(circle at 50% 50%, ${currentCarouselItem.color}08 0%, transparent 70%)`, 
+            animation: "pulse 4s ease-in-out infinite alternate", 
+          }, 
+        }} />
+        <Box sx={{ position: "relative", zIndex: 2, textAlign: "center", px: 2 }}>
           <Fade in key={carouselIndex} timeout={1000}>
-            <Typography variant="h3" sx={{ fontWeight: 700, fontSize: { xs: "1.5rem", sm: "2rem", md: "2.5rem" }, color: currentCarouselItem.color, textShadow: isDark ? "0 2px 20px rgba(255,255,255,0.1)" : "0 2px 20px rgba(0,0,0,0.1)", transition: "color 1s ease-in-out", lineHeight: 1.2, maxWidth: "800px", }}>
+            <Typography variant="h3" sx={{ 
+              fontWeight: 700, 
+              fontSize: { xs: "1.5rem", sm: "2rem", md: "2.5rem" }, 
+              color: currentCarouselItem.color, 
+              textShadow: isDark ? "0 2px 20px rgba(255,255,255,0.1)" : "0 2px 20px rgba(0,0,0,0.1)", 
+              transition: "color 1s ease-in-out", 
+              lineHeight: 1.2, 
+              maxWidth: "800px",
+            }}>
               {currentCarouselItem.text}
             </Typography>
           </Fade>
         </Box>
       </Box>
 
-      <Box sx={{ position: "relative", zIndex: 10, display: "flex", justifyContent: "center", mt: -10, mb: 5, }}>
+      <Box sx={{ position: "relative", zIndex: 10, display: "flex", justifyContent: "center", mt: -10, mb: 5 }}>
         <Box sx={{ position: "relative", textAlign: "center" }}>
           <Box sx={{ position: "relative", display: "inline-block" }}>
-            <Avatar sx={{ width: 150, height: 150, border: `6px solid ${isDark ? "#0a0a0a" : "#ffffff"}`, boxShadow: `0 12px 40px ${currentCarouselItem.color}60`, bgcolor: isDark ? "#1a1a1a" : "#ffffff", color: currentCarouselItem.color, fontSize: "2.5rem", fontWeight: 700, cursor: "pointer", transition: "all 0.3s ease", "&:hover": { transform: "scale(1.05)", boxShadow: `0 16px 60px ${currentCarouselItem.color}80`, }, }} src={profilePic} onClick={() => fileInputRef.current?.click()}>
+            <Avatar sx={{ 
+              width: 150, 
+              height: 150, 
+              border: `6px solid ${isDark ? "#0a0a0a" : "#ffffff"}`, 
+              boxShadow: `0 12px 40px ${currentCarouselItem.color}60`, 
+              bgcolor: isDark ? "#1a1a1a" : "#ffffff", 
+              color: currentCarouselItem.color, 
+              fontSize: "2.5rem", 
+              fontWeight: 700, 
+              cursor: "pointer", 
+              transition: "all 0.3s ease", 
+              "&:hover": { 
+                transform: "scale(1.05)", 
+                boxShadow: `0 16px 60px ${currentCarouselItem.color}80`, 
+              }, 
+            }} 
+            src={profilePic} 
+            onClick={() => fileInputRef.current?.click()}>
               {!profilePic && getInitials()}
             </Avatar>
-            <IconButton sx={{ position: "absolute", bottom: 4, right: 4, bgcolor: currentCarouselItem.color, color: "white", width: 36, height: 36, border: `2px solid ${isDark ? "#0a0a0a" : "#ffffff"}`, "&:hover": { bgcolor: currentCarouselItem.color, transform: "scale(1.1)", }, transition: "all 0.2s ease", boxShadow: "0 4px 12px rgba(0,0,0,0.3)", }} size="small" onClick={() => fileInputRef.current?.click()}>
+            <IconButton sx={{ 
+              position: "absolute", 
+              bottom: 4, 
+              right: 4, 
+              bgcolor: currentCarouselItem.color, 
+              color: "white", 
+              width: 36, 
+              height: 36, 
+              border: `2px solid ${isDark ? "#0a0a0a" : "#ffffff"}`, 
+              "&:hover": { 
+                bgcolor: currentCarouselItem.color, 
+                transform: "scale(1.1)", 
+              }, 
+              transition: "all 0.2s ease", 
+              boxShadow: "0 4px 12px rgba(0,0,0,0.3)", 
+            }} 
+            size="small" 
+            onClick={() => fileInputRef.current?.click()}>
               <CameraAlt sx={{ fontSize: 18 }} />
             </IconButton>
           </Box>
           <input ref={fileInputRef} hidden accept="image/*" type="file" onChange={onFileChange} />
           <Box sx={{ mt: 2 }}>
-            <Typography variant="h4" sx={{ fontWeight: 700, color: isDark ? "#ffffff" : "#000000", mb: 1, fontSize: { xs: "1.5rem", sm: "2rem", md: "2.25rem" }, }}>
+            <Typography variant="h4" sx={{ 
+              fontWeight: 700, 
+              color: isDark ? "#ffffff" : "#000000", 
+              mb: 1, 
+              fontSize: { xs: "1.5rem", sm: "2rem", md: "2.25rem" }, 
+            }}>
               {form.name} {form.surname}
             </Typography>
             <Typography variant="body2" sx={{ 
               display: "inline-block",
-              px: 2, py: 0.5, borderRadius: 2,
-              bgcolor: canEditProfile ? currentCarouselItem.color + "20" : isDark ? "#333333" : "#e0e0e0",
+              px: 2, 
+              py: 0.5, 
+              borderRadius: 2,
+              bgcolor: canEditProfile ? `${currentCarouselItem.color}20` : isDark ? "#333333" : "#e0e0e0",
               color: canEditProfile ? currentCarouselItem.color : isDark ? "#999999" : "#666666",
-              fontWeight: 600, textTransform: "uppercase", fontSize: "0.75rem", letterSpacing: 1
+              fontWeight: 600, 
+              textTransform: "uppercase", 
+              fontSize: "0.75rem", 
+              letterSpacing: 1
             }}>
               {getUserRole()}
             </Typography>
@@ -755,7 +858,12 @@ export default function Profile() {
       </Box>
 
       <Container maxWidth="md" sx={{ px: { xs: 2, sm: 3 }, position: "relative", zIndex: 2 }}>
-        <Card sx={{ bgcolor: isDark ? "#111111" : "#ffffff", borderRadius: 3, boxShadow: isDark ? "0 8px 32px rgba(255,255,255,0.02)" : "0 8px 32px rgba(0,0,0,0.08)", border: `1px solid ${isDark ? "#222222" : "#e0e0e0"}`, }}>
+        <Card sx={{ 
+          bgcolor: isDark ? "#111111" : "#ffffff", 
+          borderRadius: 3, 
+          boxShadow: isDark ? "0 8px 32px rgba(255,255,255,0.02)" : "0 8px 32px rgba(0,0,0,0.08)", 
+          border: `1px solid ${isDark ? "#222222" : "#e0e0e0"}`,
+        }}>
           <CardContent sx={{ p: { xs: 3, sm: 4 }, pt: 4 }}>
             {isRegularUser && (
               <Alert severity="info" sx={{ mb: 3, borderRadius: 2 }}>
@@ -770,7 +878,7 @@ export default function Profile() {
 
             <Box component="form" onSubmit={handleSubmit}>
               <Grid container spacing={3}>
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Name</Typography>
                   <TextField 
                     value={form.name || ""} 
@@ -783,7 +891,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Surname</Typography>
                   <TextField 
                     value={form.surname || ""} 
@@ -796,7 +904,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Date Of Birth</Typography>
                   <TextField 
                     value={form.dob || ""} 
@@ -806,12 +914,12 @@ export default function Profile() {
                     disabled={!canEditProfile} 
                     error={!!errors.dob} 
                     helperText={errors.dob} 
-                    InputLabelProps={{ shrink: true }} 
+                    slotProps={{ inputLabel: { shrink: true } }}
                     sx={commonFieldSx} 
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Gender</Typography>
                   <TextField 
                     select 
@@ -827,7 +935,7 @@ export default function Profile() {
                   </TextField>
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Email Address</Typography>
                   <TextField 
                     value={form.email || ""} 
@@ -839,7 +947,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Home Address</Typography>
                   <TextField 
                     value={form.address || ""} 
@@ -850,7 +958,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Phone Number</Typography>
                   <TextField 
                     value={form.phone || ""} 
@@ -859,11 +967,11 @@ export default function Profile() {
                     error={!!errors.phone} 
                     helperText={errors.phone} 
                     sx={commonFieldSx} 
-                    inputProps={{ inputMode: "numeric", pattern: "[0-9]*" }} 
+                    slotProps={{ htmlInput: { inputMode: "numeric", pattern: "[0-9]*" } }}
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Invited By</Typography>
                   <TextField 
                     value={form.invitedBy || ""} 
@@ -874,7 +982,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Organization / Church</Typography>
                   <TextField 
                     value={organization || form.organization || ""} 
@@ -886,7 +994,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Leader@1</Typography>
                   <TextField 
                     value={leaders.leaderAt1 || ""} 
@@ -896,7 +1004,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Leader@12</Typography>
                   <TextField 
                     value={leaders.leaderAt12 || ""} 
@@ -906,7 +1014,7 @@ export default function Profile() {
                   />
                 </Grid>
 
-                <Grid item xs={12} sm={6}>
+                <Grid size={{ xs: 12, sm: 6 }}>
                   <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Leader@144</Typography>
                   <TextField 
                     value={leaders.leaderAt144 || ""} 
@@ -917,80 +1025,116 @@ export default function Profile() {
                 </Grid>
               </Grid>
 
-              <>
-                <Divider sx={{ my: 4, borderColor: isDark ? "#222222" : "#e0e0e0" }} />
-                <Typography variant="h6" sx={{ mb: 3, fontWeight: 600, color: isDark ? "#ffffff" : "#000000" }}>Change Password (Optional)</Typography>
-                <Grid container spacing={3}>
-                  <Grid item xs={12}>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Current Password</Typography>
-                    <TextField 
-                      value={form.currentPassword || ""} 
-                      onChange={handleChange("currentPassword")} 
-                      type={showPassword.current ? "text" : "password"} 
-                      fullWidth 
-                      error={!!errors.currentPassword} 
-                      helperText={errors.currentPassword} 
-                      autoComplete="current-password" 
-                      InputProps={{ 
-                        endAdornment: ( 
-                          <InputAdornment position="end"> 
-                            <IconButton onClick={() => togglePasswordVisibility("current")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> 
-                              {showPassword.current ? <VisibilityOff /> : <Visibility />} 
-                            </IconButton> 
-                          </InputAdornment> 
-                        ), 
-                      }} 
-                      sx={commonFieldSx} 
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>New Password</Typography>
-                    <TextField 
-                      value={form.newPassword || ""} 
-                      onChange={handleChange("newPassword")} 
-                      type={showPassword.new ? "text" : "password"} 
-                      fullWidth 
-                      error={!!errors.newPassword} 
-                      helperText={errors.newPassword} 
-                      autoComplete="new-password" 
-                      InputProps={{ 
-                        endAdornment: ( 
-                          <InputAdornment position="end"> 
-                            <IconButton onClick={() => togglePasswordVisibility("new")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> 
-                              {showPassword.new ? <VisibilityOff /> : <Visibility />} 
-                            </IconButton> 
-                          </InputAdornment> 
-                        ), 
-                      }} 
-                      sx={commonFieldSx} 
-                    />
-                  </Grid>
-                  <Grid item xs={12} sm={6}>
-                    <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Confirm New Password</Typography>
-                    <TextField 
-                      value={form.confirmPassword || ""} 
-                      onChange={handleChange("confirmPassword")} 
-                      type={showPassword.confirm ? "text" : "password"} 
-                      fullWidth 
-                      error={!!errors.confirmPassword} 
-                      helperText={errors.confirmPassword} 
-                      autoComplete="new-password" 
-                      InputProps={{ 
-                        endAdornment: ( 
-                          <InputAdornment position="end"> 
-                            <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> 
-                              {showPassword.confirm ? <VisibilityOff /> : <Visibility />} 
-                            </IconButton> 
-                          </InputAdornment> 
-                        ), 
-                      }} 
-                      sx={commonFieldSx} 
-                    />
-                  </Grid>
-                </Grid>
-              </>
+              <Box sx={{ mt: 4 }}>
+                <Accordion 
+                  expanded={advancedOpen} 
+                  onChange={() => setAdvancedOpen(!advancedOpen)}
+                  sx={{
+                    bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+                    boxShadow: "none",
+                    border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}`,
+                    borderRadius: "12px !important",
+                    "&:before": { display: "none" },
+                  }}
+                >
+                  <AccordionSummary
+                    expandIcon={<ExpandMore sx={{ color: currentCarouselItem.color }} />}
+                    sx={{
+                      borderRadius: "12px",
+                      "& .MuiAccordionSummary-content": {
+                        alignItems: "center",
+                        gap: 1,
+                      },
+                    }}
+                  >
+                    <Security sx={{ color: currentCarouselItem.color }} />
+                    <Typography variant="h6" sx={{ fontWeight: 600, color: isDark ? "#ffffff" : "#000000" }}>
+                      Advanced Settings
+                    </Typography>
+                    <Typography variant="caption" sx={{ color: isDark ? "#999999" : "#666666", ml: 1 }}>
+                      (Change Password)
+                    </Typography>
+                  </AccordionSummary>
+                  <AccordionDetails>
+                    <Grid container spacing={3}>
+                      <Grid size={{ xs: 12 }}>
+                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Current Password</Typography>
+                        <TextField 
+                          value={form.currentPassword || ""} 
+                          onChange={handleChange("currentPassword")} 
+                          type={showPassword.current ? "text" : "password"} 
+                          fullWidth 
+                          error={!!errors.currentPassword} 
+                          helperText={errors.currentPassword} 
+                          autoComplete="current-password" 
+                          slotProps={{ 
+                            input: { 
+                              endAdornment: ( 
+                                <InputAdornment position="end"> 
+                                  <IconButton onClick={() => togglePasswordVisibility("current")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> 
+                                    {showPassword.current ? <VisibilityOff /> : <Visibility />} 
+                                  </IconButton> 
+                                </InputAdornment> 
+                              ), 
+                            },
+                          }} 
+                          sx={commonFieldSx} 
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>New Password</Typography>
+                        <TextField 
+                          value={form.newPassword || ""} 
+                          onChange={handleChange("newPassword")} 
+                          type={showPassword.new ? "text" : "password"} 
+                          fullWidth 
+                          error={!!errors.newPassword} 
+                          helperText={errors.newPassword} 
+                          autoComplete="new-password" 
+                          slotProps={{ 
+                            input: { 
+                              endAdornment: ( 
+                                <InputAdornment position="end"> 
+                                  <IconButton onClick={() => togglePasswordVisibility("new")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> 
+                                    {showPassword.new ? <VisibilityOff /> : <Visibility />} 
+                                  </IconButton> 
+                                </InputAdornment> 
+                              ), 
+                            },
+                          }} 
+                          sx={commonFieldSx} 
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, sm: 6 }}>
+                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Confirm New Password</Typography>
+                        <TextField 
+                          value={form.confirmPassword || ""} 
+                          onChange={handleChange("confirmPassword")} 
+                          type={showPassword.confirm ? "text" : "password"} 
+                          fullWidth 
+                          error={!!errors.confirmPassword} 
+                          helperText={errors.confirmPassword} 
+                          autoComplete="new-password" 
+                          slotProps={{ 
+                            input: { 
+                              endAdornment: ( 
+                                <InputAdornment position="end"> 
+                                  <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}> 
+                                    {showPassword.confirm ? <VisibilityOff /> : <Visibility />} 
+                                  </IconButton> 
+                                </InputAdornment> 
+                              ), 
+                            },
+                          }} 
+                          sx={commonFieldSx} 
+                        />
+                      </Grid>
+                    </Grid>
+                  </AccordionDetails>
+                </Accordion>
+              </Box>
 
-              <Box sx={{ mt: 4, display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap", }}>
+              <Box sx={{ mt: 4, display: "flex", gap: 2, justifyContent: "center", flexWrap: "wrap" }}>
                 <Button 
                   type="submit" 
                   variant="contained" 
@@ -998,9 +1142,14 @@ export default function Profile() {
                   disabled={!hasChanges} 
                   sx={{ 
                     bgcolor: currentCarouselItem.color, 
-                    "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9, }, 
-                    "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999", }, 
-                    borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", 
+                    "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9 }, 
+                    "&:disabled": { bgcolor: isDark ? "#333333" : "#cccccc", color: isDark ? "#666666" : "#999999" }, 
+                    borderRadius: 2, 
+                    px: 4, 
+                    py: 1.5, 
+                    fontWeight: 600, 
+                    textTransform: "none", 
+                    fontSize: "1rem", 
                   }}
                 >
                   {canEditProfile ? "Save Changes" : "Update Profile"}
@@ -1011,7 +1160,12 @@ export default function Profile() {
                     onClick={handleCancel} 
                     startIcon={<Cancel />} 
                     sx={{ 
-                      borderRadius: 2, px: 4, py: 1.5, fontWeight: 600, textTransform: "none", fontSize: "1rem", 
+                      borderRadius: 2, 
+                      px: 4, 
+                      py: 1.5, 
+                      fontWeight: 600, 
+                      textTransform: "none", 
+                      fontSize: "1rem", 
                     }}
                   >
                     Cancel
@@ -1026,17 +1180,30 @@ export default function Profile() {
       {croppingOpen && (
         <Box 
           sx={{ 
-            position: "fixed", inset: 0, bgcolor: "rgba(0,0,0,0.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1300, p: 2, 
+            position: "fixed", 
+            inset: 0, 
+            bgcolor: "rgba(0,0,0,0.9)", 
+            display: "flex", 
+            alignItems: "center", 
+            justifyContent: "center", 
+            zIndex: 1300, 
+            p: 2, 
           }} 
           onClick={() => setCroppingOpen(false)}
         >
           <Paper 
             sx={{ 
-              position: "relative", width: "90vw", maxWidth: 500, bgcolor: isDark ? "#111111" : "#ffffff", borderRadius: 3, p: 3, border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}`, 
+              position: "relative", 
+              width: "90vw", 
+              maxWidth: 500, 
+              bgcolor: isDark ? "#111111" : "#ffffff", 
+              borderRadius: 3, 
+              p: 3, 
+              border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}`, 
             }} 
             onClick={(e) => e.stopPropagation()}
           >
-            <Typography variant="h6" sx={{ mb: 2, textAlign: "center", color: isDark ? "#ffffff" : "#000000", fontWeight: 600, }}>
+            <Typography variant="h6" sx={{ mb: 2, textAlign: "center", color: isDark ? "#ffffff" : "#000000", fontWeight: 600 }}>
               Crop Your Profile Picture
             </Typography>
             <Box sx={{ position: "relative", width: "100%", height: 300 }}>
@@ -1074,7 +1241,11 @@ export default function Profile() {
                   borderColor: isDark ? "#666666" : "#cccccc", 
                   color: isDark ? "#cccccc" : "#666666", 
                   "&:hover": { borderColor: isDark ? "#888888" : "#999999", bgcolor: isDark ? "#222222" : "#f5f5f5" }, 
-                  borderRadius: 2, px: 3, py: 1, fontWeight: 600, textTransform: "none" 
+                  borderRadius: 2, 
+                  px: 3, 
+                  py: 1, 
+                  fontWeight: 600, 
+                  textTransform: "none" 
                 }}
               >
                 Cancel
@@ -1085,7 +1256,11 @@ export default function Profile() {
                 sx={{ 
                   bgcolor: currentCarouselItem.color, 
                   "&:hover": { bgcolor: currentCarouselItem.color, opacity: 0.9 }, 
-                  borderRadius: 2, px: 3, py: 1, fontWeight: 600, textTransform: "none" 
+                  borderRadius: 2, 
+                  px: 3, 
+                  py: 1, 
+                  fontWeight: 600, 
+                  textTransform: "none" 
                 }}
               >
                 Save Picture
@@ -1110,7 +1285,7 @@ export default function Profile() {
         </Alert>
       </Snackbar>
 
-      <style jsx>{`
+      <style>{`
         @keyframes pulse {
           0% { transform: scale(1) rotate(0deg); opacity: 0.3; }
           100% { transform: scale(1.05) rotate(2deg); opacity: 0.1; }

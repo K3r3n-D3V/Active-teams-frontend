@@ -154,14 +154,11 @@ const logout = useCallback(() => {
       return false;
     }
 
-    const data = await res.json();
+const data = await res.json();
     console.log('Token refresh successful');
-    
     localStorage.setItem(KEY_ACCESS, data.access_token);
     localStorage.setItem(KEY_REFRESH, data.refresh_token);
     localStorage.setItem(KEY_REFRESH_ID, data.refresh_token_id);
-    window.location.reload();
-
     
     return true;
   } catch (e) {
@@ -254,13 +251,12 @@ const login = async (email, password) => {
     if (userWithAvatar.profile_picture) {
       localStorage.setItem(KEY_PROFILE_PIC, userWithAvatar.profile_picture);
     }
+
     setUser(userWithAvatar);
     setIsAuthenticated(true);
     
-    window.location.reload();  // ← AFTER everything is saved
-    
     return data;
-  };
+};
 
   const updateProfilePicture = useCallback((newPictureUrl) => {
     if (user) {
