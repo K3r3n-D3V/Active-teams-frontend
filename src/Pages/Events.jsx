@@ -1022,7 +1022,7 @@ console.log("ORG CONFIG:===============", orgConfig?.org_id, "isActiveTeams:", i
   const [, setActiveFilters] = useState({});
   const [loading, setLoading] = useState(true);
   const [, setUserCreatedEventTypes] = useState([]);
-  const [customEventTypes, setCustomEventTypes] = useState([]);
+  const [, setCustomEventTypes] = useState([]);
   const [, setSelectedEventTypeObj] = useState(null);
   const [attendanceModalOpen, setAttendanceModalOpen] = useState(false);
   const [createEventModalOpen, setCreateEventModalOpen] = useState(false);
@@ -1449,10 +1449,10 @@ ${xmlCols}
     return Math.min(currentPage * rowsPerPage, totalEvents);
   }, [currentPage, rowsPerPage, totalEvents]);
 
-  const allEventTypes = useMemo(() => {
-    const typeNames = eventTypes.map((t) => (typeof t === "string" ? t : t.name));
-    return isActiveTeams ? ["all", ...typeNames] : typeNames;
-  }, [eventTypes, isActiveTeams]);
+    const allEventTypes = useMemo(() => {
+      const typeNames = eventTypes.map((t) => (typeof t === "string" ? t : t.name));
+      return isActiveTeams ? ["all", ...typeNames] : typeNames;
+    }, [eventTypes, isActiveTeams]);
 
 
   const fetchEventsFilters = (filters) => {
@@ -1518,150 +1518,151 @@ ${xmlCols}
     }
     return [params, endpoint];
   };
-  const fetchEvents = useCallback(
-    async (filters = {}, showLoader = true, isSearching = false) => {
-      console.log(" fetchEvents called with filters:", filters);
-      console.log("isSearching:", isSearching);
-      if (showLoader) {
-        setLoading(true);
-        setIsLoading(true);
-      }
+    const fetchEvents = useCallback(
+      async (filters = {}, showLoader = true, isSearching = false) => {
+        console.log(" fetchEvents called with filters:", filters);
+        console.log("isSearching:", isSearching);
+        if (showLoader) {
+          setLoading(true);
+          setIsLoading(true);
+        }
 
+        try {
+          const token = localStorage.getItem("access_token");
+          if (!token) {
+            logout();
+            window.location.href = "/login";
+            return;
+          }
+          const [params, endpoint] = fetchEventsFilters(filters);
+
+          const queryString = new URLSearchParams(params).toString();
+          console.log("Fetching from:", `${endpoint}?${queryString}`);
+
+          const response = await authFetch(`${endpoint}?${queryString}`, {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+          });
+
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+          const data = await response.json();
+          console.log("Received events:", data.events?.length || 0);
+
+          const allEvents = data.events || [];
+          const filtered = allEvents;
+
+          console.log("Final events to display:", filtered.length);
+
+          setEvents(filtered);
+          setTotalEvents(data.total_events || 0);
+          setTotalPages(data.total_pages || 1);
+        } catch (error) {
+          console.error(" Fetch error:", error);
+          setEvents([]);
+          if (!error.message.includes("401")) {
+            toast.error("Failed to load events");
+          }
+        } finally {
+          if (showLoader) {
+            setLoading(false);
+            setIsLoading(false);
+          }
+        }
+      },
+      [
+        currentPage,
+        rowsPerPage,
+        authFetch,
+        BACKEND_URL,
+        isLeaderAt12,
+        isAdmin,
+        isRegistrant,
+        viewFilter,
+        logout,
+        selectedEventTypeFilter,
+        selectedStatus,
+      ],
+    );
+
+    const fetchEventTypes = useCallback(async () => {
       try {
         const token = localStorage.getItem("access_token");
-        if (!token) {
-          logout();
-          window.location.href = "/login";
-          return;
-        }
-        const [params, endpoint] = fetchEventsFilters(filters);
 
-        const queryString = new URLSearchParams(params).toString();
-        console.log("Fetching from:", `${endpoint}?${queryString}`);
-
-        const response = await authFetch(`${endpoint}?${queryString}`, {
-          method: "GET",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
+        const response = await authFetch(`${BACKEND_URL}/event-types`, {
+          headers: { Authorization: `Bearer ${token}` },
         });
 
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch event types");
+        }
 
-        const data = await response.json();
-        console.log("Received events:", data.events?.length || 0);
+        const eventTypesData = await response.json();
+        const role = (currentUser?.role || "").toLowerCase().trim();
+        const email = (currentUser?.email || "").toLowerCase();
+        const isManager =
+          role === "admin" || role === "leaderat12" || role === "registrant";
+const filteredTypes = eventTypesData.filter((type) => {
+    // Built-in types are already org-filtered by backend — always show them
+    if (type.isBuiltIn) return true;
+    if (isManager) return true;
+    const isGlobalType = type.isGlobal === true || type.isGlobal === "true";
+    const isOwner = type.userEmail?.toLowerCase() === email;
+    return type.isEventType === true && (isGlobalType || isOwner);
+});
 
-        const allEvents = data.events || [];
-        const filtered = allEvents;
-
-        console.log("Final events to display:", filtered.length);
-
-        setEvents(filtered);
-        setTotalEvents(data.total_events || 0);
-        setTotalPages(data.total_pages || 1);
+        setEventTypes(filteredTypes);
+        setCustomEventTypes(filteredTypes);
+        setUserCreatedEventTypes(filteredTypes);
+        return filteredTypes;
       } catch (error) {
-        console.error(" Fetch error:", error);
-        setEvents([]);
-        if (!error.message.includes("401")) {
-          toast.error("Failed to load events");
-        }
-      } finally {
-        if (showLoader) {
-          setLoading(false);
-          setIsLoading(false);
-        }
+        console.error("Error fetching event types:", error);
+        return [];
       }
-    },
-    [
-      currentPage,
-      rowsPerPage,
-      authFetch,
-      BACKEND_URL,
-      isLeaderAt12,
-      isAdmin,
-      isRegistrant,
-      viewFilter,
-      logout,
-      selectedEventTypeFilter,
-      selectedStatus,
-    ],
-  );
+    }, [BACKEND_URL, authFetch, currentUser?.email, currentUser?.role]);
 
-  const fetchEventTypes = useCallback(async () => {
-    try {
-      const token = localStorage.getItem("access_token");
-
-      const response = await authFetch(`${BACKEND_URL}/event-types`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch event types");
+    useEffect(() => {
+      if (currentUser?.email) {
+        fetchEventTypes();
       }
+    }, [fetchEventTypes, currentUser?.email]);
+    useEffect(() => {
+      // When event type filter changes, reset to "incomplete" status
+      if (selectedEventTypeFilter && selectedEventTypeFilter !== "all") {
+        setSelectedStatus("incomplete");
+      }
+    }, [selectedEventTypeFilter]);
 
-      const eventTypesData = await response.json();
-      const role = (currentUser?.role || "").toLowerCase().trim();
-      const email = (currentUser?.email || "").toLowerCase();
-      const isManager =
-        role === "admin" || role === "leaderat12" || role === "registrant";
+    useEffect(() => {
+      const getUserProfile = () => {
+        const userProfile = localStorage.getItem("userProfile");
+        if (userProfile) {
+          try {
+            const user = JSON.parse(userProfile);
+            console.log("Current user profile:", user);
+            console.log(
+              "Leader at 1 field:",
+              user.leaderAt1 || user.leader_at_1 || user.leaderAt1Identifier,
+            );
 
-      const filteredTypes = eventTypesData.filter((type) => {
-        if (isManager) return true;
-        const isGlobalType = type.isGlobal === true || type.isGlobal === "true";
-        const isOwner = type.userEmail?.toLowerCase() === email;
-        return type.isEventType === true && (isGlobalType || isOwner);
-      });
-
-      setEventTypes(filteredTypes);
-      setCustomEventTypes(filteredTypes);
-      setUserCreatedEventTypes(filteredTypes);
-      return filteredTypes;
-    } catch (error) {
-      console.error("Error fetching event types:", error);
-      return [];
-    }
-  }, [BACKEND_URL, authFetch, currentUser?.email, currentUser?.role]);
-
-  useEffect(() => {
-    if (currentUser?.email) {
-      fetchEventTypes();
-    }
-  }, [fetchEventTypes, currentUser?.email]);
-  useEffect(() => {
-    // When event type filter changes, reset to "incomplete" status
-    if (selectedEventTypeFilter && selectedEventTypeFilter !== "all") {
-      setSelectedStatus("incomplete");
-    }
-  }, [selectedEventTypeFilter]);
-
-  useEffect(() => {
-    const getUserProfile = () => {
-      const userProfile = localStorage.getItem("userProfile");
-      if (userProfile) {
-        try {
-          const user = JSON.parse(userProfile);
-          console.log("Current user profile:", user);
-          console.log(
-            "Leader at 1 field:",
-            user.leaderAt1 || user.leader_at_1 || user.leaderAt1Identifier,
-          );
-
-          const leaderAt1 =
-            user.leaderAt1 ||
-            user.leader_at_1 ||
-            user.leaderAt1Identifier ||
-            "";
-          setCurrentUserLeaderAt1(leaderAt1);
-          console.log("Set currentUserLeaderAt1 to:", leaderAt1);
-        } catch (error) {
-          console.error("Error parsing user profile:", error);
+            const leaderAt1 =
+              user.leaderAt1 ||
+              user.leader_at_1 ||
+              user.leaderAt1Identifier ||
+              "";
+            setCurrentUserLeaderAt1(leaderAt1);
+            console.log("Set currentUserLeaderAt1 to:", leaderAt1);
+          } catch (error) {
+            console.error("Error parsing user profile:", error);
+          }
         }
-      }
-    };
+      };
 
-    getUserProfile();
-  }, []);
+      getUserProfile();
+    }, []);
 
   const getFilteredEventTypes = (allEventTypes) => {
     if (!allEventTypes || allEventTypes.length === 0) return [];
@@ -3327,29 +3328,6 @@ ${xmlCols}
     fetchEventTypes();
   }, [fetchEventTypes]);
 
-  // useEffect(() => {
-  //   const savedEventTypes = localStorage.getItem("customEventTypes");
-  //   if (savedEventTypes) {
-  //     try {
-  //       const parsed = JSON.parse(savedEventTypes);
-  //       setCustomEventTypes(parsed);
-  //       setUserCreatedEventTypes(parsed);
-  //       setEventTypes(parsed.map((type) => type.name));
-  //     } catch (error) {
-  //       console.error("Error parsing saved event types:", error);
-  //     }
-  //   }
-  // }, []);
-
-  // useEffect(() => {
-  //   if (customEventTypes.length > 0) {
-  //     localStorage.setItem(
-  //       "customEventTypes",
-  //       JSON.stringify(customEventTypes),
-  //     );
-  //   }
-  // }, [customEventTypes]);
-
   useEffect(() => {
     if (!selectedEventTypeFilter || !showingEvents) return;
 
@@ -3978,17 +3956,21 @@ ${xmlCols}
           : "0 2px 4px rgba(0,0,0,0.1)",
       },
     };
-   const allTypes = useMemo(() => {
-console.log("orgConfig org_id:", orgConfig?.org_id, "isActiveTeams:", isActiveTeams);
+ const allTypes = useMemo(() => {
+  console.log("orgConfig org_id:", orgConfig?.org_id, "isActiveTeams:", isActiveTeams);
   const availableTypes = filteredEventTypes;
   const shouldSeeAll = computedIsAdmin || computedIsLeaderAt12 || computedIsLeader || computedIsRegistrant || computedIsRegularUser;
 
   if (isActiveTeams && shouldSeeAll) {
-    return ["all", ...availableTypes];
+    // Filter out "CELLS" from available types
+    const typesWithoutCells = availableTypes.filter(type => {
+      const typeName = typeof type === 'string' ? type : type.name || type;
+      return typeName !== "CELLS";
+    });
+    return ["all", ...typesWithoutCells];
   }
   return availableTypes;
 }, [filteredEventTypes, computedIsAdmin, computedIsLeaderAt12, computedIsLeader, computedIsRegistrant, computedIsRegularUser, isActiveTeams]);
-
     const getDisplayName = (type) => {
       if (!type) return "";
       if (type === "all") return isActiveTeams ? "ALL CELLS" : "All Events";
@@ -5445,6 +5427,7 @@ console.log("orgConfig org_id:", orgConfig?.org_id, "isActiveTeams:", isActiveTe
 
                   // Get description from the event type object
                   const description = eventTypeObj.description || "";
+                  console.log("Rendering event type:", typeName, "with description:", description);
 
                   const getEventTypeColor = (typeName) => {
                     const colors = {
@@ -5552,20 +5535,7 @@ console.log("orgConfig org_id:", orgConfig?.org_id, "isActiveTeams:", isActiveTe
                           >
                             {typeName === "all" ? "ALL CELLS" : typeName}
                           </Typography>
-                          {/* SHOW DESCRIPTION */}
-                          <Typography
-                            sx={{
-                              fontSize: "13px",
-                              color: isDarkMode
-                                ? theme.palette.text.secondary
-                                : "#666",
-                              lineHeight: 1.4,
-                              fontStyle: description ? "normal" : "italic",
-                            }}
-                          >
-                            {description ||
-                              "Gatherings for discipleship, community and spiritual growth."}
-                          </Typography>
+                    
                         </Box>
                       </Box>
 

@@ -180,40 +180,27 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
   const fetchAllPeople = async () => {
     setIsLoadingPeople(true);
     try {
-      const response = await authFetch(`${BACKEND_URL}/cache/people`);
+      const token = localStorage.getItem("access_token");
+      const response = await authFetch(`${BACKEND_URL}/people?perPage=500`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
       if (response.ok) {
         const data = await response.json();
-        const cachedData = data.cached_data || [];
-        setPeopleList(cachedData);
-        console.log(`Loaded ${cachedData.length} people from cache`);
+        const peopleData = data.results || [];
+        setPeopleList(peopleData);
+        console.log(`Loaded ${peopleData.length} people from org`);
       } else {
-        await fetchPeopleFallback();
+        setPeopleList([]);
       }
     } catch (err) {
-      console.error("Error fetching from cache:", err);
-      await fetchPeopleFallback();
+      console.error("Error fetching people:", err);
+      setPeopleList([]);
     } finally {
       setIsLoadingPeople(false);
     }
   };
 
-  const fetchPeopleFallback = async () => {
-    try {
-      const response = await authFetch(
-        `${BACKEND_URL}/people/simple?per_page=1000`,
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const peopleData = data.results || [];
-        setPeopleList(peopleData);
-        console.log(`Loaded ${peopleData.length} people from fallback`);
-      }
-    } catch (fallbackErr) {
-      console.error("Fallback fetch failed:", fallbackErr);
-      setPeopleList([]);
-    }
-  };
 
   const peopleOptions = useMemo(() => {
     return peopleList.map((person) => {
@@ -1746,77 +1733,78 @@ const AttendanceModal = ({
     }
   };
 
+
   const loadPreloadedPeople = async (forceRefresh = false) => {
     const now = Date.now();
-    const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+    const CACHE_DURATION = 5 * 60 * 1000;
 
-    if (
-      !forceRefresh &&
-      typeof window !== "undefined" &&
-      window.globalPeopleCache &&
-      window.globalPeopleCache.data?.length > 0 &&
-      window.globalPeopleCache.timestamp &&
-      now - window.globalPeopleCache.timestamp < CACHE_DURATION
-    ) {
-      console.log("Using cached people data in AttendanceModal");
-      setPreloadedPeople(window.globalPeopleCache.data);
-
-      if (activeTab === 1 && !associateSearch.trim()) {
-        setPeople(window.globalPeopleCache.data.slice(0, 50));
-      }
-      return;
+    if (!forceRefresh && window.globalPeopleCache?.data?.length > 0 &&
+        now - window.globalPeopleCache.timestamp < CACHE_DURATION) {
+        console.log("Using cached people data in AttendanceModal");
+        setPreloadedPeople(window.globalPeopleCache.data);
+        if (activeTab === 1 && !associateSearch.trim()) {
+            setPeople(window.globalPeopleCache.data.slice(0, 50));
+        }
+        return;
     }
+
+    delete window.globalPeopleCache;
 
     try {
-      const token = localStorage.getItem("access_token");
-      const headers = { Authorization: `Bearer ${token}` };
+        const token = localStorage.getItem("access_token");
+        const headers = { Authorization: `Bearer ${token}` };
+        const params = new URLSearchParams();
+        params.append("perPage", "600");
+        params.append("page", "1");
 
-      const params = new URLSearchParams();
-      params.append("perPage", "200");
-      params.append("page", "1");
+        const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+const data = await res.json();
+console.log("ALL KEYS OF FIRST PERSON:", Object.keys(data.results?.[0] || {}));
+console.log("TOTAL PEOPLE:", data.results?.length, "of", data.total);
+console.log("SAMPLE LEADER @12:", data.results?.[0]?.["Leader @12"]);
+console.log("SAMPLE LEADERPATH:", data.results?.[0]?.LeaderPath);;
 
-      const res = await authFetch(`${BACKEND_URL}/people?${params.toString()}`, { headers });
+        const peopleArray = Array.isArray(data) ? data : (data.results || data.people || []);
 
-      if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-      const data = await res.json();
-      const peopleArray = Array.isArray(data) ? data : (data.results || data.people || []);
+ const formatted = peopleArray.map((p) => {
+    const hierarchyData = {};
+    getAllHierarchyLevels().forEach(h => {
+        hierarchyData[`level_${h.level}`] = p[h.field] || p[h.label] || "";
+    });
+    return {
+        id: p._id,
+        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p[getHierarchyField(1)] || "",
+        leader12: p["Leader @12"] || p[getHierarchyField(2)] || "",
+        leader144: p["Leader @144"] || p[getHierarchyField(3)] || "",
+        phone: p.Number || p.Phone || p.phone || "",
+        invitedBy: p.InvitedBy || p.invitedBy || p.invited_by || "",
+        ...hierarchyData,
+        searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
+    };
+});
 
-      // REPLACE WITH:
-      const formatted = peopleArray.map((p) => {
-        const hierarchyData = {};
-        getAllHierarchyLevels().forEach(h => {
-          hierarchyData[`level_${h.level}`] = p[h.field] || p[h.label] || "";
-        });
-        return {
-          id: p._id,
-          fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-          email: p.Email || p.email || "",
-          leader1: p["Leader @1"] || p[getHierarchyField(1)] || "",
-          leader12: p["Leader @12"] || p[getHierarchyField(2)] || "",
-          leader144: p["Leader @144"] || p[getHierarchyField(3)] || "",
-          phone: p.Number || p.Phone || p.phone || "",
-          ...hierarchyData,
-          searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
+// ADD HERE
+const sample = formatted.find(p => p.fullName === "Lesedi Naomi Malobane");
+console.log("LESEDI FORMATTED:", sample);
+        window.globalPeopleCache = {
+            data: formatted,
+            timestamp: now,
+            expiry: CACHE_DURATION,
         };
-      });
 
-      window.globalPeopleCache = {
-        data: formatted,
-        timestamp: now,
-        expiry: 5 * 60 * 1000,
-      };
+        setPreloadedPeople(formatted);
+        console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
 
-      setPreloadedPeople(formatted);
-      console.log(`Pre-loaded ${formatted.length} people into AttendanceModal cache`);
-
-      if (activeTab === 1 && !associateSearch.trim()) {
-        setPeople(formatted.slice(0, 50));
-      }
+        if (activeTab === 1 && !associateSearch.trim()) {
+            setPeople(formatted.slice(0, 50));
+        }
     } catch (err) {
-      console.error("Error pre-loading people:", err);
+        console.error("Error pre-loading people:", err);
     }
-  };
-
+};
 
   useEffect(() => {
     if (isOpen && event) {
@@ -1882,7 +1870,7 @@ const AttendanceModal = ({
     }
   }, [isOpen, event?._id, event?.id]);
 
- const fetchPeople = async (q) => {
+  const fetchPeople = async (q) => {
     if (!q || !q.trim()) {
       if (preloadedPeople.length > 0) {
         setPeople(preloadedPeople.slice(0, 50));
@@ -1952,6 +1940,7 @@ const AttendanceModal = ({
           leader12: p["Leader @12"] || p[getHierarchyField(2)] || "",
           leader144: p["Leader @144"] || p[getHierarchyField(3)] || "",
           phone: p.Number || p.Phone || p.phone || "",
+          invitedBy: p.InvitedBy || p.invitedBy || p.invited_by || "",
           ...hierarchyData,
           searchText: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""} ${p.Email || p.email || ""}`.toLowerCase()
         };
@@ -2019,28 +2008,35 @@ const AttendanceModal = ({
 
   useEffect(() => {
     if (isOpen) {
-      loadPreloadedPeople();
+      loadPreloadedPeople(true);
     }
   }, [isOpen]);
 
-  useEffect(() => {
+useEffect(() => {
     const timeoutId = setTimeout(() => {
-      if (isOpen && activeTab === 1) {
-        if (associateSearch.trim()) {
-          fetchPeople(associateSearch);
-        } else {
-          // Use cached/preloaded people when no search term
-          if (preloadedPeople.length > 0) {
-            setPeople(preloadedPeople.slice(0, 50));
-          } else {
-            fetchPeople("");
-          }
+        if (isOpen && activeTab === 1) {
+            if (associateSearch.trim()) {
+                fetchPeople(associateSearch);
+            } else {
+                if (preloadedPeople.length > 0) {
+                    // Check if leader12 is populated
+                    const hasLeaders = preloadedPeople.some(p => p.leader12);
+                    if (hasLeaders) {
+                        setPeople(preloadedPeople.slice(0, 50));
+                    } else {
+                        // Force reload if no leaders
+                        loadPreloadedPeople(true).then(() => {
+                            setPeople(preloadedPeople.slice(0, 50));
+                        });
+                    }
+                } else {
+                    loadPreloadedPeople(true);
+                }
+            }
         }
-      }
     }, 500);
-
     return () => clearTimeout(timeoutId);
-  }, [associateSearch, isOpen, activeTab, preloadedPeople]);
+}, [associateSearch, isOpen, activeTab, preloadedPeople]);
 
   const handleCheckIn = (id) => {
     setCheckedIn((prev) => {
@@ -2255,6 +2251,7 @@ const AttendanceModal = ({
             leader12: att.leader12 || "",
             leader144: att.leader144 || "",
             phone: att.phone || "",
+            invitedBy: att.invitedBy || "",
             priceName: att.priceName || "",
             price: att.price || 0,
             ageGroup: att.ageGroup || "",
@@ -2284,6 +2281,7 @@ const AttendanceModal = ({
             leader144: savedAtt.leader144 || existing.leader144 || "",
             phone: savedAtt.phone || existing.phone || "",
             priceName: savedAtt.priceName || existing.priceName || "",
+            invitedBy: savedAtt.invitedBy || existing.invitedBy || "",
             price: savedAtt.price || existing.price || 0,
             ageGroup: savedAtt.ageGroup || existing.ageGroup || "",
             paymentMethod: savedAtt.paymentMethod || existing.paymentMethod || "",
@@ -2379,6 +2377,7 @@ const AttendanceModal = ({
             leader12: p.leader12,
             leader144: p.leader144,
             phone: p.phone,
+            invitedBy: p.invitedBy || "",
             ...(isTicketedEvent && {
               priceName: ticketOverride.priceName || p.priceName || "",
               price: ticketOverride.price != null && ticketOverride.price !== ""
@@ -3087,8 +3086,14 @@ const AttendanceModal = ({
                         <tr>
                           <th style={styles.th}>Attendees Name</th>
                           <th style={styles.th}>Attendees Email</th>
-                          <th style={styles.th}>Attendees {getHierarchyLabel(2)}</th>
-                          <th style={styles.th}>Attendees {getHierarchyLabel(3)}</th>
+                          {(event?.hasPersonSteps === true || event?.hasPersonSteps === "true" || event?.eventType === "Cells" || event?.eventTypeName === "CELLS") ? (
+                            <>
+                              <th style={styles.th}>Attendees {getHierarchyLabel(2)}</th>
+                              <th style={styles.th}>Attendees {getHierarchyLabel(3)}</th>
+                            </>
+                          ) : (
+                            <th style={styles.th}>Invited By</th>
+                          )}
                           <th style={styles.th}>Attendees Number</th>
                           {isTicketedEvent && (
                             <>
@@ -3134,8 +3139,14 @@ const AttendanceModal = ({
                             <tr key={person.id}>
                               <td style={styles.td}>{person.fullName || "Unknown Name"}</td>
                               <td style={styles.td}>{person.email || "No email"}</td>
-                              <td style={styles.td}>{person.leader12 || ""}</td>
-                              <td style={styles.td}>{person.leader144 || ""}</td>
+                              {(event?.hasPersonSteps === true || event?.hasPersonSteps === "true" || event?.eventType === "Cells" || event?.eventTypeName === "CELLS") ? (
+                                <>
+                                  <td style={styles.td}>{person.leader12 || ""}</td>
+                                  <td style={styles.td}>{person.leader144 || ""}</td>
+                                </>
+                              ) : (
+                                <td style={styles.td}>{person.invitedBy || ""}</td>
+                              )}
                               <td style={styles.td}>{person.phone || ""}</td>
 
 
@@ -3422,8 +3433,14 @@ const AttendanceModal = ({
                         <tr>
                           <th style={styles.th}>Name</th>
                           <th style={styles.th}>Email</th>
-                          <th style={styles.th}>{getHierarchyLabel(2)}</th>
-                          <th style={styles.th}>{getHierarchyLabel(3)}</th>
+                          {(event?.hasPersonSteps === true || event?.hasPersonSteps === "true" || event?.eventType === "Cells" || event?.eventTypeName === "CELLS") ? (
+                            <>
+                              <th style={styles.th}>{getHierarchyLabel(2)}</th>
+                              <th style={styles.th}>{getHierarchyLabel(3)}</th>
+                            </>
+                          ) : (
+                            <th style={styles.th}>Invited By</th>
+                          )}
                           <th style={styles.th}>Phone</th>
                           <th style={{ ...styles.th, textAlign: "center" }}>Add</th>
                         </tr>
@@ -3444,8 +3461,14 @@ const AttendanceModal = ({
                                 {isAlreadyAdded && <span style={styles.persistentBadge}>ADDED</span>}
                               </td>
                               <td style={styles.td}>{person.email}</td>
-                              <td style={styles.td}>{person.leader12}</td>
-                              <td style={styles.td}>{person.leader144}</td>
+                              {(event?.hasPersonSteps === true || event?.hasPersonSteps === "true" || event?.eventType === "Cells" || event?.eventTypeName === "CELLS") ? (
+                                <>
+                                  <td style={styles.td}>{person.leader12}</td>
+                                  <td style={styles.td}>{person.leader144}</td>
+                                </>
+                              ) : (
+                                <td style={styles.td}>{person.invitedBy || ""}</td>
+                              )}
                               <td style={styles.td}>{person.phone}</td>
                               <td style={{ ...styles.td, textAlign: "center" }}>
                                 <button
