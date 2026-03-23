@@ -124,6 +124,7 @@ export default function DailyTasks() {
     recipient: null,
     recipientDisplay: "",
     assignedTo: user ? `${user.name || ""} ${user.surname || ""}`.trim() : "",
+    assignedEmail: user?.email || "",
     dueDate: getCurrentDateTime(),
     status: "Open",
     taskStage: "Open",
@@ -375,7 +376,7 @@ export default function DailyTasks() {
 
     try {
       setLoading(true);
-      const res = await authFetch(`${API_URL}/tasks?user_email=${user.email}`, {
+      const res = await authFetch(`${API_URL}/tasks?email=${encodeURIComponent(user.email)}`, {
         signal,
       });
 
@@ -847,6 +848,7 @@ export default function DailyTasks() {
       recipientDisplay: task.contacted_person?.name || "",
       assignedTo:
         task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
+      assignedEmail: task.assignedfor || user?.email || "",
       dueDate: formatDateTime(task.date),
       status: task.status,
       taskStage: task.status,
@@ -893,7 +895,8 @@ export default function DailyTasks() {
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
         type: formType || "call",
-        assignedfor: user.email,
+        assignedfor: taskData.assignedEmail || user.email,
+        assigned_to_email: taskData.assignedEmail || user.email,
       };
 
       if (isConsolidationTask) {
@@ -2098,11 +2101,21 @@ export default function DailyTasks() {
               value={taskData.assignedTo}
               onChange={(e) => {
                 const value = e.target.value;
-                setTaskData({ ...taskData, assignedTo: value });
-                fetchAssigned(value);
+                setTaskData({ ...taskData, assignedTo: value, assignedEmail: "" });
+                if (
+                  !(
+                    selectedTask?.taskType === "consolidation" ||
+                    selectedTask?.is_consolidation_task
+                  )
+                ) {
+                  fetchAssigned(value);
+                }
               }}
               autoComplete="off"
-              disabled={true}
+              disabled={
+                selectedTask?.taskType === "consolidation" ||
+                selectedTask?.is_consolidation_task
+              }
               required
               style={{
                 width: "100%",
@@ -2111,15 +2124,19 @@ export default function DailyTasks() {
                 border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
                 fontSize: "14px",
                 backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
-                color: isDarkMode ? "#aaa" : "#6b7280",
+                color: isDarkMode ? "#fff" : "#1a1a24",
                 outline: "none",
-                cursor: "not-allowed",
+                cursor:
+                  selectedTask?.taskType === "consolidation" ||
+                  selectedTask?.is_consolidation_task
+                    ? "not-allowed"
+                    : "text",
               }}
               placeholder={
                 selectedTask?.taskType === "consolidation" ||
                 selectedTask?.is_consolidation_task
                   ? "Leader name (read-only)"
-                  : "Assigned to current user"
+                  : "Search and select assignee..."
               }
             />
             {assignedResults.length > 0 &&
