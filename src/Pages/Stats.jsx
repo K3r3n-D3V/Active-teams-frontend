@@ -515,8 +515,55 @@ const isOverdue = useCallback((cell) => {
     return task.status || "pending";
   }, []);
 
+  const [taskStatusFilter, setTaskStatusFilter] = useState("all");
+
   const filteredTasks = useMemo(() => stats.allTasks, [stats.allTasks]);
   const filteredEvents = useMemo(() => stats.events, [stats.events]);
+
+  // Grouped tasks filtered by the task status filter
+  const displayedGroupedTasks = useMemo(() => {
+    if (taskStatusFilter === "all") return stats.groupedTasks;
+    return stats.groupedTasks
+      .map(({ user, tasks, totalCount, completedCount, incompleteCount }) => {
+        const filtered = tasks.filter((task) => {
+          const s = getTaskStatus(task)?.toLowerCase?.() ?? "";
+          if (taskStatusFilter === "completed")
+            return ["completed", "done", "complete", "closed"].includes(s);
+          if (taskStatusFilter === "overdue") return s === "overdue";
+          if (taskStatusFilter === "open")
+            return !["completed", "done", "complete", "closed"].includes(s) && s !== "overdue";
+          return true;
+        });
+        if (filtered.length === 0) return null;
+        const newCompleted = filtered.filter((t) =>
+          ["completed", "done", "complete", "closed"].includes(
+            getTaskStatus(t)?.toLowerCase?.() ?? ""
+          )
+        ).length;
+        return {
+          user,
+          tasks: filtered,
+          totalCount: filtered.length,
+          completedCount: newCompleted,
+          incompleteCount: filtered.length - newCompleted,
+        };
+      })
+      .filter(Boolean);
+  }, [stats.groupedTasks, taskStatusFilter, getTaskStatus]);
+
+  // Flat list of tasks matching the current filter (for download)
+  const filteredTasksForDownload = useMemo(() => {
+    if (taskStatusFilter === "all") return stats.allTasks;
+    return stats.allTasks.filter((task) => {
+      const s = getTaskStatus(task)?.toLowerCase?.() ?? "";
+      if (taskStatusFilter === "completed")
+        return ["completed", "done", "complete", "closed"].includes(s);
+      if (taskStatusFilter === "overdue") return s === "overdue";
+      if (taskStatusFilter === "open")
+        return !["completed", "done", "complete", "closed"].includes(s) && s !== "overdue";
+      return true;
+    });
+  }, [stats.allTasks, taskStatusFilter, getTaskStatus]);
 
   const getPeriodDisplayText = (periodType) => {
     switch (periodType) {
@@ -593,12 +640,16 @@ const isOverdue = useCallback((cell) => {
           .toLowerCase()
           .replace(/\s+/g, "_")}_${today}.xlsx`;
       } else if (activeTab === 1) {
-        if (!filteredTasks || filteredTasks.length === 0) {
-          toast.info("No tasks data to download for the selected period.");
+        if (!filteredTasksForDownload || filteredTasksForDownload.length === 0) {
+          toast.info(
+            taskStatusFilter === "all"
+              ? "No tasks data to download for the selected period."
+              : `No ${taskStatusFilter} tasks to download.`
+          );
           return;
         }
 
-        dataToExport = filteredTasks.map((task) => ({
+        dataToExport = filteredTasksForDownload.map((task) => ({
           "Task ID": task._id || "",
           "Task Name": task.name || task.taskType || "Untitled Task",
           "Task Type": task.type || "",
@@ -620,7 +671,7 @@ const isOverdue = useCallback((cell) => {
         }));
 
         sheetName = "Tasks";
-        fileName = `tasks_${currentPeriod
+        fileName = `tasks_${taskStatusFilter}_${currentPeriod
           .toLowerCase()
           .replace(/\s+/g, "_")}_${today}.xlsx`;
       } else if (activeTab === 2) {
@@ -1418,7 +1469,7 @@ calendarEvents.forEach((e) => {
           variant={isSmDown ? "scrollable" : "standard"}
         >
           <Tab label={`Overdue Cells (${filteredOverdueCells.length})`} />
-          <Tab label={`Tasks (${filteredTasks.length})`} />
+          <Tab label={`Tasks (${filteredTasksForDownload.length}${taskStatusFilter !== "all" ? ` · ${taskStatusFilter}` : ""})`} />
           <Tab label={`Calendar (${calendarEvents.length} events)`} />
         </Tabs>
       </Paper>
@@ -1670,16 +1721,31 @@ calendarEvents.forEach((e) => {
           >
             <Box>
               <Typography variant="subtitle1" gutterBottom>
-                All Tasks by Person ({stats.groupedTasks.length} people •{" "}
-                {filteredTasks.length} total)
+                All Tasks by Person ({displayedGroupedTasks.length} people •{" "}
+                {filteredTasksForDownload.length} total)
               </Typography>
             </Box>
-            <Chip
-              label={`Period: ${getPeriodDisplayText(period)}`}
-              color="secondary"
-              size="small"
-              variant="outlined"
-            />
+            <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+              <FormControl size="small" sx={{ minWidth: 130 }}>
+                <InputLabel>Status Filter</InputLabel>
+                <Select
+                  value={taskStatusFilter}
+                  label="Status Filter"
+                  onChange={(e) => setTaskStatusFilter(e.target.value)}
+                >
+                  <MenuItem value="all">All Tasks</MenuItem>
+                  <MenuItem value="open">Open</MenuItem>
+                  <MenuItem value="completed">Completed</MenuItem>
+                  <MenuItem value="overdue">Overdue</MenuItem>
+                </Select>
+              </FormControl>
+              <Chip
+                label={`Period: ${getPeriodDisplayText(period)}`}
+                color="secondary"
+                size="small"
+                variant="outlined"
+              />
+            </Box>
           </Box>
 
           <Box
@@ -1710,12 +1776,14 @@ calendarEvents.forEach((e) => {
                 <Task sx={{ fontSize: 48, opacity: 0.3, mb: 1.5 }} />
                 <Typography variant="body1">No tasks found</Typography>
                 <Typography variant="caption" sx={{ fontSize: "0.75rem" }}>
-                  No tasks found for {getPeriodDisplayText(period)}.
+                  {taskStatusFilter === "all"
+                    ? `No tasks found for ${getPeriodDisplayText(period)}.`
+                    : `No ${taskStatusFilter} tasks for ${getPeriodDisplayText(period)}.`}
                 </Typography>
               </Box>
             ) : (
               <Stack spacing={1.5}>
-                {stats.groupedTasks.map(
+                {displayedGroupedTasks.map(
                   ({ user, tasks, totalCount, completedCount, incompleteCount }) => {
                     const key = user.email || user.fullName;
                     const isExpanded = expandedUsers.includes(key);
