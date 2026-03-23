@@ -1441,10 +1441,11 @@ ${xmlCols}
     return Math.min(currentPage * rowsPerPage, totalEvents);
   }, [currentPage, rowsPerPage, totalEvents]);
 
- const allEventTypes = useMemo(() => {
+const allEventTypes = useMemo(() => {
   const typeNames = eventTypes.map((t) => (typeof t === "string" ? t : t.name));
-  return typeNames; 
-}, [eventTypes, isActiveTeams]);
+  // Don't filter here - just return all types from database
+  return typeNames;
+}, [eventTypes]);
 
   const fetchEventsFilters = (filters) => {
     const params = {
@@ -1578,41 +1579,49 @@ ${xmlCols}
       ],
     );
 
-    const fetchEventTypes = useCallback(async () => {
-      try {
-        const token = localStorage.getItem("access_token");
+const fetchEventTypes = useCallback(async () => {
+  try {
+    const token = localStorage.getItem("access_token");
 
-        const response = await authFetch(`${BACKEND_URL}/event-types`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+    const response = await authFetch(`${BACKEND_URL}/event-types`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-        if (!response.ok) {
-          throw new Error("Failed to fetch event types");
-        }
+    if (!response.ok) {
+      throw new Error("Failed to fetch event types");
+    }
 
-        const eventTypesData = await response.json();
-        const role = (currentUser?.role || "").toLowerCase().trim();
-        const email = (currentUser?.email || "").toLowerCase();
-        const isManager =
-          role === "admin" || role === "leaderat12" || role === "registrant";
-const filteredTypes = eventTypesData.filter((type) => {
-    // Built-in types are already org-filtered by backend — always show them
-    if (type.isBuiltIn) return true;
-    if (isManager) return true;
-    const isGlobalType = type.isGlobal === true || type.isGlobal === "true";
-    const isOwner = type.userEmail?.toLowerCase() === email;
-    return type.isEventType === true && (isGlobalType || isOwner);
-});
-
-        setEventTypes(filteredTypes);
-        setCustomEventTypes(filteredTypes);
-        setUserCreatedEventTypes(filteredTypes);
-        return filteredTypes;
-      } catch (error) {
-        console.error("Error fetching event types:", error);
-        return [];
+    const eventTypesData = await response.json();
+    
+    let filteredTypes = eventTypesData.filter((type) => {
+      // For Active Teams, remove any "Cells" event type (system-generated or otherwise)
+      if (isActiveTeams && (type.name === "Cells" || type.name === "CELLS" || type.name?.toLowerCase() === "cells")) {
+        console.log("Removing Cells event type for Active Teams");
+        return false;
       }
-    }, [BACKEND_URL, authFetch, currentUser?.email, currentUser?.role]);
+      
+      // Built-in types are already org-filtered by backend — always show them
+      if (type.isBuiltIn) return true;
+      
+      const role = (currentUser?.role || "").toLowerCase().trim();
+      const email = (currentUser?.email || "").toLowerCase();
+      const isManager = role === "admin" || role === "leaderat12" || role === "registrant";
+      
+      if (isManager) return true;
+      const isGlobalType = type.isGlobal === true || type.isGlobal === "true";
+      const isOwner = type.userEmail?.toLowerCase() === email;
+      return type.isEventType === true && (isGlobalType || isOwner);
+    });
+
+    setEventTypes(filteredTypes);
+    setCustomEventTypes(filteredTypes);
+    setUserCreatedEventTypes(filteredTypes);
+    return filteredTypes;
+  } catch (error) {
+    console.error("Error fetching event types:", error);
+    return [];
+  }
+}, [BACKEND_URL, authFetch, currentUser?.email, currentUser?.role, isActiveTeams]);
 
     useEffect(() => {
       if (currentUser?.email) {
@@ -1653,76 +1662,87 @@ const filteredTypes = eventTypesData.filter((type) => {
       getUserProfile();
     }, []);
 
-  const getFilteredEventTypes = (allEventTypes) => {
-    if (!allEventTypes || allEventTypes.length === 0) return [];
-    const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
-    const userRole = currentUser?.role || "";
-    const normalizedRole = userRole.toLowerCase();
+const getFilteredEventTypes = (allEventTypes) => {
+  if (!allEventTypes || allEventTypes.length === 0) return [];
+  const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+  const userRole = currentUser?.role || "";
+  const normalizedRole = userRole.toLowerCase();
 
-    const isAdmin = normalizedRole === "admin";
-    const isRegistrant = normalizedRole === "registrant";
-    const isRegularUser = normalizedRole === "user";
-    const isLeaderAt12 =
-      normalizedRole === "leaderat12" ||
-      normalizedRole.includes("leaderat12") ||
-      normalizedRole.includes("leader at 12") ||
-      normalizedRole.includes("leader@12");
-    const isLeader = normalizedRole === "leader" && !isLeaderAt12;
+  const isAdmin = normalizedRole === "admin";
+  const isRegistrant = normalizedRole === "registrant";
+  const isRegularUser = normalizedRole === "user";
+  const isLeaderAt12 =
+    normalizedRole === "leaderat12" ||
+    normalizedRole.includes("leaderat12") ||
+    normalizedRole.includes("leader at 12") ||
+    normalizedRole.includes("leader@12");
+  const isLeader = normalizedRole === "leader" && !isLeaderAt12;
 
-    try {
-      const eventTypeMapStr = localStorage.getItem("eventTypeMap");
-      const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
+  try {
+    const eventTypeMapStr = localStorage.getItem("eventTypeMap");
+    const eventTypeMap = eventTypeMapStr ? JSON.parse(eventTypeMapStr) : {};
 
-      return allEventTypes.filter((eventType) => {
-        const typeName =
-          typeof eventType === "string"
-            ? eventType
-            : eventType.name || eventType;
-        const typeInfo = eventTypeMap[typeName];
+    let filtered = allEventTypes.filter((eventType) => {
+      const typeName =
+        typeof eventType === "string"
+          ? eventType
+          : eventType.name || eventType;
+      
+      // For Active Teams, completely filter out "CELLS" event type
+      if (isActiveTeams && typeName === "CELLS") {
+        console.log("Filtering out CELLS for Active Teams");
+        return false;
+      }
+      
+      const typeInfo = eventTypeMap[typeName];
 
-        if (!typeInfo) {
-          console.log(
-            `  -> No type info, showing to authorized users:`,
-            isAdmin || isLeaderAt12 || isRegistrant || isLeader,
-          );
-          return isAdmin || isLeaderAt12 || isRegistrant || isLeader;
-        }
-
-        const isGlobalEvent = typeInfo.isGlobal === true;
-        const isNonGlobal = typeInfo.isGlobal === false;
-
+      if (!typeInfo) {
         console.log(
-          `  -> isGlobal: ${typeInfo.isGlobal}, isGlobalEvent: ${isGlobalEvent}, isNonGlobal: ${isNonGlobal}`,
+          `  -> No type info, showing to authorized users:`,
+          isAdmin || isLeaderAt12 || isRegistrant || isLeader,
         );
-
-        // Global events: Show to everyone
-        if (isGlobalEvent) {
-          return true;
-        }
-        // Non-global events (isGlobal = false): Show to Admin, LeaderAt12, AND Registrant
-        if (isNonGlobal) {
-          const showToAuthorized = isAdmin || isLeaderAt12 || isRegistrant;
-          console.log(
-            ` Non-global event, showing to Admin/LeaderAt12/Registrant: ${showToAuthorized}`,
-          );
-          return showToAuthorized;
-        }
-        if (isRegularUser) {
-          return false;
-        }
-
-        const showToAuthorized =
-          isAdmin || isLeaderAt12 || isLeader || isRegistrant;
-        console.log(` Authorized user, SHOWING: ${showToAuthorized}`);
-        return showToAuthorized;
-      });
-    } catch (error) {
-      console.error("Error filtering event types:", error);
-      return allEventTypes.filter(() => {
         return isAdmin || isLeaderAt12 || isRegistrant || isLeader;
+      }
+
+      const isGlobalEvent = typeInfo.isGlobal === true;
+      const isNonGlobal = typeInfo.isGlobal === false;
+
+      // Global events: Show to everyone
+      if (isGlobalEvent) {
+        return true;
+      }
+      // Non-global events (isGlobal = false): Show to Admin, LeaderAt12, AND Registrant
+      if (isNonGlobal) {
+        const showToAuthorized = isAdmin || isLeaderAt12 || isRegistrant;
+        return showToAuthorized;
+      }
+      if (isRegularUser) {
+        return false;
+      }
+
+      const showToAuthorized =
+        isAdmin || isLeaderAt12 || isLeader || isRegistrant;
+      return showToAuthorized;
+    });
+    
+    return filtered;
+  } catch (error) {
+    console.error("Error filtering event types:", error);
+    let filtered = allEventTypes.filter(() => {
+      return isAdmin || isLeaderAt12 || isRegistrant || isLeader;
+    });
+    
+    // Also filter out CELLS here in case of error
+    if (isActiveTeams) {
+      filtered = filtered.filter(type => {
+        const typeName = typeof type === "string" ? type : type.name || type;
+        return typeName !== "CELLS";
       });
     }
-  };
+    
+    return filtered;
+  }
+};
 
   const EventTypeGridView = ({
     eventTypes,
@@ -3806,14 +3826,22 @@ const filteredTypes = eventTypesData.filter((type) => {
 
     const canEditEventTypes = computedIsAdmin;
 
-    const filteredEventTypes = useMemo(() => {
-      const allTypes = eventTypes
-        .map((t) => t.name || t)
-        .filter((name) => name && name.toLowerCase() !== "all");
+const filteredEventTypes = useMemo(() => {
+  const allTypes = eventTypes
+    .map((t) => t.name || t)
+    .filter((name) => {
+      if (!name) return false;
+      // ONLY filter out "Cells" for Active Teams - don't filter out "all"
+      if (isActiveTeams && (name === "Cells" || name === "CELLS" || name?.toLowerCase() === "cells")) {
+        console.log("Filtering out Cells from event types:", name);
+        return false;
+      }
+      // Keep all other types including "all" (but "all" won't be in database anyway)
+      return true;
+    });
 
-      return getFilteredEventTypes(allTypes);
-    }, [eventTypes]);
-
+  return getFilteredEventTypes(allTypes);
+}, [eventTypes, isActiveTeams]);
     const handleEventTypeClick = (typeValue) => {
       const eventTypeObj = eventTypes.find((et) => {
         const etName = et.name || et.eventTypeName || et.displayName || "";
@@ -3913,33 +3941,45 @@ const filteredTypes = eventTypesData.filter((type) => {
           : "0 2px 4px rgba(0,0,0,0.1)",
       },
     };
- const allTypes = useMemo(() => {
-  console.log("orgConfig org_id:", orgConfig?.org_id, "isActiveTeams:", isActiveTeams);
-  const availableTypes = filteredEventTypes;
+
+const allTypes = useMemo(() => {
+  const availableTypes = filteredEventTypes || [];
   const shouldSeeAll = computedIsAdmin || computedIsLeaderAt12 || computedIsLeader || computedIsRegistrant || computedIsRegularUser;
 
+  console.log("Building allTypes:", {
+    isActiveTeams,
+    shouldSeeAll,
+    availableTypesCount: availableTypes.length,
+    availableTypes: availableTypes.map(t => typeof t === 'string' ? t : t.name)
+  });
+
   if (isActiveTeams && shouldSeeAll) {
-    // Filter out "CELLS" from available types
-    const typesWithoutCells = availableTypes.filter(type => {
-      const typeName = typeof type === 'string' ? type : type.name || type;
-      return typeName !== "CELLS";
-    });
-    return ["all", ...typesWithoutCells];
+    // ALWAYS include "all" first, then all other types
+    return ["all", ...availableTypes];
   }
+  
+  if (shouldSeeAll) {
+    return ["all", ...availableTypes];
+  }
+  
   return availableTypes;
 }, [filteredEventTypes, computedIsAdmin, computedIsLeaderAt12, computedIsLeader, computedIsRegistrant, computedIsRegularUser, isActiveTeams]);
-  
+
+
+
 const getDisplayName = (type) => {
-      if (!type) return "";
-      if (type === "all") return isActiveTeams ? "ALL CELLS" : "All Events";
-      return typeof type === "string" ? type : type.name || String(type);
-    };
+  if (!type) return "";
+  if (type === "all") {
+    // For Active Teams, show "ALL CELLS"
+    return isActiveTeams ? "ALL CELLS" : "All Events";
+  }
+  return typeof type === "string" ? type : type.name || String(type);
+};
 
-    const getTypeValue = (type) => {
-      if (type === "all") return "all";
-      return typeof type === "string" ? type : type.name || String(type);
-    };
-
+const getTypeValue = (type) => {
+  if (type === "all") return "all";
+  return typeof type === "string" ? type : type.name || String(type);
+};
     const handleMenuOpen = (event, type) => {
       event.stopPropagation();
       setMenuAnchor(event.currentTarget);
@@ -5130,407 +5170,416 @@ const getDisplayName = (type) => {
               </Box>
             </>
           )
-        ) : viewMode === "grid" ? (
-          <Box
-            sx={{
-              flexGrow: 1,
-              overflowY: "auto",
-              width: "100%",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-            }}
-          >
+       ) : viewMode === "grid" ? (
+  <Box
+    sx={{
+      flexGrow: 1,
+      overflowY: "auto",
+      width: "100%",
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "center",
+    }}
+  >
+    <Box
+      sx={{
+        display: "grid",
+        gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
+        gap: "16px",
+        width: "100%",
+        maxWidth: "1000px",
+        margin: "0 auto",
+        padding: "16px",
+      }}
+    >
+      {(() => {
+        let displayTypes = [...allEventTypes];
+        if (isActiveTeams) {
+          displayTypes = ["all", ...displayTypes];
+        }
+        return displayTypes;
+      })()
+        .filter((type) => {
+          const typeName = typeof type === "string" ? type : type.name || type;
+          if (isActiveTeams && (typeName === "Cells" || typeName === "CELLS" || typeName?.toLowerCase() === "cells")) {
+            return false;
+          }
+          return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
+        })
+        .map((type) => {
+          const typeName = typeof type === "string" ? type : type.name || type;
+          const isAllCells = typeName === "all";
+          const eventTypeObj = isAllCells 
+            ? { name: "all", description: "Gatherings for discipleship, community and spiritual growth" }
+            : eventTypes.find((et) => et.name?.toLowerCase() === typeName.toLowerCase()) || { name: typeName };
+          const description = isAllCells 
+            ? "Gatherings for discipleship, community and spiritual growth" 
+            : eventTypeObj.description || "";
+
+          const getEventTypeColor = (type) => {
+            const colors = {
+              "Global Events": "#007bff",
+              "Life Class": "#28a745",
+              "Testing Recurring": "#6f42c1",
+              Workshop: "#fd7e14",
+              Conference: "#dc3545",
+              Service: "#17a2b8",
+              "Testing Recurring Days": "#e83e8c",
+              "All Cells": "#6c757d",
+            };
+            return colors[type] || "#007bff";
+          };
+
+          return (
             <Box
+              key={typeName}
               sx={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))",
-                gap: "16px",
+                backgroundColor: isDarkMode
+                  ? theme.palette.background.paper
+                  : "#fff",
+                borderRadius: "8px",
+                padding: "12px",
+                cursor: "pointer",
+                border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
+                borderLeft: `4px solid ${getEventTypeColor(typeName)}`,
+                transition: "all 0.2s ease",
+                display: "flex",
+                flexDirection: "column",
+                height: "110px",
+                textAlign: "left",
+                position: "relative",
                 width: "100%",
-                maxWidth: "1000px",
-                margin: "0 auto",
-                padding: "16px",
+                "&:hover": {
+                  transform: "translateY(-2px)",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
+                  borderColor: isDarkMode
+                    ? theme.palette.divider
+                    : "#e0e0e0",
+                  borderLeftColor: getEventTypeColor(typeName),
+                },
               }}
             >
-              {allEventTypes
-                .filter((type) => {
-                  const typeName =
-                    typeof type === "string" ? type : type.name || type;
-                  return typeName
-                    .toLowerCase()
-                    .includes(eventTypeSearch.toLowerCase());
-                })
-                .map((type) => {
-                  const typeName =
-                    typeof type === "string" ? type : type.name || type;
-                  const isAllCells = typeName === "all";
-                  const eventTypeObj = eventTypes.find(
-                    (et) => et.name?.toLowerCase() === typeName.toLowerCase(),
-                  ) || { name: typeName };
+              <Box
+                onClick={() => {
+                  setSelectedEventTypeFilter(typeName);
+                  setShowingEvents(true);
+                  setCurrentPage(1);
 
-                  // Get description from the event type object
-                  const description = eventTypeObj.description || "";
-
-                  const getEventTypeColor = (type) => {
-                    const colors = {
-                      "Global Events": "#007bff",
-                      "Life Class": "#28a745",
-                      "Testing Recurring": "#6f42c1",
-                      Workshop: "#fd7e14",
-                      Conference: "#dc3545",
-                      Service: "#17a2b8",
-                      "Testing Recurring Days": "#e83e8c",
-                    };
-                    return colors[type] || "#007bff";
+                  const fetchParams = {
+                    page: 1,
+                    limit: rowsPerPage,
+                    start_date: DEFAULT_API_START_DATE,
+                    event_type: typeName === "all" ? "CELLS" : typeName,
                   };
 
-                  return (
-                    <Box
-                      key={typeName}
-                      sx={{
-                        backgroundColor: isDarkMode
-                          ? theme.palette.background.paper
-                          : "#fff",
-                        borderRadius: "8px",
-                        padding: "12px",
-                        cursor: "pointer",
-                        border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
-                        borderLeft: `4px solid ${getEventTypeColor(typeName)}`,
-                        transition: "all 0.2s ease",
-                        display: "flex",
-                        flexDirection: "column",
-                        height: "110px",
-                        textAlign: "left",
-                        position: "relative",
-                        width: "100%",
-                        "&:hover": {
-                          transform: "translateY(-2px)",
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.1)",
-                          borderColor: isDarkMode
-                            ? theme.palette.divider
-                            : "#e0e0e0",
-                          borderLeftColor: getEventTypeColor(typeName),
-                        },
-                      }}
-                    >
+                  fetchEvents(fetchParams, true);
+                }}
+                sx={{
+                  width: "100%",
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Typography
+                  sx={{
+                    fontSize: "15px",
+                    fontWeight: "600",
+                    color: isDarkMode
+                      ? theme.palette.text.primary
+                      : "#333",
+                    mb: "6px",
+                    lineHeight: 1.3,
+                    minHeight: "1.6em",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {typeName === "all" ? "ALL CELLS" : typeName}
+                </Typography>
+
+                <Box
+                  sx={{
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "flex-start",
+                    minHeight: "40px",
+                  }}
+                >
+                  <Typography
+                    sx={{
+                      fontSize: "16px",
+                      color: isDarkMode
+                        ? theme.palette.text.secondary
+                        : "#666",
+                      lineHeight: 1.4,
+                      overflow: "hidden",
+                      display: "-webkit-box",
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: "vertical",
+                      maxHeight: "2.8em",
+                      fontStyle: description ? "normal" : "italic",
+                    }}
+                  >
+                    {description ||
+                      "Gatherings for discipleship, community and spiritual growth."}
+                  </Typography>
+                </Box>
+
+                <Box
+                  sx={{
+                    height: "3px",
+                    width: "100%",
+                    backgroundColor: getEventTypeColor(typeName),
+                    borderRadius: "2px",
+                    marginTop: "6px",
+                    opacity: 0.5,
+                  }}
+                />
+              </Box>
+
+              {isAdmin && !isAllCells && (
+                <IconButton
+                  size="small"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedTypeForMenu(eventTypeObj);
+                    setMenuAnchor(e.currentTarget);
+                  }}
+                  sx={{
+                    position: "absolute",
+                    top: "8px",
+                    right: "8px",
+                    width: "24px",
+                    height: "24px",
+                    backgroundColor: isDarkMode
+                      ? "rgba(255,255,255,0.05)"
+                      : "rgba(0,0,0,0.03)",
+                    "&:hover": {
+                      backgroundColor: isDarkMode
+                        ? "rgba(255,255,255,0.1)"
+                        : "rgba(0,0,0,0.06)",
+                    },
+                    color: isDarkMode ? "#fff" : "#000",
+                    fontSize: "16px",
+                    padding: "2px",
+                    minWidth: "auto",
+                    zIndex: 1,
+                  }}
+                >
+                  ⋮
+                </IconButton>
+              )}
+            </Box>
+          );
+        })}
+    </Box>
+
+    {(() => {
+      let displayTypes = [...allEventTypes];
+      if (isActiveTeams) {
+        displayTypes = ["all", ...displayTypes];
+      }
+      return displayTypes;
+    })().filter((type) => {
+      const typeName = typeof type === "string" ? type : type.name || type;
+      if (isActiveTeams && (typeName === "Cells" || typeName === "CELLS" || typeName?.toLowerCase() === "cells")) {
+        return false;
+      }
+      return typeName.toLowerCase().includes(eventTypeSearch.toLowerCase());
+    }).length === 0 && (
+      <Box
+        sx={{
+          textAlign: "center",
+          padding: "3rem 1rem",
+          color: isDarkMode ? theme.palette.text.secondary : "#666",
+          width: "100%",
+          maxWidth: "600px",
+          margin: "0 auto",
+        }}
+      >
+        <SearchIcon sx={{ fontSize: 40, color: "#ccc", mb: 1.5 }} />
+        <Typography variant="h6" gutterBottom sx={{ fontSize: "18px" }}>
+          No event types found
+        </Typography>
+        <Typography variant="body2" sx={{ fontSize: "13px" }}>
+          Try a different search term
+        </Typography>
+      </Box>
+    )}
+  </Box>
+) : (
+            <Box sx={{ flexGrow: 1, overflowY: "auto", padding: "24px" }}>
+              <Box sx={{ maxWidth: "800px", margin: "0 auto" }}>
+                {allEventTypes
+                  .filter((type) => {
+                    const typeName =
+                      typeof type === "string" ? type : type.name || type;
+                    return typeName
+                      .toLowerCase()
+                      .includes(eventTypeSearch.toLowerCase());
+                  })
+                  .map((type) => {
+                    const typeName =
+                      typeof type === "string" ? type : type.name || type;
+                    const isAllCells = typeName === "all";
+
+                    const eventTypeObj = eventTypes.find(
+                      (et) => et.name?.toLowerCase() === typeName.toLowerCase(),
+                    ) || { name: typeName };
+
+                    // Get description from the event type object
+                    const description = eventTypeObj.description || "";
+                    console.log("Rendering event type:", typeName, "with description:", description);
+
+                    const getEventTypeColor = (typeName) => {
+                      const colors = {
+                        "Global Events": "#007bff",
+                        "Life Class": "#28a745",
+                        "Testing Recurring": "#6f42c1",
+                        Workshop: "#fd7e14",
+                        Conference: "#dc3545",
+                        Service: "#17a2b8",
+                        "All Cells": "#6c757d",
+                      };
+                      return colors[typeName] || "#007bff";
+                    };
+
+                    const color = getEventTypeColor(typeName);
+
+                    return (
                       <Box
-                        onClick={() => {
-                          setSelectedEventTypeFilter(typeName);
-                          setShowingEvents(true);
-                          setCurrentPage(1);
-
-                          const fetchParams = {
-                            page: 1,
-                            limit: rowsPerPage,
-                            start_date: DEFAULT_API_START_DATE,
-                            event_type: typeName === "all" ? "CELLS" : typeName,
-                          };
-
-                          fetchEvents(fetchParams, true);
-                        }}
+                        key={typeName}
                         sx={{
-                          width: "100%",
-                          height: "100%",
                           display: "flex",
-                          flexDirection: "column",
+                          alignItems: "center",
                           justifyContent: "space-between",
+                          padding: "16px 20px",
+                          marginBottom: "12px",
+                          borderRadius: "8px",
+                          cursor: "pointer",
+                          backgroundColor: isDarkMode
+                            ? theme.palette.background.paper
+                            : "#fff",
+                          border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
+                          borderLeft: `4px solid ${color}`,
+                          transition: "all 0.2s ease",
+                          position: "relative",
+                          "&:hover": {
+                            transform: "translateX(2px)",
+                            backgroundColor: isDarkMode
+                              ? "rgba(0, 123, 255, 0.08)"
+                              : "#e7f3ff",
+                            borderColor: isDarkMode
+                              ? theme.palette.divider
+                              : "#e0e0e0",
+                            borderLeftColor: color,
+                          },
                         }}
                       >
-                        {/* Event Type Name - TOP */}
-                        <Typography
-                          sx={{
-                            fontSize: "15px",
-                            fontWeight: "600",
-                            color: isDarkMode
-                              ? theme.palette.text.primary
-                              : "#333",
-                            mb: "6px",
-                            lineHeight: 1.3,
-                            minHeight: "1.6em",
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {typeName === "all" ? "ALL CELLS" : typeName}
-                        </Typography>
-
-                        {/* Event Type Description - MIDDLE */}
+                        {/* CLICKABLE AREA - Takes up remaining space */}
                         <Box
+                          onClick={() => {
+                            setSelectedEventTypeFilter(typeName);
+                            setSelectedStatus("incomplete");
+                            setShowingEvents(true);
+                            setCurrentPage(1);
+
+                            const fetchParams = {
+                              page: 1,
+                              limit: rowsPerPage,
+                              start_date: DEFAULT_API_START_DATE,
+                              event_type: typeName === "all" ? "CELLS" : typeName,
+                              status: "incomplete",
+                            };
+
+                            const isCellEvent =
+                              typeName === "all" ||
+                              typeName === "CELLS" ||
+                              typeName.toLowerCase().includes("cell");
+
+                            if (isCellEvent) {
+                              if (isLeaderAt12) {
+                                fetchParams.leader_at_12_view = true;
+                                if (viewFilter === "personal") {
+                                  fetchParams.personal = true;
+                                }
+                              }
+                            } else {
+                              delete fetchParams.personal;
+                              delete fetchParams.leader_at_12_view;
+                              delete fetchParams.include_subordinate_cells;
+                            }
+
+                            console.log(
+                              " Fetching for event type:",
+                              typeName,
+                              "with status:",
+                              fetchParams.status,
+                            );
+                            fetchEvents(fetchParams, true);
+                          }}
                           sx={{
                             flex: 1,
                             display: "flex",
-                            alignItems: "flex-start",
-                            minHeight: "40px",
+                            alignItems: "center",
                           }}
                         >
-                          <Typography
-                            sx={{
-                              fontSize: "16px",
-                              color: isDarkMode
-                                ? theme.palette.text.secondary
-                                : "#666",
-                              lineHeight: 1.4,
-                              overflow: "hidden",
-                              display: "-webkit-box",
-                              WebkitLineClamp: 2,
-                              WebkitBoxOrient: "vertical",
-                              maxHeight: "2.8em",
-                              fontStyle: description ? "normal" : "italic",
-                            }}
-                          >
-                            {description ||
-                              "Gatherings for discipleship, community and spiritual growth."}
-                          </Typography>
+                          <Box sx={{ flex: 1 }}>
+                            <Typography
+                              sx={{
+                                fontSize: "16px",
+                                fontWeight: 600,
+                                color: isDarkMode
+                                  ? theme.palette.text.primary
+                                  : "#333",
+                                mb: "4px",
+                              }}
+                            >
+                              {typeName === "all" ? "ALL CELLS" : typeName}
+                            </Typography>
+                      
+                          </Box>
                         </Box>
 
-                        <Box
-                          sx={{
-                            height: "3px",
-                            width: "100%",
-                            backgroundColor: getEventTypeColor(typeName),
-                            borderRadius: "2px",
-                            marginTop: "6px",
-                            opacity: 0.5,
-                          }}
-                        />
-                      </Box>
-
-                      {/* EDIT/DELETE MENU - */}
-                      {isAdmin && !isAllCells && (
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTypeForMenu(eventTypeObj);
-                            setMenuAnchor(e.currentTarget);
-                          }}
-                          sx={{
-                            position: "absolute",
-                            top: "8px",
-                            right: "8px",
-                            width: "24px",
-                            height: "24px",
-                            backgroundColor: isDarkMode
-                              ? "rgba(255,255,255,0.05)"
-                              : "rgba(0,0,0,0.03)",
-                            "&:hover": {
+                        {/* EDIT/DELETE MENU - Now on the far right */}
+                        {isAdmin && !isAllCells && (
+                          <IconButton
+                            size="small"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedTypeForMenu(eventTypeObj);
+                              setMenuAnchor(e.currentTarget);
+                            }}
+                            sx={{
+                              marginLeft: "16px",
+                              flexShrink: 0,
+                              width: "32px",
+                              height: "32px",
                               backgroundColor: isDarkMode
                                 ? "rgba(255,255,255,0.1)"
-                                : "rgba(0,0,0,0.06)",
-                            },
-                            color: isDarkMode ? "#fff" : "#000",
-                            fontSize: "16px",
-                            padding: "2px",
-                            minWidth: "auto",
-                            zIndex: 1,
-                          }}
-                        >
-                          ⋮
-                        </IconButton>
-                      )}
-                    </Box>
-                  );
-                })}
-            </Box>
-
-            {allEventTypes.filter((type) => {
-              const typeName =
-                typeof type === "string" ? type : type.name || type;
-              return typeName
-                .toLowerCase()
-                .includes(eventTypeSearch.toLowerCase());
-            }).length === 0 && (
-                <Box
-                  sx={{
-                    textAlign: "center",
-                    padding: "3rem 1rem",
-                    color: isDarkMode ? theme.palette.text.secondary : "#666",
-                    width: "100%",
-                    maxWidth: "600px",
-                    margin: "0 auto",
-                  }}
-                >
-                  <SearchIcon sx={{ fontSize: 40, color: "#ccc", mb: 1.5 }} />
-                  <Typography variant="h6" gutterBottom sx={{ fontSize: "18px" }}>
-                    No event types found
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontSize: "13px" }}>
-                    Try a different search term
-                  </Typography>
-                </Box>
-              )}
-          </Box>
-        ) : (
-          <Box sx={{ flexGrow: 1, overflowY: "auto", padding: "24px" }}>
-            <Box sx={{ maxWidth: "800px", margin: "0 auto" }}>
-              {allEventTypes
-                .filter((type) => {
-                  const typeName =
-                    typeof type === "string" ? type : type.name || type;
-                  return typeName
-                    .toLowerCase()
-                    .includes(eventTypeSearch.toLowerCase());
-                })
-                .map((type) => {
-                  const typeName =
-                    typeof type === "string" ? type : type.name || type;
-                  const isAllCells = typeName === "all";
-
-                  const eventTypeObj = eventTypes.find(
-                    (et) => et.name?.toLowerCase() === typeName.toLowerCase(),
-                  ) || { name: typeName };
-
-                  // Get description from the event type object
-                  const description = eventTypeObj.description || "";
-                  console.log("Rendering event type:", typeName, "with description:", description);
-
-                  const getEventTypeColor = (typeName) => {
-                    const colors = {
-                      "Global Events": "#007bff",
-                      "Life Class": "#28a745",
-                      "Testing Recurring": "#6f42c1",
-                      Workshop: "#fd7e14",
-                      Conference: "#dc3545",
-                      Service: "#17a2b8",
-                      "All Cells": "#6c757d",
-                    };
-                    return colors[typeName] || "#007bff";
-                  };
-
-                  const color = getEventTypeColor(typeName);
-
-                  return (
-                    <Box
-                      key={typeName}
-                      sx={{
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "space-between",
-                        padding: "16px 20px",
-                        marginBottom: "12px",
-                        borderRadius: "8px",
-                        cursor: "pointer",
-                        backgroundColor: isDarkMode
-                          ? theme.palette.background.paper
-                          : "#fff",
-                        border: `1px solid ${isDarkMode ? theme.palette.divider : "#e0e0e0"}`,
-                        borderLeft: `4px solid ${color}`,
-                        transition: "all 0.2s ease",
-                        position: "relative",
-                        "&:hover": {
-                          transform: "translateX(2px)",
-                          backgroundColor: isDarkMode
-                            ? "rgba(0, 123, 255, 0.08)"
-                            : "#e7f3ff",
-                          borderColor: isDarkMode
-                            ? theme.palette.divider
-                            : "#e0e0e0",
-                          borderLeftColor: color,
-                        },
-                      }}
-                    >
-                      {/* CLICKABLE AREA - Takes up remaining space */}
-                      <Box
-                        onClick={() => {
-                          setSelectedEventTypeFilter(typeName);
-                          setSelectedStatus("incomplete");
-                          setShowingEvents(true);
-                          setCurrentPage(1);
-
-                          const fetchParams = {
-                            page: 1,
-                            limit: rowsPerPage,
-                            start_date: DEFAULT_API_START_DATE,
-                            event_type: typeName === "all" ? "CELLS" : typeName,
-                            status: "incomplete",
-                          };
-
-                          const isCellEvent =
-                            typeName === "all" ||
-                            typeName === "CELLS" ||
-                            typeName.toLowerCase().includes("cell");
-
-                          if (isCellEvent) {
-                            if (isLeaderAt12) {
-                              fetchParams.leader_at_12_view = true;
-                              if (viewFilter === "personal") {
-                                fetchParams.personal = true;
-                              }
-                            }
-                          } else {
-                            delete fetchParams.personal;
-                            delete fetchParams.leader_at_12_view;
-                            delete fetchParams.include_subordinate_cells;
-                          }
-
-                          console.log(
-                            " Fetching for event type:",
-                            typeName,
-                            "with status:",
-                            fetchParams.status,
-                          );
-                          fetchEvents(fetchParams, true);
-                        }}
-                        sx={{
-                          flex: 1,
-                          display: "flex",
-                          alignItems: "center",
-                        }}
-                      >
-                        <Box sx={{ flex: 1 }}>
-                          <Typography
-                            sx={{
-                              fontSize: "16px",
-                              fontWeight: 600,
-                              color: isDarkMode
-                                ? theme.palette.text.primary
-                                : "#333",
-                              mb: "4px",
+                                : "rgba(0,0,0,0.04)",
+                              "&:hover": {
+                                backgroundColor: isDarkMode
+                                  ? "rgba(255,255,255,0.2)"
+                                  : "rgba(0,0,0,0.08)",
+                              },
+                              color: isDarkMode ? "#fff" : "#000",
+                              fontSize: "20px",
+                              padding: "4px",
+                              minWidth: "auto",
                             }}
                           >
-                            {typeName === "all" ? "ALL CELLS" : typeName}
-                          </Typography>
-                    
-                        </Box>
+                            ⋮
+                          </IconButton>
+                        )}
                       </Box>
-
-                      {/* EDIT/DELETE MENU - Now on the far right */}
-                      {isAdmin && !isAllCells && (
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSelectedTypeForMenu(eventTypeObj);
-                            setMenuAnchor(e.currentTarget);
-                          }}
-                          sx={{
-                            marginLeft: "16px",
-                            flexShrink: 0,
-                            width: "32px",
-                            height: "32px",
-                            backgroundColor: isDarkMode
-                              ? "rgba(255,255,255,0.1)"
-                              : "rgba(0,0,0,0.04)",
-                            "&:hover": {
-                              backgroundColor: isDarkMode
-                                ? "rgba(255,255,255,0.2)"
-                                : "rgba(0,0,0,0.08)",
-                            },
-                            color: isDarkMode ? "#fff" : "#000",
-                            fontSize: "20px",
-                            padding: "4px",
-                            minWidth: "auto",
-                          }}
-                        >
-                          ⋮
-                        </IconButton>
-                      )}
-                    </Box>
-                  );
-                })}
+                    );
+                  })}
+              </Box>
             </Box>
-          </Box>
         )}
       </Box>
 
