@@ -986,7 +986,6 @@ const Events = () => {
   const { authFetch, logout } = React.useContext(AuthContext);
   const { orgConfig, configLoaded } = useOrgConfig();
   const isActiveTeams = configLoaded && orgConfig?.org_id === "active-teams";
-
 console.log("ORG CONFIG:===============", orgConfig?.org_id, "isActiveTeams:", isActiveTeams);
 
   const theme = useTheme();
@@ -1212,13 +1211,10 @@ ${xmlCols}
     }
     return results;
   };
-
   const downloadEventAttendance = async (event) => {
     const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
     try {
       toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
-
-      // Prefer local attendees/attendance already present on the event object
       const hasLocalAttendance =
         (event?.attendees && event.attendees.length > 0) ||
         (event?.attendance && Object.keys(event.attendance).length > 0) ||
@@ -1251,11 +1247,9 @@ ${xmlCols}
 
   const normalizeEventAttendance = (event) => {
     if (!event) return [];
-
     const eventDate = event.date;
     let attendees = [];
 
-    // Check attendance object by date key first
     if (event.attendance && typeof event.attendance === "object") {
       const dateAttendance = event.attendance[eventDate];
       if (dateAttendance) {
@@ -1306,8 +1300,6 @@ ${xmlCols}
       return event;
     }
   };
-
-
   const isDateInWeek = (dateStr, which = "current") => {
     if (!dateStr) return false;
     const d = new Date(dateStr);
@@ -1449,11 +1441,10 @@ ${xmlCols}
     return Math.min(currentPage * rowsPerPage, totalEvents);
   }, [currentPage, rowsPerPage, totalEvents]);
 
-    const allEventTypes = useMemo(() => {
-      const typeNames = eventTypes.map((t) => (typeof t === "string" ? t : t.name));
-      return isActiveTeams ? ["all", ...typeNames] : typeNames;
-    }, [eventTypes, isActiveTeams]);
-
+ const allEventTypes = useMemo(() => {
+  const typeNames = eventTypes.map((t) => (typeof t === "string" ? t : t.name));
+  return typeNames; 
+}, [eventTypes, isActiveTeams]);
 
   const fetchEventsFilters = (filters) => {
     const params = {
@@ -1520,7 +1511,6 @@ ${xmlCols}
   };
     const fetchEvents = useCallback(
       async (filters = {}, showLoader = true, isSearching = false) => {
-        console.log(" fetchEvents called with filters:", filters);
         console.log("isSearching:", isSearching);
         if (showLoader) {
           setLoading(true);
@@ -1654,7 +1644,6 @@ const filteredTypes = eventTypesData.filter((type) => {
               user.leaderAt1Identifier ||
               "";
             setCurrentUserLeaderAt1(leaderAt1);
-            console.log("Set currentUserLeaderAt1 to:", leaderAt1);
           } catch (error) {
             console.error("Error parsing user profile:", error);
           }
@@ -1691,8 +1680,6 @@ const filteredTypes = eventTypesData.filter((type) => {
             : eventType.name || eventType;
         const typeInfo = eventTypeMap[typeName];
 
-        console.log(`Checking event type "${typeName}":`, typeInfo);
-
         if (!typeInfo) {
           console.log(
             `  -> No type info, showing to authorized users:`,
@@ -1710,10 +1697,8 @@ const filteredTypes = eventTypesData.filter((type) => {
 
         // Global events: Show to everyone
         if (isGlobalEvent) {
-          console.log(`  -> Global event, showing to everyone: TRUE`);
           return true;
         }
-
         // Non-global events (isGlobal = false): Show to Admin, LeaderAt12, AND Registrant
         if (isNonGlobal) {
           const showToAuthorized = isAdmin || isLeaderAt12 || isRegistrant;
@@ -1722,8 +1707,6 @@ const filteredTypes = eventTypesData.filter((type) => {
           );
           return showToAuthorized;
         }
-
-        // Hide from Regular Users
         if (isRegularUser) {
           return false;
         }
@@ -1740,7 +1723,6 @@ const filteredTypes = eventTypesData.filter((type) => {
       });
     }
   };
-  
 
   const EventTypeGridView = ({
     eventTypes,
@@ -2188,7 +2170,6 @@ const filteredTypes = eventTypesData.filter((type) => {
   const [isSearching, setIsSearching] = useState(null);
 
   const fetchAllCurrentEvents = useCallback(async () => {
-    console.log("clicked! ");
     try {
       let shouldApplyPersonalFilter = undefined;
       if (userRole === "admin" || userRole === "leader at 12") {
@@ -2226,7 +2207,6 @@ const filteredTypes = eventTypesData.filter((type) => {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
       const data = await response.json();
-      console.log("filtered Received events:", data.events);
       const allEvents = data.events || [];
       setAllCurrentEvents(allEvents);
     } catch (e) {
@@ -2244,7 +2224,6 @@ const filteredTypes = eventTypesData.filter((type) => {
 
   useEffect(() => {
     if (!isSearching) return
-    console.log("FETCHED AGAIN!")
     fetchAllCurrentEvents()
   }, [selectedStatus, selectedEventTypeFilter, viewFilter, userRole])
 
@@ -2307,7 +2286,6 @@ const filteredTypes = eventTypesData.filter((type) => {
   const filteredEvents = useMemo(() => {
     if (isSearching === null) return events;
     if (!debouncedSearchTerm.trim()) return events;
-    console.log("NEW FILTERS!")
     return handleSearchSubmit(debouncedSearchTerm) || [];
   }, [allCurrentEvents, debouncedSearchTerm, selectedStatus]);
   console.log(
@@ -3202,22 +3180,6 @@ const filteredTypes = eventTypesData.filter((type) => {
     }
   }, [eventTypes.length, selectedEventTypeFilter]);
 
-  useEffect(() => {
-    const checkAuth = () => {
-      const token = localStorage.getItem("access_token");
-      const userProfile = localStorage.getItem("userProfile");
-
-      if (!token || !userProfile) {
-        toast.warning("Please log in to continue.");
-        setTimeout(() => {
-          window.location.href = "/login";
-        }, 1500);
-      }
-    };
-
-    checkAuth();
-  }, []);
-
   const isOverdue = useCallback((event) => {
     const did_not_meet = event.did_not_meet || false;
     const hasAttendees = event.attendees && event.attendees.length > 0;
@@ -3323,11 +3285,6 @@ const filteredTypes = eventTypesData.filter((type) => {
     },
     [BACKEND_URL, editingEventType, fetchEventTypes, selectedEventTypeFilter],
   );
-
-  useEffect(() => {
-    fetchEventTypes();
-  }, [fetchEventTypes]);
-
   useEffect(() => {
     if (!selectedEventTypeFilter || !showingEvents) return;
 
@@ -3971,7 +3928,8 @@ const filteredTypes = eventTypesData.filter((type) => {
   }
   return availableTypes;
 }, [filteredEventTypes, computedIsAdmin, computedIsLeaderAt12, computedIsLeader, computedIsRegistrant, computedIsRegularUser, isActiveTeams]);
-    const getDisplayName = (type) => {
+  
+const getDisplayName = (type) => {
       if (!type) return "";
       if (type === "all") return isActiveTeams ? "ALL CELLS" : "All Events";
       return typeof type === "string" ? type : type.name || String(type);
@@ -5206,8 +5164,6 @@ const filteredTypes = eventTypesData.filter((type) => {
                   const typeName =
                     typeof type === "string" ? type : type.name || type;
                   const isAllCells = typeName === "all";
-
-                  // Get the full event type object for description
                   const eventTypeObj = eventTypes.find(
                     (et) => et.name?.toLowerCase() === typeName.toLowerCase(),
                   ) || { name: typeName };
