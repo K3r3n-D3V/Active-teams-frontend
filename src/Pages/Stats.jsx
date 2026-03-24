@@ -526,17 +526,11 @@ const StatsDashboard = () => {
     },
     [authFetch],
   );
-
-  // Helper function used when rendering overdue cells (highlighting, chips, etc.)
   const isOverdue = useCallback((cell) => {
     if (!cell) return false;
-
-    // Prefer backend-provided flag if it exists
     if ("is_overdue" in cell) {
       return !!cell.is_overdue;
     }
-
-    // Client-side calculation (matches the filter logic above)
     const status = (cell.status || cell.Status || "").trim().toLowerCase();
     const isIncomplete =
       status === "incomplete" ||
@@ -848,10 +842,7 @@ const StatsDashboard = () => {
   useEffect(() => {
     fetchCalendarEvents();
   }, [fetchCalendarEvents]);
-
-  // Optional: refresh when month changes a lot
   useEffect(() => {
-    // You can make this smarter — only refetch if outside current range
     fetchCalendarEvents();
   }, [currentMonth.getFullYear(), currentMonth.getMonth()]);
 
@@ -936,7 +927,7 @@ const StatsDashboard = () => {
 
   const getEventsForDate = useCallback(
     (date) => {
-      console.log("Filtering for date:", date); // debug
+      console.log("Filtering for date:", date);
 
       return calendarEvents.filter((e) => {
         if (!e.date) return false;

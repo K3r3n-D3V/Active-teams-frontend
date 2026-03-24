@@ -377,18 +377,42 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     }
   }, [isTicketedEvent]);
 
-  const fetchPeople = async (q) => {
-    if (!q.trim()) {
-      setPeopleData([]);
-      return;
+const fetchPeople = async (q) => {
+  if (!q.trim()) {
+    setPeopleData([]);
+    return;
+  }
+
+  try {
+    setIsSearchingPeople(true);
+    const token = localStorage.getItem("access_token");
+        const searchWords = q.trim().split(/\s+/);
+        const res = await fetch(
+      `${BACKEND_URL}/people?name=${encodeURIComponent(q.trim())}&perPage=20`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    if (!res.ok) throw new Error("Failed to fetch people");
+
+    const data = await res.json();
+    let people = data?.results || [];
+        if (searchWords.length > 1 && people.length > 0) {
+      people = people.filter(person => {
+        const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase();
+        const searchLower = q.trim().toLowerCase();
+        // Check if the full name contains all search words
+        return fullName.includes(searchLower) || 
+               searchWords.every(word => fullName.includes(word.toLowerCase()));
+      });
     }
-
-    try {
-      setIsSearchingPeople(true);
-      const token = localStorage.getItem("access_token");
-
-      const res = await fetch(
-        `${BACKEND_URL}/people?name=${encodeURIComponent(q.trim())}&perPage=20`,
+        if (people.length === 0 && searchWords.length > 0) {
+      const allPeopleRes = await fetch(
+        `${BACKEND_URL}/people?perPage=200`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -396,62 +420,68 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
           },
         }
       );
-
-      if (!res.ok) throw new Error("Failed to fetch people");
-
-      const data = await res.json();
-      const people = data?.results || [];
-      const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
-      const userOrg = (userProfile?.org_id || "").toLowerCase();
-      const userOrgName = (userProfile?.organization || userProfile?.Organization || "").toLowerCase();
-
-      const formatted = people.map((p) => {
-        const personOrg = (p.org_id || p.Organization || p.Organisation || "").toLowerCase();
-        const personOrgAsId = personOrg.replace(/\s+/g, "-");
-        const userOrgAsName = userOrg.replace(/-/g, " ");
-
-        const isDifferentOrg = userOrg && personOrg &&
-          personOrg !== userOrg &&
-          personOrgAsId !== userOrg &&
-          personOrg !== userOrgAsName &&
-          !personOrg.includes(userOrgAsName) &&
-          !userOrgAsName.includes(personOrg) &&
-          !(userOrgName && personOrg.includes(userOrgName)) &&
-          !(userOrgName && userOrgName.includes(personOrg));
-
-        return {
-          id: p._id,
-          fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-          email: p.Email || p.email || "",
-          leader1: p["Leader @1"] || p["Leader at 1"] || p.leader1 || "",
-          leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || "",
-          org: personOrg,
-          isDifferentOrg,
-        };
-      });
-
-      setPeopleData(formatted);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      toast.error(err.message);
-      setPeopleData([]);
-    } finally {
-      setIsSearchingPeople(false);
+      
+      if (allPeopleRes.ok) {
+        const allData = await allPeopleRes.json();
+        const allPeople = allData?.results || [];
+        
+        // Filter locally to match both name and surname
+        people = allPeople.filter(person => {
+          const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase();
+          const searchLower = q.trim().toLowerCase();
+          return fullName.includes(searchLower) || 
+                 searchWords.every(word => fullName.includes(word.toLowerCase()));
+        }).slice(0, 20);
+      }
     }
-  };
+
+    const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
+    const userOrg = (userProfile?.org_id || "").toLowerCase();
+    const userOrgName = (userProfile?.organization || userProfile?.Organization || "").toLowerCase();
+
+    const formatted = people.map((p) => {
+      const personOrg = (p.org_id || p.Organization || p.Organisation || "").toLowerCase();
+      const personOrgAsId = personOrg.replace(/\s+/g, "-");
+      const userOrgAsName = userOrg.replace(/-/g, " ");
+
+      const isDifferentOrg = userOrg && personOrg &&
+        personOrg !== userOrg &&
+        personOrgAsId !== userOrg &&
+        personOrg !== userOrgAsName &&
+        !personOrg.includes(userOrgAsName) &&
+        !userOrgAsName.includes(personOrg) &&
+        !(userOrgName && personOrg.includes(userOrgName)) &&
+        !(userOrgName && userOrgName.includes(personOrg));
+
+      return {
+        id: p._id,
+        fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+        email: p.Email || p.email || "",
+        leader1: p["Leader @1"] || p["Leader at 1"] || p.leader1 || "",
+        leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || "",
+        org: personOrg,
+        isDifferentOrg,
+      };
+    });
+
+    setPeopleData(formatted);
+  } catch (err) {
+    console.error("Error fetching people:", err);
+    toast.error(err.message);
+    setPeopleData([]);
+  } finally {
+    setIsSearchingPeople(false);
+  }
+};
   //
   useEffect(() => {
     const queryString = window.location.search
     const queries = new URLSearchParams(queryString)
-
-    //checking if opened a ticketed event
     if (selectedEventTypeObj.isTicketed === true) {
       console.log("Event ID", queries.get("eventId"))
-      //setting event id to query
       setEventId(queries.get("eventId"))
     }
   }, [])
-
   useEffect(() => {
     console.log("dd", eventId)
     if (!eventId) return;
