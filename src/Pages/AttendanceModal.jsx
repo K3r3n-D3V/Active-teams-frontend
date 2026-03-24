@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useContext, useMemo } from "react";
 import { toast } from "react-toastify";
 import {
@@ -1386,7 +1387,7 @@ const AttendanceModal = ({
   event,
   onAttendanceSubmitted,
   currentUser,
-  isActiveTeams,
+   isActiveTeams, 
 }) => {
   const { authFetch } = useContext(AuthContext);
   const { getHierarchyLabel} = useOrgConfig();
@@ -2597,106 +2598,103 @@ const getAllCommonAttendees = () => {
   console.log("Price tiers:", event?.priceTiers);
   console.log("Full event keys:", Object.keys(event || {}));
 
-const renderMobileAttendeeCard = (person) => {
-  const isCheckedIn = checkedIn[person.id];
-  const isCellEvent = isActiveTeams && (
-    event?.eventType === "Cells" || 
-    event?.eventType === "CELLS" || 
-    event?.eventType?.toLowerCase() === "cells" ||
-    event?.hasPersonSteps === true
-  );
+  const renderMobileAttendeeCard = (person) => {
+    const isCheckedIn = checkedIn[person.id];
 
-  return (
-    <div key={person.id} style={styles.mobileAttendeeCard}>
-      <div style={styles.mobileCardRow}>
-        <div style={styles.mobileCardInfo}>
-          <div style={styles.mobileCardName}>
-            {person.fullName}
-            <button
-              onClick={() => handleRemoveAttendee(person.id, person.fullName)}
-              style={{
-                background: "none", border: "none", cursor: "pointer", padding: "4px",
-                marginLeft: "8px", borderRadius: "4px", color: theme.palette.error.main,
-                display: "inline-flex", alignItems: "center", justifyContent: "center", verticalAlign: "middle",
-              }}
-              title="Remove from attendees"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <div style={styles.mobileCardEmail}>{person.email}</div>
-          {isCellEvent ? (
-            <>
-              <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
-                {getHierarchyLabel(2)}: {person.leader12}
-              </div>
-              <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
-                {getHierarchyLabel(3)}: {person.leader144}
-              </div>
-            </>
-          ) : (
-            <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
-              Invited By: {person.invitedBy || "—"}
-            </div>
-          )}
-          <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
-            Phone: {person.phone}
-          </div>
-          {isTicketedEvent && (
-            <div style={{ fontSize: "12px", color: theme.palette.text.secondary, marginTop: "4px" }}>
-              {attendeeTicketInfo[person.id]?.priceName || person.priceName || "No ticket selected"}
-              {(attendeeTicketInfo[person.id]?.price || person.price) &&
-                ` - R${(attendeeTicketInfo[person.id]?.price || person.price)}`
-              }
-            </div>
-          )}
-        </div>
-        <button
-          style={{ ...styles.radioButton, ...(isCheckedIn ? styles.radioButtonChecked : {}) }}
-          onClick={() => handleCheckIn(person.id)}
-        >
-          {isCheckedIn && <span style={styles.radioButtonInner}>✓</span>}
-        </button>
-      </div>
-
-      {isCheckedIn && !isTicketedEvent && isCellEvent && (
-        <div style={{ marginTop: "12px" }}>
-          <div style={styles.inputGroup}>
-            <label style={styles.label}>Decision</label>
-            <div style={styles.decisionDropdown}>
+    return (
+      <div key={person.id} style={styles.mobileAttendeeCard}>
+        <div style={styles.mobileCardRow}>
+          <div style={styles.mobileCardInfo}>
+            <div style={styles.mobileCardName}>
+              {person.fullName}
               <button
-                style={styles.decisionButton}
-                onClick={() => setOpenDecisionDropdown(openDecisionDropdown === person.id ? null : person.id)}
+                onClick={() => handleRemoveAttendee(person.id, person.fullName)}
+                style={{
+                  background: "none", border: "none", cursor: "pointer", padding: "4px",
+                  marginLeft: "8px", borderRadius: "4px", color: theme.palette.error.main,
+                  display: "inline-flex", alignItems: "center", justifyContent: "center", verticalAlign: "middle",
+                }}
+                title="Remove from attendees"
               >
-                <span>
-                  {decisionTypes[person.id]
-                    ? decisionOptions.find((opt) => opt.value === decisionTypes[person.id])?.label
-                    : "Select Decision"}
-                </span>
-                <ChevronDown size={16} />
+                <X size={16} />
               </button>
-              {openDecisionDropdown === person.id && (
-                <div style={styles.decisionMenu}>
-                  {decisionOptions.map((option) => (
-                    <div
-                      key={option.value}
-                      style={styles.decisionMenuItem}
-                      onClick={() => handleDecisionTypeSelect(person.id, option.value)}
-                      onMouseEnter={(e) => (e.target.style.background = theme.palette.action.hover)}
-                      onMouseLeave={(e) => (e.target.style.background = "transparent")}
-                    >
-                      {option.label}
-                    </div>
-                  ))}
+            </div>
+            <div style={styles.mobileCardEmail}>{person.email}</div>
+            {!isTicketedEvent && (
+              <>
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: theme.palette.text.secondary,
+                  }}
+                >
+                  Leader @12: {person.leader12}
                 </div>
-              )}
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: theme.palette.text.secondary,
+                  }}
+                >
+                  Phone: {person.phone}
+                </div>
+              </>
+            )}
+            {isTicketedEvent && (
+              <div style={{ fontSize: "12px", color: theme.palette.text.secondary, marginTop: "4px" }}>
+                {attendeeTicketInfo[person.id]?.priceName || person.priceName || "No ticket selected"}
+                {(attendeeTicketInfo[person.id]?.price || person.price) &&
+                  ` - R${(attendeeTicketInfo[person.id]?.price || person.price)}`
+                }
+              </div>
+            )}
+          </div>
+          <button
+            style={{ ...styles.radioButton, ...(isCheckedIn ? styles.radioButtonChecked : {}) }}
+            onClick={() => handleCheckIn(person.id)}
+          >
+            {isCheckedIn && <span style={styles.radioButtonInner}>✓</span>}
+          </button>
+        </div>
+
+        {isCheckedIn && !isTicketedEvent && (
+          <div style={{ marginTop: "12px" }}>
+            <div style={styles.inputGroup}>
+              <label style={styles.label}>Decision</label>
+              <div style={styles.decisionDropdown}>
+                <button
+                  style={styles.decisionButton}
+                  onClick={() => setOpenDecisionDropdown(openDecisionDropdown === person.id ? null : person.id)}
+                >
+                  <span>
+                    {decisionTypes[person.id]
+                      ? decisionOptions.find((opt) => opt.value === decisionTypes[person.id])?.label
+                      : "Select Decision"}
+                  </span>
+                  <ChevronDown size={16} />
+                </button>
+                {openDecisionDropdown === person.id && (
+                  <div style={styles.decisionMenu}>
+                    {decisionOptions.map((option) => (
+                      <div
+                        key={option.value}
+                        style={styles.decisionMenuItem}
+                        onClick={() => handleDecisionTypeSelect(person.id, option.value)}
+                        onMouseEnter={(e) => (e.target.style.background = theme.palette.action.hover)}
+                        onMouseLeave={(e) => (e.target.style.background = "transparent")}
+                      >
+                        {option.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
-        </div>
-      )}
-    </div>
-  );
-};
+        )}
+      </div>
+    );
+  };
 
   const styles = {
     overlay: {
@@ -3002,524 +3000,375 @@ const renderMobileAttendeeCard = (person) => {
             )}
           </div>
 
-          <div style={styles.contentArea}>
-        {activeTab === 0 && (
-  <>
-    <div style={styles.searchBox}>
-      <Search size={20} style={styles.searchIcon} />
-      <input
-        type="text"
-        placeholder="Search attendees..."
-        value={searchName}
-        onChange={(e) => setSearchName(e.target.value)}
-        style={{
-          width: "100%", padding: "14px 14px 14px 45px", fontSize: 16, borderRadius: 8,
-          border: `1px solid ${isDarkMode ? '#555' : '#ccc'}`,
-          backgroundColor: isDarkMode ? theme.palette.background.default : theme.palette.background.paper,
-          color: isDarkMode ? theme.palette.text.primary : '#000',
-          outline: "none", boxSizing: "border-box",
-        }}
-        onFocus={(e) => {
-          e.target.style.backgroundColor = isDarkMode ? theme.palette.action.hover : theme.palette.background.default;
-          e.target.style.borderColor = isDarkMode ? '#777' : '#999';
-        }}
-        onBlur={(e) => {
-          e.target.style.backgroundColor = isDarkMode ? theme.palette.background.default : theme.palette.background.paper;
-          e.target.style.borderColor = isDarkMode ? '#555' : '#ccc';
-        }}
-      />
-    </div>
 
-{isMobile ? (
-  <div>
-    {loading && <div style={{ textAlign: "center", padding: "20px" }}>Loading...</div>}
-    {filteredCommonAttendees.map(renderMobileAttendeeCard)}
-  </div>
-) : (
-  <div style={styles.tableContainer}>
-    <table style={styles.table}>
-      <thead>
-        <tr>
-          <th style={styles.th}>Attendees Name</th>
-          <th style={styles.th}>Attendees Email</th>
-          {(() => {
-            // Determine if this is a cell event (for Active Teams)
-            const isCellEvent = isActiveTeams && (
-              event?.eventType === "Cells" || 
-              event?.eventType === "CELLS" || 
-              event?.eventType?.toLowerCase() === "cells" ||
-              event?.hasPersonSteps === true
-            );
-            
-            if (isCellEvent) {
-              return (
-                <>
-                  <th style={styles.th}>Attendees {getHierarchyLabel(2)}</th>
-                  <th style={styles.th}>Attendees {getHierarchyLabel(3)}</th>
-                </>
-              );
-            } else {
-              return (
-                <th style={styles.th}>Attendees Invited By</th>
-              );
-            }
-          })()}
-          <th style={styles.th}>Attendees Number</th>
-          {isTicketedEvent && (
-            <>
-              <th style={styles.th}>Price Name</th>
-              <th style={styles.th}>Price (R)</th>
-              <th style={styles.th}>Age Group</th>
-              <th style={styles.th}>Payment Method</th>
-            </>
-          )}
-          <th style={{ ...styles.th, textAlign: "center" }}>Check In</th>
-          {(() => {
-            const isCellEvent = isActiveTeams && (
-              event?.eventType === "Cells" || 
-              event?.eventType === "CELLS" || 
-              event?.eventType?.toLowerCase() === "cells" ||
-              event?.hasPersonSteps === true
-            );
-            return !isTicketedEvent && isCellEvent && (
-              <th style={{ ...styles.th, textAlign: "center" }}>Decision</th>
-            );
-          })()}
-          <th style={{ ...styles.th, textAlign: "center", width: "50px" }}>Remove</th>
-        </tr>
-      </thead>
-      <tbody>
-        {loading && (
-          <tr>
-            <td colSpan={isTicketedEvent ? "9" : (() => {
-              const isCellEvent = isActiveTeams && (
-                event?.eventType === "Cells" || 
-                event?.eventType === "CELLS" || 
-                event?.eventType?.toLowerCase() === "cells" ||
-                event?.hasPersonSteps === true
-              );
-              return isCellEvent ? "7" : "6";
-            })()} style={{ ...styles.td, textAlign: "center" }}>
-              Loading...
-            </td>
-          </tr>
-        )}
-        {!loading && filteredCommonAttendees.length === 0 && (
-          <tr>
-            <td colSpan={isTicketedEvent ? "9" : (() => {
-              const isCellEvent = isActiveTeams && (
-                event?.eventType === "Cells" || 
-                event?.eventType === "CELLS" || 
-                event?.eventType?.toLowerCase() === "cells" ||
-                event?.hasPersonSteps === true
-              );
-              return isCellEvent ? "7" : "6";
-            })()} style={{ ...styles.td, textAlign: "center" }}>
-              No attendees found.
-            </td>
-          </tr>
-        )}
-        {filteredCommonAttendees.map((person) => {
-          const savedTicket = attendeeTicketInfo[person.id];
-          const ticketInfo = {
-            priceName: savedTicket?.priceName || person.priceName || "",
-            price: savedTicket?.price != null && savedTicket?.price !== ""
-              ? savedTicket.price
-              : person.price,
-            ageGroup: savedTicket?.ageGroup || person.ageGroup || "",
-            paymentMethod: savedTicket?.paymentMethod || person.paymentMethod || ""
-          };
-          
-          const isCellEvent = isActiveTeams && (
-            event?.eventType === "Cells" || 
-            event?.eventType === "CELLS" || 
-            event?.eventType?.toLowerCase() === "cells" ||
-            event?.hasPersonSteps === true
-          );
-          
-          return (
-            <tr key={person.id}>
-              <td style={styles.td}>{person.fullName || "Unknown Name"}</td>
-              <td style={styles.td}>{person.email || "No email"}</td>
-              {isCellEvent ? (
-                <>
-                  <td style={styles.td}>{person.leader12 || ""}</td>
-                  <td style={styles.td}>{person.leader144 || ""}</td>
-                </>
-              ) : (
-                <td style={styles.td}>{person.invitedBy || ""}</td>
-              )}
-              <td style={styles.td}>{person.phone || ""}</td>
 
-              {isTicketedEvent && (
-                <>
-                  <td style={styles.td}>
-                    <div style={styles.priceTierDropdown}>
-                      <button
-                        style={styles.priceTierButton}
-                        onClick={() => setOpenPriceTierDropdown(openPriceTierDropdown === person.id ? null : person.id)}
-                      >
-                        <span style={ticketInfo.priceName ? {} : { color: theme.palette.text.disabled, fontStyle: "italic" }}>
-                          {ticketInfo.priceName || "Select Tier"}
-                        </span>
-                        <ChevronDown size={14} />
-                      </button>
-                      {openPriceTierDropdown === person.id && eventPriceTiers && eventPriceTiers.length > 0 && (
-                        <div style={styles.priceTierMenu}>
-                          {eventPriceTiers.map((tier, index) => (
-                            <div
-                              key={index}
-                              style={styles.priceTierMenuItem}
-                              onClick={() => {
-                                setAttendeeTicketInfo(prev => ({
-                                  ...prev,
-                                  [person.id]: {
-                                    priceName: tier.name,
-                                    price: tier.price,
-                                    ageGroup: tier.ageGroup,
-                                    paymentMethod: tier.paymentMethod || " "
-                                  }
-                                }));
-                                setOpenPriceTierDropdown(null);
-                              }}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = theme.palette.action.hover)}
-                              onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+
+
+
+
+
+
+<div style={styles.contentArea}>
+  {activeTab === 0 && (
+    <>
+      <div style={styles.searchBox}>
+        <Search size={20} style={styles.searchIcon} />
+        <input
+          type="text"
+          placeholder="Search attendees..."
+          value={searchName}
+          onChange={(e) => setSearchName(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "14px 14px 14px 45px",
+            fontSize: 16,
+            borderRadius: 8,
+            border: `1px solid ${isDarkMode ? '#555' : '#ccc'}`,
+            backgroundColor: isDarkMode ? theme.palette.background.default : theme.palette.background.paper,
+            color: isDarkMode ? theme.palette.text.primary : '#000',
+            outline: "none",
+            boxSizing: "border-box",
+          }}
+        />
+      </div>
+
+      {isMobile ? (
+        <div>
+          {filteredCommonAttendees.map(renderMobileAttendeeCard)}
+        </div>
+      ) : (
+        <div style={styles.tableContainer}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Attendees Name</th>
+                <th style={styles.th}>Attendees Surname</th>
+                <th style={styles.th}>Attendees Email</th>
+                <th style={styles.th}>Attendees {getHierarchyLabel(2)}</th>
+                <th style={styles.th}>Attendees {getHierarchyLabel(3)}</th>
+                <th style={styles.th}>Attendees Number</th>
+                {isTicketedEvent && (
+                  <>
+                    <th style={styles.th}>Price Name</th>
+                    <th style={styles.th}>Price (R)</th>
+                    <th style={styles.th}>Age Group</th>
+                    <th style={styles.th}>Payment Method</th>
+                  </>
+                )}
+                <th style={{ ...styles.th, textAlign: "center" }}>Check In</th>
+                {!isTicketedEvent && (
+                  <th style={{ ...styles.th, textAlign: "center" }}>Decision</th>
+                )}
+                <th style={{ ...styles.th, textAlign: "center", width: "50px" }}>Remove</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filteredCommonAttendees.map((person) => {
+                const savedTicket = attendeeTicketInfo[person.id];
+                const ticketInfo = {
+                  priceName: savedTicket?.priceName || person.priceName || "",
+                  price: savedTicket?.price != null && savedTicket?.price !== "" ? savedTicket.price : person.price,
+                  ageGroup: savedTicket?.ageGroup || person.ageGroup || "",
+                  paymentMethod: savedTicket?.paymentMethod || person.paymentMethod || ""
+                };
+                const nameParts = (person.fullName || "").split(" ");
+                const firstName = nameParts[0] || "";
+                const lastName = nameParts.slice(1).join(" ") || "";
+                
+                return (
+                  <tr key={person.id}>
+                    <td style={styles.td}>{firstName || "—"}</td>
+                    <td style={styles.td}>{lastName || "—"}</td>
+                    <td style={styles.td}>{person.email || "No email"}</td>
+                    <td style={styles.td}>{person.leader12 || ""}</td>
+                    <td style={styles.td}>{person.leader144 || ""}</td>
+                    <td style={styles.td}>{person.phone || ""}</td>
+
+                    {isTicketedEvent && (
+                      <>
+                        <td style={styles.td}>
+                          <div style={styles.priceTierDropdown}>
+                            <button
+                              style={styles.priceTierButton}
+                              onClick={() => setOpenPriceTierDropdown(openPriceTierDropdown === person.id ? null : person.id)}
                             >
-                              <div style={{ fontWeight: 500 }}>{tier.name}</div>
-                              <div style={{ fontSize: 11, color: theme.palette.text.secondary }}>
-                                R{tier.price} • {tier.ageGroup} • {tier.paymentMethod || "Cash"}
+                              <span style={ticketInfo.priceName ? {} : { color: theme.palette.text.disabled, fontStyle: "italic" }}>
+                                {ticketInfo.priceName || "Select Tier"}
+                              </span>
+                              <ChevronDown size={14} />
+                            </button>
+                            {openPriceTierDropdown === person.id && eventPriceTiers && eventPriceTiers.length > 0 && (
+                              <div style={styles.priceTierMenu}>
+                                {eventPriceTiers.map((tier, index) => (
+                                  <div
+                                    key={index}
+                                    style={styles.priceTierMenuItem}
+                                    onClick={() => {
+                                      setAttendeeTicketInfo(prev => ({
+                                        ...prev,
+                                        [person.id]: {
+                                          priceName: tier.name,
+                                          price: tier.price,
+                                          ageGroup: tier.ageGroup,
+                                          paymentMethod: tier.paymentMethod || " "
+                                        }
+                                      }));
+                                      setOpenPriceTierDropdown(null);
+                                    }}
+                                  >
+                                    <div style={{ fontWeight: 500 }}>{tier.name}</div>
+                                    <div style={{ fontSize: 11, color: theme.palette.text.secondary }}>
+                                      R{tier.price} • {tier.ageGroup} • {tier.paymentMethod || "Cash"}
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                      {openPriceTierDropdown === person.id && (!eventPriceTiers || eventPriceTiers.length === 0) && (
-                        <div style={styles.priceTierMenu}>
-                          <div style={{ ...styles.priceTierMenuItem, color: theme.palette.text.secondary }}>
-                            No price tiers available
+                            )}
                           </div>
-                        </div>
-                      )}
-                    </div>
-                  </td>
-                  <td style={styles.td}>
-                    <span style={{
-                      color: theme.palette.text.primary,
-                      fontWeight: 500
-                    }}>
-                      {ticketInfo.price ? `R${ticketInfo.price}` : "-"}
-                    </span>
-                  </td>
-                  <td style={styles.td}>
-                    <span style={{ color: theme.palette.text.secondary }}>
-                      {ticketInfo.ageGroup || "-"}
-                    </span>
-                  </td>
-                  <td style={styles.td}>
-                    <span style={{ color: theme.palette.text.secondary }}>
-                      {ticketInfo.paymentMethod || "-"}
-                    </span>
-                  </td>
-                </>
-              )}
+                        </td>
+                        <td style={styles.td}>
+                          <span style={{ color: theme.palette.text.primary, fontWeight: 500 }}>
+                            {ticketInfo.price ? `R${ticketInfo.price}` : "-"}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          <span style={{ color: theme.palette.text.secondary }}>
+                            {ticketInfo.ageGroup || "-"}
+                          </span>
+                        </td>
+                        <td style={styles.td}>
+                          <span style={{ color: theme.palette.text.secondary }}>
+                            {ticketInfo.paymentMethod || "-"}
+                          </span>
+                        </td>
+                      </>
+                    )}
 
-              <td style={{ ...styles.td, ...styles.radioCell }}>
-                <button
-                  style={{ ...styles.radioButton, ...(checkedIn[person.id] ? styles.radioButtonChecked : {}) }}
-                  onClick={() => handleCheckIn(person.id)}
-                >
-                  {checkedIn[person.id] && <span style={styles.radioButtonInner}>✓</span>}
-                </button>
-              </td>
-
-              {!isTicketedEvent && isCellEvent && (
-                <td style={{ ...styles.td, ...styles.radioCell }}>
-                  {checkedIn[person.id] ? (
-                    <div style={styles.decisionDropdown}>
+                    <td style={{ ...styles.td, ...styles.radioCell }}>
                       <button
-                        style={styles.decisionButton}
-                        onClick={() => setOpenDecisionDropdown(openDecisionDropdown === person.id ? null : person.id)}
+                        style={{ ...styles.radioButton, ...(checkedIn[person.id] ? styles.radioButtonChecked : {}) }}
+                        onClick={() => handleCheckIn(person.id)}
                       >
-                        <span>
-                          {decisionTypes[person.id]
-                            ? decisionOptions.find((opt) => opt.value === decisionTypes[person.id])?.label
-                            : "Select Decision"}
-                        </span>
-                        <ChevronDown size={16} />
+                        {checkedIn[person.id] && <span style={styles.radioButtonInner}>✓</span>}
                       </button>
-                      {openDecisionDropdown === person.id && (
-                        <div style={styles.decisionMenu}>
-                          {decisionOptions.map((option) => (
-                            <div
-                              key={option.value}
-                              style={styles.decisionMenuItem}
-                              onClick={() => handleDecisionTypeSelect(person.id, option.value)}
-                              onMouseEnter={(e) => (e.currentTarget.style.background = theme.palette.action.hover)}
-                              onMouseLeave={(e) => (e.target.style.background = "transparent")}
+                    </td>
+
+                    {!isTicketedEvent && (
+                      <td style={{ ...styles.td, ...styles.radioCell }}>
+                        {checkedIn[person.id] ? (
+                          <div style={styles.decisionDropdown}>
+                            <button
+                              style={styles.decisionButton}
+                              onClick={() => setOpenDecisionDropdown(openDecisionDropdown === person.id ? null : person.id)}
                             >
-                              {option.label}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <button style={{ ...styles.radioButton, opacity: 0.3, cursor: "not-allowed" }} disabled />
-                  )}
-                </td>
-              )}
+                              <span>
+                                {decisionTypes[person.id]
+                                  ? decisionOptions.find((opt) => opt.value === decisionTypes[person.id])?.label
+                                  : "Select Decision"}
+                              </span>
+                              <ChevronDown size={16} />
+                            </button>
+                            {openDecisionDropdown === person.id && (
+                              <div style={styles.decisionMenu}>
+                                {decisionOptions.map((option) => (
+                                  <div
+                                    key={option.value}
+                                    style={styles.decisionMenuItem}
+                                    onClick={() => handleDecisionTypeSelect(person.id, option.value)}
+                                  >
+                                    {option.label}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <button style={{ ...styles.radioButton, opacity: 0.3, cursor: "not-allowed" }} disabled />
+                        )}
+                      </td>
+                    )}
 
-              <td style={{ ...styles.td, textAlign: "center" }}>
-                <button
-                  onClick={() =>
-                    handleRemoveAttendee(
-                      person.id,
-                      person.fullName || "Unknown",
-                    )
-                  }
-                  style={{
-                    background: "none", border: "none", cursor: "pointer", padding: "4px",
-                    borderRadius: "4px", color: theme.palette.error.main,
-                    display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto",
-                  }}
-                  title="Remove from attendees"
-                >
-                  <X size={18} />
-                </button>
-              </td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
-  </div>
-)}
-
-    <div style={styles.statsContainer}>
-      <div style={styles.statBox}>
-        <div
-          style={{
-            ...styles.statNumber,
-            color: theme.palette.info.main,
-          }}
-        >
-          {persistentCommonAttendees.length}
-        </div>
-        <div style={styles.statLabel}>Associated People</div>
-      </div>
-
-      <div style={styles.statBox}>
-        <div
-          style={{
-            ...styles.statNumber,
-            color: theme.palette.success.main,
-          }}
-        >
-          {
-            Object.keys(checkedIn).filter((id) => checkedIn[id])
-              .length
-          }
-        </div>
-        <div style={styles.statLabel}>Attendees</div>
-      </div>
-
-      {!isTicketedEvent && (
-        <div style={styles.statBox}>
-          <div style={{ ...styles.statNumber, color: "#ffc107" }}>
-            {
-              Object.keys(decisions).filter((id) => decisions[id])
-                .length
-            }
-          </div>
-          <div style={styles.statLabel}>Decisions</div>
-          {Object.keys(decisions).filter((id) => decisions[id])
-            .length > 0 && (
-              <div style={styles.decisionBreakdown}>
-                <span>
-                  First-time:{" "}
-                  {
-                    Object.values(decisionTypes).filter(
-                      (type) => type === "first-time",
-                    ).length
-                  }
-                </span>
-                <span>
-                  Re-commitment:{" "}
-                  {
-                    Object.values(decisionTypes).filter(
-                      (type) => type === "re-commitment",
-                    ).length
-                  }
-                </span>
-              </div>
-            )}
+                    <td style={{ ...styles.td, textAlign: "center" }}>
+                      <button
+                        onClick={() => handleRemoveAttendee(person.id, person.fullName || "Unknown")}
+                        style={{
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          padding: "4px",
+                          borderRadius: "4px",
+                          color: theme.palette.error.main,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          margin: "0 auto",
+                        }}
+                        title="Remove from attendees"
+                      >
+                        <X size={18} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
-    </div>
-  </>
-)}
-{activeTab === 1 && (
-  <>
-    <div style={styles.searchBox}>
-      <Search size={20} style={styles.searchIcon} />
-      <input
-        type="text"
-        placeholder="Search to add person to common attendees..."
-        value={associateSearch}
-        onChange={(e) => setAssociateSearch(e.target.value)}
-        style={{
-          width: "100%", padding: "14px 14px 14px 45px", fontSize: 16, borderRadius: 8,
-          border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
-          backgroundColor: isDarkMode ? theme.palette.background.default : theme.palette.background.paper,
-          color: isDarkMode ? theme.palette.text.primary : '#000',
-          outline: "none", boxSizing: "border-box",
-        }}
-      />
-    </div>
 
-    {isMobile ? (
-      <div>
-        {loading && <div style={{ textAlign: "center", padding: "20px" }}>Loading...</div>}
-        {!loading && associatePeople.length === 0 && (
-          <div style={{ textAlign: "center", padding: "20px", color: theme.palette.text.secondary }}>
-            {associateSearch.trim() ? "No people found." : "Loading users..."}
+      <div style={styles.statsContainer}>
+        <div style={styles.statBox}>
+          <div style={{ ...styles.statNumber, color: theme.palette.info.main }}>
+            {persistentCommonAttendees.length}
+          </div>
+          <div style={styles.statLabel}>Associated People</div>
+        </div>
+        <div style={styles.statBox}>
+          <div style={{ ...styles.statNumber, color: theme.palette.success.main }}>
+            {Object.keys(checkedIn).filter((id) => checkedIn[id]).length}
+          </div>
+          <div style={styles.statLabel}>Attendees</div>
+        </div>
+        {!isTicketedEvent && (
+          <div style={styles.statBox}>
+            <div style={{ ...styles.statNumber, color: "#ffc107" }}>
+              {Object.keys(decisions).filter((id) => decisions[id]).length}
+            </div>
+            <div style={styles.statLabel}>Decisions</div>
           </div>
         )}
-        {associatePeople.map((person) => {
-          const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
-          // Determine if this is a cell event (for Active Teams)
-          const isCellEvent = isActiveTeams && (
-            event?.eventType === "Cells" || 
-            event?.eventType === "CELLS" || 
-            event?.eventType?.toLowerCase() === "cells" ||
-            event?.hasPersonSteps === true
-          );
-          
-          return (
-            <div key={person.id} style={styles.mobileAttendeeCard}>
-              <div style={styles.mobileCardRow}>
-                <div style={styles.mobileCardInfo}>
-                  <div style={styles.mobileCardName}>{person.fullName}</div>
-                  <div style={styles.mobileCardEmail}>{person.email}</div>
-                  {isCellEvent ? (
-                    // For Cell events - show leader columns
-                    <>
-                      <div style={{ fontSize: "12px", color: "#666" }}>{getHierarchyLabel(2)}: {person.leader12 || "—"}</div>
-                      <div style={{ fontSize: "12px", color: "#666" }}>{getHierarchyLabel(3)}: {person.leader144 || "—"}</div>
-                    </>
-                  ) : (
-                    // For non-cell events - show Invited By and Phone
-                    <>
-                      <div style={{ fontSize: "12px", color: "#666" }}>Invited By: {person.invitedBy || "—"}</div>
-                      <div style={{ fontSize: "12px", color: "#666" }}>Phone: {person.phone || "—"}</div>
-                    </>
-                  )}
-                </div>
-                <button
-                  style={{ ...styles.iconButton, color: isAlreadyAdded ? "#dc3545" : "#6366f1", cursor: isAlreadyAdded ? "not-allowed" : "pointer", opacity: isAlreadyAdded ? 0.3 : 1 }}
-                  onClick={() => handleAssociatePerson(person)}
-                  disabled={isAlreadyAdded}
-                  title={isAlreadyAdded ? "Already added" : "Add to common attendees"}
-                >
-                  <UserPlus size={20} />
-                </button>
-              </div>
-            </div>
-          );
-        })}
       </div>
-    ) : (
-      <div style={styles.tableContainer}>
-        <table style={styles.table}>
-          <thead>
-            <tr>
-              <th style={styles.th}>Name</th>
-              <th style={styles.th}>Email</th>
-              {(() => {
-                // Determine if this is a cell event (for Active Teams)
-                const isCellEvent = isActiveTeams && (
-                  event?.eventType === "Cells" || 
-                  event?.eventType === "CELLS" || 
-                  event?.eventType?.toLowerCase() === "cells" ||
-                  event?.hasPersonSteps === true
-                );
-                
-                if (isCellEvent) {
-                  return (
-                    <>
-                      <th style={styles.th}>{getHierarchyLabel(2) || "Leader @12"}</th>
-                      <th style={styles.th}>{getHierarchyLabel(3) || "Leader @144"}</th>
-                    </>
-                  );
-                } else {
-                  return (
-                    <>
-                      <th style={styles.th}>Invited By</th>
-                      <th style={styles.th}>Phone</th>
-                    </>
-                  );
-                }
-              })()}
-              <th style={{ ...styles.th, textAlign: "center" }}>Add</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && <tr><td colSpan="5" style={{ ...styles.td, textAlign: "center" }}>Loading...</td></tr>}
-            {!loading && associatePeople.length === 0 && (
-              <tr>
-                <td colSpan="5" style={{ ...styles.td, textAlign: "center", color: theme.palette.text.secondary }}>
-                  {associateSearch.trim() ? "No people found." : "Loading users..."}
-                </td>
-              </tr>
-            )}
-            {associatePeople.map((person) => {
-              const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
-              const isCellEvent = isActiveTeams && (
-                event?.eventType === "Cells" || 
-                event?.eventType === "CELLS" || 
-                event?.eventType?.toLowerCase() === "cells" ||
-                event?.hasPersonSteps === true
-              );
-              
-              return (
-                <tr key={person.id}>
-                  <td style={styles.td}>
-                    {person.fullName}
-                    {isAlreadyAdded && <span style={styles.persistentBadge}>ADDED</span>}
-                  </td>
-                  <td style={styles.td}>{person.email}</td>
-                  {isCellEvent ? (
-                    <>
-                      <td style={styles.td}>{person.leader12 || "—"}</td>
-                      <td style={styles.td}>{person.leader144 || "—"}</td>
-                    </>
-                  ) : (
-                    <>
-                      <td style={styles.td}>{person.invitedBy || "—"}</td>
-                      <td style={styles.td}>{person.phone || "—"}</td>
-                    </>
-                  )}
-                  <td style={{ ...styles.td, textAlign: "center" }}>
-                    <button
-                      style={{ ...styles.iconButton, color: isAlreadyAdded ? "#dc3545" : "#6366f1", cursor: isAlreadyAdded ? "not-allowed" : "pointer", opacity: isAlreadyAdded ? 0.3 : 1 }}
-                      onClick={() => handleAssociatePerson(person)}
-                      disabled={isAlreadyAdded}
-                      title={isAlreadyAdded ? "Already added" : "Add to common attendees"}
-                    >
-                      <UserPlus size={20} />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-    )}
+    </>
+  )}
 
-  </>
-)}
-          </div>
+  {activeTab === 1 && (
+    <>
+      <div style={styles.searchBox}>
+        <Search size={20} style={styles.searchIcon} />
+        <input
+          type="text"
+          placeholder="Search to add person to common attendees..."
+          value={associateSearch}
+          onChange={(e) => setAssociateSearch(e.target.value)}
+          style={{
+            width: "100%",
+            padding: "14px 14px 14px 45px",
+            fontSize: 16,
+            borderRadius: 8,
+            border: `1px solid ${isDarkMode ? theme.palette.divider : '#ccc'}`,
+            backgroundColor: isDarkMode ? theme.palette.background.default : theme.palette.background.paper,
+            color: isDarkMode ? theme.palette.text.primary : '#000',
+            outline: "none",
+            boxSizing: "border-box",
+          }}
+        />
+      </div>
+
+      {isMobile ? (
+        <div>
+          {associatePeople.map((person) => {
+            const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
+            const nameParts = (person.fullName || "").split(" ");
+            const firstName = nameParts[0] || "";
+            const lastName = nameParts.slice(1).join(" ") || "";
+            
+            return (
+              <div key={person.id} style={styles.mobileAttendeeCard}>
+                <div style={styles.mobileCardRow}>
+                  <div style={styles.mobileCardInfo}>
+                    <div style={styles.mobileCardName}>{firstName} {lastName}</div>
+                    <div style={styles.mobileCardEmail}>{person.email}</div>
+                    <div style={{ fontSize: "12px", color: "#666" }}>{getHierarchyLabel(2)}: {person.leader12 || "—"}</div>
+                    <div style={{ fontSize: "12px", color: "#666" }}>{getHierarchyLabel(3)}: {person.leader144 || "—"}</div>
+                    <div style={{ fontSize: "12px", color: "#666" }}>Phone: {person.phone}</div>
+                  </div>
+                  <button
+                    style={{ ...styles.iconButton, color: isAlreadyAdded ? "#dc3545" : "#6366f1", cursor: isAlreadyAdded ? "not-allowed" : "pointer", opacity: isAlreadyAdded ? 0.3 : 1 }}
+                    onClick={() => handleAssociatePerson(person)}
+                    disabled={isAlreadyAdded}
+                    title={isAlreadyAdded ? "Already added" : "Add to common attendees"}
+                  >
+                    <UserPlus size={20} />
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div style={styles.tableContainer}>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>Name</th>
+                <th style={styles.th}>Surname</th>
+                <th style={styles.th}>Email</th>
+                <th style={styles.th}>{getHierarchyLabel(2) || "Leader @12"}</th>
+                <th style={styles.th}>{getHierarchyLabel(3) || "Leader @144"}</th>
+                <th style={styles.th}>Phone</th>
+                <th style={{ ...styles.th, textAlign: "center" }}>Add</th>
+              </tr>
+            </thead>
+            <tbody>
+              {associatePeople.map((person) => {
+                const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
+                const nameParts = (person.fullName || "").split(" ");
+                const firstName = nameParts[0] || "";
+                const lastName = nameParts.slice(1).join(" ") || "";
+                
+                return (
+                  <tr key={person.id}>
+                    <td style={styles.td}>{firstName || "—"}</td>
+                    <td style={styles.td}>{lastName || "—"}</td>
+                    <td style={styles.td}>{person.email || "—"}</td>
+                    <td style={styles.td}>{person.leader12 || "—"}</td>
+                    <td style={styles.td}>{person.leader144 || "—"}</td>
+                    <td style={styles.td}>{person.phone || "—"}</td>
+                    <td style={{ ...styles.td, textAlign: "center" }}>
+                      <button
+                        style={{ ...styles.iconButton, color: isAlreadyAdded ? "#dc3545" : "#6366f1", cursor: isAlreadyAdded ? "not-allowed" : "pointer", opacity: isAlreadyAdded ? 0.3 : 1 }}
+                        onClick={() => handleAssociatePerson(person)}
+                        disabled={isAlreadyAdded}
+                        title={isAlreadyAdded ? "Already added" : "Add to common attendees"}
+                      >
+                        <UserPlus size={20} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  )}
+</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
           <div style={styles.footer}>
             <button style={styles.closeBtn} onClick={onClose}>CLOSE</button>

@@ -5774,18 +5774,19 @@ const getTypeValue = (type) => {
         eventTypes={eventTypes}
       />
 
-      {selectedEvent && (
-        <AttendanceModal
-          isOpen={attendanceModalOpen}
-          onClose={() => {
-            setAttendanceModalOpen(false);
-            setSelectedEvent(null);
-          }}
-          onSubmit={handleAttendanceSubmit}
-          event={selectedEvent}
-          currentUser={currentUser}
-        />
-      )}
+     {selectedEvent && (
+  <AttendanceModal
+    isOpen={attendanceModalOpen}
+    onClose={() => {
+      setAttendanceModalOpen(false);
+      setSelectedEvent(null);
+    }}
+    onSubmit={handleAttendanceSubmit}
+    event={selectedEvent}
+    currentUser={currentUser}
+    isActiveTeams={isActiveTeams}
+  />
+)}
 
       {isAdmin && (
         <EventTypesModal
