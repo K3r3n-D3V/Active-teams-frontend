@@ -1656,7 +1656,7 @@ const loadPersistentAttendees = async (eventId) => {
       `${BACKEND_URL}/events/${eventId}/persistent-attendees`
     );
     if (!response.ok) return;
-    
+
     const data = await response.json();
     const persistentList = data.persistent_attendees || [];
     const checkedInList = data.checked_in_attendees || [];
@@ -1666,22 +1666,20 @@ const loadPersistentAttendees = async (eventId) => {
 
     setPersistentCommonAttendees(persistentList);
 
-    // Set all persistent as unchecked initially
+    // Build checkedIn state — all false by default, only tick if this specific week is complete
     const newCheckedIn = {};
     persistentList.forEach(att => {
       if (att.id) newCheckedIn[att.id] = false;
     });
 
-    // If this week is complete, tick whoever was checked in
     if (isCompleted && checkedInList.length > 0) {
       checkedInList.forEach(att => {
         if (att.id) newCheckedIn[att.id] = true;
       });
     }
-
     setCheckedIn(newCheckedIn);
 
-    // Restore decisions
+    // Restore decisions only if this specific week is complete
     const newDecisions = {};
     const newDecisionTypes = {};
     if (isCompleted) {
@@ -1695,7 +1693,7 @@ const loadPersistentAttendees = async (eventId) => {
     setDecisions(newDecisions);
     setDecisionTypes(newDecisionTypes);
 
-    // Restore headcount
+    // Headcount
     if (isDidNotMeet) {
       setDidNotMeet(true);
       setManualHeadcount("0");
@@ -1785,7 +1783,6 @@ useEffect(() => {
       const cleanDate = event.date.split("T")[0].split(" ")[0];
       eventId = `${event.original_event_id}_${cleanDate}`;
     } else if (event._id && event.date) {
-      // Regular events - also strip time and append clean date
       const cleanDate = event.date.split("T")[0].split(" ")[0];
       eventId = `${event._id}_${cleanDate}`;
     } else {
@@ -1797,6 +1794,7 @@ useEffect(() => {
       return;
     }
 
+    // Reset everything first
     setSearchName("");
     setAssociateSearch("");
     setActiveTab(0);
@@ -1805,41 +1803,13 @@ useEffect(() => {
     setAttendeeTicketInfo({});
     setManualHeadcount("0");
     setDidNotMeet(false);
+    setPersistentCommonAttendees([]);
+    setCheckedIn({});
 
-    const existingAttendees = event.persistent_attendees || [];
-    if (existingAttendees.length > 0) {
-      setPersistentCommonAttendees(existingAttendees);
-      const initialCheckedIn = {};
-      existingAttendees.forEach(att => {
-        if (att.id) initialCheckedIn[att.id] = false;
-      });
-      setCheckedIn(initialCheckedIn);
-      if (isTicketedEvent) {
-        const initialTicketInfo = {};
-        existingAttendees.forEach(att => {
-          if (att.id && att.priceName?.trim()) {
-            initialTicketInfo[att.id] = {
-              priceName: att.priceName,
-              price: att.price ?? 0,
-              ageGroup: att.ageGroup || "",
-              paymentMethod: att.paymentMethod || "",
-            };
-          }
-        });
-        setAttendeeTicketInfo(initialTicketInfo);
-      }
-    } else {
-      setPersistentCommonAttendees([]);
-      setCheckedIn({});
-    }
-
-    const loadAllData = async () => {
-      await loadPersistentAttendees(eventId);
-      await loadEventStatistics();
-    };
-    loadAllData();
+    // Single source of truth — loadPersistentAttendees handles everything
+    loadPersistentAttendees(eventId);
   }
-}, [isOpen, event?._id, event?.id]);
+}, [isOpen, event?._id, event?.id, event?.date]);
 
 const fetchPeople = async (q) => {
   if (!q || !q.trim()) {
@@ -2243,7 +2213,6 @@ const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
             price: savedAtt.price || existing.price || 0,
             ageGroup: savedAtt.ageGroup || existing.ageGroup || "",
             paymentMethod: savedAtt.paymentMethod || existing.paymentMethod || "",
-            checked_in: savedAtt.checked_in !== false,
             decision: savedAtt.decision || existing.decision || "",
             isPersistent: existing.isPersistent || false,
           });
