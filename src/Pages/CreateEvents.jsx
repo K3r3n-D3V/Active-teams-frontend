@@ -36,9 +36,7 @@ function generateUUID() {
     return v.toString(16);
   });
 }
-
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
 // Geoapify
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 const GEOAPIFY_COUNTRY_CODE = (
@@ -68,7 +66,7 @@ const SameWidthPopper = (props) => {
 const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, selectedEventTypeObj }) => {
   const navigate = useNavigate();
   const { id: paramEventID } = useParams();
-  //changed eventId initial value to first check if there's an Id in the params
+  const [autoPopulatedFields, setAutoPopulatedFields] = useState(new Set());
   const [eventId, setEventId] = useState(paramEventID ? paramEventID : null)
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
@@ -377,42 +375,24 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     }
   }, [isTicketedEvent]);
 
-const fetchPeople = async (q) => {
-  if (!q.trim()) {
-    setPeopleData([]);
-    return;
-  }
 
-  try {
-    setIsSearchingPeople(true);
-    const token = localStorage.getItem("access_token");
-        const searchWords = q.trim().split(/\s+/);
-        const res = await fetch(
-      `${BACKEND_URL}/people?name=${encodeURIComponent(q.trim())}&perPage=20`,
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      }
-    );
 
-    if (!res.ok) throw new Error("Failed to fetch people");
-
-    const data = await res.json();
-    let people = data?.results || [];
-        if (searchWords.length > 1 && people.length > 0) {
-      people = people.filter(person => {
-        const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase();
-        const searchLower = q.trim().toLowerCase();
-        // Check if the full name contains all search words
-        return fullName.includes(searchLower) || 
-               searchWords.every(word => fullName.includes(word.toLowerCase()));
-      });
+  const fetchPeople = async (q) => {
+    if (!q.trim()) {
+      setPeopleData([]);
+      return;
     }
-        if (people.length === 0 && searchWords.length > 0) {
-      const allPeopleRes = await fetch(
-        `${BACKEND_URL}/people?perPage=200`,
+
+    try {
+      setIsSearchingPeople(true);
+      const token = localStorage.getItem("access_token");
+      const searchWords = q.trim().split(/\s+/);
+      const firstName = searchWords[0] || "";
+
+      let people = [];
+
+      const res = await fetch(
+        `${BACKEND_URL}/people?name=${encodeURIComponent(firstName)}&perPage=100`,
         {
           headers: {
             Authorization: `Bearer ${token}`,
@@ -420,60 +400,94 @@ const fetchPeople = async (q) => {
           },
         }
       );
-      
-      if (allPeopleRes.ok) {
-        const allData = await allPeopleRes.json();
-        const allPeople = allData?.results || [];
-        
-        // Filter locally to match both name and surname
-        people = allPeople.filter(person => {
+
+      if (!res.ok) throw new Error("Failed to fetch people");
+      const data = await res.json();
+      people = data?.results || [];
+
+      // Filter locally to match ALL search words against full name
+      if (searchWords.length > 1) {
+        people = people.filter((person) => {
           const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase();
-          const searchLower = q.trim().toLowerCase();
-          return fullName.includes(searchLower) || 
-                 searchWords.every(word => fullName.includes(word.toLowerCase()));
-        }).slice(0, 20);
+          return searchWords.every((word) => fullName.includes(word.toLowerCase()));
+        });
       }
+      if (people.length === 0) {
+        const fallbackRes = await fetch(`${BACKEND_URL}/people?perPage=300`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          people = (fallbackData?.results || [])
+            .filter((person) => {
+              const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase();
+              return searchWords.every((word) => fullName.includes(word.toLowerCase()));
+            })
+            .slice(0, 20);
+        }
+      }
+
+      const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
+      const userOrg = (userProfile?.org_id || "").toLowerCase();
+      const userOrgName = (
+        userProfile?.organization ||
+        userProfile?.Organization ||
+        ""
+      ).toLowerCase();
+
+      const formatted = people.map((p) => {
+        const personOrg = (
+          p.org_id || p.Organization || p.Organisation || ""
+        ).toLowerCase();
+        const personOrgAsId = personOrg.replace(/\s+/g, "-");
+        const userOrgAsName = userOrg.replace(/-/g, " ");
+
+        const isDifferentOrg =
+          userOrg &&
+          personOrg &&
+          personOrg !== userOrg &&
+          personOrgAsId !== userOrg &&
+          personOrg !== userOrgAsName &&
+          !personOrg.includes(userOrgAsName) &&
+          !userOrgAsName.includes(personOrg) &&
+          !(userOrgName && personOrg.includes(userOrgName)) &&
+          !(userOrgName && userOrgName.includes(personOrg));
+
+        const leader1 = p["Leader @1"] || "";
+        const leader12 = p["Leader @12"] || "";
+        const leader144 = p["Leader @144"] || "";
+
+        const leaderValues = {};
+        if (leader1) leaderValues.leader1 = leader1;
+        if (leader12) leaderValues.leader12 = leader12;
+        if (leader144) leaderValues.leader144 = leader144;
+
+        return {
+          id: p._id,
+          fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+          email: p.Email || p.email || "",
+          leader1,
+          leader12,
+          leader144,
+          leaderValues,
+          org: personOrg,
+          isDifferentOrg,
+        };
+      });
+
+      setPeopleData(formatted);
+    } catch (err) {
+      console.error("Error fetching people:", err);
+      toast.error(err.message);
+      setPeopleData([]);
+    } finally {
+      setIsSearchingPeople(false);
     }
+  };
 
-    const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
-    const userOrg = (userProfile?.org_id || "").toLowerCase();
-    const userOrgName = (userProfile?.organization || userProfile?.Organization || "").toLowerCase();
-
-    const formatted = people.map((p) => {
-      const personOrg = (p.org_id || p.Organization || p.Organisation || "").toLowerCase();
-      const personOrgAsId = personOrg.replace(/\s+/g, "-");
-      const userOrgAsName = userOrg.replace(/-/g, " ");
-
-      const isDifferentOrg = userOrg && personOrg &&
-        personOrg !== userOrg &&
-        personOrgAsId !== userOrg &&
-        personOrg !== userOrgAsName &&
-        !personOrg.includes(userOrgAsName) &&
-        !userOrgAsName.includes(personOrg) &&
-        !(userOrgName && personOrg.includes(userOrgName)) &&
-        !(userOrgName && userOrgName.includes(personOrg));
-
-      return {
-        id: p._id,
-        fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p.leader1 || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p.leader12 || "",
-        org: personOrg,
-        isDifferentOrg,
-      };
-    });
-
-    setPeopleData(formatted);
-  } catch (err) {
-    console.error("Error fetching people:", err);
-    toast.error(err.message);
-    setPeopleData([]);
-  } finally {
-    setIsSearchingPeople(false);
-  }
-};
-  //
   useEffect(() => {
     const queryString = window.location.search
     const queries = new URLSearchParams(queryString)
@@ -670,8 +684,16 @@ const fetchPeople = async (q) => {
       }
 
       if (hasPersonSteps) {
-        getAllHierarchyLevels().forEach((h) => {
-          if (!formData[h.field]) newErrors[h.field] = `${h.label} is required`;
+        const leaderDepth = [
+          formData.leader1,
+          formData.leader12,
+          formData.leader144,
+        ].filter(Boolean).length;
+        getAllHierarchyLevels().forEach((h, idx) => {
+          if (autoPopulatedFields.has(h.field)) return;
+          if (formData[h.field]) return;
+          if (idx >= leaderDepth && leaderDepth > 0) return;
+          newErrors[h.field] = `${h.label} is required`;
         });
       }
     } else {
@@ -811,7 +833,6 @@ const fetchPeople = async (q) => {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
-          //sending form data 
           body: JSON.stringify(formData)
         })
         : await axios.post(
@@ -1097,41 +1118,51 @@ const fetchPeople = async (q) => {
           )}
 
           <form onSubmit={handleSubmit}>
-            <TextField
-              select
-              label="Event Type *"
-              value={formData.eventType || ""}
-              onChange={(e) => {
-                const selectedName = e.target.value;
-
-                const selectedObj = eventTypes.find(
-                  (et) => et.name === selectedName,
-                );
-
-                setFormData((prev) => ({
-                  ...prev,
-                  eventType: selectedName,
-                }));
-
-                if (selectedObj) {
-                  setEventTypeFlags({
-                    isGlobal: !!selectedObj.isGlobal,
-                    isTicketed: !!selectedObj.isTicketed,
-                    hasPersonSteps: !!selectedObj.hasPersonSteps,
-                  });
-                }
-              }}
-              fullWidth
-              size="small"
-              sx={{ mb: 3, ...darkModeStyles.textField }}
-            >
-              {eventTypes.map((et) => (
-                <MenuItem key={et.id} value={et.name}>
-                  {et.name}
-                </MenuItem>
-              ))}
-            </TextField>
-
+            {selectedEventType || selectedEventTypeObj ? (
+              <TextField
+                label="Event Type"
+                value={formData.eventType || ""}
+                fullWidth
+                size="small"
+                sx={{ mb: 3, ...darkModeStyles.textField }}
+                InputProps={{ readOnly: true }}
+                helperText="Event type is pre-selected"
+              />
+            ) : (
+              <TextField
+                select
+                label="Event Type *"
+                value={formData.eventType || ""}
+                onChange={(e) => {
+                  const selectedName = e.target.value;
+                  const selectedObj = eventTypes.find((et) => et.name === selectedName);
+                  setFormData((prev) => ({ ...prev, eventType: selectedName }));
+                  if (selectedObj) {
+                    setEventTypeFlags({
+                      isGlobal: !!selectedObj.isGlobal,
+                      isTicketed: !!selectedObj.isTicketed,
+                      hasPersonSteps: !!selectedObj.hasPersonSteps,
+                    });
+                  }
+                }}
+                fullWidth
+                size="small"
+                sx={{ mb: 3, ...darkModeStyles.textField }}
+                error={!!errors.eventType}
+                helperText={errors.eventType}
+              >
+                {eventTypes.map((et) => (
+                  <MenuItem key={et.id} value={et.name}>
+                    {et.name}
+                  </MenuItem>
+                ))}
+                {formData.eventType && !eventTypes.find((et) => et.name === formData.eventType) && (
+                  <MenuItem key="__current__" value={formData.eventType} sx={{ display: "none" }}>
+                    {formData.eventType}
+                  </MenuItem>
+                )}
+              </TextField>
+            )}
             <TextField
               label="Event Name *"
               value={formData.eventName}
@@ -1480,8 +1511,6 @@ const fetchPeople = async (q) => {
                 </li>
               )}
             />
-
-            {/* Event Leader section - FIXED with working logic from first version */}
             <Box sx={{ mb: 3, position: "relative" }}>
               <TextField
                 label="Event Leader *"
@@ -1489,10 +1518,11 @@ const fetchPeople = async (q) => {
                 onChange={(e) => {
                   const value = e.target.value;
                   handleChange("eventLeader", value);
-                  setPeopleData([]); // clear old results immediately
-                  if (searchDebounceRef.current)
-                    clearTimeout(searchDebounceRef.current);
-
+                  setPeopleData([]);
+                  if (autoPopulatedFields.size > 0) {
+                    setAutoPopulatedFields(new Set());
+                  }
+                  if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
                   if (value.trim().length >= 2) {
                     searchDebounceRef.current = setTimeout(() => {
                       fetchPeople(value);
@@ -1534,7 +1564,7 @@ const fetchPeople = async (q) => {
                 autoComplete="off"
               />
 
-              {/* Dropdown results - kept improved mouse handlers from second version */}
+              {/* Dropdown results */}
               {peopleData.length > 0 && (
                 <Box
                   sx={{
@@ -1578,16 +1608,19 @@ const fetchPeople = async (q) => {
                         const selectedEmail = person.email;
 
                         if (hasPersonSteps && !isGlobalEvent) {
+                          const populated = new Set(Object.keys(person.leaderValues || {}));
+                          setAutoPopulatedFields(populated);
+
                           setFormData((prev) => ({
                             ...prev,
                             eventLeader: selectedName,
                             eventName: selectedName,
                             eventLeaderEmail: selectedEmail.toLowerCase(),
                             email: selectedEmail.toLowerCase(),
-                            leader1: person.leader1 || "",
-                            leader12: person.leader12 || "",
+                            ...(person.leaderValues || {}),
                           }));
                         } else {
+                          setAutoPopulatedFields(new Set());
                           setFormData((prev) => ({
                             ...prev,
                             eventLeader: selectedName,
@@ -1609,6 +1642,7 @@ const fetchPeople = async (q) => {
                         {person.email}
                         {person.leader1 && ` • L@1: ${person.leader1}`}
                         {person.leader12 && ` • L@12: ${person.leader12}`}
+                        {person.leader144 && ` • L@144: ${person.leader144}`}
                         {person.org && ` • Org: ${person.org}`}
                       </Typography>
                     </Box>
@@ -1630,19 +1664,46 @@ const fetchPeople = async (q) => {
                   helperText={errors.email || "Enter the email for this event"}
                 />
 
-                {getAllHierarchyLevels().map((h) => (
-                  <TextField
-                    key={h.field}
-                    label={`${h.label} *`}
-                    value={formData[h.field] || ""}
-                    onChange={(e) => handleChange(h.field, e.target.value)}
-                    fullWidth
-                    size="small"
-                    sx={{ mb: 2, ...darkModeStyles.textField }}
-                    error={!!errors[h.field]}
-                    helperText={errors[h.field] || `Enter the ${h.label} for this event`}
-                  />
-                ))}
+                {getAllHierarchyLevels().map((h) => {
+                  const isAutoFilled = autoPopulatedFields.has(h.field) && !!formData[h.field];
+                  return (
+                    <TextField
+                      key={h.field}
+                      label={isAutoFilled ? h.label : `${h.label} *`}
+                      value={formData[h.field] || ""}
+                      onChange={(e) => !isAutoFilled && handleChange(h.field, e.target.value)}
+                      fullWidth
+                      size="small"
+                      sx={{
+                        mb: 2,
+                        ...darkModeStyles.textField,
+                        ...(isAutoFilled && {
+                          "& .MuiOutlinedInput-root": {
+                            ...darkModeStyles.textField["& .MuiOutlinedInput-root"],
+                            bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                          },
+                        }),
+                      }}
+                      InputProps={{
+                        readOnly: isAutoFilled,
+                        endAdornment: isAutoFilled ? (
+                          <InputAdornment position="end">
+                            <Typography variant="caption" sx={{ color: "success.main", fontSize: "0.7rem", whiteSpace: "nowrap" }}>
+                              Auto-filled
+                            </Typography>
+                          </InputAdornment>
+                        ) : undefined,
+                      }}
+                      error={!!errors[h.field]}
+                      helperText={
+                        errors[h.field] ||
+                        (isAutoFilled
+                          ? `Auto-filled from ${formData.eventLeader}`
+                          : `Enter the ${h.label} for this event`)
+                      }
+                    />
+                  );
+                })}
               </>
             )}
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
