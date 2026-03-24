@@ -10,6 +10,7 @@ import {
   Menu,
   User
 } from "lucide-react";
+import { CircularProgress, Box, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
 import { useOrgConfig } from "../contexts/OrgConfigContext";
@@ -175,7 +176,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     setIsLoadingPeople(true);
     try {
       const token = localStorage.getItem("access_token");
-     const response = await authFetch(`${BACKEND_URL}/people?perPage=0`, {
+      const response = await authFetch(`${BACKEND_URL}/people?perPage=0`, {
         headers: { Authorization: `Bearer ${token}` }
       });
 
@@ -194,7 +195,46 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
       setIsLoadingPeople(false);
     }
   };
-
+const fetchPeopleFromAPI = async () => {
+  setIsLoadingPeople(true);
+  try {
+    const token = localStorage.getItem("access_token");
+    const headers = { Authorization: `Bearer ${token}` };
+    
+    const res = await authFetch(`${BACKEND_URL}/people?perPage=0`, { headers });
+    if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+    const data = await res.json();
+    
+    const peopleArray = data.results || data.people || [];
+    
+    const formatted = peopleArray.map((person) => {
+      const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
+      return {
+        id: person._id,
+        fullName: fullName,
+        email: person.Email || "",
+        leader1: person["Leader @1"] || person.leader1 || "",
+        leader12: person["Leader @12"] || person.leader12 || "",
+        leader144: person["Leader @144"] || person.leader144 || "",
+        leader1728: person["Leader @1728"] || person.leader1728 || "",
+        phone: person.Number || person.Phone || "",
+        invitedBy: person.InvitedBy || "",
+      };
+    });
+    
+    window.globalPeopleCache = {
+      data: formatted,
+      timestamp: Date.now(),
+      expiry: 5 * 60 * 1000,
+    };
+    setPreloadedPeople(formatted);
+    setPeople(formatted.slice(0, 50));
+  } catch (err) {
+    console.error("Error fetching people:", err);
+  } finally {
+    setIsLoadingPeople(false);
+  }
+};
 
   const peopleOptions = useMemo(() => {
     return peopleList.map((person) => {
@@ -1387,10 +1427,10 @@ const AttendanceModal = ({
   event,
   onAttendanceSubmitted,
   currentUser,
-   isActiveTeams, 
+  isActiveTeams,
 }) => {
   const { authFetch } = useContext(AuthContext);
-  const { getHierarchyLabel} = useOrgConfig();
+  const { getHierarchyLabel } = useOrgConfig();
   const [searchName, setSearchName] = useState("");
   const [activeTab, setActiveTab] = useState(0);
   const [checkedIn, setCheckedIn] = useState({});
@@ -1402,7 +1442,7 @@ const AttendanceModal = ({
   const [, setPeople] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
   const [associateSearch, setAssociateSearch] = useState("");
-  const [loading] = useState(false);
+  const [isLoadingPeople, setIsLoadingPeople] = useState(false);
   const [showAddPersonModal, setShowAddPersonModal] = useState(false);
   const [manualHeadcount, setManualHeadcount] = useState("");
   const [didNotMeet, setDidNotMeet] = useState(false);
@@ -1730,6 +1770,7 @@ const AttendanceModal = ({
 const loadPreloadedPeople = async (forceRefresh = false) => {
   const now = Date.now();
   const CACHE_DURATION = 5 * 60 * 1000;
+  
   if (!forceRefresh && window.globalPeopleCache?.data?.length > 0 &&
       now - window.globalPeopleCache.timestamp < CACHE_DURATION) {
       console.log("Using cached people data in AttendanceModal, count:", window.globalPeopleCache.data.length);
@@ -1739,7 +1780,9 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
       }
       return;
   }
+  
   delete window.globalPeopleCache;
+  setIsLoadingPeople(true); // Start loading
 
   try {
       const token = localStorage.getItem("access_token");
@@ -1752,7 +1795,6 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
       const peopleArray = data.results || data.people || [];
       console.log(`Total people from API: ${peopleArray.length}`);
       
-      // Format the people data
       const formatted = peopleArray.map((person) => {
           const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
           
@@ -1774,7 +1816,8 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
               searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase()
           };
       });
-            window.globalPeopleCache = {
+      
+      window.globalPeopleCache = {
           data: formatted,
           timestamp: now,
           expiry: CACHE_DURATION,
@@ -1787,6 +1830,8 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
       }
   } catch (err) {
       console.error("Error pre-loading people:", err);
+  } finally {
+      setIsLoadingPeople(false); // End loading
   }
 };
   useEffect(() => {
@@ -1853,65 +1898,65 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
     }
   }, [isOpen, event?._id, event?.id]);
 
-const fetchPeople = async (q) => {
-  if (!q || !q.trim()) {
-    if (preloadedPeople.length > 0) {
-      setPeople(preloadedPeople.slice(0, 50));
-    } else {
-      setPeople([]);
-    }
-    return;
-  }
-  
-  const query = q.trim();
-  const queryLower = query.toLowerCase();
-  const searchWords = queryLower.split(/\s+/).filter(w => w.length > 0);
-  
-  if (preloadedPeople.length > 0) {
-    const cachedResults = preloadedPeople.filter(person => {
-      const fullNameLower = person.fullName.toLowerCase();
-      const emailLower = person.email.toLowerCase();
-      if (emailLower.includes(queryLower)) return true;
-      return searchWords.every(word => fullNameLower.includes(word));
-    });
-    if (cachedResults.length > 0) {
-      setPeople(cachedResults);
+  const fetchPeople = async (q) => {
+    if (!q || !q.trim()) {
+      if (preloadedPeople.length > 0) {
+        setPeople(preloadedPeople.slice(0, 50));
+      } else {
+        setPeople([]);
+      }
       return;
     }
-  }
-  
-  try {
-    const res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(query)}`);
-    if (!res.ok) return;
-    
-    const data = await res.json();
-    const results = data.results || data.people || [];
-    
-    const formatted = results.map((person) => {
-      const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
-      const leader12 = person["Leader @12"] || person.leader12 || "";
-      const leader144 = person["Leader @144"] || person.leader144 || "";
-      const leader1 = person["Leader @1"] || person.leader1 || "";
-      
-      return {
-        id: person._id,
-        fullName: fullName,
-        email: person.Email || "",
-        leader1: leader1,
-        leader12: leader12,
-        leader144: leader144,
-        phone: person.Number || person.Phone || "",
-        invitedBy: person.InvitedBy || "",
-        searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase()
-      };
-    });
-    
-    setPeople(formatted);
-  } catch (err) {
-    console.error("Error fetching people:", err);
-    toast.error("Search failed, please try again");
-  }
-};
+
+    const query = q.trim();
+    const queryLower = query.toLowerCase();
+    const searchWords = queryLower.split(/\s+/).filter(w => w.length > 0);
+
+    if (preloadedPeople.length > 0) {
+      const cachedResults = preloadedPeople.filter(person => {
+        const fullNameLower = person.fullName.toLowerCase();
+        const emailLower = person.email.toLowerCase();
+        if (emailLower.includes(queryLower)) return true;
+        return searchWords.every(word => fullNameLower.includes(word));
+      });
+      if (cachedResults.length > 0) {
+        setPeople(cachedResults);
+        return;
+      }
+    }
+
+    try {
+      const res = await authFetch(`${BACKEND_URL}/people?name=${encodeURIComponent(query)}`);
+      if (!res.ok) return;
+
+      const data = await res.json();
+      const results = data.results || data.people || [];
+
+      const formatted = results.map((person) => {
+        const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
+        const leader12 = person["Leader @12"] || person.leader12 || "";
+        const leader144 = person["Leader @144"] || person.leader144 || "";
+        const leader1 = person["Leader @1"] || person.leader1 || "";
+
+        return {
+          id: person._id,
+          fullName: fullName,
+          email: person.Email || "",
+          leader1: leader1,
+          leader12: leader12,
+          leader144: leader144,
+          phone: person.Number || person.Phone || "",
+          invitedBy: person.InvitedBy || "",
+          searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase()
+        };
+      });
+
+      setPeople(formatted);
+    } catch (err) {
+      console.error("Error fetching people:", err);
+      toast.error("Search failed, please try again");
+    }
+  };
 
   const fetchCommonAttendees = async (cellId) => {
     try {
@@ -1969,10 +2014,13 @@ const associatePeople = useMemo(() => {
   const words = query.split(/\s+/).filter(w => w.length > 0);
   return preloadedPeople.filter(person => {
     if (person.email?.toLowerCase().includes(query)) return true;
-    return words.every(word => person.fullName.toLowerCase().includes(word));
+    if (person.fullName.toLowerCase().includes(query)) return true;
+    if (words.length > 1) {
+      return words.every(word => person.fullName.toLowerCase().includes(word));
+    }
+    return false;
   }).slice(0, 100);
 }, [preloadedPeople, associateSearch]);
-
 
   useEffect(() => {
     const checkScreenSize = () => {
@@ -1984,24 +2032,89 @@ const associatePeople = useMemo(() => {
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
 
-  useEffect(() => {
-if (isOpen) {
+useEffect(() => {
+  if (isOpen) {
+    // Load people immediately when modal opens
     const loadPeople = async () => {
+      const now = Date.now();
+      const CACHE_DURATION = 5 * 60 * 1000;
+      
       if (window.globalPeopleCache?.data?.length > 0 && 
-          Date.now() - window.globalPeopleCache.timestamp < 5 * 60 * 1000) {
-        console.log("Using existing cache, not refreshing");
+          now - window.globalPeopleCache.timestamp < CACHE_DURATION) {
+        console.log("Using cached people data in AttendanceModal");
         setPreloadedPeople(window.globalPeopleCache.data);
-        return;
+        setPeople(window.globalPeopleCache.data.slice(0, 50));
+      } else {
+        console.log("Cache empty or expired, loading fresh data");
+        setIsLoadingPeople(true);
+        try {
+          const token = localStorage.getItem("access_token");
+          const headers = { Authorization: `Bearer ${token}` };
+          
+          const res = await authFetch(`${BACKEND_URL}/people?perPage=0`, { headers });
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          const data = await res.json();
+          
+          const peopleArray = data.results || data.people || [];
+          
+          const formatted = peopleArray.map((person) => {
+            const fullName = `${person.Name || ""} ${person.Surname || ""}`.trim();
+            const leader1 = person["Leader @1"] || person.leader1 || "";
+            const leader12 = person["Leader @12"] || person.leader12 || "";
+            const leader144 = person["Leader @144"] || person.leader144 || "";
+            const leader1728 = person["Leader @1728"] || person.leader1728 || "";
+            
+            return {
+              id: person._id,
+              fullName: fullName,
+              email: person.Email || "",
+              leader1: leader1,
+              leader12: leader12,
+              leader144: leader144,
+              leader1728: leader1728,
+              phone: person.Number || person.Phone || "",
+              invitedBy: person.InvitedBy || "",
+              searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase()
+            };
+          });
+          
+          window.globalPeopleCache = {
+            data: formatted,
+            timestamp: now,
+            expiry: CACHE_DURATION,
+          };
+          setPreloadedPeople(formatted);
+          setPeople(formatted.slice(0, 50));
+        } catch (err) {
+          console.error("Error pre-loading people:", err);
+        } finally {
+          setIsLoadingPeople(false);
+        }
       }
-      // Only load if cache is empty or expired
-      console.log("Cache empty or expired, loading fresh data");
-      await loadPreloadedPeople(true);
     };
     
     loadPeople();
   }
-}, [isOpen]);
+}, [isOpen, authFetch, BACKEND_URL]);
+useEffect(() => {
+  if (activeTab !== 1) return;
   
+  // When associate tab is selected, ensure people are loaded
+  if (preloadedPeople.length === 0) {
+    // If no preloaded people, trigger a load
+    const now = Date.now();
+    const CACHE_DURATION = 5 * 60 * 1000;
+    
+    if (window.globalPeopleCache?.data?.length > 0 && 
+        now - window.globalPeopleCache.timestamp < CACHE_DURATION) {
+      setPreloadedPeople(window.globalPeopleCache.data);
+      setPeople(window.globalPeopleCache.data.slice(0, 50));
+    } else {
+      setIsLoadingPeople(true);
+      // The load will happen in the other useEffect
+    }
+  }
+}, [activeTab, preloadedPeople.length]);
   const handleCheckIn = (id) => {
     setCheckedIn((prev) => {
       const isNowChecked = !prev[id];
@@ -2105,154 +2218,154 @@ if (isOpen) {
       return false;
     }
   };
-const handleAssociatePerson = async (person) => {
-  // Check if already added - use a Set or check by ID
-  const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
+  const handleAssociatePerson = async (person) => {
+    // Check if already added - use a Set or check by ID
+    const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
 
-  if (isAlreadyAdded) {
-    toast.info(`${person.fullName} is already in attendees list`);
-    return;
-  }
-  const personWithLeaders = {
-    id: person.id,
-    fullName: person.fullName,
-    email: person.email,
-    leader12: person.leader12 || "",
-    leader144: person.leader144 || "",
-    phone: person.phone || "",
-    invitedBy: person.invitedBy || "",
-    uniqueKey: `${person.id}_${Date.now()}`,
-    ...(isTicketedEvent && { 
-      priceName: "", 
-      price: 0, 
-      ageGroup: "", 
-      paymentMethod: "" 
-    })
-  };
+    if (isAlreadyAdded) {
+      toast.info(`${person.fullName} is already in attendees list`);
+      return;
+    }
+    const personWithLeaders = {
+      id: person.id,
+      fullName: person.fullName,
+      email: person.email,
+      leader12: person.leader12 || "",
+      leader144: person.leader144 || "",
+      phone: person.phone || "",
+      invitedBy: person.invitedBy || "",
+      uniqueKey: `${person.id}_${Date.now()}`,
+      ...(isTicketedEvent && {
+        priceName: "",
+        price: 0,
+        ageGroup: "",
+        paymentMethod: ""
+      })
+    };
 
-  // Update state with the new person
-  const updatedAttendees = [...persistentCommonAttendees, personWithLeaders];
-  setPersistentCommonAttendees(updatedAttendees);
-  setCheckedIn(prev => ({ ...prev, [person.id]: false }));
-  
-  toast.success(`${person.fullName} added to attendees list`);
-  
-  // Save to backend in background
-  saveAllAttendees(updatedAttendees, attendeeTicketInfo).catch(error => {
-    console.error("Background save failed:", error);
-    toast.error("Failed to save to database, but person is added locally");
-  });
-};
-const handleRemoveAttendee = async (personId, personName) => {
-  try {
-    const updatedAttendees = persistentCommonAttendees.filter(
-      (p) => p.id !== personId
-    );
+    // Update state with the new person
+    const updatedAttendees = [...persistentCommonAttendees, personWithLeaders];
     setPersistentCommonAttendees(updatedAttendees);
-    
-    // Remove from checkedIn
-    setCheckedIn((prev) => {
-      const newState = { ...prev };
-      delete newState[personId];
-      return newState;
-    });
+    setCheckedIn(prev => ({ ...prev, [person.id]: false }));
 
-    // Remove from decisions
-    setDecisions((prev) => {
-      const newState = { ...prev };
-      delete newState[personId];
-      return newState;
-    });
+    toast.success(`${person.fullName} added to attendees list`);
 
-    // Remove from decisionTypes
-    setDecisionTypes((prev) => {
-      const newState = { ...prev };
-      delete newState[personId];
-      return newState;
+    // Save to backend in background
+    saveAllAttendees(updatedAttendees, attendeeTicketInfo).catch(error => {
+      console.error("Background save failed:", error);
+      toast.error("Failed to save to database, but person is added locally");
     });
-    if (isTicketedEvent) {
-      setAttendeeTicketInfo(prev => {
+  };
+  const handleRemoveAttendee = async (personId, personName) => {
+    try {
+      const updatedAttendees = persistentCommonAttendees.filter(
+        (p) => p.id !== personId
+      );
+      setPersistentCommonAttendees(updatedAttendees);
+
+      // Remove from checkedIn
+      setCheckedIn((prev) => {
         const newState = { ...prev };
         delete newState[personId];
         return newState;
       });
-    }
-    const success = await saveAllAttendees(updatedAttendees);
 
-    if (success) {
-      toast.success(`${personName} removed from attendees`);
-    } else {
-      toast.error("Failed to remove attendee from database");
-    }
-  } catch (error) {
-    console.error("Error removing attendee:", error);
-    toast.error("Error removing attendee");
-  }
-};
+      // Remove from decisions
+      setDecisions((prev) => {
+        const newState = { ...prev };
+        delete newState[personId];
+        return newState;
+      });
 
-const getAllCommonAttendees = () => {
-  const persistent = [...(persistentCommonAttendees || [])];
-  let savedAttendees = [];
-
-  if (event?.attendance?.attendees?.length > 0) {
-    savedAttendees = event.attendance.attendees;
-  } else if (event?.attendance_data?.attendees?.length > 0) {
-    savedAttendees = event.attendance_data.attendees;
-  } else if (event?.attendees?.length > 0) {
-    savedAttendees = event.attendees;
-  }
-
-  const combinedMap = new Map();
-
-  // Add persistent attendees first
-  persistent.forEach((att) => {
-    if (att && att.id) {
-      const attendeeId = att.id;
-      if (attendeeId && !combinedMap.has(attendeeId)) {
-        combinedMap.set(attendeeId, {
-          id: attendeeId,
-          fullName: att.fullName || att.name || "Unknown Person",
-          email: att.email || "",
-          leader12: att.leader12 || "",
-          leader144: att.leader144 || "",
-          phone: att.phone || "",
-          invitedBy: att.invitedBy || "",
-          priceName: att.priceName || "",
-          price: att.price || 0,
-          ageGroup: att.ageGroup || "",
-          paymentMethod: att.paymentMethod || "",
-          isPersistent: true
+      // Remove from decisionTypes
+      setDecisionTypes((prev) => {
+        const newState = { ...prev };
+        delete newState[personId];
+        return newState;
+      });
+      if (isTicketedEvent) {
+        setAttendeeTicketInfo(prev => {
+          const newState = { ...prev };
+          delete newState[personId];
+          return newState;
         });
       }
-    }
-  });
+      const success = await saveAllAttendees(updatedAttendees);
 
-  // Add saved attendees (only if not already present)
-  savedAttendees.forEach((savedAtt) => {
-    if (savedAtt && savedAtt.id) {
-      const attendeeId = savedAtt.id;
-      if (attendeeId && !combinedMap.has(attendeeId)) {
-        combinedMap.set(attendeeId, {
-          id: attendeeId,
-          fullName: savedAtt.fullName || savedAtt.name || "Unknown Person",
-          email: savedAtt.email || "",
-          leader12: savedAtt.leader12 || "",
-          leader144: savedAtt.leader144 || "",
-          phone: savedAtt.phone || "",
-          priceName: savedAtt.priceName || "",
-          price: savedAtt.price || 0,
-          ageGroup: savedAtt.ageGroup || "",
-          paymentMethod: savedAtt.paymentMethod || "",
-          checked_in: savedAtt.checked_in !== false,
-          decision: savedAtt.decision || "",
-          isPersistent: false,
-        });
+      if (success) {
+        toast.success(`${personName} removed from attendees`);
+      } else {
+        toast.error("Failed to remove attendee from database");
       }
+    } catch (error) {
+      console.error("Error removing attendee:", error);
+      toast.error("Error removing attendee");
     }
-  });
+  };
 
-  return Array.from(combinedMap.values());
-};
+  const getAllCommonAttendees = () => {
+    const persistent = [...(persistentCommonAttendees || [])];
+    let savedAttendees = [];
+
+    if (event?.attendance?.attendees?.length > 0) {
+      savedAttendees = event.attendance.attendees;
+    } else if (event?.attendance_data?.attendees?.length > 0) {
+      savedAttendees = event.attendance_data.attendees;
+    } else if (event?.attendees?.length > 0) {
+      savedAttendees = event.attendees;
+    }
+
+    const combinedMap = new Map();
+
+    // Add persistent attendees first
+    persistent.forEach((att) => {
+      if (att && att.id) {
+        const attendeeId = att.id;
+        if (attendeeId && !combinedMap.has(attendeeId)) {
+          combinedMap.set(attendeeId, {
+            id: attendeeId,
+            fullName: att.fullName || att.name || "Unknown Person",
+            email: att.email || "",
+            leader12: att.leader12 || "",
+            leader144: att.leader144 || "",
+            phone: att.phone || "",
+            invitedBy: att.invitedBy || "",
+            priceName: att.priceName || "",
+            price: att.price || 0,
+            ageGroup: att.ageGroup || "",
+            paymentMethod: att.paymentMethod || "",
+            isPersistent: true
+          });
+        }
+      }
+    });
+
+    // Add saved attendees (only if not already present)
+    savedAttendees.forEach((savedAtt) => {
+      if (savedAtt && savedAtt.id) {
+        const attendeeId = savedAtt.id;
+        if (attendeeId && !combinedMap.has(attendeeId)) {
+          combinedMap.set(attendeeId, {
+            id: attendeeId,
+            fullName: savedAtt.fullName || savedAtt.name || "Unknown Person",
+            email: savedAtt.email || "",
+            leader12: savedAtt.leader12 || "",
+            leader144: savedAtt.leader144 || "",
+            phone: savedAtt.phone || "",
+            priceName: savedAtt.priceName || "",
+            price: savedAtt.price || 0,
+            ageGroup: savedAtt.ageGroup || "",
+            paymentMethod: savedAtt.paymentMethod || "",
+            checked_in: savedAtt.checked_in !== false,
+            decision: savedAtt.decision || "",
+            isPersistent: false,
+          });
+        }
+      }
+    });
+
+    return Array.from(combinedMap.values());
+  };
   const attendeesCount = Object.keys(checkedIn).filter((id) => checkedIn[id]).length;
   console.log("Attendees checked in:", attendeesCount);
   const decisionsCount = Object.keys(decisions).filter((id) => decisions[id]).length;
@@ -3004,10 +3117,6 @@ const getAllCommonAttendees = () => {
 
 
 
-
-
-
-
 <div style={styles.contentArea}>
   {activeTab === 0 && (
     <>
@@ -3044,8 +3153,14 @@ const getAllCommonAttendees = () => {
                 <th style={styles.th}>Attendees Name</th>
                 <th style={styles.th}>Attendees Surname</th>
                 <th style={styles.th}>Attendees Email</th>
-                <th style={styles.th}>Attendees {getHierarchyLabel(2)}</th>
-                <th style={styles.th}>Attendees {getHierarchyLabel(3)}</th>
+                {isActiveTeams ? (
+                  <>
+                    <th style={styles.th}>Attendees {getHierarchyLabel(2)}</th>
+                    <th style={styles.th}>Attendees {getHierarchyLabel(3)}</th>
+                  </>
+                ) : (
+                  <th style={styles.th}>Attendees Invited By</th>
+                )}
                 <th style={styles.th}>Attendees Number</th>
                 {isTicketedEvent && (
                   <>
@@ -3056,7 +3171,7 @@ const getAllCommonAttendees = () => {
                   </>
                 )}
                 <th style={{ ...styles.th, textAlign: "center" }}>Check In</th>
-                {!isTicketedEvent && (
+                {!isTicketedEvent && isActiveTeams && (
                   <th style={{ ...styles.th, textAlign: "center" }}>Decision</th>
                 )}
                 <th style={{ ...styles.th, textAlign: "center", width: "50px" }}>Remove</th>
@@ -3080,8 +3195,14 @@ const getAllCommonAttendees = () => {
                     <td style={styles.td}>{firstName || "—"}</td>
                     <td style={styles.td}>{lastName || "—"}</td>
                     <td style={styles.td}>{person.email || "No email"}</td>
-                    <td style={styles.td}>{person.leader12 || ""}</td>
-                    <td style={styles.td}>{person.leader144 || ""}</td>
+                    {isActiveTeams ? (
+                      <>
+                        <td style={styles.td}>{person.leader12 || ""}</td>
+                        <td style={styles.td}>{person.leader144 || ""}</td>
+                      </>
+                    ) : (
+                      <td style={styles.td}>{person.invitedBy || ""}</td>
+                    )}
                     <td style={styles.td}>{person.phone || ""}</td>
 
                     {isTicketedEvent && (
@@ -3153,7 +3274,7 @@ const getAllCommonAttendees = () => {
                       </button>
                     </td>
 
-                    {!isTicketedEvent && (
+                    {!isTicketedEvent && isActiveTeams && (
                       <td style={{ ...styles.td, ...styles.radioCell }}>
                         {checkedIn[person.id] ? (
                           <div style={styles.decisionDropdown}>
@@ -3266,34 +3387,61 @@ const getAllCommonAttendees = () => {
 
       {isMobile ? (
         <div>
-          {associatePeople.map((person) => {
-            const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
-            const nameParts = (person.fullName || "").split(" ");
-            const firstName = nameParts[0] || "";
-            const lastName = nameParts.slice(1).join(" ") || "";
-            
-            return (
-              <div key={person.id} style={styles.mobileAttendeeCard}>
-                <div style={styles.mobileCardRow}>
-                  <div style={styles.mobileCardInfo}>
-                    <div style={styles.mobileCardName}>{firstName} {lastName}</div>
-                    <div style={styles.mobileCardEmail}>{person.email}</div>
-                    <div style={{ fontSize: "12px", color: "#666" }}>{getHierarchyLabel(2)}: {person.leader12 || "—"}</div>
-                    <div style={{ fontSize: "12px", color: "#666" }}>{getHierarchyLabel(3)}: {person.leader144 || "—"}</div>
-                    <div style={{ fontSize: "12px", color: "#666" }}>Phone: {person.phone}</div>
+          {isLoadingPeople ? (
+            <div style={{ textAlign: "center", padding: "20px" }}>
+              <CircularProgress size={30} />
+              <Typography variant="body2" sx={{ mt: 1, color: theme.palette.text.secondary }}>
+                Loading people...
+              </Typography>
+            </div>
+          ) : associatePeople.length === 0 && associateSearch.trim() === "" ? (
+            <div style={{ textAlign: "center", padding: "20px", color: theme.palette.text.secondary }}>
+              No people found
+            </div>
+          ) : (
+            associatePeople.map((person) => {
+              const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
+              const nameParts = (person.fullName || "").split(" ");
+              const firstName = nameParts[0] || "";
+              const lastName = nameParts.slice(1).join(" ") || "";
+              
+              return (
+                <div key={person.id} style={styles.mobileAttendeeCard}>
+                  <div style={styles.mobileCardRow}>
+                    <div style={styles.mobileCardInfo}>
+                      <div style={styles.mobileCardName}>{firstName} {lastName}</div>
+                      <div style={styles.mobileCardEmail}>{person.email}</div>
+                      {isActiveTeams ? (
+                        <>
+                          <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                            {getHierarchyLabel(2)}: {person.leader12 || "—"}
+                          </div>
+                          <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                            {getHierarchyLabel(3)}: {person.leader144 || "—"}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                          Invited By: {person.invitedBy || "—"}
+                        </div>
+                      )}
+                      <div style={{ fontSize: "12px", color: theme.palette.text.secondary }}>
+                        Phone: {person.phone || "—"}
+                      </div>
+                    </div>
+                    <button
+                      style={{ ...styles.iconButton, color: isAlreadyAdded ? "#dc3545" : "#6366f1", cursor: isAlreadyAdded ? "not-allowed" : "pointer", opacity: isAlreadyAdded ? 0.3 : 1 }}
+                      onClick={() => handleAssociatePerson(person)}
+                      disabled={isAlreadyAdded}
+                      title={isAlreadyAdded ? "Already added" : "Add to common attendees"}
+                    >
+                      <UserPlus size={20} />
+                    </button>
                   </div>
-                  <button
-                    style={{ ...styles.iconButton, color: isAlreadyAdded ? "#dc3545" : "#6366f1", cursor: isAlreadyAdded ? "not-allowed" : "pointer", opacity: isAlreadyAdded ? 0.3 : 1 }}
-                    onClick={() => handleAssociatePerson(person)}
-                    disabled={isAlreadyAdded}
-                    title={isAlreadyAdded ? "Already added" : "Add to common attendees"}
-                  >
-                    <UserPlus size={20} />
-                  </button>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })
+          )}
         </div>
       ) : (
         <div style={styles.tableContainer}>
@@ -3303,40 +3451,71 @@ const getAllCommonAttendees = () => {
                 <th style={styles.th}>Name</th>
                 <th style={styles.th}>Surname</th>
                 <th style={styles.th}>Email</th>
-                <th style={styles.th}>{getHierarchyLabel(2) || "Leader @12"}</th>
-                <th style={styles.th}>{getHierarchyLabel(3) || "Leader @144"}</th>
+                {isActiveTeams ? (
+                  <>
+                    <th style={styles.th}>{getHierarchyLabel(2) || "Leader @12"}</th>
+                    <th style={styles.th}>{getHierarchyLabel(3) || "Leader @144"}</th>
+                  </>
+                ) : (
+                  <th style={styles.th}>Invited By</th>
+                )}
                 <th style={styles.th}>Phone</th>
                 <th style={{ ...styles.th, textAlign: "center" }}>Add</th>
               </tr>
             </thead>
             <tbody>
-              {associatePeople.map((person) => {
-                const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
-                const nameParts = (person.fullName || "").split(" ");
-                const firstName = nameParts[0] || "";
-                const lastName = nameParts.slice(1).join(" ") || "";
-                
-                return (
-                  <tr key={person.id}>
-                    <td style={styles.td}>{firstName || "—"}</td>
-                    <td style={styles.td}>{lastName || "—"}</td>
-                    <td style={styles.td}>{person.email || "—"}</td>
-                    <td style={styles.td}>{person.leader12 || "—"}</td>
-                    <td style={styles.td}>{person.leader144 || "—"}</td>
-                    <td style={styles.td}>{person.phone || "—"}</td>
-                    <td style={{ ...styles.td, textAlign: "center" }}>
-                      <button
-                        style={{ ...styles.iconButton, color: isAlreadyAdded ? "#dc3545" : "#6366f1", cursor: isAlreadyAdded ? "not-allowed" : "pointer", opacity: isAlreadyAdded ? 0.3 : 1 }}
-                        onClick={() => handleAssociatePerson(person)}
-                        disabled={isAlreadyAdded}
-                        title={isAlreadyAdded ? "Already added" : "Add to common attendees"}
-                      >
-                        <UserPlus size={20} />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {isLoadingPeople ? (
+                <tr>
+                  <td colSpan="7" style={{ ...styles.td, textAlign: "center" }}>
+                    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 2, py: 3 }}>
+                      <CircularProgress size={24} />
+                      <Typography variant="body2" sx={{ color: theme.palette.text.secondary }}>
+                        Loading people...
+                      </Typography>
+                    </Box>
+                  </td>
+                </tr>
+              ) : associatePeople.length === 0 && associateSearch.trim() === "" ? (
+                <tr>
+                  <td colSpan="7" style={{ ...styles.td, textAlign: "center", color: theme.palette.text.secondary }}>
+                    No people found
+                  </td>
+                </tr>
+              ) : (
+                associatePeople.map((person) => {
+                  const isAlreadyAdded = persistentCommonAttendees.some((p) => p.id === person.id);
+                  const nameParts = (person.fullName || "").split(" ");
+                  const firstName = nameParts[0] || "";
+                  const lastName = nameParts.slice(1).join(" ") || "";
+                  
+                  return (
+                    <tr key={person.id}>
+                      <td style={styles.td}>{firstName || "—"}</td>
+                      <td style={styles.td}>{lastName || "—"}</td>
+                      <td style={styles.td}>{person.email || "—"}</td>
+                      {isActiveTeams ? (
+                        <>
+                          <td style={styles.td}>{person.leader12 || "—"}</td>
+                          <td style={styles.td}>{person.leader144 || "—"}</td>
+                        </>
+                      ) : (
+                        <td style={styles.td}>{person.invitedBy || "—"}</td>
+                      )}
+                      <td style={styles.td}>{person.phone || "—"}</td>
+                      <td style={{ ...styles.td, textAlign: "center" }}>
+                        <button
+                          style={{ ...styles.iconButton, color: isAlreadyAdded ? "#dc3545" : "#6366f1", cursor: isAlreadyAdded ? "not-allowed" : "pointer", opacity: isAlreadyAdded ? 0.3 : 1 }}
+                          onClick={() => handleAssociatePerson(person)}
+                          disabled={isAlreadyAdded}
+                          title={isAlreadyAdded ? "Already added" : "Add to common attendees"}
+                        >
+                          <UserPlus size={20} />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
         </div>
@@ -3344,29 +3523,6 @@ const getAllCommonAttendees = () => {
     </>
   )}
 </div>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -3453,14 +3609,12 @@ const getAllCommonAttendees = () => {
           </div>
         </div>
       )}
-
       <AddPersonToEvents
         isOpen={showAddPersonModal}
         onClose={() => setShowAddPersonModal(false)}
         onPersonAdded={handlePersonAdded}
         event={event}
       />
-
       <style>
         {`
           input[type="text"]:focus, input[type="text"]:active,

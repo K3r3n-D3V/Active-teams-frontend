@@ -985,8 +985,22 @@ const isValidObjectId = (id) => {
 const Events = () => {
   const { authFetch, logout } = React.useContext(AuthContext);
   const { orgConfig, configLoaded } = useOrgConfig();
-  const isActiveTeams = configLoaded && orgConfig?.org_id === "active-teams";
-console.log("ORG CONFIG:===============", orgConfig?.org_id, "isActiveTeams:", isActiveTeams);
+  
+  // Get user from localStorage immediately (available on login)
+  const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+  const userOrganization = currentUser?.Organization || currentUser?.organization || "";
+  const userOrgId = currentUser?.org_id || "";
+  
+  // Determine isActiveTeams immediately from user data
+  const isActiveTeams = userOrgId === "active-teams" || userOrganization === "Active Church";
+  
+  console.log("ORG CONFIG:===============", {
+    userOrgId,
+    userOrganization,
+    isActiveTeams,
+    orgConfigLoaded: configLoaded,
+    orgConfigId: orgConfig?.org_id
+  });
 
   const theme = useTheme();
   const isMobileView = useMediaQuery(theme.breakpoints.down("lg"));
@@ -997,11 +1011,9 @@ console.log("ORG CONFIG:===============", orgConfig?.org_id, "isActiveTeams:", i
   }, [isDarkMode, theme]);
   console.log(eventTypeStyles);
 
-  const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userRole = currentUser?.role || "";
-
   const normalizedRole = userRole.toLowerCase();
-
+  
   const isAdmin = normalizedRole === "admin";
   const isRegistrant = normalizedRole === "registrant";
   const isRegularUser = normalizedRole === "user";
@@ -1447,69 +1459,75 @@ const allEventTypes = useMemo(() => {
   return typeNames;
 }, [eventTypes]);
 
-  const fetchEventsFilters = (filters) => {
-    const params = {
-      page: filters.page || currentPage,
-      limit: filters.limit || rowsPerPage,
-      start_date: filters.start_date || DEFAULT_API_START_DATE,
-      status: filters.status || selectedStatus || "incomplete",
-    };
-
-    if (filters.search) params.search = filters.search;
-    if (filters.event_type) {
-      params.event_type = filters.event_type;
-    }
-
-    const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
-    const userEmail = currentUser?.email || "";
-    console.log("Current user email:", userEmail);
-    const userName = currentUser?.name || "";
-    const userFirstName =
-      currentUser?.firstName || userName?.split(" ")[0] || "";
-    const userSurname =
-      currentUser?.surname || userName?.split(" ").slice(1).join(" ") || "";
-    let endpoint = `${BACKEND_URL}/events`;
-
-    const eventType = filters.event_type || selectedEventTypeFilter;
-    const isCellType = isActiveTeams && (!eventType || eventType === "CELLS" || eventType === "all" || eventType.toLowerCase() === "cells" || eventType.toLowerCase().includes("cell"));
-
-    if (isCellType) {
-      endpoint = `${BACKEND_URL}/events/cells`;
-      params.firstName = userFirstName;
-      params.userSurname = userSurname;
-
-      if (isLeaderAt12) {
-        params.leader_at_12_view = true;
-        params.isLeaderAt12 = true;
-
-        if (viewFilter === "personal") {
-          params.personal = true;
-          params.show_personal_cells = true;
-        } else {
-          // For "DISCIPLES" view
-          params.include_subordinate_cells = true;
-          params.show_all_authorized = true;
-        }
-      } else if (isAdmin) {
-        if (viewFilter === "personal") params.personal = true;
-      } else {
-        // For regular users, registrants, leaders - show personal cells only
-        params.personal = true;
-      }
-    } else {
-      endpoint = `${BACKEND_URL}/events/eventsdata`;
-      delete params.personal;
-      delete params.leader_at_12_view;
-      delete params.include_subordinate_cells;
-      delete params.show_personal_cells;
-      delete params.show_all_authorized;
-      delete params.leader_at_1_identifier;
-      delete params.isLeaderAt12;
-      delete params.firstName;
-      delete params.userSurname;
-    }
-    return [params, endpoint];
+const fetchEventsFilters = (filters) => {
+  const params = {
+    page: filters.page || currentPage,
+    limit: filters.limit || rowsPerPage,
+    start_date: filters.start_date || DEFAULT_API_START_DATE,
+    status: filters.status || selectedStatus || "incomplete",
   };
+
+  if (filters.search) params.search = filters.search;
+  if (filters.event_type) {
+    params.event_type = filters.event_type;
+  }
+
+  const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
+  const userEmail = currentUser?.email || "";
+  console.log("Current user email:", userEmail);
+  const userName = currentUser?.name || "";
+  const userFirstName =
+    currentUser?.firstName || userName?.split(" ")[0] || "";
+  const userSurname =
+    currentUser?.surname || userName?.split(" ").slice(1).join(" ") || "";
+  let endpoint = `${BACKEND_URL}/events`;
+
+  const eventType = filters.event_type || selectedEventTypeFilter;
+  
+  // Use user's organization to determine if it's a cell event
+  const userOrg = currentUser?.Organization || currentUser?.organization || "";
+  const userOrgId = currentUser?.org_id || "";
+  const isCellOrg = userOrgId === "active-teams" || userOrg === "Active Church";
+  
+  const isCellType = isCellOrg && (!eventType || eventType === "CELLS" || eventType === "all" || eventType.toLowerCase() === "cells" || eventType.toLowerCase().includes("cell"));
+
+  if (isCellType) {
+    endpoint = `${BACKEND_URL}/events/cells`;
+    params.firstName = userFirstName;
+    params.userSurname = userSurname;
+
+    if (isLeaderAt12) {
+      params.leader_at_12_view = true;
+      params.isLeaderAt12 = true;
+
+      if (viewFilter === "personal") {
+        params.personal = true;
+        params.show_personal_cells = true;
+      } else {
+        // For "DISCIPLES" view
+        params.include_subordinate_cells = true;
+        params.show_all_authorized = true;
+      }
+    } else if (isAdmin) {
+      if (viewFilter === "personal") params.personal = true;
+    } else {
+      // For regular users, registrants, leaders - show personal cells only
+      params.personal = true;
+    }
+  } else {
+    endpoint = `${BACKEND_URL}/events/eventsdata`;
+    delete params.personal;
+    delete params.leader_at_12_view;
+    delete params.include_subordinate_cells;
+    delete params.show_personal_cells;
+    delete params.show_all_authorized;
+    delete params.leader_at_1_identifier;
+    delete params.isLeaderAt12;
+    delete params.firstName;
+    delete params.userSurname;
+  }
+  return [params, endpoint];
+};
     const fetchEvents = useCallback(
       async (filters = {}, showLoader = true, isSearching = false) => {
         console.log("isSearching:", isSearching);
