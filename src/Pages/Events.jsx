@@ -1455,7 +1455,6 @@ ${xmlCols}
 
 const allEventTypes = useMemo(() => {
   const typeNames = eventTypes.map((t) => (typeof t === "string" ? t : t.name));
-  // Don't filter here - just return all types from database
   return typeNames;
 }, [eventTypes]);
 
@@ -1483,9 +1482,7 @@ const fetchEventsFilters = (filters) => {
   let endpoint = `${BACKEND_URL}/events`;
 
   const eventType = filters.event_type || selectedEventTypeFilter;
-  
-  // Use user's organization to determine if it's a cell event
-  const userOrg = currentUser?.Organization || currentUser?.organization || "";
+    const userOrg = currentUser?.Organization || currentUser?.organization || "";
   const userOrgId = currentUser?.org_id || "";
   const isCellOrg = userOrgId === "active-teams" || userOrg === "Active Church";
   
@@ -1612,7 +1609,6 @@ const fetchEventTypes = useCallback(async () => {
     const eventTypesData = await response.json();
     
     let filteredTypes = eventTypesData.filter((type) => {
-      // For Active Teams, remove any "Cells" event type (system-generated or otherwise)
       if (isActiveTeams && (type.name === "Cells" || type.name === "CELLS" || type.name?.toLowerCase() === "cells")) {
         console.log("Removing Cells event type for Active Teams");
         return false;
@@ -1749,9 +1745,7 @@ const getFilteredEventTypes = (allEventTypes) => {
     let filtered = allEventTypes.filter(() => {
       return isAdmin || isLeaderAt12 || isRegistrant || isLeader;
     });
-    
-    // Also filter out CELLS here in case of error
-    if (isActiveTeams) {
+        if (isActiveTeams) {
       filtered = filtered.filter(type => {
         const typeName = typeof type === "string" ? type : type.name || type;
         return typeName !== "CELLS";
@@ -2661,15 +2655,11 @@ const getFilteredEventTypes = (allEventTypes) => {
     }
 
     if (event.isTicketed === true){
-      //checking if event is a ticketed event and setting it as a query
       let url = new URL(window.location.href);
       url.searchParams.set("eventId", eventId);
       window.history.pushState({}, "", url);
       setSelectedEventTypeObj(event)
-      //open create event model and it will fetch events data so it can be editted
-      //  - will get event from query string
       setCreateEventModalOpen(true);
-      //return so editEvent model does not open
       return
     }
 
@@ -3854,7 +3844,6 @@ const filteredEventTypes = useMemo(() => {
         console.log("Filtering out Cells from event types:", name);
         return false;
       }
-      // Keep all other types including "all" (but "all" won't be in database anyway)
       return true;
     });
 

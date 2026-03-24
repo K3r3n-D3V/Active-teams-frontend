@@ -1703,8 +1703,6 @@ const AttendanceModal = ({
       persistentList.forEach(att => {
         if (att.id) newCheckedIn[att.id] = false;
       });
-
-      // Only tick people if this specific date's attendance is complete
       if (isCompleted && data.attendance_status !== "did_not_meet") {
         checkedInList.forEach(att => {
           if (att.id) newCheckedIn[att.id] = true;
@@ -1782,7 +1780,7 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
   }
   
   delete window.globalPeopleCache;
-  setIsLoadingPeople(true); // Start loading
+  setIsLoadingPeople(true); 
 
   try {
       const token = localStorage.getItem("access_token");
@@ -1831,7 +1829,7 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
   } catch (err) {
       console.error("Error pre-loading people:", err);
   } finally {
-      setIsLoadingPeople(false); // End loading
+      setIsLoadingPeople(false); 
   }
 };
   useEffect(() => {
@@ -1842,7 +1840,6 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
         const cleanDate = event.date.split("T")[0].split(" ")[0];
         eventId = `${event.original_event_id}_${cleanDate}`;
       } else if (event._id && event.date) {
-        // Regular events - also strip time and append clean date
         const cleanDate = event.date.split("T")[0].split(" ")[0];
         eventId = `${event._id}_${cleanDate}`;
       } else {
@@ -2034,7 +2031,6 @@ const associatePeople = useMemo(() => {
 
 useEffect(() => {
   if (isOpen) {
-    // Load people immediately when modal opens
     const loadPeople = async () => {
       const now = Date.now();
       const CACHE_DURATION = 5 * 60 * 1000;
@@ -2098,9 +2094,7 @@ useEffect(() => {
 }, [isOpen, authFetch, BACKEND_URL]);
 useEffect(() => {
   if (activeTab !== 1) return;
-  
-  // When associate tab is selected, ensure people are loaded
-  if (preloadedPeople.length === 0) {
+    if (preloadedPeople.length === 0) {
     // If no preloaded people, trigger a load
     const now = Date.now();
     const CACHE_DURATION = 5 * 60 * 1000;
@@ -2111,7 +2105,6 @@ useEffect(() => {
       setPeople(window.globalPeopleCache.data.slice(0, 50));
     } else {
       setIsLoadingPeople(true);
-      // The load will happen in the other useEffect
     }
   }
 }, [activeTab, preloadedPeople.length]);
@@ -2219,7 +2212,6 @@ useEffect(() => {
     }
   };
   const handleAssociatePerson = async (person) => {
-    // Check if already added - use a Set or check by ID
     const isAlreadyAdded = persistentCommonAttendees.some(p => p.id === person.id);
 
     if (isAlreadyAdded) {
@@ -2243,14 +2235,11 @@ useEffect(() => {
       })
     };
 
-    // Update state with the new person
     const updatedAttendees = [...persistentCommonAttendees, personWithLeaders];
     setPersistentCommonAttendees(updatedAttendees);
     setCheckedIn(prev => ({ ...prev, [person.id]: false }));
 
     toast.success(`${person.fullName} added to attendees list`);
-
-    // Save to backend in background
     saveAllAttendees(updatedAttendees, attendeeTicketInfo).catch(error => {
       console.error("Background save failed:", error);
       toast.error("Failed to save to database, but person is added locally");
