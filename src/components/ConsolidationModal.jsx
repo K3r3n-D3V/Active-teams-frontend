@@ -19,13 +19,65 @@ import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
-const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [], consolidatedPeople = [], currentEventId }) => {
+function resolveLeadersFromPerson(person) {
+  if (!person) return {};
+
+  if (Array.isArray(person.leaders) && person.leaders.length > 0) {
+    const map = {};
+    for (const l of person.leaders) {
+      if (l?.level != null && l?.name) {
+        map[`leader${l.level}`] = l.name;
+      }
+    }
+    if (Object.keys(map).length > 0) return map;
+  }
+
+  const map = {};
+  for (const key of Object.keys(person)) {
+    if (/^leader\d+$/.test(key) && person[key]) map[key] = person[key];
+  }
+  if (Object.keys(map).length > 0) return map;
+
+  return {
+    leader1: person["Leader @1"] || person.leader1 || "",
+    leader12: person["Leader @12"] || person.leader12 || "",
+    leader144: person["Leader @144"] || person.leader144 || "",
+    leader1728: person["Leader @1728"] || person.leader1728 || "",
+  };
+}
+
+function getHighestAvailableLeader(person) {
+  const leaders = resolveLeadersFromPerson(person);
+
+  const entries = Object.entries(leaders)
+    .map(([key, name]) => ({
+      level: parseInt(key.replace("leader", ""), 10),
+      name: name || "",
+    }))
+    .filter(e => !isNaN(e.level) && e.name.trim())
+    .sort((a, b) => b.level - a.level);
+
+  if (entries.length > 0) {
+    const top = entries[0];
+    return { leader: top.name, level: top.level, hasLeader: true };
+  }
+
+  return { leader: "No Leader Assigned", level: 0, hasLeader: false };
+}
+
+const ConsolidationModal = ({
+  open,
+  onClose,
+  onFinish,
+  attendeesWithStatus = [],
+  consolidatedPeople = [],
+  currentEventId,
+}) => {
   const [recipient, setRecipient] = useState(null);
   const [assignedTo, setAssignedTo] = useState("");
   const [dateTime, setDateTime] = useState("");
   const [taskStage, setTaskStage] = useState("");
   const [loading, setLoading] = useState(false);
-
   const [recipients, setRecipients] = useState([]);
   const [loadingRecipients, setLoadingRecipients] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -35,40 +87,29 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
 
   const { authFetch } = useContext(AuthContext);
 
-  const decisionTypes = [
-    "First Time",
-    "Recommitment"
-  ];
+  const decisionTypes = ["First Time", "Recommitment"];
 
   const debouncedSearch = useCallback(
     debounce(async (query) => {
-      if (!query || query.length < 2) {
-        setRecipients([]);
-        return;
-      }
-
+      if (!query || query.length < 2) { setRecipients([]); return; }
       try {
         setLoadingRecipients(true);
         setError("");
-
-
-        const response = await authFetch(`${BASE_URL}/people/search?query=${encodeURIComponent(query.trim())}&limit=25&fields=Name,Surname,Phone,Email,Leader @1,Leader @12,Leader @144,Leader @1728,leader1,leader12,leader144,leader1728,Stage,DecisionHistory`);
-
+        const response = await authFetch(
+          `${BASE_URL}/people/search?query=${encodeURIComponent(query.trim())}&limit=25`
+        );
         if (response.ok) {
           const data = await response.json();
-          if (data && Array.isArray(data.results)) {
-            setRecipients(data.results);
-          } else if (data && Array.isArray(data)) {
-            setRecipients(data);
-          } else {
-            setRecipients([]);
-          }
+          setRecipients(
+            Array.isArray(data.results) ? data.results
+              : Array.isArray(data) ? data
+                : []
+          );
         } else {
           setRecipients([]);
-          throw new Error("Search request failed");
         }
       } catch (err) {
-        console.error("Error fetching recipients:", err);
+        console.error("Search error:", err);
         setError("Failed to search people. Please try again.");
         setRecipients([]);
       } finally {
@@ -79,23 +120,17 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   );
 
   const searchLocalAttendees = useCallback((query) => {
-    if (!query || query.length < 2) {
-      setRecipients([]);
-      return;
-    }
-
-    const searchTerm = query.toLowerCase().trim();
-    const filtered = attendeesWithStatus.filter(person => {
-      const searchString = `${person.name || ''} ${person.surname || ''} ${person.email || ''} ${person.phone || ''}`.toLowerCase();
-      return searchString.includes(searchTerm);
+    if (!query || query.length < 2) { setRecipients([]); return; }
+    const term = query.toLowerCase().trim();
+    const filtered = attendeesWithStatus.filter(p => {
+      const s = `${p.name || ''} ${p.surname || ''} ${p.email || ''} ${p.phone || ''}`.toLowerCase();
+      return s.includes(term);
     });
-
     setRecipients(filtered.slice(0, 25));
   }, [attendeesWithStatus]);
 
   const handleSearch = useCallback((query) => {
     setSearchQuery(query);
-
     if (attendeesWithStatus.length > 0) {
       searchLocalAttendees(query);
     } else {
@@ -120,97 +155,50 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
   const checkIfAlreadyConsolidated = useCallback((person) => {
     if (!person) return false;
 
-    const personEmail = person.Email || person.email;
-    const personName = `${person.Name || person.name} ${person.Surname || person.surname}`.trim().toLowerCase();
+    if (!consolidatedPeople || consolidatedPeople.length === 0) return false;
 
-    const isInConsolidatedList = consolidatedPeople.some(consolidated => {
-      const consolidatedEmail = consolidated.email || consolidated.person_email;
-      const consolidatedName = `${consolidated.name || consolidated.person_name} ${consolidated.surname || consolidated.person_surname}`.trim().toLowerCase();
+    const personEmail = (person.Email || person.email || "").trim().toLowerCase();
+    const personFirstName = (person.Name || person.name || "").trim().toLowerCase();
+    const personLastName = (person.Surname || person.surname || "").trim().toLowerCase();
+    const personFullName = `${personFirstName} ${personLastName}`.trim();
 
-      return (personEmail && consolidatedEmail && personEmail.toLowerCase() === consolidatedEmail.toLowerCase()) ||
-        (personName === consolidatedName);
+    if (!personEmail && !personFullName) return false;
+
+    return consolidatedPeople.some((c) => {
+      const cEmail = (c.email || c.person_email || "").trim().toLowerCase();
+      const cFirstName = (c.name || c.person_name || "").trim().toLowerCase();
+      const cLastName = (c.surname || c.person_surname || "").trim().toLowerCase();
+      const cFullName = `${cFirstName} ${cLastName}`.trim();
+
+      if (personEmail && cEmail && personEmail === cEmail) return true;
+
+      if (
+        personFullName &&
+        cFullName &&
+        personFullName.length > 2 &&
+        cFullName.length > 2 &&
+        personFullName === cFullName
+      ) {
+        return true;
+      }
+
+      return false;
     });
-
-    const hasConsolidationStage = person.Stage === "Consolidate";
-    const hasDecisionHistory = person.DecisionHistory && person.DecisionHistory.length > 0;
-
-    console.log("Consolidation check for:", personName, {
-      isInConsolidatedList,
-      hasConsolidationStage,
-      hasDecisionHistory,
-      stage: person.Stage,
-      decisionHistory: person.DecisionHistory
-    });
-
-    return isInConsolidatedList || hasConsolidationStage || hasDecisionHistory;
   }, [consolidatedPeople]);
-
-  const getHighestAvailableLeader = (person) => {
-    const leader1 = person["Leader @1"] || person.leader1;
-    const leader12 = person["Leader @12"] || person.leader12;
-    const leader144 = person["Leader @144"] || person.leader144;
-    const leader1728 = person["Leader @1728"] || person.leader1728;
-
-    console.log("Person's leader relationships:", {
-      leader1,
-      leader12,
-      leader144,
-      leader1728
-    });
-
-    if (leader1728 && leader1728.trim()) {
-      console.log("Assigning to highest leader: Leader @1728:", leader1728);
-      return {
-        leader: leader1728,
-        level: 1728,
-        hasLeader: true
-      };
-    } else if (leader144 && leader144.trim()) {
-      console.log("Assigning to highest leader: Leader @144:", leader144);
-      return {
-        leader: leader144,
-        level: 144,
-        hasLeader: true
-      };
-    } else if (leader12 && leader12.trim()) {
-      console.log("Assigning to highest leader: Leader @12:", leader12);
-      return {
-        leader: leader12,
-        level: 12,
-        hasLeader: true
-      };
-    } else if (leader1 && leader1.trim()) {
-      console.log("Assigning to highest leader: Leader @1:", leader1);
-      return {
-        leader: leader1,
-        level: 1,
-        hasLeader: true
-      };
-    } else {
-      console.log("No leaders found for person");
-      return {
-        leader: "No Leader Assigned",
-        level: 0,
-        hasLeader: false
-      };
-    }
-  };
 
   useEffect(() => {
     if (recipient) {
       const leaderInfo = getHighestAvailableLeader(recipient);
       setAssignedTo(leaderInfo.leader);
 
-      const isAlreadyConsolidated = checkIfAlreadyConsolidated(recipient);
-      setAlreadyConsolidated(isAlreadyConsolidated);
+      const isAlready = checkIfAlreadyConsolidated(recipient);
+      setAlreadyConsolidated(isAlready);
 
-      if (isAlreadyConsolidated) {
+      if (isAlready) {
         setError("This person has already been consolidated. Please select someone else.");
       } else {
         setError("");
       }
-
-      console.log("Auto-assigned to highest leader:", leaderInfo);
     } else {
       setAssignedTo("");
       setAlreadyConsolidated(false);
@@ -218,229 +206,143 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     }
   }, [recipient, checkIfAlreadyConsolidated]);
 
-  const handleTaskStageChange = (event) => {
-    setTaskStage(event.target.value);
-    console.log("Decision type changed to:", event.target.value);
-  };
-
-
-  const findLeaderEmail = async (leaderName) => {
-    if (!leaderName || leaderName === "No Leader Assigned") return "";
-
-    try {
-
-      const response = await authFetch(`${BASE_URL}/people/search?query=${encodeURIComponent(leaderName)}&limit=5&fields=Name,Email,FullName`);
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data?.results?.length > 0) {
-          const foundLeader = data.results.find(person =>
-            person.Name?.toLowerCase() === leaderName.toLowerCase() ||
-            person.FullName?.toLowerCase() === leaderName.toLowerCase()
-          );
-
-          if (foundLeader?.Email) {
-            console.log(`Found leader email via API: ${foundLeader.Email}`);
-            return foundLeader.Email;
-          }
-        }
-      }
-
-      console.log(`Could not find email for leader: ${leaderName}`);
-      return "";
-
-    } catch (error) {
-      console.error("Error searching for leader email:", error);
-      return "";
-    }
-  };
-
-
   const handleFinish = async () => {
-    if (isSubmitting) {
-      console.log("Submission already in progress, ignoring click");
+    if (isSubmitting) return;
+
+    setError("");
+
+    if (!recipient) {
+      setError("Please select a person for consolidation");
+      return;
+    }
+    if (!taskStage) {
+      setError("Please select a decision type");
+      return;
+    }
+
+    const isAlready = checkIfAlreadyConsolidated(recipient);
+    if (isAlready) {
+      setAlreadyConsolidated(true);
+      setError("This person has already been consolidated. Please select someone else.");
+      return;
+    }
+
+    const leaderInfo = getHighestAvailableLeader(recipient);
+    if (!leaderInfo.hasLeader) {
+      setError("Cannot create consolidation task: No leader available for this person.");
       return;
     }
 
     setIsSubmitting(true);
     setLoading(true);
 
-    if (!recipient) {
-      setError("Please select a person for consolidation");
-      setIsSubmitting(false);
-      setLoading(false);
-      return;
-    }
+    const decisionType =
+      taskStage.toLowerCase() === "recommitment" ? "recommitment" : "first_time";
 
-    if (!taskStage) {
-      setError("Please select a decision type");
-      setIsSubmitting(false);
-      setLoading(false);
-      return;
-    }
-
-    if (alreadyConsolidated) {
-      setError("This person has already been consolidated and cannot be consolidated again.");
-      setIsSubmitting(false);
-      setLoading(false);
-      return;
-    }
-
-    const leaderInfo = getHighestAvailableLeader(recipient);
-
-    if (!leaderInfo.hasLeader) {
-      setError("Cannot create consolidation task: No leader available for assignment");
-      setIsSubmitting(false);
-      setLoading(false);
-      return;
-    }
-
-    const finalCheck = checkIfAlreadyConsolidated(recipient);
-    if (finalCheck) {
-      setError("This person has already been consolidated. Please select someone else.");
-      setIsSubmitting(false);
-      setLoading(false);
-      return;
-    }
-
-
-    console.log("PRE-CONSOLIDATION CHECK - Person status:", {
-      name: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
-      email: recipient.Email || recipient.email,
-      isCheckedIn: false,
-      action: "Creating consolidation task only"
-    });
-
-    const decisionType = taskStage.toLowerCase() === 'recommitment' ? 'recommitment' : 'first_time';
+    const leadersMap = resolveLeadersFromPerson(recipient);
+    const leadersArray = [
+      leadersMap.leader1 || "",
+      leadersMap.leader12 || "",
+      leadersMap.leader144 || "",
+      leadersMap.leader1728 || "",
+    ];
 
     try {
-      const leaderEmail = await findLeaderEmail(leaderInfo.leader);
-
       const consolidationData = {
-        person_name: recipient.Name || recipient.name,
-        person_surname: recipient.Surname || recipient.surname,
+        person_name: recipient.Name || recipient.name || "",
+        person_surname: recipient.Surname || recipient.surname || "",
         person_email: recipient.Email || recipient.email || "",
         person_phone: recipient.Phone || recipient.phone || "",
         decision_type: decisionType,
-        decision_date: new Date().toISOString().split('T')[0],
+        decision_date: new Date().toISOString().split("T")[0],
         assigned_to: leaderInfo.leader,
-        assigned_to_email: leaderEmail,
+        assigned_to_email: "",
         event_id: currentEventId,
-        leaders: [
-          recipient["Leader @1"] || recipient.leader1 || "",
-          recipient["Leader @12"] || recipient.leader12 || "",
-          recipient["Leader @144"] || recipient.leader144 || "",
-          recipient["Leader @1728"] || recipient.leader1728 || ""
-        ],
-
-        is_check_in: false,
-        attendance_status: "not_checked_in",
-        source: "service_consolidation"
+        leaders: leadersArray,
+        source: "service_consolidation",
+        person_data: {
+          id: recipient._id || recipient.id || "",
+          name: recipient.Name || recipient.name || "",
+          surname: recipient.Surname || recipient.surname || "",
+          email: recipient.Email || recipient.email || "",
+          phone: recipient.Phone || recipient.phone || "",
+        },
       };
 
+      console.log("Consolidation payload:", consolidationData);
 
-      const response = await authFetch(`${BASE_URL}/consolidations`, {
-        method: "POST",
-        body: JSON.stringify(consolidationData),
-      });
+      const response = await authFetch(
+        `${BASE_URL}/service-checkin/create-consolidation`,
+        {
+          method: "POST",
+          body: JSON.stringify(consolidationData),
+        }
+      );
 
       if (response.ok) {
         const responseData = await response.json();
-        console.log("Consolidation creation response:", responseData);
-
-
-        onFinish({
-          ...responseData,
-          recipientName: `${recipient.Name || recipient.name} ${recipient.Surname || recipient.surname}`,
-          assignedTo: leaderInfo.leader,
-          taskStage: taskStage,
-          decisionType: decisionType,
-          leaderLevel: leaderInfo.level,
-          task_id: responseData.task_id,
-          recipient_email: recipient.Email || recipient.email || "",
-          recipient_phone: recipient.Phone || recipient.phone || "",
-          leader_email: leaderEmail,
-
-          isConsolidationOnly: true
-        });
-
-        onClose();
-
-
         setRecipient(null);
         setAssignedTo("");
         setTaskStage("");
         setAlreadyConsolidated(false);
+        setError("");
         setIsSubmitting(false);
-      } else {
-        const errorData = await response.json();
-        console.error("Consolidation creation failed:", {
-          status: response.status,
-          data: errorData,
+        setLoading(false);
+
+        onClose();
+
+        onFinish({
+          ...responseData,
+          recipientName: `${recipient.Name || recipient.name || ""} ${recipient.Surname || recipient.surname || ""}`.trim(),
+          assignedTo: responseData.assigned_to || leaderInfo.leader,
+          taskStage,
+          decisionType,
+          leaderLevel: leaderInfo.level,
+          task_id: responseData.task_id,
+          recipient_email: recipient.Email || recipient.email || "",
+          recipient_phone: recipient.Phone || recipient.phone || "",
+          leader_email: responseData.assigned_to_email || "",
+          isConsolidationOnly: true,
         });
-
-        setIsSubmitting(false);
-
-        if (errorData && errorData.detail) {
-          setError(`Server error: ${errorData.detail}`);
-        } else {
-          setError(`Server error: ${response.status} - ${errorData?.message || 'Unknown error'}`);
-        }
-      }
-
-    } catch (err) {
-      console.error("Error creating consolidation:", err);
-
-      setIsSubmitting(false);
-
-      if (err.message) {
-        setError(`Error: ${err.message}`);
       } else {
-        setError("An unexpected error occurred. Please try again.");
+        const errorData = await response.json().catch(() => ({}));
+        setError(
+          errorData?.detail
+            ? `Error: ${errorData.detail}`
+            : `Server error (${response.status})`
+        );
+        setIsSubmitting(false);
+        setLoading(false);
       }
-    } finally {
+    } catch (err) {
+      console.error("Consolidation error:", err);
+      setError(err.message || "An unexpected error occurred. Please try again.");
+      setIsSubmitting(false);
       setLoading(false);
     }
   };
 
-  const handleKeyPress = (event) => {
-    if (event.key === 'Enter') {
-      event.preventDefault();
-      if (recipients.length > 0 && !recipient) {
-        setRecipient(recipients[0]);
-      }
-    }
-  };
-
   const roundedInput = {
-    "& .MuiOutlinedInput-root": {
-      borderRadius: "15px",
-    },
+    "& .MuiOutlinedInput-root": { borderRadius: "15px" },
   };
 
   const renderPersonOption = (props, option) => {
     const fullName = `${option.Name || option.name || ""} ${option.Surname || option.surname || ""}`.trim();
     const isConsolidated = checkIfAlreadyConsolidated(option);
-
     return (
       <li {...props} key={option._id || option.id}>
         <Box>
           <Typography variant="body1">
             {fullName}
             {isConsolidated && (
-              <Typography
-                component="span"
-                variant="caption"
-                color="error"
-                sx={{ ml: 1 }}
-              >
+              <Typography component="span" variant="caption" color="error" sx={{ ml: 1 }}>
                 (Already Consolidated)
               </Typography>
             )}
           </Typography>
-          {option.Email && (
+          {(option.Email || option.email) && (
             <Typography variant="caption" color="text.secondary">
-              {option.Email}
+              {option.Email || option.email}
             </Typography>
           )}
         </Box>
@@ -448,19 +350,22 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
     );
   };
 
+  const isSubmitDisabled =
+    loading ||
+    isSubmitting ||
+    !recipient ||
+    !taskStage ||
+    !assignedTo ||
+    assignedTo === "No Leader Assigned" ||
+    alreadyConsolidated;
+
   return (
     <Dialog
       open={open}
       onClose={onClose}
       fullWidth
       maxWidth="sm"
-      PaperProps={{
-        sx: {
-          borderRadius: 3,
-          m: 2,
-          maxHeight: '90vh',
-        },
-      }}
+      PaperProps={{ sx: { borderRadius: 3, m: 2, maxHeight: "90vh" } }}
     >
       <DialogTitle sx={{ pb: 1 }}>
         <Typography variant="h5" component="div">
@@ -492,9 +397,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           }
           value={recipient}
           onChange={(e, newValue) => setRecipient(newValue)}
-          onInputChange={(e, newInputValue) => {
-            handleSearch(newInputValue);
-          }}
+          onInputChange={(e, newInputValue) => handleSearch(newInputValue)}
           filterOptions={(x) => x}
           renderOption={renderPersonOption}
           noOptionsText={
@@ -509,7 +412,6 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
               margin="normal"
               fullWidth
               required
-              onKeyPress={handleKeyPress}
               placeholder="Search by name..."
               helperText="Search for the person who made a decision"
               sx={roundedInput}
@@ -525,8 +427,8 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           disabled
           helperText={
             assignedTo === "No Leader Assigned"
-              ? "Warning: No leader available for assignment"
-              : "Automatically assigned to person's highest level leader"
+              ? "Warning: No leader found for this person"
+              : "Automatically assigned to this person's direct leader"
           }
           color={assignedTo === "No Leader Assigned" ? "warning" : "primary"}
           sx={roundedInput}
@@ -546,12 +448,12 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           select
           label="Decision Type *"
           value={taskStage}
-          onChange={handleTaskStageChange}
+          onChange={(e) => setTaskStage(e.target.value)}
           fullWidth
           margin="normal"
           required
-          error={!taskStage}
-          helperText={!taskStage ? "Please select the decision made" : "Select the type of decision the person made"}
+          error={!taskStage && isSubmitting}
+          helperText={!taskStage && isSubmitting ? "Please select the decision made" : ""}
           sx={roundedInput}
         >
           {decisionTypes.map((type) => (
@@ -572,7 +474,11 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
       </DialogContent>
 
       <DialogActions sx={{ p: 2 }}>
-        <Button onClick={onClose} color="inherit" disabled={loading || isSubmitting}>
+        <Button
+          onClick={onClose}
+          color="inherit"
+          disabled={loading || isSubmitting}
+        >
           Cancel
         </Button>
         <LoadingButton
@@ -580,7 +486,7 @@ const ConsolidationModal = ({ open, onClose, onFinish, attendeesWithStatus = [],
           variant="contained"
           color="primary"
           loading={loading}
-          disabled={loading || isSubmitting || !recipient || !taskStage || !assignedTo || assignedTo === "No Leader Assigned" || alreadyConsolidated}
+          disabled={isSubmitDisabled}
           sx={{ minWidth: 100 }}
         >
           {isSubmitting ? "Saving..." : "Save"}
