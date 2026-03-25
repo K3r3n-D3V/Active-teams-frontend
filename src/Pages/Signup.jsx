@@ -1,4 +1,4 @@
-import React, { useState, useContext, useEffect } from "react";
+import React, { useState, useContext, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Box,
@@ -25,14 +25,13 @@ import Brightness7Icon from "@mui/icons-material/Brightness7";
 import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
 import { AuthContext } from "../contexts/AuthContext";
+import axios from "axios";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
-// Geoapify
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
-const GEOAPIFY_COUNTRY_CODE = "za"; // locked to South Africa
+const GEOAPIFY_COUNTRY_CODE = "za";
 
 const WelcomeOverlay = ({ name, mode }) => {
   const pieces = Array.from({ length: 90 }).map((_, index) => {
@@ -42,21 +41,9 @@ const WelcomeOverlay = ({ name, mode }) => {
     const rotate = Math.random() * 360;
     const dur = 2 + Math.random() * 1.5;
     const delay = Math.random() * 0.6;
-    const colors = [
-      "#f94144",
-      "#f3722c",
-      "#f8961e",
-      "#f9844a",
-      "#f9c74f",
-      "#90be6d",
-      "#43aa8b",
-      "#577590",
-      "#9b5de5",
-      "#00bbf9",
-    ];
+    const colors = ["#f94144","#f3722c","#f8961e","#f9844a","#f9c74f","#90be6d","#43aa8b","#577590","#9b5de5","#00bbf9"];
     const backgroundColor = colors[Math.floor(Math.random() * colors.length)];
     const borderRadius = Math.random() > 0.6 ? `${size / 2}px` : "2px";
-
     return (
       <Box
         key={index}
@@ -85,15 +72,9 @@ const WelcomeOverlay = ({ name, mode }) => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background:
-          mode === "dark" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.65)",
+        background: mode === "dark" ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.65)",
         backdropFilter: "blur(2px)",
         overflow: "hidden",
-        "@keyframes fall": {
-          "0%": { transform: "translate3d(0, -10vh, 0) rotate(0deg)", opacity: 1 },
-          "80%": { opacity: 1 },
-          "100%": { transform: "translate3d(0, 110vh, 0) rotate(360deg)", opacity: 0.6 },
-        },
       }}
     >
       <Box sx={{ position: "absolute", inset: 0, pointerEvents: "none" }}>{pieces}</Box>
@@ -112,12 +93,9 @@ const WelcomeOverlay = ({ name, mode }) => {
         }}
       >
         <Typography variant="h5" fontWeight="bold" gutterBottom>
-          Welcome{name ? ", " : ""}
-          {name || "Friend"}!
+          Welcome{name ? ", " : ""}{name || "Friend"}!
         </Typography>
-        <Typography variant="body1">
-          Your account is ready. Taking you to your dashboard...
-        </Typography>
+        <Typography variant="body1">Your account is ready. Taking you to your dashboard...</Typography>
       </Box>
     </Box>
   );
@@ -136,7 +114,7 @@ const initialForm = {
   gender: "",
   password: "",
   confirm_password: "",
-  organization: "", // Added organization field
+  organization: "",
 };
 
 const Signup = ({ onSignup, mode, setMode }) => {
@@ -145,6 +123,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const navigate = useNavigate();
   const { setUserProfile } = useContext(UserContext);
   const { login } = useContext(AuthContext);
+
   const [showWelcome, setShowWelcome] = useState(false);
   const [welcomeName, setWelcomeName] = useState("");
   const isDark = mode === "dark";
@@ -156,7 +135,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
     closeOnClick: true,
     pauseOnHover: true,
     draggable: true,
-    progress: undefined,
     theme: isDark ? "dark" : "light",
   };
 
@@ -165,37 +143,33 @@ const Signup = ({ onSignup, mode, setMode }) => {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  
-  // Organizations state
+
+  // People Cache for Invited By
+  const [allPeople, setAllPeople] = useState([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [cacheLoading, setCacheLoading] = useState(true);
+  const [cacheError, setCacheError] = useState("");
+
+  // Organizations & Address
   const [organizations, setOrganizations] = useState([]);
   const [orgsLoading, setOrgsLoading] = useState(false);
   const [orgsError, setOrgsError] = useState("");
-
-  // Geoapify address autocomplete
   const [addressOptions, setAddressOptions] = useState([]);
   const [addressLoading, setAddressLoading] = useState(false);
   const [addressError, setAddressError] = useState("");
   const [selectedAddress, setSelectedAddress] = useState(null);
-
-  // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
 
-  // Fetch organizations on component mount
+  // Fetch Organizations
   useEffect(() => {
     const fetchOrganizations = async () => {
       setOrgsLoading(true);
       setOrgsError("");
       try {
         const response = await fetch(`${BACKEND_URL}/organizations`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch organizations");
-        }
+        if (!response.ok) throw new Error("Failed to fetch organizations");
         const data = await response.json();
-        if (data.success && Array.isArray(data.organizations)) {
-          setOrganizations(data.organizations);
-        } else {
-          setOrganizations([]);
-        }
+        setOrganizations(data.success && Array.isArray(data.organizations) ? data.organizations : []);
       } catch (error) {
         console.error("Error fetching organizations:", error);
         setOrgsError("Could not load organizations. You can still type manually.");
@@ -204,119 +178,62 @@ const Signup = ({ onSignup, mode, setMode }) => {
         setOrgsLoading(false);
       }
     };
-
     fetchOrganizations();
   }, [BACKEND_URL]);
 
+  // Fetch People from Cache (Public Endpoint)
   useEffect(() => {
-    if (!navigator.geolocation) return;
-
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setBiasLonLat({
-          lat: pos.coords.latitude,
-          lon: pos.coords.longitude,
+    const fetchAllPeople = async () => {
+      try {
+        setCacheLoading(true);
+        setCacheError("");
+        const response = await axios.get(`${BACKEND_URL}/cache/people`);
+        if (response.data.success) {
+          setAllPeople(response.data.cached_data || []);
+        } else {
+          throw new Error("Failed to load cache");
+        }
+      } catch (err) {
+        console.error("Cache fetch error:", err);
+        toast.error("Failed to load people data. You can still type names manually.", {
+          ...toastOptions,
+          autoClose: 5000,
         });
-      },
-      () => {
-        setBiasLonLat(null);
-      },
-      { enableHighAccuracy: true, timeout: 8000 }
-    );
-  }, []);
+        setCacheError("Failed to load people data. You can still type names manually.");
+      } finally {
+        setCacheLoading(false);
+      }
+    };
+    fetchAllPeople();
+  }, [BACKEND_URL]);
 
-  const inputFieldSx = {
-    "& .MuiOutlinedInput-root": {
-      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
-      borderRadius: 3,
-      "& fieldset": {
-        borderColor: isDark ? "#333333" : "#e0e0e0",
-      },
-      "&:hover fieldset": {
-        borderColor: isDark ? "#555555" : "#b0b0b0",
-      },
-      "&.Mui-focused": {
-        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
-      },
-      "&.Mui-focused fieldset": {
-        borderColor: "#42a5f5",
-      },
-    },
-    "& .MuiInputBase-input": {
-      color: isDark ? "#ffffff" : "#000000",
-      bgcolor: "transparent !important",
-      "&:-webkit-autofill": {
-        WebkitBoxShadow: isDark
-          ? "0 0 0 100px #1a1a1a inset !important"
-          : "0 0 0 100px #f8f9fa inset !important",
-        WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
-        transition: "background-color 5000s ease-in-out 0s",
-      },
-      "&:focus": {
-        bgcolor: "transparent !important",
-      },
-    },
-    "& .MuiInputLabel-root": {
-      color: isDark ? "#999999" : "#666666",
-      "&.Mui-focused": {
-        color: "#42a5f5",
-      },
-    },
-    "& .MuiInputBase-root": {
-      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
-      "&.Mui-focused": {
-        bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
-      },
-    },
-    "& .MuiFormHelperText-root": {
-      color: isDark ? "#999999" : "#666666",
-    },
-  };
-
-  // Geoapify Autocomplete (debounced, SA only)
+  // Geoapify Address Autocomplete
   useEffect(() => {
     if (!GEOAPIFY_API_KEY) {
-      setAddressError("Geoapify API key is missing. Add VITE_GEOAPIFY_API_KEY in your .env file.");
+      setAddressError("Geoapify API key is missing.");
       return;
     }
-
     const query = (form.home_address || "").trim();
     if (query.length < 3) {
       setAddressOptions([]);
       setAddressError("");
       return;
     }
-
     let isActive = true;
     const controller = new AbortController();
-
     const timer = setTimeout(async () => {
       try {
         setAddressLoading(true);
         setAddressError("");
-
         const biasParam = biasLonLat
           ? `&bias=proximity:${encodeURIComponent(biasLonLat.lon)},${encodeURIComponent(biasLonLat.lat)}`
           : "";
-
-        const url =
-          `https://api.geoapify.com/v1/geocode/autocomplete` +
-          `?text=${encodeURIComponent(query)}` +
-          `&limit=10` +
-          `&lang=en` +
-          `&filter=countrycode:${encodeURIComponent(GEOAPIFY_COUNTRY_CODE)}` +
-          biasParam +
-          `&format=json` +
-          `&apiKey=${encodeURIComponent(GEOAPIFY_API_KEY)}`;
-
+        const url = `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(query)}&limit=10&lang=en&filter=countrycode:${encodeURIComponent(GEOAPIFY_COUNTRY_CODE)}${biasParam}&format=json&apiKey=${encodeURIComponent(GEOAPIFY_API_KEY)}`;
         const res = await fetch(url, { signal: controller.signal });
         if (!res.ok) throw new Error("Address lookup failed");
-
         const data = await res.json();
         if (!isActive) return;
-
         const results = Array.isArray(data?.results) ? data.results : [];
-
         const mapped = results
           .map((r) => ({
             label: r.formatted || "",
@@ -329,7 +246,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
             lon: r.lon,
           }))
           .filter((x) => x.label);
-
         setAddressOptions(mapped);
       } catch (e) {
         if (e?.name === "AbortError") return;
@@ -339,13 +255,64 @@ const Signup = ({ onSignup, mode, setMode }) => {
         if (isActive) setAddressLoading(false);
       }
     }, 350);
-
     return () => {
       isActive = false;
       controller.abort();
       clearTimeout(timer);
     };
   }, [form.home_address, biasLonLat]);
+
+  // Filter People for Autocomplete
+  const filteredPeople = useMemo(() => {
+    if (!searchQuery || searchQuery.length < 1) return allPeople.slice(0, 100);
+    const query = searchQuery.toLowerCase().trim();
+    return allPeople
+      .filter((person) => {
+        const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase().trim();
+        const email = (person.Email || "").toLowerCase();
+        return fullName.includes(query) || email.includes(query);
+      })
+      .sort((a, b) => {
+        const aName = `${a.Name || ""} ${a.Surname || ""}`.toLowerCase().trim();
+        const bName = `${b.Name || ""} ${b.Surname || ""}`.toLowerCase().trim();
+        if (aName.startsWith(query) && !bName.startsWith(query)) return -1;
+        if (!aName.startsWith(query) && bName.startsWith(query)) return 1;
+        return aName.length - bName.length;
+      })
+      .slice(0, 50);
+  }, [allPeople, searchQuery]);
+
+  const autocompleteOptions = useMemo(() => {
+    return filteredPeople.map((person) => ({
+      ...person,
+      label: `${person.Name || ""} ${person.Surname || ""}`.trim() || "Unknown Name",
+      key: person._id || person.key,
+    }));
+  }, [filteredPeople]);
+
+  const inputFieldSx = {
+    "& .MuiOutlinedInput-root": {
+      bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
+      borderRadius: 3,
+      "& fieldset": { borderColor: isDark ? "#333333" : "#e0e0e0" },
+      "&:hover fieldset": { borderColor: isDark ? "#555555" : "#b0b0b0" },
+      "&.Mui-focused fieldset": { borderColor: "#42a5f5" },
+    },
+    "& .MuiInputBase-input": {
+      color: isDark ? "#ffffff" : "#000000",
+      "&:-webkit-autofill": {
+        WebkitBoxShadow: isDark ? "0 0 0 100px #1a1a1a inset !important" : "0 0 0 100px #f8f9fa inset !important",
+        WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
+      },
+    },
+    "& .MuiInputLabel-root": {
+      color: isDark ? "#999999" : "#666666",
+      "&.Mui-focused": { color: "#42a5f5" },
+    },
+    "& .MuiFormHelperText-root": {
+      color: isDark ? "#999999" : "#666666",
+    },
+  };
 
   const validate = () => {
     const newErrors = {};
@@ -359,11 +326,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
     else if (!/\S+@\S+\.\S+/.test(form.email)) newErrors.email = "Invalid email";
     if (!form.gender) newErrors.gender = "Select a gender";
     if (!form.organization?.trim()) newErrors.organization = "Organization/Church is required";
+    if (!form.invited_by?.trim()) newErrors.invited_by = "Invited by is required";
     if (!form.password) newErrors.password = "Password is required";
     else if (form.password.length < 6) newErrors.password = "Password must be at least 6 characters";
     if (!form.confirm_password) newErrors.confirm_password = "Confirm your password";
     else if (form.confirm_password !== form.password) newErrors.confirm_password = "Passwords do not match";
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -375,52 +342,40 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
-  const handleOrganizationChange = (e) => {
-    const orgValue = e.target.value;
-    setForm((prev) => ({ ...prev, organization: orgValue }));
-    if (errors.organization) {
-      setErrors((prev) => ({ ...prev, organization: "" }));
-    }
-  };
-
   const handleInvitedByChange = (event, newValue) => {
     const invitedByValue = newValue && typeof newValue === "object" ? (newValue.label || "") : (newValue || "");
-    const invitedById =
-      newValue && typeof newValue === "object"
-        ? (newValue._id || newValue.key || "")
-        : "";
-
+    const invitedById = newValue && typeof newValue === "object" ? (newValue._id || newValue.key || "") : "";
     setForm((prev) => ({ ...prev, invited_by: invitedByValue, invited_by_id: invitedById }));
     if (errors.invited_by) setErrors((prev) => ({ ...prev, invited_by: "" }));
   };
 
+  const handleSearchChange = (event, value, reason) => {
+    setSearchQuery(value);
+    if (reason === "input") {
+      setForm((prev) => ({ ...prev, invited_by: value || "", invited_by_id: "" }));
+      if (errors.invited_by) setErrors((prev) => ({ ...prev, invited_by: "" }));
+    }
+  };
+
   const handleGenderChange = (e) => {
     const genderVal = e.target.value;
-    setForm((prev) => ({
-      ...prev,
-      gender: genderVal,
-    }));
+    setForm((prev) => ({ ...prev, gender: genderVal }));
     if (errors.gender) setErrors((prev) => ({ ...prev, gender: "" }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validate()) return;
-
     setLoading(true);
-
     const submitData = { ...form };
     delete submitData.confirm_password;
-
     try {
       const res = await fetch(`${BACKEND_URL}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(submitData),
       });
-
       const data = await res.json();
-
       if (!res.ok) {
         toast.error(data?.detail || "Signup failed. Please try again.", toastOptions);
       } else {
@@ -433,26 +388,20 @@ const Signup = ({ onSignup, mode, setMode }) => {
           email: submitData.email,
           gender: submitData.gender,
           organization: submitData.organization,
+          invited_by:submitData.invited_by,
         };
-
         setUserProfile(userData);
         if (onSignup) onSignup(submitData);
-
         try {
           await login(submitData.email, submitData.password);
           toast.success("You've been signed up!", toastOptions);
         } catch (loginErr) {
-          toast.error("Signup successful, but automatic login failed. Please log in.", {
-            ...toastOptions,
-            autoClose: 5000,
-          });
+          toast.error("Signup successful, but automatic login failed. Please log in.", { ...toastOptions, autoClose: 5000 });
           navigate("/login");
           return;
         }
-
         setWelcomeName(submitData.name || submitData.email);
         setShowWelcome(true);
-
         setTimeout(() => {
           setForm(initialForm);
           setShowWelcome(false);
@@ -482,7 +431,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
       }}
     >
       <ToastContainer limit={1} containerStyle={{ zIndex: 99999 }} />
-
       {showWelcome && <WelcomeOverlay name={welcomeName} mode={mode} />}
 
       <Box sx={{ position: "absolute", top: 16, right: 16 }}>
@@ -495,9 +443,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           sx={{
             color: mode === "dark" ? "#fff" : "#000",
             backgroundColor: mode === "dark" ? "#1f1f1f" : "#e0e0e0",
-            "&:hover": {
-              backgroundColor: mode === "dark" ? "#2c2c2c" : "#c0c0c0",
-            },
+            "&:hover": { backgroundColor: mode === "dark" ? "#2c2c2c" : "#c0c0c0" },
           }}
         >
           {mode === "dark" ? <Brightness7Icon /> : <Brightness4Icon />}
@@ -526,7 +472,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
               maxWidth: "100%",
               objectFit: "contain",
               filter: mode === "dark" ? "invert(1)" : "none",
-              transition: "filter 0.3s ease-in-out",
             }}
           />
         </Box>
@@ -535,102 +480,21 @@ const Signup = ({ onSignup, mode, setMode }) => {
           FILL IN YOUR DETAILS
         </Typography>
 
+        {cacheError && <Alert severity="warning" sx={{ borderRadius: 2 }}>{cacheError}</Alert>}
+
         <Box component="form" onSubmit={handleSubmit} display="flex" flexDirection="column" gap={3}>
           <Box display="grid" gridTemplateColumns={{ xs: "1fr", sm: "1fr 1fr" }} gap={2.5}>
             {/* Name */}
-            <TextField
-              label="Name"
-              name="name"
-              value={form.name}
-              onChange={handleChange}
-              error={!!errors.name}
-              helperText={errors.name}
-              fullWidth
-              sx={{
-                ...inputFieldSx,
-                "& .MuiOutlinedInput-root": {
-                  ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  "& fieldset": {
-                    borderColor: errors.name ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
-                  },
-                },
-                "& .MuiFormHelperText-root": {
-                  color: errors.name ? theme.palette.error.main : isDark ? "#999999" : "#666666",
-                },
-              }}
-            />
+            <TextField label="Name" name="name" value={form.name} onChange={handleChange} error={!!errors.name} helperText={errors.name} fullWidth sx={inputFieldSx} />
 
             {/* Surname */}
-            <TextField
-              label="Surname"
-              name="surname"
-              value={form.surname}
-              onChange={handleChange}
-              error={!!errors.surname}
-              helperText={errors.surname}
-              fullWidth
-              sx={{
-                ...inputFieldSx,
-                "& .MuiOutlinedInput-root": {
-                  ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  "& fieldset": {
-                    borderColor: errors.surname ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
-                  },
-                },
-                "& .MuiFormHelperText-root": {
-                  color: errors.surname ? theme.palette.error.main : isDark ? "#999999" : "#666666",
-                },
-              }}
-            />
+            <TextField label="Surname" name="surname" value={form.surname} onChange={handleChange} error={!!errors.surname} helperText={errors.surname} fullWidth sx={inputFieldSx} />
 
             {/* Date of Birth */}
-            <TextField
-              label="Date Of Birth"
-              name="date_of_birth"
-              type="date"
-              value={form.date_of_birth}
-              onChange={handleChange}
-              error={!!errors.date_of_birth}
-              helperText={errors.date_of_birth}
-              fullWidth
-              InputLabelProps={{ shrink: true }}
-              sx={{
-                ...inputFieldSx,
-                "& .MuiOutlinedInput-root": {
-                  ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  "& fieldset": {
-                    borderColor: errors.date_of_birth ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
-                  },
-                },
-                "& .MuiFormHelperText-root": {
-                  color: errors.date_of_birth ? theme.palette.error.main : isDark ? "#999999" : "#666666",
-                },
-              }}
-            />
+            <TextField label="Date Of Birth" name="date_of_birth" type="date" value={form.date_of_birth} onChange={handleChange} error={!!errors.date_of_birth} helperText={errors.date_of_birth} fullWidth InputLabelProps={{ shrink: true }} sx={inputFieldSx} />
 
             {/* Email */}
-            <TextField
-              label="Email Address"
-              name="email"
-              type="email"
-              value={form.email}
-              onChange={handleChange}
-              error={!!errors.email}
-              helperText={errors.email}
-              fullWidth
-              sx={{
-                ...inputFieldSx,
-                "& .MuiOutlinedInput-root": {
-                  ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  "& fieldset": {
-                    borderColor: errors.email ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
-                  },
-                },
-                "& .MuiFormHelperText-root": {
-                  color: errors.email ? theme.palette.error.main : isDark ? "#999999" : "#666666",
-                },
-              }}
-            />
+            <TextField label="Email Address" name="email" type="email" value={form.email} onChange={handleChange} error={!!errors.email} helperText={errors.email} fullWidth sx={inputFieldSx} />
 
             {/* Home Address */}
             <Box sx={{ gridColumn: { xs: "1", sm: "1" } }}>
@@ -645,55 +509,23 @@ const Signup = ({ onSignup, mode, setMode }) => {
                   if (errors.home_address) setErrors((prev) => ({ ...prev, home_address: "" }));
                 }}
                 onChange={(event, newValue) => {
-                  const formatted =
-                    typeof newValue === "string"
-                      ? newValue
-                      : newValue?.formatted || newValue?.label || "";
-
+                  const formatted = typeof newValue === "string" ? newValue : newValue?.formatted || newValue?.label || "";
                   setSelectedAddress(typeof newValue === "string" ? null : newValue);
                   setForm((prev) => ({ ...prev, home_address: formatted }));
-
                   if (errors.home_address) setErrors((prev) => ({ ...prev, home_address: "" }));
                 }}
                 getOptionLabel={(option) => (typeof option === "string" ? option : option.label || "")}
                 filterOptions={(x) => x}
                 loading={addressLoading}
-                ListboxProps={{
-                  sx: {
-                    bgcolor: isDark ? "#1a1a1a" : "#ffffff",
-                    "& .MuiAutocomplete-option": {
-                      color: isDark ? "#ffffff" : "#000000",
-                      "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" },
-                      "&[aria-selected='true']": {
-                        bgcolor: isDark ? "#333333" : "#e0e0e0",
-                        "&:hover": { bgcolor: isDark ? "#3a3a3a" : "#d5d5d5" },
-                      },
-                    },
-                  },
-                }}
-                PaperComponent={({ children }) => (
-                  <Paper
-                    sx={{
-                      bgcolor: isDark ? "#1a1a1a" : "#ffffff",
-                      border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}`,
-                    }}
-                  >
-                    {children}
-                  </Paper>
-                )}
+                ListboxProps={{ sx: { bgcolor: isDark ? "#1a1a1a" : "#ffffff", "& .MuiAutocomplete-option": { color: isDark ? "#ffffff" : "#000000", "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" } } } }}
+                PaperComponent={({ children }) => <Paper sx={{ bgcolor: isDark ? "#1a1a1a" : "#ffffff", border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}` }}>{children}</Paper>}
                 renderInput={(params) => (
                   <TextField
                     {...params}
                     label="Home Address"
                     name="home_address"
                     error={!!errors.home_address}
-                    helperText={
-                      errors.home_address ||
-                      addressError ||
-                      (GEOAPIFY_API_KEY
-                        ? "Start typing your address..."
-                        : "Missing Geoapify API key. Add VITE_GEOAPIFY_API_KEY in your .env.")
-                    }
+                    helperText={errors.home_address || addressError || (GEOAPIFY_API_KEY ? "Start typing your address..." : "Missing Geoapify API key.")}
                     fullWidth
                     InputProps={{
                       ...params.InputProps,
@@ -704,29 +536,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
                         </>
                       ),
                     }}
-                    sx={{
-                      ...inputFieldSx,
-                      "& .MuiOutlinedInput-root": {
-                        ...inputFieldSx["& .MuiOutlinedInput-root"],
-                        "& fieldset": {
-                          borderColor: errors.home_address
-                            ? theme.palette.error.main
-                            : isDark
-                            ? "#333333"
-                            : "#e0e0e0",
-                        },
-                      },
-                      "& .MuiFormHelperText-root": {
-                        color: errors.home_address
-                          ? theme.palette.error.main
-                          : addressError
-                          ? theme.palette.warning.main
-                          : isDark
-                          ? "#999999"
-                          : "#666666",
-                        mx: 0,
-                      },
-                    }}
+                    sx={inputFieldSx}
                   />
                 )}
                 renderOption={(props, option) => (
@@ -745,117 +555,100 @@ const Signup = ({ onSignup, mode, setMode }) => {
             </Box>
 
             {/* Phone Number */}
-            <TextField
-              label="Phone Number"
-              name="phone_number"
-              type="text"
-              value={form.phone_number}
-              onChange={handleChange}
-              error={!!errors.phone_number}
-              helperText={errors.phone_number}
-              fullWidth
-              sx={{
-                ...inputFieldSx,
-                "& .MuiOutlinedInput-root": {
-                  ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  "& fieldset": {
-                    borderColor: errors.phone_number ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
-                  },
-                },
-                "& .MuiFormHelperText-root": {
-                  color: errors.phone_number ? theme.palette.error.main : isDark ? "#999999" : "#666666",
-                },
-              }}
-            />
+            <TextField label="Phone Number" name="phone_number" type="text" value={form.phone_number} onChange={handleChange} error={!!errors.phone_number} helperText={errors.phone_number} fullWidth sx={inputFieldSx} />
 
-            {/* Gender */}
-            <FormControl fullWidth error={!!errors.gender}>
-              <InputLabel sx={{ color: isDark ? "#999999" : "#666666", "&.Mui-focused": { color: "#42a5f5" } }}>
-                Gender
-              </InputLabel>
-              <Select
-                name="gender"
-                value={form.gender}
-                onChange={handleGenderChange}
-                label="Gender"
-                sx={{
-                  bgcolor: isDark ? "#1a1a1a" : "#f8f9fa",
-                  borderRadius: 3,
-                  color: isDark ? "#ffffff" : "#000000",
-                  "& .MuiOutlinedInput-notchedOutline": {
-                    borderColor: isDark ? "#333333" : "#e0e0e0",
-                  },
-                  "&:hover .MuiOutlinedInput-notchedOutline": {
-                    borderColor: isDark ? "#555555" : "#b0b0b0",
-                  },
-                  "&.Mui-focused .MuiOutlinedInput-notchedOutline": {
-                    borderColor: "#42a5f5",
-                  },
-                }}
-                MenuProps={{
-                  PaperProps: {
-                    sx: {
-                      bgcolor: isDark ? "#1a1a1a" : "#ffffff",
-                      "& .MuiMenuItem-root": {
-                        color: isDark ? "#ffffff" : "#000000",
-                        "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" },
-                        "&.Mui-selected": {
-                          bgcolor: isDark ? "#333333" : "#e0e0e0",
-                          "&:hover": { bgcolor: isDark ? "#3a3a3a" : "#d5d5d5" },
-                        },
-                      },
+            {/* Invited By - Full Cache Search */}
+            <Box sx={{ gridColumn: { xs: "1", sm: "1" } }}>
+              <Autocomplete
+                freeSolo
+                options={autocompleteOptions}
+                getOptionLabel={(option) => (typeof option === "string" ? option : option.label || "")}
+                value={autocompleteOptions.find((opt) => opt.label === form.invited_by) || form.invited_by || null}
+                onChange={handleInvitedByChange}
+                onInputChange={handleSearchChange}
+                filterOptions={(x) => x}
+                loading={cacheLoading}
+                ListboxProps={{
+                  sx: {
+                    bgcolor: isDark ? "#1a1a1a" : "#ffffff",
+                    "& .MuiAutocomplete-option": {
+                      color: isDark ? "#ffffff" : "#000000",
+                      "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" },
+                      "&[aria-selected='true']": { bgcolor: isDark ? "#333333" : "#e0e0e0", "&:hover": { bgcolor: isDark ? "#3a3a3a" : "#d5d5d5" } },
                     },
                   },
                 }}
-              >
-                <MenuItem value="">
-                  <em>Select Gender</em>
-                </MenuItem>
+                PaperComponent={({ children }) => (
+                  <Paper sx={{ bgcolor: isDark ? "#1a1a1a" : "#ffffff", border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}` }}>
+                    {children}
+                  </Paper>
+                )}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    label="Invited By"
+                    name="invited_by"
+                    error={!!errors.invited_by}
+                    helperText={errors.invited_by || cacheError || "Start typing to search through all people..."}
+                    fullWidth
+                    InputProps={{
+                      ...params.InputProps,
+                      endAdornment: (
+                        <>
+                          {cacheLoading ? <CircularProgress color="inherit" size={20} /> : null}
+                          {params.InputProps.endAdornment}
+                        </>
+                      ),
+                    }}
+                    sx={inputFieldSx}
+                  />
+                )}
+                renderOption={(props, option) => (
+                  <li {...props} key={option.key || option._id}>
+                    <Box>
+                      <Typography variant="body1">{option.label}</Typography>
+                      {option.Email && <Typography variant="caption" color="text.secondary">{option.Email}</Typography>}
+                    </Box>
+                  </li>
+                )}
+              />
+            </Box>
+
+            {/* Gender */}
+            <FormControl fullWidth error={!!errors.gender}>
+              <InputLabel sx={{ color: isDark ? "#999999" : "#666666", "&.Mui-focused": { color: "#42a5f5" } }}>Gender</InputLabel>
+              <Select name="gender" value={form.gender} onChange={handleGenderChange} label="Gender" sx={{ bgcolor: isDark ? "#1a1a1a" : "#f8f9fa", borderRadius: 3, color: isDark ? "#ffffff" : "#000000", "& .MuiOutlinedInput-notchedOutline": { borderColor: isDark ? "#333333" : "#e0e0e0" } }}>
+                <MenuItem value=""><em>Select Gender</em></MenuItem>
                 <MenuItem value="male">Male</MenuItem>
                 <MenuItem value="female">Female</MenuItem>
               </Select>
-              {errors.gender && (
-                <Typography variant="caption" color="error">
-                  {errors.gender}
-                </Typography>
-              )}
+              {errors.gender && <Typography variant="caption" color="error">{errors.gender}</Typography>}
             </FormControl>
 
-            {/* Organization Field - Dropdown with Autocomplete */}
+            {/* Organization */}
             <FormControl fullWidth error={!!errors.organization}>
               <Autocomplete
                 freeSolo
                 options={organizations}
-                value={organizations.find(org => org.name === form.organization) || null}
+                value={organizations.find((org) => org.name === form.organization) || null}
                 inputValue={form.organization}
                 onInputChange={(event, newInputValue) => {
                   setForm((prev) => ({ ...prev, organization: newInputValue }));
-                  if (errors.organization) {
-                    setErrors((prev) => ({ ...prev, organization: "" }));
-                  }
+                  if (errors.organization) setErrors((prev) => ({ ...prev, organization: "" }));
                 }}
                 onChange={(event, newValue) => {
                   const orgName = newValue?.name || newValue || "";
                   setForm((prev) => ({ ...prev, organization: orgName }));
-                  if (errors.organization) {
-                    setErrors((prev) => ({ ...prev, organization: "" }));
-                  }
+                  if (errors.organization) setErrors((prev) => ({ ...prev, organization: "" }));
                 }}
-                getOptionLabel={(option) => {
-                  if (typeof option === "string") return option;
-                  return option.name || "";
-                }}
+                getOptionLabel={(option) => (typeof option === "string" ? option : option.name || "")}
                 loading={orgsLoading}
                 renderInput={(params) => (
                   <TextField
                     {...params}
                     label="Organization / Church"
                     error={!!errors.organization}
-                    helperText={
-                      errors.organization || 
-                      orgsError ||
-                      (orgsLoading ? "Loading organizations..." : "Select or type your organization")
-                    }
+                    helperText={errors.organization || orgsError || (orgsLoading ? "Loading organizations..." : "Select or type your organization")}
                     fullWidth
                     InputProps={{
                       ...params.InputProps,
@@ -866,53 +659,11 @@ const Signup = ({ onSignup, mode, setMode }) => {
                         </>
                       ),
                     }}
-                    sx={{
-                      ...inputFieldSx,
-                      "& .MuiOutlinedInput-root": {
-                        ...inputFieldSx["& .MuiOutlinedInput-root"],
-                        "& fieldset": {
-                          borderColor: errors.organization
-                            ? theme.palette.error.main
-                            : isDark
-                            ? "#333333"
-                            : "#e0e0e0",
-                        },
-                      },
-                      "& .MuiFormHelperText-root": {
-                        color: errors.organization
-                          ? theme.palette.error.main
-                          : orgsError
-                          ? theme.palette.warning.main
-                          : isDark
-                          ? "#999999"
-                          : "#666666",
-                      },
-                    }}
+                    sx={inputFieldSx}
                   />
                 )}
-                ListboxProps={{
-                  sx: {
-                    bgcolor: isDark ? "#1a1a1a" : "#ffffff",
-                    "& .MuiAutocomplete-option": {
-                      color: isDark ? "#ffffff" : "#000000",
-                      "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" },
-                      "&[aria-selected='true']": {
-                        bgcolor: isDark ? "#333333" : "#e0e0e0",
-                        "&:hover": { bgcolor: isDark ? "#3a3a3a" : "#d5d5d5" },
-                      },
-                    },
-                  },
-                }}
-                PaperComponent={({ children }) => (
-                  <Paper
-                    sx={{
-                      bgcolor: isDark ? "#1a1a1a" : "#ffffff",
-                      border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}`,
-                    }}
-                  >
-                    {children}
-                  </Paper>
-                )}
+                ListboxProps={{ sx: { bgcolor: isDark ? "#1a1a1a" : "#ffffff", "& .MuiAutocomplete-option": { color: isDark ? "#ffffff" : "#000000", "&:hover": { bgcolor: isDark ? "#2a2a2a" : "#f5f5f5" } } } }}
+                PaperComponent={({ children }) => <Paper sx={{ bgcolor: isDark ? "#1a1a1a" : "#ffffff", border: `1px solid ${isDark ? "#333333" : "#e0e0e0"}` }}>{children}</Paper>}
               />
             </FormControl>
 
@@ -929,28 +680,13 @@ const Signup = ({ onSignup, mode, setMode }) => {
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowPassword(!showPassword)}
-                      edge="end"
-                      tabIndex={-1}
-                      sx={{
-                        color: isDark ? "#cccccc" : "#666666",
-                      }}
-                    >
+                    <IconButton onClick={() => setShowPassword(!showPassword)} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}>
                       {showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
                 ),
               }}
-              sx={{
-                ...inputFieldSx,
-                "& .MuiOutlinedInput-root": {
-                  ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  "& fieldset": {
-                    borderColor: errors.password ? theme.palette.error.main : isDark ? "#333333" : "#e0e0e0",
-                  },
-                },
-              }}
+              sx={inputFieldSx}
             />
 
             {/* Confirm Password */}
@@ -966,47 +702,24 @@ const Signup = ({ onSignup, mode, setMode }) => {
               InputProps={{
                 endAdornment: (
                   <InputAdornment position="end">
-                    <IconButton
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      edge="end"
-                      tabIndex={-1}
-                      sx={{
-                        color: isDark ? "#cccccc" : "#666666",
-                      }}
-                    >
+                    <IconButton onClick={() => setShowConfirmPassword(!showConfirmPassword)} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}>
                       {showConfirmPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
                 ),
               }}
-              sx={{
-                ...inputFieldSx,
-                "& .MuiOutlinedInput-root": {
-                  ...inputFieldSx["& .MuiOutlinedInput-root"],
-                  "& fieldset": {
-                    borderColor: errors.confirm_password
-                      ? theme.palette.error.main
-                      : isDark
-                      ? "#333333"
-                      : "#e0e0e0",
-                  },
-                },
-              }}
+              sx={inputFieldSx}
             />
           </Box>
 
-          {Object.keys(errors).length > 0 && (
-            <Alert severity="error" sx={{ borderRadius: 2 }}>
-              Please fix the highlighted errors above.
-            </Alert>
-          )}
+          {Object.keys(errors).length > 0 && <Alert severity="error" sx={{ borderRadius: 2 }}>Please fix the highlighted errors above.</Alert>}
 
           <Box textAlign="center">
             <Button
               type="submit"
               variant="contained"
               size="large"
-              disabled={loading}
+              disabled={loading || cacheLoading}
               sx={{
                 backgroundColor: "#000",
                 color: "#fff",
@@ -1015,8 +728,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
                 py: 1.5,
                 fontWeight: "bold",
                 "&:hover": { backgroundColor: "#222" },
-                "&:active": { backgroundColor: "#444" },
-                "&:disabled": { backgroundColor: "#666" },
               }}
             >
               {loading ? "Signing Up..." : "Sign Up"}
@@ -1026,11 +737,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           <Box textAlign="center" mt={1}>
             <Typography>
               Already have an account?{" "}
-              <Typography
-                component="span"
-                sx={{ color: "#42a5f5", cursor: "pointer", textDecoration: "underline" }}
-                onClick={() => navigate("/login")}
-              >
+              <Typography component="span" sx={{ color: "#42a5f5", cursor: "pointer", textDecoration: "underline" }} onClick={() => navigate("/login")}>
                 Log In
               </Typography>
             </Typography>
