@@ -993,36 +993,6 @@ export default function Profile() {
                     placeholder="Your church or organization" 
                   />
                 </Grid>
-
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Leader@1</Typography>
-                  <TextField 
-                    value={leaders.leaderAt1 || ""} 
-                    fullWidth 
-                    disabled={true} 
-                    sx={commonFieldSx} 
-                  />
-                </Grid>
-
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Leader@12</Typography>
-                  <TextField 
-                    value={leaders.leaderAt12 || ""} 
-                    fullWidth 
-                    disabled={true} 
-                    sx={commonFieldSx} 
-                  />
-                </Grid>
-
-                <Grid size={{ xs: 12, sm: 6 }}>
-                  <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Leader@144</Typography>
-                  <TextField 
-                    value={leaders.leaderAt144 || ""} 
-                    fullWidth 
-                    disabled={true} 
-                    sx={commonFieldSx} 
-                  />
-                </Grid>
               </Grid>
 
               <Box sx={{ mt: 4 }}>
