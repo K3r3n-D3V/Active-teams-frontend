@@ -81,7 +81,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     isTicketed: isTicketedEvent,
     hasPersonSteps,
   } = eventTypeFlags;
-  const { getHierarchyLabel, getHierarchyField, getAllHierarchyLevels } = useOrgConfig();
+  const { getAllHierarchyLevels } = useOrgConfig();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
@@ -404,8 +404,6 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
       if (!res.ok) throw new Error("Failed to fetch people");
       const data = await res.json();
       people = data?.results || [];
-
-      // Filter locally to match ALL search words against full name
       if (searchWords.length > 1) {
         people = people.filter((person) => {
           const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase();
