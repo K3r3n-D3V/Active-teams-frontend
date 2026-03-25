@@ -19,6 +19,7 @@ import {
 import AddPersonDialog from '../components/AddPersonDialog';
 import PeopleListView from '../components/PeopleListView';
 import DeleteConfirmationModal from '../components/DeleteConfirmationModal';
+import PeopleImportFAB from '../components/PeopleImportFAB';
 
 if (!window.globalPeopleCache) window.globalPeopleCache = null;
 if (!window.globalCacheTimestamp) window.globalCacheTimestamp = null;
@@ -289,6 +290,7 @@ export const PeopleSection = () => {
   const [personToDelete, setPersonToDelete] = useState(null);
   const [allPeople, setAllPeople] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
   const [searchField, setSearchField] = useState('name');
@@ -312,108 +314,153 @@ export const PeopleSection = () => {
   const peopleFetchPromiseRef = useRef(null);
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-  const fetchAllPeople = useCallback(async (forceRefresh = false) => {
-    const now = Date.now();
-    const orgKey = currentUserOrg;
-
-    if (window.globalPeopleCacheOrg && window.globalPeopleCacheOrg !== orgKey) {
-      console.log(`Org changed from ${window.globalPeopleCacheOrg} to ${orgKey} — clearing cache`);
-      window.globalPeopleCache = null;
-      window.globalCacheTimestamp = null;
-      window.globalPeopleCacheOrg = null;
-    }
-
-    if (
-      !forceRefresh &&
-      window.globalPeopleCache &&
-      window.globalCacheTimestamp &&
-      (now - window.globalCacheTimestamp < CACHE_DURATION)
-    ) {
-      setAllPeople(window.globalPeopleCache);
-      setCacheInfo({ source: 'local-cache', org: orgKey });
-      return window.globalPeopleCache;
-    }
-
-    if (isFetchingRef.current && peopleFetchPromiseRef.current) {
-      try { return await peopleFetchPromiseRef.current || window.globalPeopleCache || []; }
-      catch { return window.globalPeopleCache || []; }
-    }
-
-    isFetchingRef.current = true;
-    setLoading(true);
-
-    peopleFetchPromiseRef.current = (async () => {
-      try {
-        const response = await authFetch(`${BACKEND_URL}/cache/people`);
-        if (!response || !response.ok) throw new Error('Failed to fetch people');
-        const data = await response.json();
-
-        if (!data.success) throw new Error(data.error || 'Cache returned error');
-
-        console.log(`People loaded: ${data.total_count} records | source: ${data.source} | org: ${data.organization}`);
-        setCacheInfo({ source: data.source, org: data.organization || orgKey });
-
-        const rawPeople = data?.cached_data || [];
-
-        const mapped = rawPeople.map(raw => {
-          const name = (raw.Name || raw.name || "").toString().trim();
-          const surname = (raw.Surname || raw.surname || "").toString().trim();
-          const email = (raw.Email || raw.email || "").toString().trim();
-          const phone = (raw.Number || raw.Phone || raw.phone || "").toString().trim();
-          const address = (raw.Address || raw.address || "").toString().trim();
-
-          const leaderMap = getLeadersByLevel(raw);
-          const leadersCombined = Object.values(leaderMap).join(" ");
-          const fullName = `${name} ${surname}`.trim();
-
-          return {
-            _id: (raw._id || raw.id || "").toString(),
-            name,
-            surname,
-            fullName,
-            fullNameLower: fullName.toLowerCase(),
-            emailLower: email.toLowerCase(),
-            phoneLower: phone.toLowerCase(),
-            addressLower: address.toLowerCase(),
-            gender: (raw.Gender || raw.gender || "").toString().trim(),
-            dob: raw.Birthday || raw.DateOfBirth || "",
-            location: address,
-            email,
-            phone,
-            Stage: (raw.Stage || "Win").toString().trim(),
-            lastUpdated: raw.UpdatedAt || null,
-            invitedBy: (raw.InvitedBy || "").toString().trim(),
-            org_id: raw.org_id || "",
-            Organization: raw.Organization || raw.Organisation || "",
-            ...leaderMap,
-            leaders: leaderMap,
-            leadersCombinedLower: leadersCombined.toLowerCase(),
-            leadersRaw: Array.isArray(raw.leaders) ? raw.leaders : [],
-          };
-        });
-
-        window.globalPeopleCache = mapped;
-        window.globalCacheTimestamp = Date.now();
-        window.globalPeopleCacheOrg = orgKey;
-        setAllPeople(mapped);
-        return mapped;
-      } catch (err) {
-        console.error('Fetch error:', err);
-        setSnackbar({ open: true, message: `Failed to load people: ${err?.message}`, severity: 'error' });
-        if (window.globalPeopleCache) {
-          setAllPeople(window.globalPeopleCache);
-          return window.globalPeopleCache;
-        }
-        return [];
-      } finally {
-        setLoading(false);
-        isFetchingRef.current = false;
-        peopleFetchPromiseRef.current = null;
+const fetchAllPeople = useCallback(async (forceRefresh = false) => {
+  const now = Date.now();
+  const orgKey = currentUserOrg;
+ 
+  if (window.globalPeopleCacheOrg && window.globalPeopleCacheOrg !== orgKey) {
+    console.log(`Org changed from ${window.globalPeopleCacheOrg} to ${orgKey} — clearing cache`);
+    window.globalPeopleCache = null;
+    window.globalCacheTimestamp = null;
+    window.globalPeopleCacheOrg = null;
+  }
+ 
+  if (
+    !forceRefresh &&
+    window.globalPeopleCache &&
+    window.globalCacheTimestamp &&
+    (now - window.globalCacheTimestamp < CACHE_DURATION)
+  ) {
+    setAllPeople(window.globalPeopleCache);
+    setCacheInfo({ source: 'local-cache', org: orgKey });
+    return window.globalPeopleCache;
+  }
+ 
+  // ── KEY FIX ──────────────────────────────────────────────────────────────────
+  // When forceRefresh is true we must abandon any in-progress fetch and start
+  // fresh. Without this, a pending peopleFetchPromiseRef from a prior load
+  // (e.g. the initial mount) returns stale data and the import results never
+  // appear in the board.
+  if (forceRefresh) {
+    isFetchingRef.current = false;
+    peopleFetchPromiseRef.current = null;
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
+ 
+  if (isFetchingRef.current && peopleFetchPromiseRef.current) {
+    try { return await peopleFetchPromiseRef.current || window.globalPeopleCache || []; }
+    catch { return window.globalPeopleCache || []; }
+  }
+ 
+  isFetchingRef.current = true;
+  setLoading(true);
+ 
+  peopleFetchPromiseRef.current = (async () => {
+    try {
+      const response = await authFetch(`${BACKEND_URL}/cache/people`);
+      if (!response || !response.ok) throw new Error('Failed to fetch people');
+      const data = await response.json();
+ 
+      if (!data.success) throw new Error(data.error || 'Cache returned error');
+ 
+      console.log(`People loaded: ${data.total_count} records | source: ${data.source} | org: ${data.organization}`);
+      setCacheInfo({ source: data.source, org: data.organization || orgKey });
+ 
+      const rawPeople = data?.cached_data || [];
+ 
+      const mapped = rawPeople.map(raw => {
+        const name    = (raw.Name    || raw.name    || '').toString().trim();
+        const surname = (raw.Surname || raw.surname || '').toString().trim();
+        const email   = (raw.Email   || raw.email   || '').toString().trim();
+        const phone   = (raw.Number  || raw.Phone   || raw.phone || '').toString().trim();
+        const address = (raw.Address || raw.address || '').toString().trim();
+ 
+        const leaderMap      = getLeadersByLevel(raw);
+        const leadersCombined = Object.values(leaderMap).join(' ');
+        const fullName       = `${name} ${surname}`.trim();
+ 
+        return {
+          _id:               (raw._id || raw.id || '').toString(),
+          name,
+          surname,
+          fullName,
+          fullNameLower:     fullName.toLowerCase(),
+          emailLower:        email.toLowerCase(),
+          phoneLower:        phone.toLowerCase(),
+          addressLower:      address.toLowerCase(),
+          gender:            (raw.Gender || raw.gender || '').toString().trim(),
+          dob:               raw.Birthday || raw.DateOfBirth || '',
+          location:          address,
+          email,
+          phone,
+          Stage:             (raw.Stage || 'Win').toString().trim(),
+          lastUpdated:       raw.UpdatedAt || null,
+          invitedBy:         (raw.InvitedBy || '').toString().trim(),
+          org_id:            raw.org_id || '',
+          Organization:      raw.Organization || raw.Organisation || '',
+          ...leaderMap,
+          leaders:           leaderMap,
+          leadersCombinedLower: leadersCombined.toLowerCase(),
+          leadersRaw:        Array.isArray(raw.leaders) ? raw.leaders : [],
+        };
+      });
+ 
+      window.globalPeopleCache    = mapped;
+      window.globalCacheTimestamp = Date.now();
+      window.globalPeopleCacheOrg = orgKey;
+      setAllPeople(mapped);
+      return mapped;
+    } catch (err) {
+      console.error('Fetch error:', err);
+      setSnackbar({ open: true, message: `Failed to load people: ${err?.message}`, severity: 'error' });
+      if (window.globalPeopleCache) {
+        setAllPeople(window.globalPeopleCache);
+        return window.globalPeopleCache;
       }
-    })();
+      return [];
+    } finally {
+      setLoading(false);
+      isFetchingRef.current      = false;
+      peopleFetchPromiseRef.current = null;
+    }
+  })();
+ 
+  return await peopleFetchPromiseRef.current;
+}, [BACKEND_URL, authFetch, currentUserOrg]);
 
-    return await peopleFetchPromiseRef.current;
-  }, [BACKEND_URL, authFetch, currentUserOrg]);
+const refetchPeople = useCallback(async () => {
+  console.log('Refetching people after import...');
+  setIsRefreshing(true);
+  try {
+    // Clear window-level cache
+    window.globalPeopleCache    = null;
+    window.globalCacheTimestamp = null;
+    window.globalPeopleCacheOrg = null;
+ 
+    // ── KEY FIX: reset the in-progress guard so fetchAllPeople(true)
+    // is guaranteed to start a fresh request, even if an earlier load
+    // is still in-flight (e.g. the initial mount fetch).
+    isFetchingRef.current      = false;
+    peopleFetchPromiseRef.current = null;
+ 
+    await fetchAllPeople(true);
+ 
+    setSnackbar({
+      open:     true,
+      message:  'People list refreshed — new imports are now visible.',
+      severity: 'success',
+    });
+  } catch (error) {
+    console.error('Error refreshing people:', error);
+    setSnackbar({
+      open:     true,
+      message:  'Failed to refresh people data',
+      severity: 'error',
+    });
+  } finally {
+    setIsRefreshing(false);
+  }
+}, [fetchAllPeople]);
 
   const prevOrgRef = useRef(currentUserOrg);
   useEffect(() => {
@@ -634,40 +681,55 @@ export const PeopleSection = () => {
     }
   };
 
-  const handleSaveFromDialog = (savedPerson) => {
-    const leadersMap = {
-      leader1: savedPerson.invitedBy || '',
-      leader12: savedPerson.leader12 || '',
-      leader144: savedPerson.leader144 || '',
-      leader1728: savedPerson.leader1728 || '',
-    };
-    const leadersCombined = Object.values(leadersMap).join(' ');
 
-    const mappedPerson = {
-      _id: savedPerson._id || editingPerson?._id,
-      name: savedPerson.name || '',
-      surname: savedPerson.surname || '',
-      gender: savedPerson.gender || '',
-      dob: savedPerson.dob || '',
-      location: savedPerson.address || '',
-      email: savedPerson.email || '',
-      phone: savedPerson.number || '',
-      Stage: savedPerson.stage || 'Win',
-      lastUpdated: new Date().toISOString(),
-      invitedBy: savedPerson.invitedBy || '',
-      leaders: leadersMap,
-      leadersCombinedLower: leadersCombined.toLowerCase(),
-      leadersRaw: savedPerson.leaders || [],
-    };
-
-    if (editingPerson) {
-      updatePersonInCache(editingPerson._id, mappedPerson);
-      setSnackbar({ open: true, message: 'Person updated successfully', severity: 'success' });
-    } else {
-      addPersonToCache(mappedPerson);
-      setSnackbar({ open: true, message: 'Person added successfully', severity: 'success' });
-    }
+const handleSaveFromDialog = useCallback(async (savedPerson) => {
+  const leadersMap = {
+    leader1: savedPerson.invitedBy || '',
+    leader12: savedPerson.leader12 || '',
+    leader144: savedPerson.leader144 || '',
+    leader1728: savedPerson.leader1728 || '',
   };
+  const leadersCombined = Object.values(leadersMap).join(' ');
+
+  const mappedPerson = {
+    _id: savedPerson._id || editingPerson?._id,
+    name: savedPerson.name || '',
+    surname: savedPerson.surname || '',
+    gender: savedPerson.gender || '',
+    dob: savedPerson.dob || '',
+    location: savedPerson.address || '',
+    email: savedPerson.email || '',
+    phone: savedPerson.number || '',
+    Stage: savedPerson.stage || 'Win',
+    lastUpdated: new Date().toISOString(),
+    invitedBy: savedPerson.invitedBy || '',
+    leaders: leadersMap,
+    leadersCombinedLower: leadersCombined.toLowerCase(),
+    leadersRaw: savedPerson.leaders || [],
+  };
+
+  if (editingPerson) {
+    // Edit: optimistic local update is fine — person already exists in the list
+    updatePersonInCache(editingPerson._id, mappedPerson);
+    setSnackbar({ open: true, message: 'Person updated successfully', severity: 'success' });
+  } else {
+    // Add: clear cache and fetch fresh from server so org-scoped data is correct
+    setSnackbar({ open: true, message: 'Person added — refreshing list…', severity: 'info' });
+
+    window.globalPeopleCache = null;
+    window.globalCacheTimestamp = null;
+    window.globalPeopleCacheOrg = null;
+
+    try {
+      await fetchAllPeople(true);
+      setSnackbar({ open: true, message: 'Person added successfully', severity: 'success' });
+    } catch (err) {
+      console.error('Refresh after add failed:', err);
+      addPersonToCache(mappedPerson); // fallback: at least show optimistic record
+      setSnackbar({ open: true, message: 'Person added (refresh list if needed)', severity: 'warning' });
+    }
+  }
+}, [editingPerson, updatePersonInCache, addPersonToCache, fetchAllPeople]);
 
   const handleCloseDialog = () => {
     setIsModalOpen(false);
@@ -730,6 +792,7 @@ export const PeopleSection = () => {
             {stageFilter !== 'all' && ` — ${stageFilter}`}
             {isSearchingNow && ` (${filteredPeople.length} results)`}
             {isSearching && <CircularProgress size={16} sx={{ ml: 1 }} />}
+            {isRefreshing && <CircularProgress size={16} sx={{ ml: 1 }} />}
           </Typography>
           {/* Org + cache source indicator */}
           <Typography variant="caption" color="text.secondary">
@@ -769,8 +832,8 @@ export const PeopleSection = () => {
               <ToggleButton value="list" aria-label="list view"><ViewListIcon fontSize="small" /></ToggleButton>
             </Tooltip>
           </ToggleButtonGroup>
-          <Button variant="outlined" size="small" onClick={handleRefresh} disabled={loading}>
-            {loading ? 'Loading...' : 'Refresh'}
+          <Button variant="outlined" size="small" onClick={handleRefresh} disabled={loading || isRefreshing}>
+            {loading || isRefreshing ? 'Loading...' : 'Refresh'}
           </Button>
         </Box>
       </Box>
@@ -855,6 +918,7 @@ export const PeopleSection = () => {
           <Alert severity={snackbar.severity} variant="filled">{snackbar.message}</Alert>
         </Snackbar>
       </Box>
+      <PeopleImportFAB onImportComplete={refetchPeople} />
     </Box>
   );
 };

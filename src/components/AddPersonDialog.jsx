@@ -23,6 +23,9 @@ const initialFormState = {
   gender: "",
   invitedBy: "",
   stage: "Win",
+  leader1: "",
+  leader12: "",
+  leader144: "",
 };
 
 const uniformInputSx = {
@@ -48,6 +51,8 @@ const useDebounce = (value, delay) => {
 
 function resolveLeaderFields(raw) {
   const result = {};
+  
+  // First check if leaders array exists
   if (Array.isArray(raw?.leaders) && raw.leaders.length > 0) {
     for (const l of raw.leaders) {
       if (l?.level != null && l?.name) {
@@ -56,13 +61,18 @@ function resolveLeaderFields(raw) {
     }
     if (Object.keys(result).length > 0) return result;
   }
+  
+  // Check for flat leader fields
   for (const key of Object.keys(raw || {})) {
-    if (/^leader\d+$/.test(key) && raw[key]) result[key] = raw[key];
+    if (/^leader\d+$/.test(key) && raw[key]) {
+      result[key] = raw[key];
+    }
     if (/^Leader @(\d+)$/.test(key) && raw[key]) {
       const level = key.match(/^Leader @(\d+)$/)[1];
       result[`leader${level}`] = raw[key];
     }
   }
+  
   return result;
 }
 
@@ -98,9 +108,11 @@ export default function AddPersonDialog({
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const [originalFormData, setOriginalFormData] = useState(null);
   const [selectedInviter, setSelectedInviter] = useState(null);
+  const [isInitializing, setIsInitializing] = useState(false);
 
   const debouncedAddressInput = useDebounce(searchInputs.address || "", 500);
 
+  // Reset state when dialog closes
   useEffect(() => {
     if (!open) {
       setIsSubmitting(false);
@@ -109,71 +121,138 @@ export default function AddPersonDialog({
       setShowLeaderFields(false);
       setOriginalFormData(null);
       setSelectedInviter(null);
+      setIsInitializing(false);
     }
   }, [open]);
 
-  const fetchFullPerson = useCallback(async (id) => {
-    if (!id || !isEdit) return null;
-    try {
-      const response = await authFetch(`${BASE_URL}/people/${id}`);
-      if (response.ok) return await response.json();
-    } catch (err) {
-      console.error("Full fetch error:", err);
+const fetchFullPerson = useCallback(async (id) => {
+  if (!id || !isEdit) return null;
+  try {
+    console.log('🔍 Fetching person with ID:', id);
+    const response = await authFetch(`${BASE_URL}/people/${id}`);
+    if (response.ok) {
+      const data = await response.json();
+      console.log('✅ Fetched person data - FULL:', JSON.stringify(data, null, 2));
+      console.log('📅 Date fields in fetched data:', {
+        Birthday: data.Birthday,
+        birthday: data.birthday,
+        dob: data.dob,
+        dateOfBirth: data.dateOfBirth,
+        'Date Created': data['Date Created'],
+        DateCreated: data.DateCreated
+      });
+      console.log('👥 Leader fields in fetched data:', {
+        InvitedBy: data.InvitedBy,
+        invitedBy: data.invitedBy,
+        leaders: data.leaders,
+        leader1: data.leader1,
+        leader12: data.leader12,
+        leader144: data.leader144,
+        'Leader @1': data['Leader @1'],
+        'Leader @12': data['Leader @12'],
+        'Leader @144': data['Leader @144']
+      });
+      return data;
+    } else {
+      console.error('❌ Failed to fetch person:', response.status);
+      return null;
     }
+  } catch (err) {
+    console.error("❌ Full fetch error:", err);
     return null;
-  }, [authFetch, isEdit]);
+  }
+}, [authFetch, isEdit]);
 
-  useEffect(() => {
-    if (open && isEdit && personId) {
-      (async () => {
+// Load person data when editing
+useEffect(() => {
+  if (open && isEdit && personId && !isInitializing) {
+    setIsInitializing(true);
+    (async () => {
+      try {
         const fullPerson = await fetchFullPerson(personId);
         let initData;
+        
         if (fullPerson) {
-          const { leader1, leader12, leader144 } = resolveLeaderFields(fullPerson);
+          // Handle date conversion - convert from dd/mm/yyyy to yyyy-mm-dd
+          let dobValue = "";
+          const birthday = fullPerson.Birthday || fullPerson.birthday || "";
+          if (birthday) {
+            // Check if it's already in yyyy-mm-dd format
+            if (birthday.match(/^\d{4}-\d{2}-\d{2}/)) {
+              dobValue = birthday;
+            } 
+            // Check if it's in dd/mm/yyyy format
+            else if (birthday.match(/^\d{2}\/\d{2}\/\d{4}/)) {
+              const parts = birthday.split('/');
+              if (parts.length === 3) {
+                dobValue = `${parts[2]}-${parts[1]}-${parts[0]}`;
+              }
+            }
+            // If it's just the date string without slashes
+            else if (birthday.length >= 10) {
+              dobValue = birthday;
+            }
+          }
+          
+          console.log('📅 Date conversion:', {
+            original: birthday,
+            converted: dobValue
+          });
+          
+          // Get leaders from the response
           const resolvedLeaders = resolveLeaderFields(fullPerson);
+          
+          // Also check for direct leader fields
+          const directLeaderFields = {};
+          Object.keys(fullPerson).forEach(key => {
+            if (key.startsWith('leader') || key.startsWith('Leader @')) {
+              directLeaderFields[key] = fullPerson[key];
+            }
+          });
+          
+          // Build the initial data
           initData = {
-            name: fullPerson.Name || "",
-            surname: fullPerson.Surname || "",
-            dob: fullPerson.Birthday ? fullPerson.Birthday.replace(/\//g, "-") : "",
-            address: fullPerson.Address || "",
-            email: fullPerson.Email || "",
-            number: fullPerson.Number || "",
-            gender: fullPerson.Gender || "",
-            invitedBy: fullPerson.InvitedBy || "",
+            name: fullPerson.Name || fullPerson.name || "",
+            surname: fullPerson.Surname || fullPerson.surname || "",
+            dob: dobValue,  // Use the converted date
+            address: fullPerson.Address || fullPerson.address || "",
+            email: fullPerson.Email || fullPerson.email || "",
+            number: fullPerson.Number || fullPerson.number || fullPerson.phone || "",
+            gender: fullPerson.Gender || fullPerson.gender || "",
+            invitedBy: fullPerson.InvitedBy || fullPerson.invitedBy || "",
             ...resolvedLeaders,
-            stage: fullPerson.Stage || "Win",
+            ...directLeaderFields,
+            stage: fullPerson.Stage || fullPerson.stage || "Win",
           };
+          
+          console.log('📝 Initialized form data:', {
+            invitedBy: initData.invitedBy,
+            dob: initData.dob,
+            leader1: initData.leader1,
+            leader12: initData.leader12,
+            leader144: initData.leader144,
+            hasLeaders: Object.keys(resolvedLeaders).length > 0
+          });
+          
         } else {
           initData = { ...initialFormState };
         }
-        setShowLeaderFields(Object.keys(resolvedLeaders).some(k => resolvedLeaders[k]));
+        
+        const hasLeaders = Object.keys(resolveLeaderFields(initData)).length > 0;
+        setShowLeaderFields(hasLeaders);
         setFormData(initData);
         setOriginalFormData(initData);
-      })();
-    }
-  }, [open, isEdit, personId, fetchFullPerson]);
+      } catch (error) {
+        console.error('Error loading person data:', error);
+        toast.error('Failed to load person data');
+      } finally {
+        setIsInitializing(false);
+      }
+    })();
+  }
+}, [open, isEdit, personId, fetchFullPerson, setFormData]);
 
-
-  const peopleOptions = useMemo(
-    () =>
-      peopleList.map((person) => {
-        const firstName = person.Name || person.name || "";
-        const lastName = person.Surname || person.surname || "";
-        const fullName = `${firstName} ${lastName}`.trim();
-        const email = person.Email || person.email || "";
-        const { leader1, leader12, leader144 } = resolveLeaderFields(person);
-        return {
-          label: fullName,
-          person,
-          FullName: person.FullName || fullName,
-          Email: email,
-          leader1, leader12, leader144,
-          searchText: `${firstName} ${lastName} ${email}`.toLowerCase(),
-        };
-      }),
-    [peopleList]
-  );
-
+  // Load people list
   useEffect(() => {
     if (!open) return;
 
@@ -191,8 +270,7 @@ export default function AddPersonDialog({
           Birthday: p.birthday || p.Birthday || "",
           InvitedBy: p.invitedBy || p.InvitedBy || "",
           leaders: Array.isArray(p.leaders) ? p.leaders : [],
-          LeaderPath: Array.isArray(p.leaderPath) ? p.leaderPath
-            : Array.isArray(p.LeaderPath) ? p.LeaderPath : [],
+          LeaderPath: Array.isArray(p.leaderPath) ? p.leaderPath : Array.isArray(p.LeaderPath) ? p.LeaderPath : [],
           LeaderId: p.leaderId || p.LeaderId || null,
           Stage: p.stage || p.Stage || "",
           FullName: p.fullName || `${p.name || p.Name || ''} ${p.surname || p.Surname || ''}`.trim(),
@@ -220,10 +298,71 @@ export default function AddPersonDialog({
             setPeopleList(d2.results || []);
           }
         }
-      } catch { setPeopleList([]); }
-      finally { setIsLoadingPeople(false); }
+      } catch (error) {
+        console.error('Error loading people:', error);
+        setPeopleList([]);
+      } finally {
+        setIsLoadingPeople(false);
+      }
     })();
   }, [open, preloadedPeople, authFetch]);
+
+  // Find and set the inviter when invitedBy is set
+  useEffect(() => {
+    if (!open || !formData.invitedBy || peopleList.length === 0 || selectedInviter) return;
+    
+    const inviterName = formData.invitedBy.trim();
+    console.log('🔍 Looking for inviter:', inviterName);
+    
+    const foundInviter = peopleList.find(person => {
+      const fullName = `${person.Name || person.name || ''} ${person.Surname || person.surname || ''}`.trim();
+      const match = fullName.toLowerCase() === inviterName.toLowerCase() ||
+                    (person.Name || person.name || '').toLowerCase() === inviterName.toLowerCase() ||
+                    (person.Surname || person.surname || '').toLowerCase() === inviterName.toLowerCase();
+      if (match) {
+        console.log('✅ Found inviter:', fullName);
+      }
+      return match;
+    });
+    
+    if (foundInviter) {
+      setSelectedInviter(foundInviter);
+      
+      // Only set leader fields if they're not already populated
+      if (!formData.leader1 && !formData.leader12 && !formData.leader144) {
+        const inviterFullName = `${foundInviter.Name || foundInviter.name || ''} ${foundInviter.Surname || foundInviter.surname || ''}`.trim();
+        const inviterLeaders = resolveLeaderFields(foundInviter);
+        
+        setFormData(prev => ({
+          ...prev,
+          leader1: inviterLeaders.leader1 || inviterFullName,
+          leader12: inviterLeaders.leader12 || (inviterLeaders.leader1 ? inviterFullName : ''),
+          leader144: inviterLeaders.leader144 || (inviterLeaders.leader12 ? inviterFullName : '')
+        }));
+        setShowLeaderFields(true);
+      }
+    }
+  }, [open, formData.invitedBy, peopleList, selectedInviter, setFormData]);
+
+  const peopleOptions = useMemo(
+    () =>
+      peopleList.map((person) => {
+        const firstName = person.Name || person.name || "";
+        const lastName = person.Surname || person.surname || "";
+        const fullName = `${firstName} ${lastName}`.trim();
+        const email = person.Email || person.email || "";
+        const { leader1, leader12, leader144 } = resolveLeaderFields(person);
+        return {
+          label: fullName,
+          person,
+          FullName: person.FullName || fullName,
+          Email: email,
+          leader1, leader12, leader144,
+          searchText: `${firstName} ${lastName} ${email}`.toLowerCase(),
+        };
+      }),
+    [peopleList]
+  );
 
   useEffect(() => {
     if (!debouncedAddressInput || debouncedAddressInput.length < 3) {
@@ -246,9 +385,22 @@ export default function AddPersonDialog({
     })();
   }, [debouncedAddressInput]);
 
-  const handleInputChange = (e) => { const { name, value } = e.target; setFormData(p => ({ ...p, [name]: value })); setErrors(p => ({ ...p, [name]: "" })); };
-  const handleNameChange = (e) => { const { name, value } = e.target; setFormData(p => ({ ...p, [name]: capitaliseWords(value) })); setErrors(p => ({ ...p, [name]: "" })); };
-  const handleNumberChange = (e) => { setFormData(p => ({ ...p, number: digitsOnly(e.target.value) })); setErrors(p => ({ ...p, number: "" })); };
+  const handleInputChange = (e) => { 
+    const { name, value } = e.target; 
+    setFormData(p => ({ ...p, [name]: value })); 
+    setErrors(p => ({ ...p, [name]: "" })); 
+  };
+  
+  const handleNameChange = (e) => { 
+    const { name, value } = e.target; 
+    setFormData(p => ({ ...p, [name]: capitaliseWords(value) })); 
+    setErrors(p => ({ ...p, [name]: "" })); 
+  };
+  
+  const handleNumberChange = (e) => { 
+    setFormData(p => ({ ...p, number: digitsOnly(e.target.value) })); 
+    setErrors(p => ({ ...p, number: "" })); 
+  };
 
   const handleInvitedByChange = useCallback((value) => {
     if (!value) {
@@ -257,7 +409,9 @@ export default function AddPersonDialog({
       setShowLeaderFields(false);
       return;
     }
+    
     const label = typeof value === "string" ? value : value.label;
+    console.log('🔄 Invited by changed:', label);
 
     const option = peopleOptions.find(
       o => o.label === label.trim() || o.FullName?.trim() === label.trim()
@@ -308,104 +462,145 @@ export default function AddPersonDialog({
   const isFormValid = () =>
     ["name", "surname", "dob", "address", "email", "number", "gender"].every(f => formData[f]?.toString().trim() !== "");
 
-  const handleSaveClick = async () => {
-    if (!validate() || isSubmitting) return;
-    setIsSubmitting(true);
+const handleSaveClick = async () => {
+  if (!validate() || isSubmitting) return;
+  setIsSubmitting(true);
 
-    try {
-      const leaderPath = selectedInviter ? buildLeaderPath(selectedInviter) : [];
-      const leaderId = selectedInviter?._id || null;
+  try {
+    const leaderPath = selectedInviter ? buildLeaderPath(selectedInviter) : [];
+    const leaderId = selectedInviter?._id || null;
 
-      const payload = {
-        name: formData.name,
-        surname: formData.surname,
-        gender: formData.gender,
-        email: formData.email,
-        number: formData.number,
-        phone: formData.number,
-        dob: formData.dob ? formData.dob.replace(/-/g, "/") : "",
-        address: formData.address,
-        invitedBy: formData.invitedBy || "",
-        stage: formData.stage || "Win",
-        leaderId: leaderId,
-        leaderPath: leaderPath,
-        invitedById: leaderId,
-        leader1: formData.leader1 || "",
-        leader12: formData.leader12 || "",
-        leader144: formData.leader144 || "",
-      };
-
-      let response;
-
-      if (isEdit && personId) {
-        response = await authFetch(`${BASE_URL}/people/${personId}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const resolved = resolveLeaderFields(data.person || data);
-          const normalizedData = {
-            _id: personId,
-            name: data.person?.Name || data.Name || payload.name,
-            surname: data.person?.Surname || data.Surname || payload.surname,
-            email: data.person?.Email || data.Email || payload.email,
-            number: data.person?.Number || data.Number || payload.number,
-            phone: data.person?.Number || data.Number || payload.number,
-            gender: data.person?.Gender || data.Gender || payload.gender,
-            address: data.person?.Address || data.Address || payload.address,
-            birthday: data.person?.Birthday || data.Birthday || payload.dob,
-            invitedBy: data.person?.InvitedBy || data.InvitedBy || payload.invitedBy,
-            leader1: resolved.leader1 || formData.leader1 || "",
-            leader12: resolved.leader12 || formData.leader12 || "",
-            leader144: resolved.leader144 || formData.leader144 || "",
-            stage: data.person?.Stage || data.Stage || payload.stage || "Win",
-            fullName: `${payload.name} ${payload.surname}`.trim(),
-            leaders: data.person?.leaders || data.leaders || [],
-            LeaderPath: data.person?.LeaderPath || data.LeaderPath || leaderPath,
-            LeaderId: data.person?.LeaderId || data.LeaderId || leaderId,
-          };
-          onSave({ ...normalizedData, __updatedNewPerson: true });
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.detail || `Update failed (${response.status})`);
-        }
-
-      } else {
-        response = await authFetch(`${BASE_URL}/people`, {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          const createdPerson = data.person || data;
-          const resolved = resolveLeaderFields(createdPerson);
-          onSave({
-            ...data,
-            person: {
-              ...createdPerson,
-              leader1: resolved.leader1,
-              leader12: resolved.leader12,
-              leader144: resolved.leader144,
-            },
-          });
-        } else {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(errorData.detail || `Save failed (${response.status})`);
+    // Convert date from yyyy-mm-dd to dd/mm/yyyy for backend
+    let formattedDob = "";
+    if (formData.dob) {
+      // If it's already in dd/mm/yyyy format
+      if (formData.dob.match(/^\d{2}\/\d{2}\/\d{4}/)) {
+        formattedDob = formData.dob;
+      }
+      // Convert from yyyy-mm-dd to dd/mm/yyyy
+      else if (formData.dob.match(/^\d{4}-\d{2}-\d{2}/)) {
+        const parts = formData.dob.split('-');
+        formattedDob = `${parts[2]}/${parts[1]}/${parts[0]}`;
+      }
+      // If it's some other format, try to parse it
+      else {
+        try {
+          const date = new Date(formData.dob);
+          if (!isNaN(date.getTime())) {
+            const day = String(date.getDate()).padStart(2, '0');
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const year = date.getFullYear();
+            formattedDob = `${day}/${month}/${year}`;
+          } else {
+            formattedDob = formData.dob;
+          }
+        } catch {
+          formattedDob = formData.dob;
         }
       }
-
-      if (!isEdit) setFormData({ ...initialFormState });
-      setSelectedInviter(null);
-      onClose();
-    } catch (err) {
-      toast.error(`Error: ${err.message || "An error occurred"}`);
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+
+    const payload = {
+      name: formData.name,
+      surname: formData.surname,
+      gender: formData.gender,
+      email: formData.email,
+      number: formData.number,
+      phone: formData.number,
+      dob: formattedDob,  // Use the formatted date
+      address: formData.address,
+      invitedBy: formData.invitedBy || "",
+      stage: formData.stage || "Win",
+      leaderId: leaderId,
+      leaderPath: leaderPath,
+      invitedById: leaderId,
+      leader1: formData.leader1 || "",
+      leader12: formData.leader12 || "",
+      leader144: formData.leader144 || "",
+    };
+
+    console.log('📅 Saving with date:', {
+      original: formData.dob,
+      formatted: formattedDob
+    });
+
+    let response;
+
+    if (isEdit && personId) {
+      response = await authFetch(`${BASE_URL}/people/${personId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const resolved = resolveLeaderFields(data.person || data);
+        const normalizedData = {
+          _id: personId,
+          name: data.person?.Name || data.Name || payload.name,
+          surname: data.person?.Surname || data.Surname || payload.surname,
+          email: data.person?.Email || data.Email || payload.email,
+          number: data.person?.Number || data.Number || payload.number,
+          phone: data.person?.Number || data.Number || payload.number,
+          gender: data.person?.Gender || data.Gender || payload.gender,
+          address: data.person?.Address || data.Address || payload.address,
+          birthday: data.person?.Birthday || data.Birthday || payload.dob,
+          invitedBy: data.person?.InvitedBy || data.InvitedBy || payload.invitedBy,
+          leader1: resolved.leader1 || formData.leader1 || "",
+          leader12: resolved.leader12 || formData.leader12 || "",
+          leader144: resolved.leader144 || formData.leader144 || "",
+          stage: data.person?.Stage || data.Stage || payload.stage || "Win",
+          fullName: `${payload.name} ${payload.surname}`.trim(),
+          leaders: data.person?.leaders || data.leaders || [],
+          LeaderPath: data.person?.LeaderPath || data.LeaderPath || leaderPath,
+          LeaderId: data.person?.LeaderId || data.LeaderId || leaderId,
+        };
+        onSave({ ...normalizedData, __updatedNewPerson: true });
+        toast.success("Person updated successfully");
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Update failed (${response.status})`);
+      }
+
+    } else {
+      // Similar date formatting for new person creation
+      response = await authFetch(`${BASE_URL}/people`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const createdPerson = data.person || data;
+        const resolved = resolveLeaderFields(createdPerson);
+        onSave({
+          ...data,
+          person: {
+            ...createdPerson,
+            leader1: resolved.leader1,
+            leader12: resolved.leader12,
+            leader144: resolved.leader144,
+          },
+        });
+        toast.success("Person added successfully");
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Save failed (${response.status})`);
+      }
+    }
+
+    if (!isEdit) setFormData({ ...initialFormState });
+    setSelectedInviter(null);
+    onClose();
+  } catch (err) {
+    console.error('Save error:', err);
+    toast.error(`Error: ${err.message || "An error occurred"}`);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   const handleClose = () => {
     if (isSubmitting) return;
@@ -439,6 +634,8 @@ export default function AddPersonDialog({
 
   const renderAutocomplete = (name, label, isInvite = false) => {
     const currentValue = formData[name] || "";
+    const selectedOption = peopleOptions.find(o => o.label === currentValue);
+    
     return (
       <Autocomplete
         freeSolo
@@ -446,7 +643,7 @@ export default function AddPersonDialog({
         options={peopleOptions}
         getOptionLabel={o => typeof o === "string" ? o : o.label}
         filterOptions={filterOptions}
-        value={peopleOptions.find(o => o.label === currentValue) || (currentValue ? { label: currentValue } : null)}
+        value={selectedOption || (currentValue ? { label: currentValue } : null)}
         onChange={(e, newValue) => {
           if (isInvite) {
             handleInvitedByChange(newValue);
@@ -468,14 +665,21 @@ export default function AddPersonDialog({
         }}
         renderInput={params => (
           <TextField
-            {...params} label={label} error={!!errors[name]} helperText={errors[name]}
-            margin="normal" fullWidth sx={uniformInputSx}
+            {...params} 
+            label={label} 
+            error={!!errors[name]} 
+            helperText={errors[name]}
+            margin="normal" 
+            fullWidth 
+            sx={uniformInputSx}
           />
         )}
         loading={isLoadingPeople}
         loadingText="Loading people..."
         noOptionsText="No matches found"
-        blurOnSelect clearOnBlur handleHomeEndKeys
+        blurOnSelect 
+        clearOnBlur 
+        handleHomeEndKeys
       />
     );
   };
@@ -513,7 +717,8 @@ export default function AddPersonDialog({
 
           {/* Address autocomplete */}
           <Autocomplete
-            freeSolo options={addressSuggestions}
+            freeSolo 
+            options={addressSuggestions}
             getOptionLabel={o => typeof o === "string" ? o : o.label || o.address || ""}
             value={formData.address}
             onChange={(e, newValue) => {
@@ -526,13 +731,16 @@ export default function AddPersonDialog({
               setFormData(p => ({ ...p, address: newInputValue }));
               setErrors(p => ({ ...p, address: "" }));
             }}
-            loading={isLoadingAddress} loadingText="Searching addresses…"
+            loading={isLoadingAddress} 
+            loadingText="Searching addresses…"
             noOptionsText={debouncedAddressInput?.length < 3 ? "Type at least 3 characters" : "No addresses found"}
             renderInput={params => (
               <TextField {...params} label="Home Address *" error={!!errors.address}
                 helperText={errors.address} margin="normal" fullWidth sx={uniformInputSx} />
             )}
-            disabled={isSubmitting} blurOnSelect clearOnBlur={false}
+            disabled={isSubmitting} 
+            blurOnSelect 
+            clearOnBlur={false}
           />
 
           {renderTextField("email", "Email Address *", { type: "email", required: true })}
@@ -548,29 +756,43 @@ export default function AddPersonDialog({
                 Leader Chain (auto-assigned from Invited By)
               </Typography>
               <TextField
-                label="Leader @1" value={formData.leader1 || ""} disabled fullWidth
-                margin="normal" sx={uniformInputSx}
+                label="Leader @1" 
+                value={formData.leader1 || ""} 
+                disabled 
+                fullWidth
+                margin="normal" 
+                sx={uniformInputSx}
                 helperText="Root leader — set automatically"
               />
               <TextField
-                label="Leader @12" value={formData.leader12 || ""} disabled fullWidth
-                margin="normal" sx={uniformInputSx}
+                label="Leader @12" 
+                value={formData.leader12 || ""} 
+                disabled 
+                fullWidth
+                margin="normal" 
+                sx={uniformInputSx}
                 helperText="Auto-assigned from inviter's hierarchy"
               />
               <TextField
-                label="Leader @144" value={formData.leader144 || ""} disabled fullWidth
-                margin="normal" sx={uniformInputSx}
+                label="Leader @144" 
+                value={formData.leader144 || ""} 
+                disabled 
+                fullWidth
+                margin="normal" 
+                sx={uniformInputSx}
                 helperText="Auto-assigned from inviter's hierarchy"
               />
             </Box>
           </Collapse>
 
-          {!showLeaderFields && (
+          {!showLeaderFields && formData.invitedBy && (
             <Box sx={{ mt: 2, textAlign: "center" }}>
               <Button
                 onClick={() => setShowLeaderFields(true)}
                 startIcon={<LeaderIcon />}
-                variant="outlined" color="primary" size="small"
+                variant="outlined" 
+                color="primary" 
+                size="small"
               >
                 View Leader Chain
               </Button>
@@ -582,7 +804,9 @@ export default function AddPersonDialog({
       <DialogActions sx={{ p: 2 }}>
         <Button onClick={handleClose} color="inherit" disabled={isSubmitting}>Cancel</Button>
         <LoadingButton
-          onClick={handleSaveClick} variant="contained" color="primary"
+          onClick={handleSaveClick} 
+          variant="contained" 
+          color="primary"
           loading={isSubmitting}
           disabled={!isFormValid() || (isEdit && !hasChanges)}
           sx={{ minWidth: 100 }}

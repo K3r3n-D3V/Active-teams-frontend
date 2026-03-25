@@ -663,6 +663,19 @@ function ServiceCheckIn() {
         return `${a.name} ${a.surname}`.localeCompare(`${b.name} ${b.surname}`);
       });
     }
+
+    if (result.length > 0) {
+    console.log('📊 DataGrid rows sample:', result.slice(0, 2).map(row => ({
+      _id: row._id,
+      name: row.name,
+      surname: row.surname,
+      dob: row.dob,
+      birthday: row.birthday,
+      invitedBy: row.invitedBy,
+      leader1: row.leader1
+    })));
+  }
+
     return result;
   }, [filteredAttendees, sortModel]);
 
@@ -1170,22 +1183,55 @@ function ServiceCheckIn() {
     setConsolidationOpen(true);
   }, [currentEventId]);
 
-  const handleEditClick = useCallback((person) => {
-    setEditingPerson(person);
-    setFormData({
-      name: person.name || "",
-      surname: person.surname || "",
-      dob: person.dob || person.dateOfBirth || person.birthday || "",
-      address: person.homeAddress || person.address || "",
-      email: person.email || "",
-      number: person.phone || person.Number || person.number || "",
-      phone: person.phone || person.Number || person.number || "",
-      gender: person.gender || "",
-      invitedBy: person.invitedBy || "",
-      stage: person.stage || "Win",
-    });
-    setOpenDialog(true);
-  }, []);
+const handleEditClick = useCallback((person) => {
+  console.log('🔍 EDITING PERSON - FULL DATA:', person);
+  console.log('📅 Date fields:', {
+    dob: person.dob,
+    birthday: person.birthday,
+    dateOfBirth: person.dateOfBirth,
+    BirthDay: person.BirthDay,
+    Birthday: person.Birthday
+  });
+  console.log('👥 Leader fields:', {
+    invitedBy: person.invitedBy,
+    leader1: person.leader1,
+    leader12: person.leader12,
+    leader144: person.leader144
+  });
+  
+  // Extract all leader fields from the person object
+  const leaderFields = {};
+  Object.keys(person).forEach(key => {
+    if (key.startsWith('leader')) {
+      leaderFields[key] = person[key];
+    }
+  });
+  
+  // Get the date - try multiple possible field names
+  let dateValue = "";
+  if (person.dob) dateValue = person.dob;
+  else if (person.birthday) dateValue = person.birthday;
+  else if (person.dateOfBirth) dateValue = person.dateOfBirth;
+  else if (person.Birthday) dateValue = person.Birthday;
+  
+  console.log('📅 Selected date value:', dateValue);
+  
+  setEditingPerson(person);
+  setFormData({
+    name: person.name || "",
+    surname: person.surname || "",
+    dob: dateValue,
+    address: person.homeAddress || person.address || "",
+    email: person.email || "",
+    number: person.phone || person.Number || person.number || "",
+    phone: person.phone || person.Number || person.number || "",
+    gender: person.gender || "",
+    invitedBy: person.invitedBy || "",
+    stage: person.stage || "Win",
+    ...leaderFields,
+  });
+  setOpenDialog(true);
+}, []);
 
   const handleDelete = useCallback(async (personId, personName) => {
     setIsDeleting(true);
