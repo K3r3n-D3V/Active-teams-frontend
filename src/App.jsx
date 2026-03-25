@@ -1,5 +1,5 @@
 import React from "react";
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useContext } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { createTheme, ThemeProvider, CssBaseline } from "@mui/material";
 
@@ -43,7 +43,7 @@ const ProtectedAttendance = withAuthCheck(AttendanceModal, ['admin', 'leader', '
 const ProtectedEventDetails = withAuthCheck(EventDetails, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
 
 function App() {
-const { user, loading } = React.useContext(AuthContext);
+const { user, loading } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
   const [mode, setMode] = useState(() => localStorage.getItem("themeMode") || "light");
