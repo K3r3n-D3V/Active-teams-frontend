@@ -9,7 +9,7 @@ import {
   ToggleButtonGroup, Tooltip, Pagination, CircularProgress, LinearProgress, Grid
 } from '@mui/material';
 import {
-  Search as SearchIcon, Add as AddIcon, MoreVert as MoreVertIcon,
+  Search as SearchIcon, MoreVert as MoreVertIcon,
   Edit as EditIcon, Delete as DeleteIcon, Email as EmailIcon,
   Phone as PhoneIcon, LocationOn as LocationIcon, Group as GroupIcon,
   ViewModule as ViewModuleIcon, ViewList as ViewListIcon, People as PeopleIcon,
@@ -26,21 +26,31 @@ if (!window.globalCacheTimestamp) window.globalCacheTimestamp = null;
 if (!window.globalPeopleCacheOrg) window.globalPeopleCacheOrg = null;
 const CACHE_DURATION = 5 * 60 * 1000;
 
+const safeStr = (v) => {
+  if (v == null) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (typeof v === 'object') {
+    try { return String(v); } catch { return ''; }
+  }
+  return '';
+};
+
 function getLeadersByLevel(person) {
   if (Array.isArray(person?.leaders) && person.leaders.length > 0) {
     const map = {};
     for (const l of person.leaders) {
       if (l?.level != null && l?.name) {
-        map[`leader${l.level}`] = l.name;
+        map[`leader${l.level}`] = safeStr(l.name);
       }
     }
     if (Object.keys(map).length > 0) return map;
   }
-  const l1 = person?.["Leader @1"] || "";
-  const l12 = person?.["Leader @12"] || "";
-  const l144 = person?.["Leader @144"] || "";
-  const l1728 = person?.["Leader @1728"] || "";
   const map = {};
+  const l1 = safeStr(person?.["Leader @1"] || person?.leader1 || '');
+  const l12 = safeStr(person?.["Leader @12"] || person?.leader12 || '');
+  const l144 = safeStr(person?.["Leader @144"] || person?.leader144 || '');
+  const l1728 = safeStr(person?.["Leader @1728"] || person?.leader1728 || '');
   if (l1) map.leader1 = l1;
   if (l12) map.leader12 = l12;
   if (l144) map.leader144 = l144;
@@ -49,7 +59,7 @@ function getLeadersByLevel(person) {
 }
 
 function getLeadersCombined(person) {
-  return Object.values(getLeadersByLevel(person)).join(" ");
+  return Object.values(getLeadersByLevel(person)).join(' ');
 }
 
 const stages = [
@@ -59,19 +69,64 @@ const stages = [
   { id: 'Send', title: 'Send' },
 ];
 
+function mapRawPerson(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+
+  const name = safeStr(raw.Name || raw.name || '').trim();
+  const surname = safeStr(raw.Surname || raw.surname || '').trim();
+  const email = safeStr(raw.Email || raw.email || '').trim();
+  const phone = safeStr(raw.Number || raw.Phone || raw.phone || raw.number || '').trim();
+  const address = safeStr(raw.Address || raw.address || '').trim();
+  const stage = safeStr(raw.Stage || raw.stage || 'Win').trim();
+  const gender = safeStr(raw.Gender || raw.gender || '').trim();
+  const dob = safeStr(raw.Birthday || raw.birthday || raw.DateOfBirth || raw.dob || '');
+  const invitedBy = safeStr(raw.InvitedBy || raw.invitedBy || '').trim();
+  const org = safeStr(raw.Organization || raw.Organisation || raw.organization || raw.org_id || '').trim();
+
+  const leaderMap = getLeadersByLevel(raw);
+  const leadersCombined = Object.values(leaderMap).join(' ');
+  const fullName = `${name} ${surname}`.trim();
+
+  return {
+    _id: safeStr(raw._id || raw.id || ''),
+    name,
+    surname,
+    fullName,
+    fullNameLower: fullName.toLowerCase(),
+    emailLower: email.toLowerCase(),
+    phoneLower: phone.toLowerCase(),
+    addressLower: address.toLowerCase(),
+    gender,
+    dob,
+    location: address,
+    email,
+    phone,
+    Stage: stage,
+    lastUpdated: safeStr(raw.UpdatedAt || raw.updatedAt || ''),
+    invitedBy,
+    org_id: safeStr(raw.org_id || ''),
+    Organization: org,
+    ...leaderMap,
+    leaders: leaderMap,
+    leadersCombinedLower: leadersCombined.toLowerCase(),
+    leadersRaw: Array.isArray(raw.leaders) ? raw.leaders : [],
+  };
+}
+
 const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
   const [anchorEl, setAnchorEl] = useState(null);
   const open = Boolean(anchorEl);
+
   const handleMenuClick = e => { e.stopPropagation(); setAnchorEl(e.currentTarget); };
   const handleMenuClose = () => setAnchorEl(null);
   const handleEdit = () => { onEdit(person); handleMenuClose(); };
   const handleDelete = () => { onDelete(person._id); handleMenuClose(); };
 
-  const getInitials = useCallback(name => name?.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || "?", []);
-  const getAvatarColor = useCallback(name => ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3'][(name?.length || 0) % 6], []);
-  const formatDate = useCallback(date => date ? new Date(date).toLocaleDateString() : "-", []);
-  const getStageColor = useCallback(stage => {
-    switch (stage) {
+  const getInitials = useCallback(n => safeStr(n).split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?', []);
+  const getAvatarColor = useCallback(n => ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3'][(safeStr(n).length) % 6], []);
+  const formatDate = useCallback(d => { try { return d ? new Date(d).toLocaleDateString() : '-'; } catch { return '-'; } }, []);
+  const getStageColor = useCallback(s => {
+    switch (s) {
       case 'Win': return 'success.main';
       case 'Consolidate': return 'info.main';
       case 'Disciple': return 'warning.main';
@@ -81,14 +136,12 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
   }, []);
 
   const leaderEntries = useMemo(() => {
-    if (Array.isArray(person.leadersRaw) && person.leadersRaw.length > 0) {
-      return person.leadersRaw
-        .filter(l => l?.name)
-        .map(l => ([`leader${l.level}`, l.name]));
-    }
-    const map = getLeadersByLevel(person);
-    return Object.entries(map).filter(([, name]) => name);
+    if (Array.isArray(person.leadersRaw) && person.leadersRaw.length > 0)
+      return person.leadersRaw.filter(l => l?.name).map(l => [`leader${l.level}`, safeStr(l.name)]);
+    return Object.entries(getLeadersByLevel(person)).filter(([, n]) => n);
   }, [person]);
+
+  const displayName = `${safeStr(person.name)} ${safeStr(person.surname)}`.trim();
 
   return (
     <Card sx={{
@@ -101,12 +154,14 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
     }}>
       <CardContent sx={{ p: 1 }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', mb: 1 }}>
-          <Avatar sx={{ width: 28, height: 28, fontSize: 12, backgroundColor: getAvatarColor(`${person.name} ${person.surname}`), mr: 1 }}>
-            {getInitials(`${person.name} ${person.surname}`)}
+          <Avatar sx={{ width: 28, height: 28, fontSize: 12, backgroundColor: getAvatarColor(displayName), mr: 1 }}>
+            {getInitials(displayName)}
           </Avatar>
           <Box sx={{ flex: 1 }}>
-            <Typography variant="subtitle2" noWrap>{person.name} {person.surname}</Typography>
-            <Typography variant="caption" color="text.secondary">{person.gender} • {formatDate(person.dob)}</Typography>
+            <Typography variant="subtitle2" noWrap>{displayName}</Typography>
+            <Typography variant="caption" color="text.secondary">
+              {safeStr(person.gender)} • {formatDate(person.dob)}
+            </Typography>
           </Box>
           <IconButton size="small" onClick={handleMenuClick}><MoreVertIcon fontSize="small" /></IconButton>
         </Box>
@@ -130,25 +185,22 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
               <Typography variant="caption">{person.location}</Typography>
             </Box>
           )}
-
-          {/* dynamic leaders — renders all levels */}
           {leaderEntries.length > 0 && (
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, mt: 1 }}>
-              {leaderEntries.map(([key, name]) => {
-                const level = key.replace("leader", "");
-                return (
-                  <Box key={key} sx={{ display: 'flex', alignItems: 'center' }}>
-                    <GroupIcon fontSize="small" sx={{ mr: 0.5 }} />
-                    <Typography variant="caption">Leader @{level}: {name}</Typography>
-                  </Box>
-                );
-              })}
+              {leaderEntries.map(([key, name]) => (
+                <Box key={key} sx={{ display: 'flex', alignItems: 'center' }}>
+                  <GroupIcon fontSize="small" sx={{ mr: 0.5 }} />
+                  <Typography variant="caption">
+                    Leader @{safeStr(key).replace('leader', '')}: {name}
+                  </Typography>
+                </Box>
+              ))}
             </Box>
           )}
         </Box>
 
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Chip label={person.Stage} size="small"
+          <Chip label={safeStr(person.Stage) || 'Win'} size="small"
             sx={{ height: 20, fontSize: 10, backgroundColor: getStageColor(person.Stage), color: '#fff' }} />
           <Typography variant="caption">Updated: {formatDate(person.lastUpdated)}</Typography>
         </Box>
@@ -168,7 +220,7 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
   );
 });
 
-const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loading, updatePersonInCache, allPeople, setAllPeople }) => {
+const DragDropBoard = ({ people, onEditPerson, onDeletePerson, loading, updatePersonInCache, allPeople, setAllPeople }) => {
   const theme = useTheme();
   const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
   const isMedium = useMediaQuery(theme.breakpoints.between('sm', 'lg'));
@@ -181,10 +233,10 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
     if (source.droppableId === destination.droppableId && source.index === destination.index) return;
 
     const newStage = destination.droppableId;
-    const originalPerson = allPeople.find(p => String(p._id) === String(draggableId));
+    const originalPerson = allPeople.find(p => safeStr(p._id) === safeStr(draggableId));
     if (!originalPerson) return;
 
-    setAllPeople(prev => prev.map(p => String(p._id) === String(draggableId) ? { ...p, Stage: newStage } : p));
+    setAllPeople(prev => prev.map(p => safeStr(p._id) === safeStr(draggableId) ? { ...p, Stage: newStage } : p));
 
     try {
       const response = await authFetch(`${BACKEND_URL}/people/${draggableId}`, {
@@ -193,25 +245,18 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
         headers: { 'Content-Type': 'application/json' },
       });
       const data = await response.json();
+      const ts = safeStr(data.person?.UpdatedAt || new Date().toISOString());
 
       setAllPeople(prev => prev.map(p =>
-        String(p._id) === String(draggableId)
-          ? { ...p, Stage: newStage, lastUpdated: data.person?.UpdatedAt || new Date().toISOString() }
-          : p
+        safeStr(p._id) === safeStr(draggableId) ? { ...p, Stage: newStage, lastUpdated: ts } : p
       ));
-
-      if (updatePersonInCache) {
-        updatePersonInCache(draggableId, { Stage: newStage, lastUpdated: data.person?.UpdatedAt || new Date().toISOString() });
-      }
-
+      if (updatePersonInCache) updatePersonInCache(draggableId, { Stage: newStage, lastUpdated: ts });
       window.globalPeopleCache = allPeople.map(p =>
-        String(p._id) === String(draggableId)
-          ? { ...p, Stage: newStage, lastUpdated: data.person?.UpdatedAt || new Date().toISOString() }
-          : p
+        safeStr(p._id) === safeStr(draggableId) ? { ...p, Stage: newStage, lastUpdated: ts } : p
       );
     } catch (err) {
-      console.error("Failed to update Stage:", err.message || err);
-      setAllPeople(prev => prev.map(p => String(p._id) === String(draggableId) ? originalPerson : p));
+      console.error('Failed to update Stage:', err.message || err);
+      setAllPeople(prev => prev.map(p => safeStr(p._id) === safeStr(draggableId) ? originalPerson : p));
       alert(`Failed to update stage: ${err.message || 'Unknown error'}`);
     }
   };
@@ -232,9 +277,10 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
     <DragDropContext onDragEnd={handleDragEnd}>
       <Box sx={{ display: 'flex', flexWrap: isSmall || isMedium ? 'wrap' : 'nowrap', gap: 3, justifyContent: 'center', py: 1 }}>
         {stages.map(stage => {
-          const stagePeople = people.filter(p =>
-            (p.Stage || '').trim().toLowerCase() === stage.id.toLowerCase() && (p.name || p.surname)
-          );
+          const stagePeople = people.filter(p => {
+            const s = safeStr(p.Stage).trim().toLowerCase();
+            return s === stage.id.toLowerCase() && (p.name || p.surname);
+          });
           const stageWidth = isSmall ? '100%' : isMedium ? '45%' : '250px';
           return (
             <Paper key={stage.id} sx={{
@@ -251,7 +297,7 @@ const DragDropBoard = ({ people, setPeople, onEditPerson, onDeletePerson, loadin
                   <Box ref={provided.innerRef} {...provided.droppableProps} sx={{ p: 1, minHeight: 140, maxHeight: '400px', overflowY: 'auto' }}>
                     {stagePeople.length > 0
                       ? stagePeople.map((person, index) => (
-                        <Draggable key={person._id} draggableId={String(person._id)} index={index}>
+                        <Draggable key={safeStr(person._id)} draggableId={safeStr(person._id)} index={index}>
                           {(provided, snapshot) => (
                             <Box ref={provided.innerRef} {...provided.draggableProps} {...provided.dragHandleProps}>
                               <PersonCard person={person} onEdit={onEditPerson} onDelete={onDeletePerson} isDragging={snapshot.isDragging} />
@@ -279,20 +325,33 @@ export const PeopleSection = () => {
   const { userProfile } = useContext(UserContext);
 
   const currentUserOrg = useMemo(() => {
-    const org = user?.org_id || user?.organization || user?.Organization || "";
-    return org.toLowerCase().replace(" ", "-");
+    const org = safeStr(user?.org_id || user?.organization || user?.Organization || '');
+    return org.toLowerCase().replace(' ', '-');
   }, [user]);
 
-  const currentUserName = (user?.name && user?.surname)
-    ? `${(user.name || '').trim()} ${(user.surname || '').trim()}`.toLowerCase()
-    : (userProfile?.name ? userProfile.name.toLowerCase() : '').trim();
+  const currentUserName = useMemo(() => {
+    if (user?.name && user?.surname)
+      return `${safeStr(user.name).trim()} ${safeStr(user.surname).trim()}`.toLowerCase();
+    if (userProfile?.name) return safeStr(userProfile.name).toLowerCase().trim();
+    return '';
+  }, [user, userProfile]);
 
   const [personToDelete, setPersonToDelete] = useState(null);
-  const [allPeople, setAllPeople] = useState([]);
+  const [allPeople, setAllPeople] = useState(() => {
+    if (
+      window.globalPeopleCache &&
+      window.globalCacheTimestamp &&
+      (Date.now() - window.globalCacheTimestamp < CACHE_DURATION) &&
+      window.globalPeopleCacheOrg === (safeStr(user?.org_id || user?.organization || user?.Organization || '').toLowerCase().replace(' ', '-'))
+    ) {
+      return window.globalPeopleCache;
+    }
+    return [];
+  });
   const [loading, setLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchField, setSearchField] = useState('name');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPerson, setEditingPerson] = useState(null);
@@ -312,150 +371,104 @@ export const PeopleSection = () => {
   const isFetchingRef = useRef(false);
   const searchDebounceRef = useRef(null);
   const peopleFetchPromiseRef = useRef(null);
+  const prevOrgRef = useRef(currentUserOrg);
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-const fetchAllPeople = useCallback(async (forceRefresh = false) => {
-  const now = Date.now();
-  const orgKey = currentUserOrg;
- 
-  if (window.globalPeopleCacheOrg && window.globalPeopleCacheOrg !== orgKey) {
-    console.log(`Org changed from ${window.globalPeopleCacheOrg} to ${orgKey} — clearing cache`);
-    window.globalPeopleCache = null;
-    window.globalCacheTimestamp = null;
-    window.globalPeopleCacheOrg = null;
-  }
- 
-  if (
-    !forceRefresh &&
-    window.globalPeopleCache &&
-    window.globalCacheTimestamp &&
-    (now - window.globalCacheTimestamp < CACHE_DURATION)
-  ) {
-    setAllPeople(window.globalPeopleCache);
-    setCacheInfo({ source: 'local-cache', org: orgKey });
-    return window.globalPeopleCache;
-  }
+  const fetchAllPeople = useCallback(async (forceRefresh = false) => {
+    const now = Date.now();
+    const orgKey = currentUserOrg;
 
-  if (forceRefresh) {
-    isFetchingRef.current = false;
-    peopleFetchPromiseRef.current = null;
-  }
- 
-  if (isFetchingRef.current && peopleFetchPromiseRef.current) {
-    try { return await peopleFetchPromiseRef.current || window.globalPeopleCache || []; }
-    catch { return window.globalPeopleCache || []; }
-  }
- 
-  isFetchingRef.current = true;
-  setLoading(true);
- 
-  peopleFetchPromiseRef.current = (async () => {
-    try {
-      const response = await authFetch(`${BACKEND_URL}/cache/people`);
-      if (!response || !response.ok) throw new Error('Failed to fetch people');
-      const data = await response.json();
- 
-      if (!data.success) throw new Error(data.error || 'Cache returned error');
- 
-      console.log(`People loaded: ${data.total_count} records | source: ${data.source} | org: ${data.organization}`);
-      setCacheInfo({ source: data.source, org: data.organization || orgKey });
- 
-      const rawPeople = data?.cached_data || [];
- 
-      const mapped = rawPeople.map(raw => {
-        const name    = (raw.Name    || raw.name    || '').toString().trim();
-        const surname = (raw.Surname || raw.surname || '').toString().trim();
-        const email   = (raw.Email   || raw.email   || '').toString().trim();
-        const phone   = (raw.Number  || raw.Phone   || raw.phone || '').toString().trim();
-        const address = (raw.Address || raw.address || '').toString().trim();
- 
-        const leaderMap      = getLeadersByLevel(raw);
-        const leadersCombined = Object.values(leaderMap).join(' ');
-        const fullName       = `${name} ${surname}`.trim();
- 
-        return {
-          _id:               (raw._id || raw.id || '').toString(),
-          name,
-          surname,
-          fullName,
-          fullNameLower:     fullName.toLowerCase(),
-          emailLower:        email.toLowerCase(),
-          phoneLower:        phone.toLowerCase(),
-          addressLower:      address.toLowerCase(),
-          gender:            (raw.Gender || raw.gender || '').toString().trim(),
-          dob:               raw.Birthday || raw.DateOfBirth || '',
-          location:          address,
-          email,
-          phone,
-          Stage:             (raw.Stage || 'Win').toString().trim(),
-          lastUpdated:       raw.UpdatedAt || null,
-          invitedBy:         (raw.InvitedBy || '').toString().trim(),
-          org_id:            raw.org_id || '',
-          Organization:      raw.Organization || raw.Organisation || '',
-          ...leaderMap,
-          leaders:           leaderMap,
-          leadersCombinedLower: leadersCombined.toLowerCase(),
-          leadersRaw:        Array.isArray(raw.leaders) ? raw.leaders : [],
-        };
-      });
- 
-      window.globalPeopleCache    = mapped;
-      window.globalCacheTimestamp = Date.now();
-      window.globalPeopleCacheOrg = orgKey;
-      setAllPeople(mapped);
-      return mapped;
-    } catch (err) {
-      console.error('Fetch error:', err);
-      setSnackbar({ open: true, message: `Failed to load people: ${err?.message}`, severity: 'error' });
-      if (window.globalPeopleCache) {
-        setAllPeople(window.globalPeopleCache);
-        return window.globalPeopleCache;
-      }
-      return [];
-    } finally {
-      setLoading(false);
-      isFetchingRef.current      = false;
+    if (window.globalPeopleCacheOrg && window.globalPeopleCacheOrg !== orgKey) {
+      window.globalPeopleCache = null;
+      window.globalCacheTimestamp = null;
+      window.globalPeopleCacheOrg = null;
+    }
+
+    if (
+      !forceRefresh &&
+      window.globalPeopleCache &&
+      window.globalCacheTimestamp &&
+      (now - window.globalCacheTimestamp < CACHE_DURATION)
+    ) {
+      setAllPeople(window.globalPeopleCache);
+      setCacheInfo({ source: 'local-cache', org: orgKey });
+      return window.globalPeopleCache;
+    }
+
+    if (forceRefresh) {
+      isFetchingRef.current = false;
       peopleFetchPromiseRef.current = null;
     }
-  })();
- 
-  return await peopleFetchPromiseRef.current;
-}, [BACKEND_URL, authFetch, currentUserOrg]);
 
-const refetchPeople = useCallback(async () => {
-  console.log('Refetching people after import...');
-  setIsRefreshing(true);
-  try {
-    window.globalPeopleCache    = null;
-    window.globalCacheTimestamp = null;
-    window.globalPeopleCacheOrg = null;
+    if (isFetchingRef.current && peopleFetchPromiseRef.current) {
+      try { return await peopleFetchPromiseRef.current || window.globalPeopleCache || []; }
+      catch { return window.globalPeopleCache || []; }
+    }
 
-    isFetchingRef.current      = false;
-    peopleFetchPromiseRef.current = null;
- 
-    await fetchAllPeople(true);
- 
-    setSnackbar({
-      open:     true,
-      message:  'People list refreshed — new imports are now visible.',
-      severity: 'success',
-    });
-  } catch (error) {
-    console.error('Error refreshing people:', error);
-    setSnackbar({
-      open:     true,
-      message:  'Failed to refresh people data',
-      severity: 'error',
-    });
-  } finally {
-    setIsRefreshing(false);
-  }
-}, [fetchAllPeople]);
+    isFetchingRef.current = true;
+    if (window.globalPeopleCache && !forceRefresh) {
+      setAllPeople(window.globalPeopleCache);
+    } else {
+      setLoading(true);
+    }
 
-  const prevOrgRef = useRef(currentUserOrg);
+    peopleFetchPromiseRef.current = (async () => {
+      try {
+        const response = await authFetch(`${BACKEND_URL}/cache/people`);
+        if (!response || !response.ok) throw new Error('Failed to fetch people');
+        const data = await response.json();
+        if (!data.success) throw new Error(data.error || 'Cache returned error');
+
+        setCacheInfo({ source: safeStr(data.source), org: safeStr(data.organization || orgKey) });
+
+        const mapped = (data?.cached_data || [])
+          .map(mapRawPerson)
+          .filter(Boolean);
+
+        window.globalPeopleCache = mapped;
+        window.globalCacheTimestamp = Date.now();
+        window.globalPeopleCacheOrg = orgKey;
+        setAllPeople(mapped);
+        return mapped;
+      } catch (err) {
+        console.error('Fetch error:', err);
+        setSnackbar({ open: true, message: `Failed to load people: ${safeStr(err?.message)}`, severity: 'error' });
+        if (window.globalPeopleCache) {
+          setAllPeople(window.globalPeopleCache);
+          return window.globalPeopleCache;
+        }
+        return [];
+      } finally {
+        setLoading(false);
+        isFetchingRef.current = false;
+        peopleFetchPromiseRef.current = null;
+      }
+    })();
+
+    return await peopleFetchPromiseRef.current;
+  }, [BACKEND_URL, authFetch, currentUserOrg]);
+
+  useEffect(() => {
+    const now = Date.now();
+    const orgKey = currentUserOrg;
+    const cacheValid =
+      window.globalPeopleCache &&
+      window.globalCacheTimestamp &&
+      (now - window.globalCacheTimestamp < CACHE_DURATION) &&
+      window.globalPeopleCacheOrg === orgKey;
+
+    if (cacheValid) {
+      setAllPeople(window.globalPeopleCache);
+      setCacheInfo({ source: 'local-cache', org: orgKey });
+      const age = now - window.globalCacheTimestamp;
+      if (age > 2 * 60 * 1000) fetchAllPeople(true).catch(() => { });
+    } else {
+      fetchAllPeople(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (prevOrgRef.current !== currentUserOrg) {
-      console.log(`Org changed: ${prevOrgRef.current} → ${currentUserOrg}`);
       prevOrgRef.current = currentUserOrg;
       window.globalPeopleCache = null;
       window.globalCacheTimestamp = null;
@@ -465,133 +478,134 @@ const refetchPeople = useCallback(async () => {
     }
   }, [currentUserOrg, fetchAllPeople]);
 
-  useEffect(() => {
-    if (window.globalPeopleCache && window.globalPeopleCacheOrg === currentUserOrg) {
-      setAllPeople(window.globalPeopleCache);
+  const refetchPeople = useCallback(async () => {
+    setIsRefreshing(true);
+    window.globalPeopleCache = null;
+    window.globalCacheTimestamp = null;
+    window.globalPeopleCacheOrg = null;
+    isFetchingRef.current = false;
+    peopleFetchPromiseRef.current = null;
+    try {
+      await fetchAllPeople(true);
+      setSnackbar({ open: true, message: 'People list refreshed.', severity: 'success' });
+    } catch {
+      setSnackbar({ open: true, message: 'Failed to refresh people data', severity: 'error' });
+    } finally {
+      setIsRefreshing(false);
     }
-    fetchAllPeople(false);
-  }, []);
+  }, [fetchAllPeople]);
 
   useEffect(() => {
     if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
     if (searchTerm.trim()) setIsSearching(true);
     searchDebounceRef.current = setTimeout(() => {
-      setDebouncedSearchTerm(searchTerm);
+      setDebouncedSearch(searchTerm);
       setIsSearching(false);
     }, 300);
     return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
   }, [searchTerm]);
 
-  const searchPeople = useCallback((peopleList, searchValue, field = 'name') => {
-    const rawQ = (searchValue || "").trim();
-    if (!rawQ) return peopleList;
-    const q = rawQ.toLowerCase();
+  const searchPeople = useCallback((list, q, field = 'name') => {
+    const rawQ = safeStr(q).trim();
+    if (!rawQ) return list;
+    const lq = rawQ.toLowerCase();
 
     if (field === 'phone') {
-      const digits = rawQ.replace(/\D/g, "");
-      if (!digits) return peopleList;
-      return peopleList.filter(p => (p.phone || "").replace(/\D/g, "").includes(digits));
+      const digits = rawQ.replace(/\D/g, '');
+      return digits ? list.filter(p => safeStr(p.phone).replace(/\D/g, '').includes(digits)) : list;
     }
     if (field === 'leaders') {
-      const matches = peopleList.filter(p => (p.leadersCombinedLower || "").includes(q));
-      return matches.sort((a, b) => (a.leadersCombinedLower || "").indexOf(q) - (b.leadersCombinedLower || "").indexOf(q));
+      return list
+        .filter(p => safeStr(p.leadersCombinedLower).includes(lq))
+        .sort((a, b) => safeStr(a.leadersCombinedLower).indexOf(lq) - safeStr(b.leadersCombinedLower).indexOf(lq));
     }
     if (field === 'email') {
-      const matches = peopleList.filter(p => (p.emailLower || "").includes(q));
-      return matches.sort((a, b) => (a.emailLower || "").indexOf(q) - (b.emailLower || "").indexOf(q));
+      return list
+        .filter(p => safeStr(p.emailLower).includes(lq))
+        .sort((a, b) => safeStr(a.emailLower).indexOf(lq) - safeStr(b.emailLower).indexOf(lq));
     }
     if (field === 'location') {
-      const matches = peopleList.filter(p => (p.addressLower || "").includes(q));
-      return matches.sort((a, b) => (a.addressLower || "").indexOf(q) - (b.addressLower || "").indexOf(q));
+      return list
+        .filter(p => safeStr(p.addressLower).includes(lq))
+        .sort((a, b) => safeStr(a.addressLower).indexOf(lq) - safeStr(b.addressLower).indexOf(lq));
     }
     if (field === 'stage') {
-      return peopleList.filter(p => (p.Stage || "").toLowerCase().includes(q));
+      return list.filter(p => safeStr(p.Stage).toLowerCase().includes(lq));
     }
 
-    const tokens = q.split(/\s+/).filter(Boolean);
-    const matches = peopleList.filter(p => {
-      const full = p.fullNameLower || '';
-      return tokens.every(tok => full.includes(tok));
-    });
-
-    const scoreFor = (p) => {
-      const full = p.fullNameLower || '';
-      const name = (p.name || '').toLowerCase();
-      const surname = (p.surname || '').toLowerCase();
-      if (full === q) return 0;
-      if (full.startsWith(q)) return 1;
-      if (name === q) return 2;
-      if (surname === q) return 3;
-      if (name.startsWith(q)) return 4;
-      if (surname.startsWith(q)) return 5;
-      if (tokens.every(tok => name.startsWith(tok) || surname.startsWith(tok))) return 6;
-      if (full.indexOf(tokens[0]) === 0) return 7;
+    const tokens = lq.split(/\s+/).filter(Boolean);
+    const matches = list.filter(p => tokens.every(t => safeStr(p.fullNameLower).includes(t)));
+    const score = p => {
+      const f = safeStr(p.fullNameLower);
+      const n = safeStr(p.name).toLowerCase();
+      const s = safeStr(p.surname).toLowerCase();
+      if (f === lq) return 0;
+      if (f.startsWith(lq)) return 1;
+      if (n === lq) return 2;
+      if (s === lq) return 3;
+      if (n.startsWith(lq)) return 4;
+      if (s.startsWith(lq)) return 5;
+      if (tokens.every(t => n.startsWith(t) || s.startsWith(t))) return 6;
+      if (tokens[0] && f.indexOf(tokens[0]) === 0) return 7;
       return 10;
     };
-
-    matches.sort((a, b) => {
-      const diff = scoreFor(a) - scoreFor(b);
-      if (diff !== 0) return diff;
-      return (a.fullNameLower || '').localeCompare(b.fullNameLower || '');
-    });
+    matches.sort((a, b) => score(a) - score(b) || safeStr(a.fullNameLower).localeCompare(safeStr(b.fullNameLower)));
     return matches;
   }, []);
 
-  const filterMyPeople = useCallback((peopleList) => {
-    if (!currentUserName) return peopleList;
-    const userName = currentUserName.toLowerCase().trim();
-    return peopleList.filter(person =>
-      Object.values(person.leaders || {}).some(name =>
-        name && name.toLowerCase() === userName
-      )
+  const filterMyPeople = useCallback((list) => {
+    if (!currentUserName) return list;
+    const un = currentUserName.toLowerCase().trim();
+    return list.filter(p =>
+      Object.values(p.leaders || {}).some(n => safeStr(n).toLowerCase() === un)
     );
   }, [currentUserName]);
 
   const filteredPeople = useMemo(() => {
-    let result = allPeople;
-    if (viewFilter === 'myPeople') result = filterMyPeople(result);
-    if (stageFilter !== 'all') result = result.filter(p => (p.Stage || '').trim().toLowerCase() === stageFilter.toLowerCase());
-    if (debouncedSearchTerm.trim()) result = searchPeople(result, debouncedSearchTerm, searchField);
-    return result;
-  }, [allPeople, debouncedSearchTerm, searchField, viewFilter, stageFilter, searchPeople, filterMyPeople]);
+    let r = allPeople;
+    if (viewFilter === 'myPeople') r = filterMyPeople(r);
+    if (stageFilter !== 'all') r = r.filter(p => safeStr(p.Stage).trim().toLowerCase() === stageFilter.toLowerCase());
+    if (debouncedSearch.trim()) r = searchPeople(r, debouncedSearch, searchField);
+    return r;
+  }, [allPeople, debouncedSearch, searchField, viewFilter, stageFilter, searchPeople, filterMyPeople]);
 
   const paginatedPeople = useMemo(() => {
-    if (viewMode === 'list' || debouncedSearchTerm.trim()) return filteredPeople;
-    const startIndex = (gridPage - 1) * ITEMS_PER_PAGE;
-    return filteredPeople.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  }, [filteredPeople, gridPage, viewMode, debouncedSearchTerm]);
+    if (viewMode === 'list' || debouncedSearch.trim()) return filteredPeople;
+    const start = (gridPage - 1) * ITEMS_PER_PAGE;
+    return filteredPeople.slice(start, start + ITEMS_PER_PAGE);
+  }, [filteredPeople, gridPage, viewMode, debouncedSearch]);
 
   const totalPages = useMemo(() => {
-    if (viewMode === 'list' || debouncedSearchTerm.trim()) return 1;
+    if (viewMode === 'list' || debouncedSearch.trim()) return 1;
     return Math.ceil(filteredPeople.length / ITEMS_PER_PAGE);
-  }, [filteredPeople.length, viewMode, debouncedSearchTerm]);
+  }, [filteredPeople.length, viewMode, debouncedSearch]);
 
   const stageCounts = useMemo(() => {
-    let base = allPeople;
-    if (viewFilter === 'myPeople') base = filterMyPeople(base);
+    const base = viewFilter === 'myPeople' ? filterMyPeople(allPeople) : allPeople;
+    const norm = (s) => safeStr(s).trim().toLowerCase();
     return {
-      Win: base.filter(p => (p.Stage || '').trim().toLowerCase() === 'win').length,
-      Consolidate: base.filter(p => (p.Stage || '').trim().toLowerCase() === 'consolidate').length,
-      Disciple: base.filter(p => (p.Stage || '').trim().toLowerCase() === 'disciple').length,
-      Send: base.filter(p => (p.Stage || '').trim().toLowerCase() === 'send').length,
+      Win: base.filter(p => norm(p.Stage) === 'win').length,
+      Consolidate: base.filter(p => norm(p.Stage) === 'consolidate').length,
+      Disciple: base.filter(p => norm(p.Stage) === 'disciple').length,
+      Send: base.filter(p => norm(p.Stage) === 'send').length,
       total: base.length,
     };
   }, [allPeople, viewFilter, filterMyPeople]);
 
-  useEffect(() => { setGridPage(1); }, [debouncedSearchTerm, searchField, viewFilter, stageFilter]);
+  useEffect(() => { setGridPage(1); }, [debouncedSearch, searchField, viewFilter, stageFilter]);
 
   const updatePersonInCache = useCallback((personId, updates) => {
     setAllPeople(prev => {
       const updated = prev.map(person => {
-        if (String(person._id) !== String(personId)) return person;
-        const merged = { ...person, ...updates };
-        merged.fullName = `${merged.name || ''} ${merged.surname || ''}`.trim();
-        merged.fullNameLower = merged.fullName.toLowerCase();
-        merged.emailLower = (merged.email || '').toLowerCase();
-        merged.phoneLower = (merged.phone || '').toLowerCase();
-        merged.addressLower = (merged.location || '').toLowerCase();
-        merged.leadersCombinedLower = getLeadersCombined(merged).toLowerCase();
-        return merged;
+        if (safeStr(person._id) !== safeStr(personId)) return person;
+        const m = { ...person, ...updates };
+        m.fullName = `${safeStr(m.name)} ${safeStr(m.surname)}`.trim();
+        m.fullNameLower = m.fullName.toLowerCase();
+        m.emailLower = safeStr(m.email).toLowerCase();
+        m.phoneLower = safeStr(m.phone).toLowerCase();
+        m.addressLower = safeStr(m.location).toLowerCase();
+        m.leadersCombinedLower = getLeadersCombined(m).toLowerCase();
+        return m;
       });
       window.globalPeopleCache = updated;
       return updated;
@@ -601,11 +615,11 @@ const refetchPeople = useCallback(async () => {
   const addPersonToCache = useCallback((newPerson) => {
     setAllPeople(prev => {
       const p = { ...newPerson };
-      p.fullName = `${p.name || ''} ${p.surname || ''}`.trim();
+      p.fullName = `${safeStr(p.name)} ${safeStr(p.surname)}`.trim();
       p.fullNameLower = p.fullName.toLowerCase();
-      p.emailLower = (p.email || '').toLowerCase();
-      p.phoneLower = (p.phone || '').toLowerCase();
-      p.addressLower = (p.location || '').toLowerCase();
+      p.emailLower = safeStr(p.email).toLowerCase();
+      p.phoneLower = safeStr(p.phone).toLowerCase();
+      p.addressLower = safeStr(p.location).toLowerCase();
       p.leadersCombinedLower = getLeadersCombined(p).toLowerCase();
       const updated = [...prev, p];
       window.globalPeopleCache = updated;
@@ -615,7 +629,7 @@ const refetchPeople = useCallback(async () => {
 
   const removePersonFromCache = useCallback((personId) => {
     setAllPeople(prev => {
-      const updated = prev.filter(p => String(p._id) !== String(personId));
+      const updated = prev.filter(p => safeStr(p._id) !== safeStr(personId));
       window.globalPeopleCache = updated;
       return updated;
     });
@@ -632,31 +646,27 @@ const refetchPeople = useCallback(async () => {
       try {
         const d = new Date(person.dob);
         if (!isNaN(d.getTime())) formattedDob = d.toISOString().split('T')[0];
-      } catch { }
+      } catch { /* ignore */ }
     }
     const lm = person.leaders || {};
     setFormData({
-      name: person.name || '',
-      surname: person.surname || '',
+      name: safeStr(person.name),
+      surname: safeStr(person.surname),
       dob: formattedDob,
-      address: person.location || '',
-      email: person.email || '',
-      number: person.phone || '',
-      invitedBy: lm.leader1 || person.invitedBy || '',
-      gender: person.gender || '',
-      leader12: lm.leader12 || '',
-      leader144: lm.leader144 || '',
-      leader1728: lm.leader1728 || '',
-      stage: person.Stage || 'Win',
+      address: safeStr(person.location),
+      email: safeStr(person.email),
+      number: safeStr(person.phone),
+      invitedBy: safeStr(lm.leader1 || person.invitedBy),
+      gender: safeStr(person.gender),
+      leader12: safeStr(lm.leader12),
+      leader144: safeStr(lm.leader144),
+      leader1728: safeStr(lm.leader1728),
+      stage: safeStr(person.Stage) || 'Win',
     });
     setIsModalOpen(true);
   };
 
-  const handleDeletePerson = (personId) => {
-    const person = allPeople.find(p => String(p._id) === String(personId));
-    setPersonToDelete(person);
-  };
-
+  const handleDeletePerson = (personId) => setPersonToDelete(allPeople.find(p => safeStr(p._id) === safeStr(personId)));
   const handleConfirmDelete = async () => {
     if (!personToDelete) return;
     try {
@@ -665,59 +675,58 @@ const refetchPeople = useCallback(async () => {
       removePersonFromCache(personToDelete._id);
       setSnackbar({ open: true, message: 'Person deleted successfully', severity: 'success' });
     } catch (err) {
-      setSnackbar({ open: true, message: err.message || 'Delete failed', severity: 'error' });
+      setSnackbar({ open: true, message: safeStr(err.message) || 'Delete failed', severity: 'error' });
     } finally {
       setPersonToDelete(null);
     }
   };
 
+  const handleSaveFromDialog = useCallback(async (savedPerson) => {
+    const leadersMap = {
+      leader1: safeStr(savedPerson.invitedBy),
+      leader12: safeStr(savedPerson.leader12),
+      leader144: safeStr(savedPerson.leader144),
+      leader1728: safeStr(savedPerson.leader1728),
+    };
+    const mappedPerson = {
+      _id: safeStr(savedPerson._id || editingPerson?._id),
+      name: safeStr(savedPerson.name),
+      surname: safeStr(savedPerson.surname),
+      gender: safeStr(savedPerson.gender),
+      dob: safeStr(savedPerson.dob),
+      location: safeStr(savedPerson.address),
+      email: safeStr(savedPerson.email),
+      phone: safeStr(savedPerson.number),
+      Stage: safeStr(savedPerson.stage) || 'Win',
+      lastUpdated: new Date().toISOString(),
+      invitedBy: safeStr(savedPerson.invitedBy),
+      leaders: leadersMap,
+      leadersCombinedLower: Object.values(leadersMap).join(' ').toLowerCase(),
+      leadersRaw: Array.isArray(savedPerson.leaders) ? savedPerson.leaders : [],
+      fullName: `${safeStr(savedPerson.name)} ${safeStr(savedPerson.surname)}`.trim(),
+      fullNameLower: `${safeStr(savedPerson.name)} ${safeStr(savedPerson.surname)}`.trim().toLowerCase(),
+      emailLower: safeStr(savedPerson.email).toLowerCase(),
+      phoneLower: safeStr(savedPerson.number).toLowerCase(),
+      addressLower: safeStr(savedPerson.address).toLowerCase(),
+    };
 
-const handleSaveFromDialog = useCallback(async (savedPerson) => {
-  const leadersMap = {
-    leader1: savedPerson.invitedBy || '',
-    leader12: savedPerson.leader12 || '',
-    leader144: savedPerson.leader144 || '',
-    leader1728: savedPerson.leader1728 || '',
-  };
-  const leadersCombined = Object.values(leadersMap).join(' ');
-
-  const mappedPerson = {
-    _id: savedPerson._id || editingPerson?._id,
-    name: savedPerson.name || '',
-    surname: savedPerson.surname || '',
-    gender: savedPerson.gender || '',
-    dob: savedPerson.dob || '',
-    location: savedPerson.address || '',
-    email: savedPerson.email || '',
-    phone: savedPerson.number || '',
-    Stage: savedPerson.stage || 'Win',
-    lastUpdated: new Date().toISOString(),
-    invitedBy: savedPerson.invitedBy || '',
-    leaders: leadersMap,
-    leadersCombinedLower: leadersCombined.toLowerCase(),
-    leadersRaw: savedPerson.leaders || [],
-  };
-
-  if (editingPerson) {
-    updatePersonInCache(editingPerson._id, mappedPerson);
-    setSnackbar({ open: true, message: 'Person updated successfully', severity: 'success' });
-  } else {
-    setSnackbar({ open: true, message: 'Person added — refreshing list…', severity: 'info' });
-
-    window.globalPeopleCache = null;
-    window.globalCacheTimestamp = null;
-    window.globalPeopleCacheOrg = null;
-
-    try {
-      await fetchAllPeople(true);
-      setSnackbar({ open: true, message: 'Person added successfully', severity: 'success' });
-    } catch (err) {
-      console.error('Refresh after add failed:', err);
-      addPersonToCache(mappedPerson);
-      setSnackbar({ open: true, message: 'Person added (refresh list if needed)', severity: 'warning' });
+    if (editingPerson) {
+      updatePersonInCache(editingPerson._id, mappedPerson);
+      setSnackbar({ open: true, message: 'Person updated successfully', severity: 'success' });
+    } else {
+      setSnackbar({ open: true, message: 'Person added — refreshing list…', severity: 'info' });
+      window.globalPeopleCache = null;
+      window.globalCacheTimestamp = null;
+      window.globalPeopleCacheOrg = null;
+      try {
+        await fetchAllPeople(true);
+        setSnackbar({ open: true, message: 'Person added successfully', severity: 'success' });
+      } catch {
+        addPersonToCache(mappedPerson);
+        setSnackbar({ open: true, message: 'Person added (refresh if needed)', severity: 'warning' });
+      }
     }
-  }
-}, [editingPerson, updatePersonInCache, addPersonToCache, fetchAllPeople]);
+  }, [editingPerson, updatePersonInCache, addPersonToCache, fetchAllPeople]);
 
   const handleCloseDialog = () => {
     setIsModalOpen(false);
@@ -725,16 +734,7 @@ const handleSaveFromDialog = useCallback(async (savedPerson) => {
     setFormData({ name: '', surname: '', dob: '', address: '', email: '', number: '', invitedBy: '', gender: '', leader12: '', leader144: '', leader1728: '', stage: 'Win' });
   };
 
-  const isSearchingNow = debouncedSearchTerm.trim().length > 0;
-
-  const getResponsiveValue = (xs, sm, md, lg, xl) => {
-    if (window.innerWidth >= theme.breakpoints.values.xl) return xl;
-    if (window.innerWidth >= theme.breakpoints.values.lg) return lg;
-    if (window.innerWidth >= theme.breakpoints.values.md) return md;
-    if (window.innerWidth >= theme.breakpoints.values.sm) return sm;
-    return xs;
-  };
-  const cardSpacing = getResponsiveValue(1.5, 2, 2.5, 3, 3);
+  const isSearchingNow = debouncedSearch.trim().length > 0;
 
   return (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', mt: 8, px: 2, pb: 4 }}>
@@ -742,7 +742,7 @@ const handleSaveFromDialog = useCallback(async (savedPerson) => {
 
       {/* Stage filter cards */}
       <Box sx={{ maxWidth: '1400px', margin: '0 auto', width: '100%', mb: 3 }}>
-        <Grid container spacing={cardSpacing}>
+        <Grid container spacing={window.innerWidth >= theme.breakpoints.values.md ? 3 : 2}>
           {[
             { id: 'all', label: 'Total People', value: stageCounts.total, icon: <PeopleIcon />, color: '#2196f3' },
             { id: 'Win', label: 'Win', value: stageCounts.Win, icon: <WinIcon />, color: '#4caf50' },
@@ -782,14 +782,13 @@ const handleSaveFromDialog = useCallback(async (savedPerson) => {
             {isSearching && <CircularProgress size={16} sx={{ ml: 1 }} />}
             {isRefreshing && <CircularProgress size={16} sx={{ ml: 1 }} />}
           </Typography>
-          {/* Org + cache source indicator */}
           <Typography variant="caption" color="text.secondary">
             {cacheInfo.org
-              ? `${cacheInfo.org.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}`
-              : (user?.Organization || user?.organization || 'All Organizations')}
+              ? safeStr(cacheInfo.org).replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+              : safeStr(user?.Organization || user?.organization || 'All Organizations')}
             {' · '}
             {allPeople.length} people loaded
-            {cacheInfo.source && cacheInfo.source !== 'cache' && (
+            {cacheInfo.source && cacheInfo.source !== 'cache' && cacheInfo.source !== 'local-cache' && (
               <Chip
                 label={cacheInfo.source === 'loading' ? 'Loading…' : cacheInfo.source}
                 size="small"
@@ -829,7 +828,7 @@ const handleSaveFromDialog = useCallback(async (savedPerson) => {
       {/* Search row */}
       <Box sx={{ display: 'flex', gap: 2, mb: 2, px: 1 }}>
         <TextField size="small" placeholder="Search..." value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
+          onChange={e => setSearchTerm(e.target.value)}
           InputProps={{
             startAdornment: (
               <InputAdornment position="start">
@@ -838,7 +837,7 @@ const handleSaveFromDialog = useCallback(async (savedPerson) => {
             )
           }}
           sx={{ flex: 1 }} />
-        <TextField size="small" select value={searchField} onChange={(e) => setSearchField(e.target.value)} sx={{ minWidth: 140 }}>
+        <TextField size="small" select value={searchField} onChange={e => setSearchField(e.target.value)} sx={{ minWidth: 140 }}>
           <MenuItem value="name">Name</MenuItem>
           <MenuItem value="email">Email</MenuItem>
           <MenuItem value="phone">Phone</MenuItem>
@@ -847,25 +846,12 @@ const handleSaveFromDialog = useCallback(async (savedPerson) => {
         </TextField>
       </Box>
 
+      {/* Board / list */}
       <Box sx={{ position: 'relative' }}>
         {viewMode === 'grid' ? (
           <>
             <DragDropBoard
               people={paginatedPeople}
-              setPeople={(updateFn) => {
-                if (typeof updateFn === 'function') {
-                  const updated = updateFn(paginatedPeople);
-                  setAllPeople(prev => {
-                    const newAll = [...prev];
-                    updated.forEach(u => {
-                      const idx = newAll.findIndex(p => String(p._id) === String(u._id));
-                      if (idx !== -1) newAll[idx] = u;
-                    });
-                    window.globalPeopleCache = newAll;
-                    return newAll;
-                  });
-                }
-              }}
               onEditPerson={handleEditPerson}
               onDeletePerson={handleDeletePerson}
               loading={loading}
@@ -875,7 +861,7 @@ const handleSaveFromDialog = useCallback(async (savedPerson) => {
             />
             {!isSearchingNow && totalPages > 1 && (
               <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
-                <Pagination count={totalPages} page={gridPage} onChange={(e, p) => setGridPage(p)}
+                <Pagination count={totalPages} page={gridPage} onChange={(_, p) => setGridPage(p)}
                   color="primary" size="large" showFirstButton showLastButton />
               </Box>
             )}
@@ -887,9 +873,15 @@ const handleSaveFromDialog = useCallback(async (savedPerson) => {
         )}
 
         <AddPersonDialog
-          open={isModalOpen} onClose={handleCloseDialog} onSave={handleSaveFromDialog}
-          formData={formData} setFormData={setFormData}
-          isEdit={!!editingPerson} personId={editingPerson?._id || null}
+          open={isModalOpen}
+          onClose={handleCloseDialog}
+          onSave={handleSaveFromDialog}
+          formData={formData}
+          setFormData={setFormData}
+          isEdit={!!editingPerson}
+          personId={editingPerson?._id || null}
+          editingPersonObject={editingPerson}
+          preloadedPeople={allPeople}
         />
 
         <DeleteConfirmationModal
@@ -897,7 +889,7 @@ const handleSaveFromDialog = useCallback(async (savedPerson) => {
           onClose={() => setPersonToDelete(null)}
           onConfirm={handleConfirmDelete}
           title="Delete Person"
-          content={`Are you sure you want to delete ${personToDelete?.fullName || 'this person'}? This action cannot be undone.`}
+          content={`Are you sure you want to delete ${safeStr(personToDelete?.fullName) || 'this person'}? This action cannot be undone.`}
         />
 
         <Snackbar open={snackbar.open} autoHideDuration={4000}
@@ -906,6 +898,7 @@ const handleSaveFromDialog = useCallback(async (savedPerson) => {
           <Alert severity={snackbar.severity} variant="filled">{snackbar.message}</Alert>
         </Snackbar>
       </Box>
+
       <PeopleImportFAB onImportComplete={refetchPeople} themeMode={theme.palette.mode} />
     </Box>
   );
