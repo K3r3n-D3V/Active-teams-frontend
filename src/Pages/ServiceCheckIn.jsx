@@ -67,10 +67,7 @@ import { useTaskUpdate } from "../contexts/TaskUpdateContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
-// ─── helpers ────────────────────────────────────────────────────────────────
-
 function buildSearchableText(person) {
-  // Support both old flat leader fields AND new leaders[] array
   const leaderText = Array.isArray(person.leaders)
     ? person.leaders.map((l) => l.name || "").join(" ")
     : [
@@ -114,18 +111,7 @@ function isPriorityPerson(firstName, surname) {
   );
 }
 
-/**
- * Normalise a raw person document from either the old or new backend shape
- * into the flat shape consumed by this component.
- *
- * Old shape: { "Leader @1": "…", "Leader @12": "…", … }
- * New shape: { leaders: [{ level: 1, name: "…" }, { level: 12, name: "…" }, …] }
- *
- * Also preserves LeaderId / LeaderPath so AddPersonDialog / consolidations
- * can pass them on to the new /people endpoint.
- */
 function normalisePerson(p) {
-  // Resolve leader names from the new `leaders[]` array when present
   let leader1 = p["Leader @1"] || p.leader1 || "";
   let leader12 = p["Leader @12"] || p.leader12 || "";
   let leader144 = p["Leader @144"] || p.leader144 || "";
@@ -158,7 +144,6 @@ function normalisePerson(p) {
     invitedBy: p.InvitedBy || p.invitedBy || "",
     stage: p.Stage || p.stage || "Win",
     fullName: p.FullName || `${name} ${surname}`.trim(),
-    // preserve new-schema fields so they round-trip correctly
     leaders: p.leaders || [],
     LeaderId: p.LeaderId || p.leaderId || null,
     LeaderPath: p.LeaderPath || p.leaderPath || [],
@@ -190,8 +175,6 @@ const emptyForm = {
 };
 
 const cleanEventId = (id) => id?.split("_")[0] ?? id;
-
-// ─── component ──────────────────────────────────────────────────────────────
 
 function ServiceCheckIn() {
   const { authFetch } = useContext(AuthContext);
@@ -273,8 +256,6 @@ function ServiceCheckIn() {
     return map;
   }, [attendees]);
 
-  // ── real-time data fetch ──────────────────────────────────────────────────
-
   const fetchRealTimeEventData = useCallback(
     async (eventId) => {
       if (!eventId) return null;
@@ -292,8 +273,6 @@ function ServiceCheckIn() {
     },
     [authFetch]
   );
-
-  // ── people fetch — uses /cache/people; normalises new + old schema ────────
 
   const fetchAllPeople = useCallback(async () => {
     setIsLoadingPeople(true);
@@ -314,8 +293,6 @@ function ServiceCheckIn() {
     }
     return [];
   }, [authFetch]);
-
-  // ── events fetch ─────────────────────────────────────────────────────────
 
   const fetchEvents = useCallback(
     async () => {
@@ -443,8 +420,6 @@ function ServiceCheckIn() {
     },
     [authFetch, attendees]
   );
-
-  // ── initial load (parallel) ───────────────────────────────────────────────
 
   const hasInitialized = useRef(false);
   useEffect(() => {
@@ -617,8 +592,6 @@ function ServiceCheckIn() {
     };
   }, [currentEventId, fetchRealTimeEventData]);
 
-  // ── derived lists ─────────────────────────────────────────────────────────
-
   const getFilteredEvents = useCallback((eventsList = events) => {
     const todayStr = new Date().toISOString().split("T")[0];
     return eventsList.filter((event) => {
@@ -717,13 +690,9 @@ function ServiceCheckIn() {
     return result;
   }, [filteredAttendees, sortModel]);
 
-  // ── stats counts — read directly from realTimeData (no re-fetch needed) ──
-
   const presentCount = realTimeData?.present_count ?? realTimeData?.present_attendees?.length ?? 0;
   const newPeopleCount = realTimeData?.new_people_count ?? realTimeData?.new_people?.length ?? 0;
   const consolidationCount = realTimeData?.consolidation_count ?? realTimeData?.consolidations?.length ?? 0;
-
-  // ── modal lists ───────────────────────────────────────────────────────────
 
   const modalFilteredAttendees = useMemo(() => {
     const full = (realTimeData?.present_attendees || []).map((a) => {
@@ -816,8 +785,6 @@ function ServiceCheckIn() {
     [filteredConsolidatedPeople, consolidatedPage, consolidatedRowsPerPage]
   );
 
-  // ── actions ───────────────────────────────────────────────────────────────
-
   const handleFullRefresh = useCallback(async () => {
     if (!currentEventId) { toast.error("Please select an event first"); return; }
     setIsRefreshing(true);
@@ -882,13 +849,6 @@ function ServiceCheckIn() {
     setContextMenu({ mouseX: null, mouseY: null, data: null, type: null });
   }, []);
 
-  /**
-   * FIX 1 & 2: Check-in is now INSTANT.
-   * - Optimistic update applied immediately (no lag).
-   * - Stats counts derived from realTimeData so they never reset to 0.
-   * - We do NOT await a fresh RT fetch before updating the UI.
-   *   The background fetch only corrects if something went wrong.
-   */
   const handleToggleCheckIn = useCallback(
     async (attendee) => {
       if (!currentEventId) { toast.error("Please select an event"); return; }
@@ -909,7 +869,6 @@ function ServiceCheckIn() {
         leader144: attendee.leader144 || "",
       };
 
-      // ── INSTANT optimistic update ────────────────────────────────────────
       setRealTimeData((prev) => {
         const base = prev || { present_attendees: [], new_people: [], consolidations: [] };
         if (!isCurrentlyPresent) {
@@ -971,7 +930,6 @@ function ServiceCheckIn() {
         }
 
         if (!success) {
-          // Roll back on failure
           setRealTimeData((prev) => {
             if (!prev) return prev;
             if (!isCurrentlyPresent) {
@@ -985,12 +943,10 @@ function ServiceCheckIn() {
           toast.error(`Failed to update check-in for ${fullName}`);
         }
 
-        // Background reconcile (silent — does NOT flash the UI)
         fetchRealTimeEventData(currentEventId).then((freshData) => {
           if (freshData) setRealTimeData(freshData);
         });
       } catch (err) {
-        // Roll back
         setRealTimeData((prev) => {
           if (!prev) return prev;
           if (!isCurrentlyPresent) {
@@ -1009,17 +965,11 @@ function ServiceCheckIn() {
     [currentEventId, checkInLoading, presentIds, authFetch, fetchRealTimeEventData]
   );
 
-  /**
-   * FIX 4: Person creation uses the new /people endpoint (second backend).
-   * The payload now includes LeaderId + LeaderPath resolved from the
-   * invitedBy selection in AddPersonDialog.
-   */
   const handlePersonSave = useCallback(
     async (responseData) => {
       if (!currentEventId) { toast.error("Please select an event first before adding people"); return; }
       try {
         if (editingPerson) {
-          // ── EDIT: PATCH /people/{id} with new-schema fields ──────────────
           const { __updatedNewPerson, ...normalizedUpdate } = responseData;
           const personId = editingPerson._id;
           toast.success(`${normalizedUpdate.name} ${normalizedUpdate.surname} updated successfully`);
@@ -1059,15 +1009,10 @@ function ServiceCheckIn() {
           return;
         }
 
-        // ── CREATE: use new /people endpoint, then check-in ──────────────
-
-        // responseData here is the full person object returned by AddPersonDialog
-        // which should already have called POST /people on the new backend.
         const newPersonData = responseData.person || responseData;
         const insertedId = newPersonData._id;
         const fullName = `${formData.name} ${formData.surname}`.trim();
 
-        // Check-in as new_person
         const response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
           method: "POST",
           body: JSON.stringify({
@@ -1096,7 +1041,6 @@ function ServiceCheckIn() {
             setFormData(emptyForm);
             setSearch("");
 
-            // Build normalised entry for the grid
             const newPersonForGrid = normalisePerson({
               _id: insertedId,
               Name: newPersonData.Name || formData.name,
@@ -1114,7 +1058,6 @@ function ServiceCheckIn() {
 
             setAttendees((prev) => [newPersonForGrid, ...prev]);
 
-            // ── INSTANT optimistic update for new_people list ───────────
             setRealTimeData((prev) => {
               const base = prev || { present_attendees: [], new_people: [], consolidations: [] };
               const newEntry = {
@@ -1136,7 +1079,6 @@ function ServiceCheckIn() {
               };
             });
 
-            // Background reconcile
             try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch { }
             fetchRealTimeEventData(cleanEventId(currentEventId)).then((freshData) => {
               if (freshData) setRealTimeData(freshData);
@@ -1150,9 +1092,7 @@ function ServiceCheckIn() {
     [currentEventId, editingPerson, formData, authFetch, fetchRealTimeEventData]
   );
 
-  /**
-   * FIX 2: Consolidation uses instant optimistic update before API call.
-   */
+
   const handleFinishConsolidation = useCallback(
     async (task) => {
       if (!currentEventId) return;
@@ -1164,7 +1104,6 @@ function ServiceCheckIn() {
       setConsolidationOpen(false);
       toast.success(`${fullName} consolidated successfully`);
 
-      // ── INSTANT optimistic update ────────────────────────────────────────
       const newCons = {
         id: task.consolidation_id || `opt_${Date.now()}`,
         person_name: task.person_name || "",
@@ -1187,7 +1126,6 @@ function ServiceCheckIn() {
         };
       });
 
-      // Background reconcile after a short delay
       setTimeout(async () => {
         const freshData = await fetchRealTimeEventData(currentEventId);
         if (freshData) setRealTimeData(freshData);
@@ -1397,8 +1335,6 @@ function ServiceCheckIn() {
   const handleViewNewPeople = useCallback((event, data) => { setEventHistoryModal({ open: true, event, type: "newPeople", data: data || [] }); }, []);
   const handleViewConsolidated = useCallback((event, data) => { setEventHistoryModal({ open: true, event, type: "consolidated", data: data || [] }); }, []);
 
-  // ── columns ───────────────────────────────────────────────────────────────
-
   const mainColumns = useMemo(() => {
     const base = [
       {
@@ -1552,8 +1488,6 @@ function ServiceCheckIn() {
     return base;
   }, [isXs, isSm, isMd, currentEventId, checkInLoading, handleEditClick, handleToggleCheckIn]);
 
-  // ── StatsCard ─────────────────────────────────────────────────────────────
-
   const StatsCard = useCallback(
     ({ title, count, icon, color = "primary", onClick, disabled = false }) => (
       <Paper
@@ -1605,8 +1539,6 @@ function ServiceCheckIn() {
 
   const gridHeight = isSm ? "calc(100vh - 340px)" : isMd ? "calc(100vh - 300px)" : 620;
   const gridMinHeight = isSm ? 380 : isMd ? 450 : 550;
-
-  // ── render ────────────────────────────────────────────────────────────────
 
   return (
     <Box p={containerPadding} sx={{ width: "100%", margin: "0 auto", mt: 6, minHeight: "100vh", maxWidth: "100vw", overflowX: "hidden" }}>
@@ -2179,8 +2111,6 @@ function ServiceCheckIn() {
     </Box>
   );
 }
-
-// ── ActionButtons (unchanged public API) ─────────────────────────────────────
 
 function ActionButtons({
   currentEventId, isDarkMode, isSm, isClosingEvent, isRefreshing,
