@@ -69,70 +69,81 @@ const EventTypesModal = ({
     });
     setErrors({});
   };
-
   const handleCheckboxChange = (name) => (event) => {
     setFormData((prev) => ({ ...prev, [name]: event.target.checked }));
   };
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
+const handleInputChange = (e) => {
+  const { name, value } = e.target;
+  if (name === "name") {
+    // Convert to title case as user types (first letter of each word uppercase)
+    const titleCaseValue = value.replace(/\w\S*/g, (txt) => {
+      return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+    });
+    setFormData((prev) => ({ ...prev, [name]: titleCaseValue }));
+  } else {
     setFormData((prev) => ({ ...prev, [name]: value }));
-  };
+  }
+};
+const validateForm = () => {
+  const newErrors = {};
 
-  const validateForm = () => {
-    const newErrors = {};
+  if (!formData.name.trim()) {
+    newErrors.name = "Event Type Name is required";
+  } else if (!/^[A-Z][a-z]*(\s[A-Z][a-z]*)*$/.test(formData.name)) {
+    newErrors.name = "Event Type Name must have first letter of each word capitalized";
+  }
 
-    if (!formData.name.trim()) {
-      newErrors.name = "Event Type Name is required";
+  if (!formData.description.trim()) {
+    newErrors.description = "Event description is required";
+  }
+
+  setErrors(newErrors);
+  return Object.keys(newErrors).length === 0;
+};
+const handleSubmit = async () => {
+  if (!validateForm() || loading) return;
+
+  setLoading(true);
+  try {
+    // Convert name to title case
+    const titleCaseName = formData.name.trim().replace(/\w\S*/g, (txt) => {
+      return txt.charAt(0).toUpperCase() + txt.substr(1).toLowerCase();
+    });
+    
+    const eventTypeData = {
+      name: titleCaseName,
+      eventTypeName: titleCaseName,
+      description: formData.description.trim(),
+      isTicketed: formData.isTicketed,
+      isTraining: formData.isTraining,
+      isGlobal: formData.isGlobal,
+      isEventType: true,
+    };
+
+    let result;
+    if (selectedEventType?._id) {
+      result = await onSubmit(eventTypeData, selectedEventType._id);
+    } else {
+      result = await onSubmit(eventTypeData);
     }
 
-    if (!formData.description.trim()) {
-      newErrors.description = "Event description is required";
-    }
-
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
-
-  const handleSubmit = async () => {
-    if (!validateForm() || loading) return;
-
-    setLoading(true);
-    try {
-      const eventTypeData = {
-        name: formData.name.trim().toLowerCase(),
-        eventTypeName: formData.name.trim().toLowerCase(),
-        description: formData.description.trim().toLowerCase(),
-        isTicketed: formData.isTicketed,
-        isTraining: formData.isTraining,
-        isGlobal: formData.isGlobal,
-        isEventType: true,
-      };
-
-      let result;
-      if (selectedEventType?._id) {
-        result = await onSubmit(eventTypeData, selectedEventType._id);
-      } else {
-        result = await onSubmit(eventTypeData);
-      }
-
-      if (setSelectedEventTypeObj) {
-        setSelectedEventTypeObj({
-          ...eventTypeData,
-          _id: result?._id,
-        });
-      }
-
-      resetForm();
-      onClose();
-    } catch (error) {
-      setErrors({
-        submit: error.response?.data?.detail || "Failed to save event type.",
+    if (setSelectedEventTypeObj) {
+      setSelectedEventTypeObj({
+        ...eventTypeData,
+        _id: result?._id,
       });
-    } finally {
-      setLoading(false);
     }
-  };
+
+    resetForm();
+    onClose();
+  } catch (error) {
+    setErrors({
+      submit: error.response?.data?.detail || "Failed to save event type.",
+    });
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleClose = () => {
     if (loading) return;
