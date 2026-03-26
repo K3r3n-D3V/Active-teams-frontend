@@ -965,21 +965,33 @@ const StatsDashboard = () => {
 
   const filteredEventTypes = eventTypes?.filter((et) => !et.isTicketed);
 
+  const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
+  setCreateEventModalOpen(false);
+
+  if (shouldRefresh) {
+    toast.success("Event created successfully!");
+
+    // Refresh all relevant data
+    fetchStats(true);
+    fetchOverdueCells(true);
+    fetchCalendarEvents();
+
+    // Optional: small delay for better UX
+    setTimeout(() => {
+      console.log("✅ Event created - data refreshed");
+    }, 300);
+  }
+}, [fetchStats, fetchOverdueCells, fetchCalendarEvents]);
+
   const handleCreateEvent = useCallback(() => {
     setNewEventData((prev) => ({
       ...prev,
       date: selectedDate,
       eventTypeName: globalEvent?.name || "Global Events",
     }));
-    setCreateEventModalOpen(true);
 
-    // Test toast — should appear immediately when clicking "Create Event"
-    toast.info("Modal opened — toast container is working?", {
-      position: "top-center",
-      autoClose: 8000,
-      theme: "dark",
-    });
-  }, [selectedDate, eventTypes, globalEvent]);
+    setCreateEventModalOpen(true);
+  }, [selectedDate, globalEvent]);
 
   const handleSaveEvent = async () => {
     if (!newEventData.eventName.trim()) {
@@ -2238,74 +2250,69 @@ const StatsDashboard = () => {
           </>
         )}
       </Box>
-      {/* CREATE EVENT MODAL - Using CreateEvents component */}
-      <Dialog
-        open={createEventModalOpen}
-        onClose={() => setCreateEventModalOpen(false)}
-        maxWidth="sm" // Increased size for better layout
-        fullWidth
-        PaperProps={{
-          sx: {
-            borderRadius: 3,
-            boxShadow: 24,
-            height: isXsDown ? "100%" : "90vh", // Better height management
-            maxHeight: "90vh",
-          },
-        }}
-        fullScreen={isXsDown}
-      >
-        <DialogTitle
-          sx={{
-            background: "black",
-            color: "white",
-            p: 3,
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Box display="flex" alignItems="center" gap={1.5}>
-            <Box component="span" sx={{ fontSize: 28 }}>
-              Create New Event
-            </Box>
-            <Box>
-              <Typography variant="caption" sx={{ opacity: 0.9 }}>
-                {formatLocalDisplayDate(selectedDate)}
-              </Typography>
-            </Box>
-          </Box>
-          <IconButton
-            onClick={() => setCreateEventModalOpen(false)}
-            sx={{ color: "white" }}
-          >
-            <Close />
-          </IconButton>
-        </DialogTitle>
+      {/* CREATE EVENT MODAL - Consistent with your first example */}
+<Dialog
+  open={createEventModalOpen}
+  onClose={() => setCreateEventModalOpen(false)}
+  maxWidth="md"
+  fullWidth
+  fullScreen={isXsDown}
+  PaperProps={{
+    sx: {
+      borderRadius: 3,
+      boxShadow: 24,
+      overflow: "hidden",
+    },
+  }}
+>
+  <DialogTitle
+    sx={{
+      backgroundColor: theme.palette.mode === "dark" ? "#1e1e1e" : "#1976d2",
+      color: "white",
+      p: 3,
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+    }}
+  >
+    <Box>
+      <Typography variant="h6" fontWeight="bold">
+        Create New Event
+      </Typography>
+      <Typography variant="body2" sx={{ opacity: 0.9 }}>
+        {formatLocalDisplayDate(selectedDate)}
+      </Typography>
+    </Box>
+    <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: "white" }}>
+      <Close />
+    </IconButton>
+  </DialogTitle>
 
-        <DialogContent dividers sx={{ p: 0, overflow: "hidden" }}>
-          <Box sx={{ height: "100%", overflow: "auto" }}>
-            <CreateEvents
-              user={JSON.parse(localStorage.getItem("userProfile") || "{}")}
-              isModal={true}
-              onClose={(wasSuccess) => {
-                setCreateEventModalOpen(false);
-                if (wasSuccess) {
-                  toast.success("Event created successfully!");
-                  fetchStats(true);
-                  fetchOverdueCells(true);
-                  fetchCalendarEvents();
-                }
-              }}
-              eventTypes={filteredEventTypes}
-              defaultEventType={globalEvent?.name || "Global Events"}
-              selectedEventType={newEventData.eventTypeName}
-              selectedEventTypeObj={eventTypes.find(
-                (et) => et.name === newEventData.eventTypeName,
-              )}
-            />
-          </Box>
-        </DialogContent>
-      </Dialog>
+  <DialogContent sx={{ p: 0, height: "100%", overflow: "hidden" }}>
+    <Box
+      sx={{
+        height: "100%",
+        overflow: "auto",
+        backgroundColor: theme.palette.mode === "dark"
+          ? theme.palette.background.paper
+          : "white",
+      }}
+    >
+      <CreateEvents
+        key={newEventData.eventTypeName || "default"}   // Important for re-render when type changes
+        user={JSON.parse(localStorage.getItem("userProfile") || "{}")}
+        isModal={true}
+        onClose={handleCloseCreateEventModal}           // ← Use this clean handler
+        selectedEventType={newEventData.eventTypeName}
+        selectedEventTypeObj={eventTypes.find(
+          (et) => et.name === newEventData.eventTypeName
+        )}
+        eventTypes={filteredEventTypes}
+        defaultEventType={globalEvent?.name || "Global Events"}
+      />
+    </Box>
+  </DialogContent>
+</Dialog>
 
       {/* OVERDUE CELLS MODAL */}
       <Dialog
