@@ -369,77 +369,84 @@ export default function DailyTasks() {
   };
 
   const fetchUserTasks = async () => {
-    if (!user?.email) return;
-    const controller = new AbortController();
-    const signal = controller.signal;
+  if (!user?.email) return;
+  const controller = new AbortController();
+  const signal = controller.signal;
 
-    try {
-      setLoading(true);
-      // Fetch tasks assigned TO current user
-      const res = await authFetch(
-        `${API_URL}/tasks?email=${encodeURIComponent(user.email)}`,
-        { signal },
-      );
-      if (!res.ok) throw new Error("Failed to fetch tasks");
-      const data = await res.json();
-      const tasksArray = Array.isArray(data) ? data : data.tasks || [];
+  try {
+    setLoading(true);
+    const res = await authFetch(
+      `${API_URL}/tasks?email=${encodeURIComponent(user.email)}`,
+      { signal }
+    );
+    if (!res.ok) throw new Error("Failed to fetch tasks");
+    const data = await res.json();
+    const tasksArray = Array.isArray(data) ? data : data.tasks || [];
 
-      const normalizedTasks = tasksArray.map((task) => {
-        const isConsolidation =
-          task.taskType === "consolidation" || task.is_consolidation_task;
+    const normalizedTasks = tasksArray.map((task) => {
+      const isConsolidation =
+        task.taskType === "consolidation" || task.is_consolidation_task;
 
-        let assignedTo = "";
-        if (isConsolidation) {
-          assignedTo =
-            task.leader_name ||
-            task.leader_assigned ||
-            task.assigned_to ||
-            `${user.name || ""} ${user.surname || ""}`.trim();
-          if (assignedTo.includes("@")) assignedTo = "Consolidation Leader";
-        } else {
-          assignedTo = task.name || task.assignedfor || "";
-        }
-
-        return {
-          ...task,
-          assignedTo,
-          date: task.date || task.followup_date,
-          status: (task.status || "Open").toLowerCase(),
-          taskName: task.name || task.taskName,
-          type:
-            task.type ||
-            (task.taskType?.toLowerCase()?.includes("visit")
-              ? "visit"
-              : "call") ||
-            "call",
-          leader_name: task.leader_name || task.leader_assigned,
-          leader_assigned: task.leader_assigned,
-          consolidation_name:
-            task.consolidation_name ||
-            (isConsolidation
-              ? `${task.person_name || ""} ${task.person_surname || ""} - ${task.decision_display_name || "Consolidation"}`
-              : task.name),
-          decision_display_name: task.decision_display_name,
-          is_consolidation_task: isConsolidation,
-          // Flag if this task was assigned to someone else by current user
-          isAssignedToOther:
-            task.assignedfor !== user.email &&
-            task.created_by_email === user.email,
-        };
-      });
-
-      setTasks(normalizedTasks);
-    } catch (err) {
-      if (err.name !== "AbortError") {
-        console.error("Error fetching user tasks:", err.message);
-        toast.error(err.message);
+      let assignedTo = "";
+      if (isConsolidation) {
+        assignedTo =
+          task.leader_name ||
+          task.leader_assigned ||
+          task.assigned_to ||
+          `${user.name || ""} ${user.surname || ""}`.trim();
+        if (assignedTo.includes("@")) assignedTo = "Consolidation Leader";
+      } else {
+        assignedTo = task.name || task.assignedfor || "";
       }
-    } finally {
-      if (!signal.aborted) setLoading(false);
-    }
 
-    return () => controller.abort();
-  };
+      return {
+        ...task,
+        assignedTo,
+        date: task.date || task.followup_date,
+        status: (task.status || "Open").toLowerCase(),
+        taskName: task.name || task.taskName,
+        type:
+          task.type ||
+          (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call") ||
+          "call",
+        leader_name: task.leader_name || task.leader_assigned,
+        leader_assigned: task.leader_assigned,
+        consolidation_name:
+          task.consolidation_name ||
+          (isConsolidation
+            ? `${task.person_name || ""} ${task.person_surname || ""} - ${task.decision_display_name || "Consolidation"}`
+            : task.name),
+        decision_display_name: task.decision_display_name,
+        is_consolidation_task: isConsolidation,
+      };
+    });
+
+    // Only show tasks assigned to current user
+    const myTasks = normalizedTasks.filter((task) => {
+      const isMyTask =
+        task.assignedfor === user.email ||
+        task.assigned_to_email === user.email;
+
+      const isAssignedToSomeoneElse =
+        task.assignedfor &&
+        task.assignedfor !== user.email &&
+        task.assigned_to_email !== user.email;
+
+      return isMyTask && !isAssignedToSomeoneElse;
+    });
+
+    setTasks(myTasks);
+  } catch (err) {
+    if (err.name !== "AbortError") {
+      console.error("Error fetching user tasks:", err.message);
+      toast.error(err.message);
+    }
+  } finally {
+    if (!signal.aborted) setLoading(false);
+  }
+
+  return () => controller.abort();
+};
 
   const fetchAllPeople = useCallback(
     async (forceRefresh = false) => {
@@ -675,42 +682,41 @@ export default function DailyTasks() {
   }, []);
 
   const createTask = async (taskPayload) => {
-    try {
-      const res = await authFetch(`${API_URL}/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(taskPayload),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to create task");
+  try {
+    const res = await authFetch(`${API_URL}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(taskPayload),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to create task");
 
-      if (data.task) {
-        const isAssignedToMe =
-          data.task.assignedfor === user.email ||
-          data.task.assigned_to_email === user.email;
+    if (data.task) {
+      const isAssignedToMe =
+        data.task.assignedfor === user.email ||
+        data.task.assigned_to_email === user.email;
 
-        // Only add to local state if assigned to current user
-        if (isAssignedToMe) {
-          setTasks((prev) => [
-            {
-              ...data.task,
-              assignedTo: data.task.name || `${user.name} ${user.surname}`,
-              date: data.task.followup_date,
-              status: (data.task.status || "Open").toLowerCase(),
-              taskName: data.task.name,
-              type: data.task.type,
-            },
-            ...prev,
-          ]);
-        }
-        // If assigned to someone else, just silently succeed
+      // Only add to local state if assigned to current user
+      if (isAssignedToMe) {
+        setTasks((prev) => [
+          {
+            ...data.task,
+            assignedTo: data.task.name || `${user.name} ${user.surname}`,
+            date: data.task.followup_date,
+            status: (data.task.status || "Open").toLowerCase(),
+            taskName: data.task.name,
+            type: data.task.type,
+          },
+          ...prev,
+        ]);
       }
-      return data;
-    } catch (err) {
-      console.error("Error creating task:", err.message);
-      throw err;
     }
-  };
+    return data;
+  } catch (err) {
+    console.error("Error creating task:", err.message);
+    throw err;
+  }
+};
 
   useEffect(() => {
     if (user && !loading) {
@@ -755,176 +761,161 @@ export default function DailyTasks() {
   };
 
   const updateTask = async (taskId, updatedData) => {
-    try {
-      const isConsolidationTask =
-        selectedTask?.taskType === "consolidation" ||
-        selectedTask?.is_consolidation_task;
+  try {
+    const isConsolidationTask =
+      selectedTask?.taskType === "consolidation" ||
+      selectedTask?.is_consolidation_task;
 
-      if (isConsolidationTask) {
-        updatedData.name = selectedTask.leader_name || selectedTask.name;
-        updatedData.leader_name = selectedTask.leader_name;
-        updatedData.leader_assigned = selectedTask.leader_assigned;
-      }
-
-      if (updatedData.status?.toLowerCase() === "completed") {
-        updatedData.completedAt = new Date().toISOString();
-      }
-      const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updatedData),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to update task");
-
-      setTasks((prev) =>
-        prev.map((t) =>
-          t._id === taskId
-            ? {
-                ...t,
-                ...data.updatedTask,
-                date: data.updatedTask.followup_date,
-                ...(isConsolidationTask && {
-                  leader_name: selectedTask.leader_name,
-                  leader_assigned: selectedTask.leader_assigned,
-                }),
-              }
-            : t,
-        ),
-      );
-      handleClose();
-    } catch (err) {
-      console.error("Error updating task:", err.message);
-      toast.error("Failed to update task: " + err.message);
+    if (isConsolidationTask) {
+      updatedData.name = selectedTask.leader_name || selectedTask.name;
+      updatedData.leader_name = selectedTask.leader_name;
+      updatedData.leader_assigned = selectedTask.leader_assigned;
     }
-  };
+
+    if (updatedData.status?.toLowerCase() === "completed") {
+      updatedData.completedAt = new Date().toISOString();
+    }
+
+    const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updatedData),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || "Failed to update task");
+
+    setTasks((prev) =>
+      prev.map((t) =>
+        t._id === taskId
+          ? {
+              ...t,
+              ...data.updatedTask,
+              date: data.updatedTask.followup_date,
+              ...(isConsolidationTask && {
+                leader_name: selectedTask.leader_name,
+                leader_assigned: selectedTask.leader_assigned,
+              }),
+            }
+          : t,
+      ),
+    );
+    handleClose();
+  } catch (err) {
+    console.error("Error updating task:", err.message);
+    toast.error("Failed to update task: " + err.message);
+  }
+};
 
   const handleEdit = (task) => {
-    if (task.status?.toLowerCase() === "completed") {
-      toast.info(
-        "This task has been marked as completed and cannot be edited.",
-      );
-      return;
-    }
+  if (task.status?.toLowerCase() === "completed") {
+    toast.info("This task has been marked as completed and cannot be edited.");
+    return;
+  }
 
-    setSelectedTask(task);
-    setFormType(task.type);
-    setIsModalOpen(true);
+  setSelectedTask(task);
+  setFormType(task.type);
+  setIsModalOpen(true);
 
-    const nameParts = (task.contacted_person?.name || "").split(" ");
-    const firstName = nameParts[0] || "";
-    const lastName = nameParts.slice(1).join(" ") || "";
+  const nameParts = (task.contacted_person?.name || "").split(" ");
+  const firstName = nameParts[0] || "";
+  const lastName = nameParts.slice(1).join(" ") || "";
 
-    setTaskData({
-      taskType:
-        taskTypes.find((t) => (t._id || t.id) === taskData.taskType)?.name ||
-        taskData.taskType,
-      recipient: {
-        Name: firstName,
-        Surname: lastName,
-        Phone:
-          task.contacted_person?.phone || task.contacted_person?.Number || "",
-        Email: task.contacted_person?.email || "",
-      },
-      recipientDisplay: task.contacted_person?.name || "",
-      assignedTo:
-        task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
-      assignedEmail: task.assignedfor || user?.email || "",
-      dueDate: formatDateTime(task.date),
-      status: task.status,
-      taskStage: task.status,
-    });
-  };
+  setTaskData({
+    taskType:
+      taskTypes.find((t) => (t._id || t.id) === task.taskType)?.name ||
+      task.taskType ||
+      "",
+    recipient: {
+      Name: firstName,
+      Surname: lastName,
+      Phone: task.contacted_person?.phone || task.contacted_person?.Number || "",
+      Email: task.contacted_person?.email || "",
+    },
+    recipientDisplay: task.contacted_person?.name || "",
+    assignedTo: task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
+    assignedEmail: task.assignedfor || user?.email || "",
+    dueDate: formatDateTime(task.date),
+    status: task.status,
+    taskStage: task.status,
+  });
+};
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSubmitting(true);
-    try {
-      if (!user?.id) throw new Error("Logged-in user ID not found");
+  e.preventDefault();
+  setSubmitting(true);
+  try {
+    if (!user?.id) throw new Error("Logged-in user ID not found");
 
-      const person = taskData.recipient;
-      console.log("Recipient data:", person);
-      console.log("Full taskData:", taskData);
+    const person = taskData.recipient;
+    if (!person || !person.Name) {
+      throw new Error("Person details not found. Please select a valid recipient.");
+    }
 
-      if (!person || !person.Name) {
-        console.error("Invalid recipient:", person);
-        throw new Error(
-          "Person details not found. Please select a valid recipient.",
-        );
-      }
+    const isConsolidationTask =
+      selectedTask?.taskType === "consolidation" ||
+      selectedTask?.is_consolidation_task;
 
-      const isConsolidationTask =
-        selectedTask?.taskType === "consolidation" ||
-        selectedTask?.is_consolidation_task;
+    const taskPayload = {
+      memberID: user.id,
+      name: isConsolidationTask
+        ? taskData.assignedTo
+        : taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
+      taskType:
+        taskTypes.find((t) => (t._id || t.id) === taskData.taskType)?.name ||
+        taskData.taskType ||
+        (isConsolidationTask
+          ? "consolidation"
+          : formType === "call"
+            ? "Call Task"
+            : "Visit Task"),
+      contacted_person: {
+        name: `${person.Name} ${person.Surname || ""}`.trim(),
+        phone: person.Phone || person.Number || "",
+        email: person.Email || "",
+      },
+      followup_date: new Date(taskData.dueDate).toISOString(),
+      status: taskData.taskStage || "Open",
+      type: formType || "call",
+      assignedfor: taskData.assignedEmail || user.email,
+      assigned_to_email: taskData.assignedEmail || user.email,
+      created_by_email: user.email,
+      created_by_name: `${user.name} ${user.surname}`.trim(),
+    };
 
-      const taskPayload = {
-        memberID: user.id,
-        name: isConsolidationTask
-          ? taskData.assignedTo
-          : taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
-        taskType:
-          taskTypes.find((t) => (t._id || t.id) === taskData.taskType)?.name ||
-          taskData.taskType ||
-          (isConsolidationTask
-            ? "consolidation"
-            : formType === "call"
-              ? "Call Task"
-              : "Visit Task"),
-        contacted_person: {
-          name: `${person.Name} ${person.Surname || ""}`.trim(),
-          phone: person.Phone || person.Number || "",
-          email: person.Email || "",
-        },
-        followup_date: new Date(taskData.dueDate).toISOString(),
-        status: taskData.taskStage || "Open",
-        type: formType || "call",
-        // Use selected assignee's email, fall back to current user
-        assignedfor: taskData.assignedEmail || user.email,
-        assigned_to_email: taskData.assignedEmail || user.email,
-        // Track who originally created it
-        created_by_email: user.email,
-        created_by_name: `${user.name} ${user.surname}`.trim(),
-      };
+    if (isConsolidationTask) {
+      taskPayload.leader_name = selectedTask.leader_name || taskData.assignedTo;
+      taskPayload.leader_assigned = selectedTask.leader_assigned || taskData.assignedTo;
+      taskPayload.is_consolidation_task = true;
+    }
 
-      if (isConsolidationTask) {
-        taskPayload.leader_name =
-          selectedTask.leader_name || taskData.assignedTo;
-        taskPayload.leader_assigned =
-          selectedTask.leader_assigned || taskData.assignedTo;
-        taskPayload.is_consolidation_task = true;
-      }
+    if (selectedTask && selectedTask._id) {
+      await updateTask(selectedTask._id, taskPayload);
+      toast.info(`Task for ${person.Name} ${person.Surname} updated successfully!`);
+    } else {
+      await createTask(taskPayload);
 
-      if (selectedTask && selectedTask._id) {
-        await updateTask(selectedTask._id, taskPayload);
-        toast.info(
-          `Task for ${person.Name} ${person.Surname} updated successfully!`,
+      const isAssignedToSomeoneElse =
+        taskData.assignedEmail &&
+        taskData.assignedEmail.toLowerCase() !== user.email.toLowerCase();
+
+      if (isAssignedToSomeoneElse) {
+        toast.success(
+          `You have successfully assigned a task to ${taskData.assignedTo} for ${person.Name} ${person.Surname}`,
         );
       } else {
-        await createTask(taskPayload);
-
-        // Check if task was assigned to someone else
-        const isAssignedToSomeoneElse =
-          taskData.assignedEmail &&
-          taskData.assignedEmail.toLowerCase() !== user.email.toLowerCase();
-
-        if (isAssignedToSomeoneElse) {
-          toast.success(
-            `You have successfully assigned a task to ${taskData.assignedTo} for ${person.Name} ${person.Surname}`,
-          );
-        } else {
-          toast.success(
-            `You have successfully captured ${person.Name} ${person.Surname}`,
-          );
-        }
+        toast.success(
+          `You have successfully captured ${person.Name} ${person.Surname}`,
+        );
       }
-      handleClose();
-    } catch (err) {
-      console.error("Error adding task:", err.message);
-      toast.error("Failed to create task: " + err.message);
-    } finally {
-      setSubmitting(false);
     }
-  };
+    handleClose();
+  } catch (err) {
+    console.error("Error adding task:", err.message);
+    toast.error("Failed to create task: " + err.message);
+  } finally {
+    setSubmitting(false);
+  }
+};
 
   const filteredTasks = tasks.filter((task) => {
     const taskDate = parseDate(task.date);
