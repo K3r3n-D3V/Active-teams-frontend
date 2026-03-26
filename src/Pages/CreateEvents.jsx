@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef,useContext } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Button,
   TextField,
@@ -27,7 +27,7 @@ import axios from "axios";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Popper } from "@mui/material";
-import { AuthContext } from "../contexts/AuthContext";
+import { useOrgConfig } from "../contexts/OrgConfigContext";
 
 function generateUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
@@ -36,9 +36,7 @@ function generateUUID() {
     return v.toString(16);
   });
 }
-
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-
 // Geoapify
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 const GEOAPIFY_COUNTRY_CODE = (
@@ -65,19 +63,11 @@ const SameWidthPopper = (props) => {
   );
 };
 
-const CreateEvents = ({
-  user,
-  isModal = false,
-  onClose,
-  eventTypes = [],
-  selectedEventType,
-  selectedEventTypeObj = null,
-}) => {
-  const { authFetch } = useContext(AuthContext);
+const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, selectedEventTypeObj }) => {
   const navigate = useNavigate();
   const { id: paramEventID } = useParams();
-  //changed eventId initial value to first check if there's an Id in the params
-  const [eventId,setEventId] = useState(paramEventID?paramEventID:null)
+  const [autoPopulatedFields, setAutoPopulatedFields] = useState(new Set());
+  const [eventId, setEventId] = useState(paramEventID ? paramEventID : null)
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   const [isSearchingPeople, setIsSearchingPeople] = useState(false);
@@ -91,6 +81,7 @@ const CreateEvents = ({
     isTicketed: isTicketedEvent,
     hasPersonSteps,
   } = eventTypeFlags;
+  const { getAllHierarchyLevels } = useOrgConfig();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
@@ -186,8 +177,8 @@ const CreateEvents = ({
 
         const biasParam = biasLonLat
           ? `&bias=proximity:${encodeURIComponent(
-              biasLonLat.lon,
-            )},${encodeURIComponent(biasLonLat.lat)}`
+            biasLonLat.lon,
+          )},${encodeURIComponent(biasLonLat.lat)}`
           : "";
 
         const url =
@@ -260,7 +251,7 @@ const CreateEvents = ({
         hasPersonSteps: et.hasPersonSteps,
       })),
     });
-
+    const hierarchyLevels = getAllHierarchyLevels();
     const determineEventType = () => {
       if (selectedEventTypeObj) {
         return {
@@ -343,9 +334,8 @@ const CreateEvents = ({
       eventType,
       ...(prev.hasPersonSteps && !hasPersonSteps
         ? {
-            leader1: "",
-            leader12: "",
-          }
+          ...Object.fromEntries(getAllHierarchyLevels().map(h => [h.field, ""])),
+        }
         : {}),
     }));
   }, [selectedEventTypeObj, selectedEventType, eventTypes]);
@@ -385,55 +375,106 @@ const CreateEvents = ({
     }
   }, [isTicketedEvent]);
 
-  // FIXED: Use the exact working fetchPeople logic from the first (working) version
-  // Same backend endpoint, client-side filtering/sorting, full leader field fallbacks
+
+
   const fetchPeople = async (q) => {
     if (!q.trim()) {
       setPeopleData([]);
       return;
     }
 
-    const parts = q.trim().split(/\s+/);
-    const name = parts[0];
-    const surname = parts.slice(1).join(" ");
-
     try {
       setIsSearchingPeople(true);
-      const token = localStorage.getItem("token");
-      const res = await fetch(`${BACKEND_URL}/people?name=${encodeURIComponent(name)}`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      const token = localStorage.getItem("access_token");
+      const searchWords = q.trim().split(/\s+/);
+      const firstName = searchWords[0] || "";
 
-      if (!res.ok) throw new Error("Failed to fetch people");
+      let people = [];
 
-      const data = await res.json();
-
-      let filtered = (data?.results || data?.people || []).filter((p) =>
-        (p.Name && p.Name.toLowerCase().includes(name.toLowerCase())) &&
-        (!surname || (p.Surname && p.Surname.toLowerCase().includes(surname.toLowerCase())))
+      const res = await fetch(
+        `${BACKEND_URL}/people?name=${encodeURIComponent(firstName)}&perPage=100`,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
       );
 
-      // Sort the results (exact same as working first version)
-      filtered.sort((a, b) => {
-        const nameA = (a.Name || "").toLowerCase();
-        const nameB = (b.Name || "").toLowerCase();
-        const surnameA = (a.Surname || "").toLowerCase();
-        const surnameB = (b.Surname || "").toLowerCase();
+      if (!res.ok) throw new Error("Failed to fetch people");
+      const data = await res.json();
+      people = data?.results || [];
+      if (searchWords.length > 1) {
+        people = people.filter((person) => {
+          const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase();
+          return searchWords.every((word) => fullName.includes(word.toLowerCase()));
+        });
+      }
+      if (people.length === 0) {
+        const fallbackRes = await fetch(`${BACKEND_URL}/people?perPage=300`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
+        if (fallbackRes.ok) {
+          const fallbackData = await fallbackRes.json();
+          people = (fallbackData?.results || [])
+            .filter((person) => {
+              const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase();
+              return searchWords.every((word) => fullName.includes(word.toLowerCase()));
+            })
+            .slice(0, 20);
+        }
+      }
 
-        if (nameA < nameB) return -1;
-        if (nameA > nameB) return 1;
-        if (surnameA < surnameB) return -1;
-        if (surnameA > surnameB) return 1;
-        return 0;
+      const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
+      const userOrg = (userProfile?.org_id || "").toLowerCase();
+      const userOrgName = (
+        userProfile?.organization ||
+        userProfile?.Organization ||
+        ""
+      ).toLowerCase();
+
+      const formatted = people.map((p) => {
+        const personOrg = (
+          p.org_id || p.Organization || p.Organisation || ""
+        ).toLowerCase();
+        const personOrgAsId = personOrg.replace(/\s+/g, "-");
+        const userOrgAsName = userOrg.replace(/-/g, " ");
+
+        const isDifferentOrg =
+          userOrg &&
+          personOrg &&
+          personOrg !== userOrg &&
+          personOrgAsId !== userOrg &&
+          personOrg !== userOrgAsName &&
+          !personOrg.includes(userOrgAsName) &&
+          !userOrgAsName.includes(personOrg) &&
+          !(userOrgName && personOrg.includes(userOrgName)) &&
+          !(userOrgName && userOrgName.includes(personOrg));
+
+        const leader1 = p["Leader @1"] || "";
+        const leader12 = p["Leader @12"] || "";
+        const leader144 = p["Leader @144"] || "";
+
+        const leaderValues = {};
+        if (leader1) leaderValues.leader1 = leader1;
+        if (leader12) leaderValues.leader12 = leader12;
+        if (leader144) leaderValues.leader144 = leader144;
+
+        return {
+          id: p._id,
+          fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+          email: p.Email || p.email || "",
+          leader1,
+          leader12,
+          leader144,
+          leaderValues,
+          org: personOrg,
+          isDifferentOrg,
+        };
       });
-
-      const formatted = filtered.map((p) => ({
-        id: p._id,
-        fullName: `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader1: p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || (p.leaders && p.leaders[0]) || "",
-        leader12: p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || (p.leaders && p.leaders[1]) || "",
-      }));
 
       setPeopleData(formatted);
     } catch (err) {
@@ -444,23 +485,17 @@ const CreateEvents = ({
       setIsSearchingPeople(false);
     }
   };
-  
-  //
-  useEffect(()=>{
-    //when create event is rendered it should check if it was opened by a ticketed event
-    const queryString = window.location.search
-    const queries = new URLSearchParams(queryString)
-
-    //checking if opened a ticketed event
-    if (selectedEventTypeObj.isTicketed === true){
-      console.log("Event ID",queries.get("eventId"))
-      //setting event id to query
-      setEventId(queries.get("eventId"))
-    }
-  },[])
 
   useEffect(() => {
-    console.log("dd",eventId)
+    const queryString = window.location.search
+    const queries = new URLSearchParams(queryString)
+    if (selectedEventTypeObj.isTicketed === true) {
+      console.log("Event ID", queries.get("eventId"))
+      setEventId(queries.get("eventId"))
+    }
+  }, [])
+  useEffect(() => {
+    console.log("dd", eventId)
     if (!eventId) return;
     const fetchEventData = async () => {
       try {
@@ -527,8 +562,7 @@ const CreateEvents = ({
         }
 
         setFormData((prev) => ({ ...prev, ...data }));
-        // Replace current URL without query string
-window.history.replaceState({}, "", window.location.pathname);
+        window.history.replaceState({}, "", window.location.pathname);
       } catch (err) {
         console.error("Failed to fetch event:", err);
         toast.error("Failed to load event data. Please try again.");
@@ -571,10 +605,9 @@ window.history.replaceState({}, "", window.location.pathname);
     setPriceTiers((prev) => {
       const updated = [...prev];
       updated[index] = { ...updated[index], [field]: value };
-      //Add price tiers to formData so when it's updated it can be sent to the backend
       setFormData((prev) => ({
-      ...prev,
-      "priceTiers": updated,
+        ...prev,
+        "priceTiers": updated,
       }));
       return updated;
     });
@@ -649,8 +682,17 @@ window.history.replaceState({}, "", window.location.pathname);
       }
 
       if (hasPersonSteps) {
-        if (!formData.leader1) newErrors.leader1 = "Leader @1 is required";
-        if (!formData.leader12) newErrors.leader12 = "Leader @12 is required";
+        const leaderDepth = [
+          formData.leader1,
+          formData.leader12,
+          formData.leader144,
+        ].filter(Boolean).length;
+        getAllHierarchyLevels().forEach((h, idx) => {
+          if (autoPopulatedFields.has(h.field)) return;
+          if (formData[h.field]) return;
+          if (idx >= leaderDepth && leaderDepth > 0) return;
+          newErrors[h.field] = `${h.label} is required`;
+        });
       }
     } else {
       if (!formData.date) newErrors.date = "Date is required";
@@ -777,28 +819,25 @@ window.history.replaceState({}, "", window.location.pathname);
 
       console.log("Final Payload:", payload);
 
-      const token = localStorage.getItem("token");
+      const token = localStorage.getItem("access_token");
       const headers = {
         Authorization: token ? `Bearer ${token}` : "",
         "Content-Type": "application/json",
       };
-
-      //updating using auth fetch as endpoint was returning a 401 error
-      const response = eventId?
-      await authFetch(`${BACKEND_URL}/events/${eventId}`, {
-            method: "PUT",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-            //sending form data 
-            body: JSON.stringify(formData)
-          })
+      const response = eventId ?
+        await authFetch(`${BACKEND_URL}/events/${eventId}`, {
+          method: "PUT",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData)
+        })
         : await axios.post(
-            `${BACKEND_URL.replace(/\/$/, "")}/events`,
-            payload,
-            { headers },
-          );
+          `${BACKEND_URL.replace(/\/$/, "")}/events`,
+          payload,
+          { headers },
+        );
 
       console.log("Response:", response.data);
 
@@ -859,40 +898,40 @@ window.history.replaceState({}, "", window.location.pathname);
 
   const containerStyle = isModal
     ? {
-        padding: "0",
-        minHeight: "auto",
-        backgroundColor: "transparent",
-        width: "100%",
-        height: "100%",
-        maxHeight: "none",
-        overflowY: "auto",
-      }
+      padding: "0",
+      minHeight: "auto",
+      backgroundColor: "transparent",
+      width: "100%",
+      height: "100%",
+      maxHeight: "none",
+      overflowY: "auto",
+    }
     : {
-        minHeight: "100vh",
-        display: "flex",
-        justifyContent: "center",
-        alignItems: "center",
-        bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
-        px: 2,
-      };
+      minHeight: "100vh",
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
+      px: 2,
+    };
 
   const cardStyle = isModal
     ? {
-        width: "100%",
-        height: "100%",
-        padding: "1.5rem",
-        borderRadius: 0,
-        boxShadow: "none",
-        backgroundColor: "transparent",
-        maxHeight: "none",
-        overflow: "visible",
-      }
+      width: "100%",
+      height: "100%",
+      padding: "1.5rem",
+      borderRadius: 0,
+      boxShadow: "none",
+      backgroundColor: "transparent",
+      maxHeight: "none",
+      overflow: "visible",
+    }
     : {
-        width: { xs: "100%", sm: "85%", md: "700px" },
-        p: 5,
-        borderRadius: "20px",
-        boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-      };
+      width: { xs: "100%", sm: "85%", md: "700px" },
+      p: 5,
+      borderRadius: "20px",
+      boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+    };
 
   const darkModeStyles = {
     textField: {
@@ -1038,10 +1077,10 @@ window.history.replaceState({}, "", window.location.pathname);
           ...cardStyle,
           ...(isDarkMode && !isModal
             ? {
-                bgcolor: theme.palette.background.paper,
-                color: theme.palette.text.primary,
-                border: `1px solid ${theme.palette.divider}`,
-              }
+              bgcolor: theme.palette.background.paper,
+              color: theme.palette.text.primary,
+              border: `1px solid ${theme.palette.divider}`,
+            }
             : {}),
         }}
       >
@@ -1077,41 +1116,51 @@ window.history.replaceState({}, "", window.location.pathname);
           )}
 
           <form onSubmit={handleSubmit}>
-            <TextField
-              select
-              label="Event Type *"
-              value={formData.eventType || ""}
-              onChange={(e) => {
-                const selectedName = e.target.value;
-
-                const selectedObj = eventTypes.find(
-                  (et) => et.name === selectedName,
-                );
-
-                setFormData((prev) => ({
-                  ...prev,
-                  eventType: selectedName,
-                }));
-
-                if (selectedObj) {
-                  setEventTypeFlags({
-                    isGlobal: !!selectedObj.isGlobal,
-                    isTicketed: !!selectedObj.isTicketed,
-                    hasPersonSteps: !!selectedObj.hasPersonSteps,
-                  });
-                }
-              }}
-              fullWidth
-              size="small"
-              sx={{ mb: 3, ...darkModeStyles.textField }}
-            >
-              {eventTypes.map((et) => (
-                <MenuItem key={et.id} value={et.name}>
-                  {et.name}
-                </MenuItem>
-              ))}
-            </TextField>
-
+            {selectedEventType || selectedEventTypeObj ? (
+              <TextField
+                label="Event Type"
+                value={formData.eventType || ""}
+                fullWidth
+                size="small"
+                sx={{ mb: 3, ...darkModeStyles.textField }}
+                InputProps={{ readOnly: true }}
+                helperText="Event type is pre-selected"
+              />
+            ) : (
+              <TextField
+                select
+                label="Event Type *"
+                value={formData.eventType || ""}
+                onChange={(e) => {
+                  const selectedName = e.target.value;
+                  const selectedObj = eventTypes.find((et) => et.name === selectedName);
+                  setFormData((prev) => ({ ...prev, eventType: selectedName }));
+                  if (selectedObj) {
+                    setEventTypeFlags({
+                      isGlobal: !!selectedObj.isGlobal,
+                      isTicketed: !!selectedObj.isTicketed,
+                      hasPersonSteps: !!selectedObj.hasPersonSteps,
+                    });
+                  }
+                }}
+                fullWidth
+                size="small"
+                sx={{ mb: 3, ...darkModeStyles.textField }}
+                error={!!errors.eventType}
+                helperText={errors.eventType}
+              >
+                {eventTypes.map((et) => (
+                  <MenuItem key={et.id} value={et.name}>
+                    {et.name}
+                  </MenuItem>
+                ))}
+                {formData.eventType && !eventTypes.find((et) => et.name === formData.eventType) && (
+                  <MenuItem key="__current__" value={formData.eventType} sx={{ display: "none" }}>
+                    {formData.eventType}
+                  </MenuItem>
+                )}
+              </TextField>
+            )}
             <TextField
               label="Event Name *"
               value={formData.eventName}
@@ -1195,10 +1244,10 @@ window.history.replaceState({}, "", window.location.pathname);
                     <TextField
                       label="Price Name *"
                       value={tier.name}
-                      onChange={(e) =>{
+                      onChange={(e) => {
                         handlePriceTierChange(index, "name", e.target.value);
                       }
-                        
+
                       }
                       fullWidth
                       size="small"
@@ -1445,23 +1494,21 @@ window.history.replaceState({}, "", window.location.pathname);
                       option.city ||
                       option.state ||
                       option.postcode) && (
-                      <Typography variant="caption" color="text.secondary">
-                        {[
-                          option.suburb,
-                          option.city,
-                          option.state,
-                          option.postcode,
-                        ]
-                          .filter(Boolean)
-                          .join(" • ")}
-                      </Typography>
-                    )}
+                        <Typography variant="caption" color="text.secondary">
+                          {[
+                            option.suburb,
+                            option.city,
+                            option.state,
+                            option.postcode,
+                          ]
+                            .filter(Boolean)
+                            .join(" • ")}
+                        </Typography>
+                      )}
                   </Box>
                 </li>
               )}
             />
-
-            {/* Event Leader section - FIXED with working logic from first version */}
             <Box sx={{ mb: 3, position: "relative" }}>
               <TextField
                 label="Event Leader *"
@@ -1469,10 +1516,11 @@ window.history.replaceState({}, "", window.location.pathname);
                 onChange={(e) => {
                   const value = e.target.value;
                   handleChange("eventLeader", value);
-                  setPeopleData([]); // clear old results immediately
-                  if (searchDebounceRef.current)
-                    clearTimeout(searchDebounceRef.current);
-
+                  setPeopleData([]);
+                  if (autoPopulatedFields.size > 0) {
+                    setAutoPopulatedFields(new Set());
+                  }
+                  if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
                   if (value.trim().length >= 2) {
                     searchDebounceRef.current = setTimeout(() => {
                       fetchPeople(value);
@@ -1514,7 +1562,7 @@ window.history.replaceState({}, "", window.location.pathname);
                 autoComplete="off"
               />
 
-              {/* Dropdown results - kept improved mouse handlers from second version */}
+              {/* Dropdown results */}
               {peopleData.length > 0 && (
                 <Box
                   sx={{
@@ -1539,40 +1587,38 @@ window.history.replaceState({}, "", window.location.pathname);
                       key={person.id || `${person.fullName}-${person.email}`}
                       sx={{
                         padding: "12px",
-                        cursor: "pointer",
-                        borderBottom: `1px solid ${
-                          isDarkMode ? theme.palette.divider : "#f0f0f0"
-                        }`,
+                        borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : "#f0f0f0"}`,
                         "&:hover": {
-                          backgroundColor: isDarkMode
-                            ? "rgba(255,255,255,0.1)"
-                            : "#f5f5f5",
+                          backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "#f5f5f5",
                         },
-                        "&:last-child": {
-                          borderBottom: "none",
-                        },
+                        "&:last-child": { borderBottom: "none" },
+                        opacity: person.isDifferentOrg ? 0.5 : 1,
+                        cursor: person.isDifferentOrg ? "not-allowed" : "pointer",
                       }}
                       onMouseDown={() => {
+                        if (person.isDifferentOrg) return;
                         isSelectingFromDropdown.current = true;
                       }}
                       onMouseUp={() => {
+                        if (person.isDifferentOrg) return;
                         isSelectingFromDropdown.current = false;
                         const selectedName = person.fullName;
                         const selectedEmail = person.email;
 
-                        // FIXED: Use exact selection logic from first version (auto-fill eventName for cells)
-                        // + keep second version's email handling
                         if (hasPersonSteps && !isGlobalEvent) {
+                          const populated = new Set(Object.keys(person.leaderValues || {}));
+                          setAutoPopulatedFields(populated);
+
                           setFormData((prev) => ({
                             ...prev,
                             eventLeader: selectedName,
-                            eventName: selectedName, // ← restored from first version
+                            eventName: selectedName,
                             eventLeaderEmail: selectedEmail.toLowerCase(),
-                            email: selectedEmail.toLowerCase(), // also populate the Email field
-                            leader1: person.leader1 || "",
-                            leader12: person.leader12 || "",
+                            email: selectedEmail.toLowerCase(),
+                            ...(person.leaderValues || {}),
                           }));
                         } else {
+                          setAutoPopulatedFields(new Set());
                           setFormData((prev) => ({
                             ...prev,
                             eventLeader: selectedName,
@@ -1584,14 +1630,18 @@ window.history.replaceState({}, "", window.location.pathname);
                     >
                       <Typography variant="body1" fontWeight="500">
                         {person.fullName}
+                        {person.isDifferentOrg && (
+                          <span style={{ color: "red", fontSize: "0.75rem", marginLeft: 8 }}>
+                            Different organisation — cannot select
+                          </span>
+                        )}
                       </Typography>
-                      <Typography
-                        variant="body2"
-                        sx={{ color: "text.secondary", fontSize: "0.75rem" }}
-                      >
+                      <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.75rem" }}>
                         {person.email}
                         {person.leader1 && ` • L@1: ${person.leader1}`}
                         {person.leader12 && ` • L@12: ${person.leader12}`}
+                        {person.leader144 && ` • L@144: ${person.leader144}`}
+                        {person.org && ` • Org: ${person.org}`}
                       </Typography>
                     </Box>
                   ))}
@@ -1612,34 +1662,48 @@ window.history.replaceState({}, "", window.location.pathname);
                   helperText={errors.email || "Enter the email for this event"}
                 />
 
-                <TextField
-                  label="Leader @1 *"
-                  value={formData.leader1 || ""}
-                  onChange={(e) => handleChange("leader1", e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.leader1}
-                  helperText={
-                    errors.leader1 || "Enter the Leader @1 for this cell"
-                  }
-                />
-
-                <TextField
-                  label="Leader @12 *"
-                  value={formData.leader12 || ""}
-                  onChange={(e) => handleChange("leader12", e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.leader12}
-                  helperText={
-                    errors.leader12 || "Enter the Leader @12 for this cell"
-                  }
-                />
+                {getAllHierarchyLevels().map((h) => {
+                  const isAutoFilled = autoPopulatedFields.has(h.field) && !!formData[h.field];
+                  return (
+                    <TextField
+                      key={h.field}
+                      label={isAutoFilled ? h.label : `${h.label} *`}
+                      value={formData[h.field] || ""}
+                      onChange={(e) => !isAutoFilled && handleChange(h.field, e.target.value)}
+                      fullWidth
+                      size="small"
+                      sx={{
+                        mb: 2,
+                        ...darkModeStyles.textField,
+                        ...(isAutoFilled && {
+                          "& .MuiOutlinedInput-root": {
+                            ...darkModeStyles.textField["& .MuiOutlinedInput-root"],
+                            bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                          },
+                        }),
+                      }}
+                      InputProps={{
+                        readOnly: isAutoFilled,
+                        endAdornment: isAutoFilled ? (
+                          <InputAdornment position="end">
+                            <Typography variant="caption" sx={{ color: "success.main", fontSize: "0.7rem", whiteSpace: "nowrap" }}>
+                              Auto-filled
+                            </Typography>
+                          </InputAdornment>
+                        ) : undefined,
+                      }}
+                      error={!!errors[h.field]}
+                      helperText={
+                        errors[h.field] ||
+                        (isAutoFilled
+                          ? `Auto-filled from ${formData.eventLeader}`
+                          : `Enter the ${h.label} for this event`)
+                      }
+                    />
+                  );
+                })}
               </>
             )}
-
             <Box sx={{ mb: 3, display: "flex", gap: 1, flexWrap: "wrap" }}>
               {isTicketedEvent && (
                 <Chip label="Ticketed Event" color="warning" size="small" />
