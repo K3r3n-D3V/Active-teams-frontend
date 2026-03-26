@@ -1832,68 +1832,49 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
       setIsLoadingPeople(false); 
   }
 };
+  
   useEffect(() => {
-    if (isOpen && event) {
-      let eventId;
+  if (isOpen && event) {
+    // Extract date from _id — always reliable since backend sets it as "objectId_YYYY-MM-DD"
+    const idParts = (event._id || "").split("_");
+    const dateFromId = idParts.length === 2 ? idParts[1] : null;
 
-      if (event.original_event_id && event.date) {
-        const cleanDate = event.date.split("T")[0].split(" ")[0];
-        eventId = `${event.original_event_id}_${cleanDate}`;
-      } else if (event._id && event.date) {
-        const cleanDate = event.date.split("T")[0].split(" ")[0];
-        eventId = `${event._id}_${cleanDate}`;
-      } else {
-        eventId = event._id || event.id;
-      }
-
-      if (!eventId || eventId === "undefined") {
-        console.error("useEffect: event has no valid _id or id", event);
-        return;
-      }
-
-      setSearchName("");
-      setAssociateSearch("");
-      setActiveTab(0);
-      setDecisions({});
-      setDecisionTypes({});
-      setAttendeeTicketInfo({});
-      setManualHeadcount("0");
-      setDidNotMeet(false);
-
-      const existingAttendees = event.persistent_attendees || [];
-      if (existingAttendees.length > 0) {
-        setPersistentCommonAttendees(existingAttendees);
-        const initialCheckedIn = {};
-        existingAttendees.forEach(att => {
-          if (att.id) initialCheckedIn[att.id] = false;
-        });
-        setCheckedIn(initialCheckedIn);
-        if (isTicketedEvent) {
-          const initialTicketInfo = {};
-          existingAttendees.forEach(att => {
-            if (att.id && att.priceName?.trim()) {
-              initialTicketInfo[att.id] = {
-                priceName: att.priceName,
-                price: att.price ?? 0,
-                ageGroup: att.ageGroup || "",
-                paymentMethod: att.paymentMethod || "",
-              };
-            }
-          });
-          setAttendeeTicketInfo(initialTicketInfo);
-        }
-      } else {
-        setPersistentCommonAttendees([]);
-        setCheckedIn({});
-      }
-
-      const loadAllData = async () => {
-        await loadPersistentAttendees(eventId);
-        await loadEventStatistics();
-      };
-      loadAllData();
+    let eventId;
+    if (event.original_event_id && dateFromId) {
+      eventId = `${event.original_event_id}_${dateFromId}`;
+    } else if (event.original_event_id && event.date) {
+      const cleanDate = event.date.split("T")[0].split(" ")[0];
+      eventId = `${event.original_event_id}_${cleanDate}`;
+    } else if (dateFromId) {
+      eventId = event._id; // already compound e.g. "abc123_2026-03-25"
+    } else if (event._id && event.date) {
+      const cleanDate = event.date.split("T")[0].split(" ")[0];
+      eventId = `${event._id}_${cleanDate}`;
+    } else {
+      eventId = event._id || event.id;
     }
-  }, [isOpen, event?._id, event?.id]);
+
+    console.log("🔍 Constructed eventId:", eventId);
+
+    if (!eventId || eventId === "undefined") {
+      console.error("useEffect: event has no valid _id or id", event);
+      return;
+    }
+
+    setSearchName("");
+    setAssociateSearch("");
+    setActiveTab(0);
+    setDecisions({});
+    setDecisionTypes({});
+    setAttendeeTicketInfo({});
+    setManualHeadcount("0");
+    setDidNotMeet(false);
+    setPersistentCommonAttendees([]);
+    setCheckedIn({});
+
+    loadPersistentAttendees(eventId);
+  }
+}, [isOpen, event?._id, event?.id, event?.date]);
 
   const fetchPeople = async (q) => {
     if (!q || !q.trim()) {
