@@ -538,12 +538,34 @@ function ServiceCheckIn() {
     });
   }, [attendeesWithStatus, search]);
 
-  const sortedFilteredAttendees = useMemo(() => {
+const sortedFilteredAttendees = useMemo(() => {
     const result = [...filteredAttendees];
+    const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+
+    // Score how well a value matches the search terms
+    const matchScore = (value, field) => {
+      if (!terms.length || !value) return 0;
+      const v = value.toString().toLowerCase();
+      let score = 0;
+      for (const term of terms) {
+        if (v === term) score += 10;           // exact match
+        else if (v.startsWith(term)) score += 5; // starts with
+        else if (v.includes(term)) score += 2;   // contains
+      }
+      return score;
+    };
+
     if (sortModel?.length > 0) {
       const { field, sort } = sortModel[0];
       if (field && field !== "actions") {
         result.sort((a, b) => {
+          // If there's an active search, boost higher-scoring rows to the top
+          if (terms.length > 0) {
+            const sa = matchScore(a[field], field);
+            const sb = matchScore(b[field], field);
+            if (sa !== sb) return sort === "desc" ? sa - sb : sb - sa;
+          }
+          // Fall back to normal alphabetical sort
           const cmp = (a[field] || "").toString().toLowerCase()
             .localeCompare((b[field] || "").toString().toLowerCase());
           return sort === "desc" ? -cmp : cmp;
@@ -557,7 +579,7 @@ function ServiceCheckIn() {
       });
     }
     return result;
-  }, [filteredAttendees, sortModel]);
+  }, [filteredAttendees, sortModel, search]);
 
   const presentCount = realTimeData?.present_count ?? realTimeData?.present_attendees?.length ?? 0;
   const newPeopleCount = realTimeData?.new_people_count ?? realTimeData?.new_people?.length ?? 0;
