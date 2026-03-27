@@ -368,25 +368,20 @@ export default function DailyTasks() {
     }
   };
 
-  const fetchUserTasks = async () => {
+const fetchUserTasks = useCallback(async () => {
   if (!user?.email) return;
   const controller = new AbortController();
   const signal = controller.signal;
 
   try {
     setLoading(true);
-    const res = await authFetch(
-      `${API_URL}/tasks?email=${encodeURIComponent(user.email)}`,
-      { signal }
-    );
+    const res = await authFetch(`${API_URL}/tasks?email=${encodeURIComponent(user.email)}`, { signal });
     if (!res.ok) throw new Error("Failed to fetch tasks");
     const data = await res.json();
     const tasksArray = Array.isArray(data) ? data : data.tasks || [];
 
     const normalizedTasks = tasksArray.map((task) => {
-      const isConsolidation =
-        task.taskType === "consolidation" || task.is_consolidation_task;
-
+      const isConsolidation = task.taskType === "consolidation" || task.is_consolidation_task;
       let assignedTo = "";
       if (isConsolidation) {
         assignedTo =
@@ -399,16 +394,22 @@ export default function DailyTasks() {
         assignedTo = task.name || task.assignedfor || "";
       }
 
+      let recipientId = task.recipient_id || task.assignedfor_id || null;
+      if (!recipientId && task.assignedfor_email) {
+        const matchedPerson = window.globalPeopleCache?.find(
+          (p) => p.email.toLowerCase() === task.assignedfor_email.toLowerCase()
+        );
+        recipientId = matchedPerson?._id || null;
+      }
+
       return {
         ...task,
         assignedTo,
+        recipientId,
         date: task.date || task.followup_date,
         status: (task.status || "Open").toLowerCase(),
         taskName: task.name || task.taskName,
-        type:
-          task.type ||
-          (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call") ||
-          "call",
+        type: task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call") || "call",
         leader_name: task.leader_name || task.leader_assigned,
         leader_assigned: task.leader_assigned,
         consolidation_name:
@@ -421,17 +422,14 @@ export default function DailyTasks() {
       };
     });
 
-    // Only show tasks assigned to current user
     const myTasks = normalizedTasks.filter((task) => {
       const isMyTask =
         task.assignedfor === user.email ||
         task.assigned_to_email === user.email;
-
       const isAssignedToSomeoneElse =
         task.assignedfor &&
         task.assignedfor !== user.email &&
         task.assigned_to_email !== user.email;
-
       return isMyTask && !isAssignedToSomeoneElse;
     });
 
@@ -439,79 +437,86 @@ export default function DailyTasks() {
   } catch (err) {
     if (err.name !== "AbortError") {
       console.error("Error fetching user tasks:", err.message);
-      toast.error(err.message);
     }
   } finally {
     if (!signal.aborted) setLoading(false);
   }
 
   return () => controller.abort();
-};
+}, [user, authFetch, API_URL]);
+const fetchAllPeople = useCallback(
+  async (forceRefresh = false) => {
+    const now = Date.now();
+    if (!forceRefresh && window.globalPeopleCache && window.globalCacheTimestamp && now - window.globalCacheTimestamp < CACHE_DURATION) {
+      setAllPeople(window.globalPeopleCache);
+      return window.globalPeopleCache;
+    }
 
-  const fetchAllPeople = useCallback(
-    async (forceRefresh = false) => {
-      const now = Date.now();
-      if (
-        !forceRefresh &&
-        window.globalPeopleCache &&
-        window.globalCacheTimestamp &&
-        now - window.globalCacheTimestamp < CACHE_DURATION
-      ) {
-        setAllPeople(window.globalPeopleCache);
-        return window.globalPeopleCache;
-      }
-
-      if (isFetchingRef.current) {
-        if (peopleFetchPromiseRef.current) {
-          try {
-            const result = await peopleFetchPromiseRef.current;
-            return result || window.globalPeopleCache || [];
-          } catch (e) {
-            return window.globalPeopleCache || [];
-          }
-        }
-        return window.globalPeopleCache || [];
-      }
-
-      isFetchingRef.current = true;
-      setIsLoadingPeople(true);
-      peopleFetchPromiseRef.current = (async () => {
+    if (isFetchingRef.current) {
+      if (peopleFetchPromiseRef.current) {
         try {
-          const response = await authFetch(`${API_URL}/people?perPage=0`);
-          if (!response || !response.ok)
-            throw new Error("Failed to fetch people");
+          const result = await peopleFetchPromiseRef.current;
+          return result || window.globalPeopleCache || [];
+        } catch (e) {
+          return window.globalPeopleCache || [];
+        }
+      }
+      return window.globalPeopleCache || [];
+    }
+
+    isFetchingRef.current = true;
+    setIsLoadingPeople(true);
+
+    peopleFetchPromiseRef.current = (async () => {
+      try {
+        let allPeople = [];
+        let page = 1;
+        const perPage = 200;
+
+        while (true) {
+          const response = await authFetch(`${API_URL}/people?perPage=${perPage}&page=${page}`);
+          if (!response || !response.ok) throw new Error("Failed to fetch people");
           const data = await response.json();
           const rawPeople = data?.results || [];
-          const mapped = rawPeople.map((raw) => ({
-            _id: (raw._id || raw.id || "").toString(),
-            name: (raw.Name || raw.name || "").toString().trim(),
-            surname: (raw.Surname || raw.surname || "").toString().trim(),
-            email: (raw.Email || raw.email || "").toString().trim(),
-            phone: (raw.Phone || raw.phone || raw.Number || "")
-              .toString()
-              .trim(),
-            fullNameLower:
-              `${(raw.Name || raw.name || "").toString().trim()} ${(raw.Surname || raw.surname || "").toString().trim()}`.toLowerCase(),
-          }));
-          window.globalPeopleCache = mapped;
-          window.globalCacheTimestamp = Date.now();
-          setAllPeople(mapped);
-          return mapped;
-        } catch (err) {
-          console.error("Fetch people error:", err);
-          toast.error(`Failed to load people: ${err?.message}`);
-          return window.globalPeopleCache || [];
-        } finally {
-          isFetchingRef.current = false;
-          peopleFetchPromiseRef.current = null;
-          setIsLoadingPeople(false);
-        }
-      })();
+          if (rawPeople.length === 0) break;
 
-      return await peopleFetchPromiseRef.current;
-    },
-    [API_URL, authFetch],
-  );
+          allPeople = allPeople.concat(
+            rawPeople.map((raw) => {
+              const name = (raw.Name || raw.name || "").toString().trim();
+              const surname = (raw.Surname || raw.surname || "").toString().trim();
+              return {
+                _id: (raw._id || raw.id || "").toString(),
+                name,
+                surname,
+                email: (raw.Email || raw.email || "").toString().trim(),
+                phone: (raw.Phone || raw.phone || raw.Number || "").toString().trim(),
+                fullNameLower: `${name} ${surname}`.toLowerCase().trim(),
+              };
+            })
+          );
+
+          if (rawPeople.length < perPage) break;
+          page += 1;
+        }
+
+        window.globalPeopleCache = allPeople;
+        window.globalCacheTimestamp = Date.now();
+        setAllPeople(allPeople);
+        return allPeople;
+      } catch (err) {
+        console.error("Fetch people error:", err);
+        return window.globalPeopleCache || [];
+      } finally {
+        isFetchingRef.current = false;
+        peopleFetchPromiseRef.current = null;
+        setIsLoadingPeople(false);
+      }
+    })();
+
+    return await peopleFetchPromiseRef.current;
+  },
+  [API_URL, authFetch]
+);
 
   useEffect(() => {
     if (!user) return;
@@ -526,87 +531,64 @@ export default function DailyTasks() {
     }
   }, [user, fetchAllPeople]);
 
-  const searchPeople = useCallback(
-    (peopleList, searchValue, field = "name") => {
-      if (!searchValue.trim()) return peopleList;
+    // === SEARCH PEOPLE FUNCTION (exactly as you requested, but safer) ===
+const searchPeople = useCallback(
+  (peopleList, searchValue) => {
+    if (!searchValue?.trim() || !Array.isArray(peopleList)) return [];
+    const searchLower = searchValue.toLowerCase().trim();
+    return peopleList.filter((person) =>
+      (person.fullNameLower || "").includes(searchLower) ||
+      (person.email || "").toLowerCase().includes(searchLower) ||
+      (person.phone || "").toLowerCase().includes(searchLower)
+    );
+  },
+  []
+);
 
-      const searchLower = searchValue.toLowerCase().trim();
+  // === FETCH PEOPLE (fixed argument passing) ===
+const fetchPeople = useCallback(
+  async (q) => {
+    if (!q?.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
 
-      return peopleList.filter((person) => {
-        switch (field) {
-          case "name": {
-            const nameLower = person.name.toLowerCase();
-            const surnameLower = person.surname.toLowerCase();
-            const fullName = `${nameLower} ${surnameLower}`;
+    setIsSearching(true);
+    const localSource = window.globalPeopleCache?.length > 0 ? window.globalPeopleCache : allPeople;
+    if (localSource && localSource.length > 0) {
+      const quick = searchPeople(localSource, q);
+      setSearchResults(quick.slice(0, 50));
+    }
 
-            return (
-              nameLower.includes(searchLower) ||
-              surnameLower.includes(searchLower) ||
-              fullName.includes(searchLower)
-            );
-          }
-          default:
-            return true;
-        }
-      });
-    },
-    [],
-  );
+    try {
+      const people = await fetchAllPeople(false);
+      const finalResults = searchPeople(people || [], q);
+      setSearchResults(finalResults.slice(0, 50));
+    } catch (err) {
+      console.error("Error searching people:", err);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  },
+  [allPeople, searchPeople, fetchAllPeople]
+);
 
-  const fetchPeople = useCallback(
-    async (q) => {
-      if (!q || !q.trim()) {
-        setSearchResults([]);
-        setIsSearching(false);
-        return;
-      }
-
-      const query = q.trim();
-      setIsSearching(true);
-
-      const localSource =
-        window.globalPeopleCache?.length > 0
-          ? window.globalPeopleCache
-          : allPeople;
-      if (localSource && localSource.length > 0) {
-        try {
-          const quick = searchPeople(localSource, query, "name");
-          setSearchResults(quick.slice(0, 50));
-        } catch (e) {
-          console.error("Quick local search failed:", e);
-          setSearchResults([]);
-        }
-      } else {
-        setSearchResults([]);
-      }
-
-      try {
-        const people = await fetchAllPeople(false);
-        const finalResults = searchPeople(people || [], query, "name");
-        setSearchResults(finalResults.slice(0, 50));
-        console.log(`Search results for "${q}":`, finalResults);
-      } catch (err) {
-        console.error("Error searching people:", err);
-      } finally {
-        setIsSearching(false);
-      }
-    },
-    [allPeople, searchPeople, fetchAllPeople],
-  );
-
+  // === FETCH ASSIGNED (fixed argument passing) ===
   const fetchAssigned = useCallback(
     async (q) => {
       if (!q || !q.trim()) {
         setAssignedResults([]);
         return;
       }
-
       const query = q.trim();
 
       const localSource =
         window.globalPeopleCache?.length > 0
           ? window.globalPeopleCache
           : allPeople;
+
       if (localSource && localSource.length > 0) {
         try {
           const quick = searchPeople(localSource, query, "name");
@@ -630,49 +612,36 @@ export default function DailyTasks() {
     [allPeople, searchPeople, fetchAllPeople],
   );
 
-  const handleRecipientInput = useCallback(
-    (value) => {
-      setTaskData((prev) => ({
-        ...prev,
-        recipientDisplay: value,
-        recipient: null,
-      }));
+  // === HANDLE RECIPIENT INPUT (fixed argument passing + minor safety) ===
+const handleRecipientInput = useCallback(
+  (value) => {
+    setTaskData((prev) => ({
+      ...prev,
+      recipientDisplay: value,
+      recipient: null,
+    }));
 
-      if (!value.trim()) {
-        setSearchResults([]);
-        setIsSearching(false);
-        return;
-      }
+    if (!value?.trim()) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
 
-      // Immediately search local cache — shows results right away
-      const localSource =
-        window.globalPeopleCache?.length > 0
-          ? window.globalPeopleCache
-          : allPeople;
+    const localSource = window.globalPeopleCache?.length > 0 ? window.globalPeopleCache : allPeople;
+    if (localSource && localSource.length > 0) {
+      const quick = searchPeople(localSource, value);
+      setSearchResults(quick.slice(0, 50));
+      setIsSearching(false);
+    } else {
+      setSearchResults([]);
+      setIsSearching(true);
+    }
 
-      if (localSource && localSource.length > 0) {
-        try {
-          const quick = searchPeople(localSource, value, "name");
-          setSearchResults(quick.slice(0, 50));
-          setIsSearching(false); // already have results, no spinner needed
-        } catch (e) {
-          setSearchResults([]);
-          setIsSearching(true); // will fetch remotely
-        }
-      } else {
-        // No cache yet — show spinner while we fetch
-        setIsSearching(true);
-        setSearchResults([]);
-      }
-
-      if (fetchPeopleDebounceRef.current)
-        clearTimeout(fetchPeopleDebounceRef.current);
-      fetchPeopleDebounceRef.current = setTimeout(() => {
-        fetchPeople(value);
-      }, RECIPIENT_DEBOUNCE);
-    },
-    [allPeople, searchPeople, fetchPeople],
-  );
+    if (fetchPeopleDebounceRef.current) clearTimeout(fetchPeopleDebounceRef.current);
+    fetchPeopleDebounceRef.current = setTimeout(() => fetchPeople(value), RECIPIENT_DEBOUNCE);
+  },
+  [allPeople, searchPeople, fetchPeople]
+);
 
   useEffect(() => {
     return () => {
@@ -1905,6 +1874,7 @@ export default function DailyTasks() {
           </div>
 
           {/* Recipient field with loading state */}
+                    {/* Recipient field with loading state */}
           <div style={{ position: "relative" }}>
             <label
               style={{
@@ -1924,18 +1894,18 @@ export default function DailyTasks() {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: "8px",
-                  backgroundColor: isDarkMode ? "#2d2d2d" : "#f0f9ff",
-                  border: `1px solid ${isDarkMode ? "#444" : "#bae6fd"}`,
+                  gap: "10px",
+                  backgroundColor: isDarkMode ? "#2a2a2a" : "#f0f9ff",
+                  border: `1px solid ${isDarkMode ? "#555" : "#bae6fd"}`,
                   borderRadius: "8px",
-                  padding: "8px 12px",
-                  marginBottom: "8px",
-                  fontSize: "12px",
-                  color: isDarkMode ? "#93c5fd" : "#0369a1",
+                  padding: "10px 14px",
+                  marginBottom: "10px",
+                  fontSize: "13px",
+                  color: isDarkMode ? "#a5b4fc" : "#0369a1",
                   fontWeight: "500",
                 }}
               >
-                <Spinner size={13} color={isDarkMode ? "#93c5fd" : "#0369a1"} />
+                <Spinner size={16} color={isDarkMode ? "#a5b4fc" : "#3b82f6"} />
                 Loading people data, please wait…
               </div>
             )}
@@ -1950,12 +1920,12 @@ export default function DailyTasks() {
                 required
                 style={{
                   width: "100%",
-                  padding: "10px 12px",
-                  paddingRight: isSearching ? "40px" : "12px",
+                  padding: "12px 14px",
+                  paddingRight: isSearching ? "44px" : "14px",
                   borderRadius: "10px",
-                  border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
-                  fontSize: "14px",
-                  backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
+                  border: `2px solid ${isDarkMode ? "#555" : "#e5e7eb"}`,
+                  fontSize: "15px",
+                  backgroundColor: isDarkMode ? "#2d2d2d" : "#f8fafc",
                   color: isDarkMode ? "#fff" : "#1a1a24",
                   outline: "none",
                   boxSizing: "border-box",
@@ -1963,7 +1933,7 @@ export default function DailyTasks() {
                 placeholder={
                   isLoadingPeople && peopleNotLoadedYet
                     ? "Loading people…"
-                    : "Enter recipient name"
+                    : "Type name to search..."
                 }
               />
 
@@ -1972,96 +1942,89 @@ export default function DailyTasks() {
                 <div
                   style={{
                     position: "absolute",
-                    right: "12px",
+                    right: "14px",
                     top: "50%",
                     transform: "translateY(-50%)",
-                    display: "flex",
-                    alignItems: "center",
                   }}
                 >
-                  <Spinner
-                    size={15}
-                    color={isDarkMode ? "#aaaaaa" : "#6b7280"}
-                  />
+                  <Spinner size={18} color={isDarkMode ? "#94a3b8" : "#64748b"} />
                 </div>
               )}
             </div>
 
-            {/* Search results dropdown */}
+            {/* Search results dropdown - NICER STYLING */}
             {searchResults.length > 0 && (
               <ul
                 style={{
                   position: "absolute",
-                  zIndex: 10,
+                  zIndex: 20,
                   width: "100%",
                   backgroundColor: isDarkMode ? "#1e1e1e" : "#ffffff",
-                  border: `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
-                  borderRadius: "10px",
-                  marginTop: "4px",
-                  maxHeight: "200px",
+                  border: `2px solid ${isDarkMode ? "#555" : "#e5e7eb"}`,
+                  borderRadius: "12px",
+                  marginTop: "6px",
+                  maxHeight: "260px",
                   overflowY: "auto",
                   listStyle: "none",
-                  padding: 0,
-                  margin: "4px 0 0 0",
+                  padding: "6px 0",
                   boxShadow: isDarkMode
-                    ? "0 2px 8px rgba(255,255,255,0.1)"
-                    : "0 4px 24px rgba(0, 0, 0, 0.08)",
+                    ? "0 10px 30px rgba(0,0,0,0.6)"
+                    : "0 10px 30px rgba(0,0,0,0.15)",
                 }}
               >
-                {searchResults.map((person) => (
-                  <li
-                    key={person._id}
-                    style={{
-                      padding: "10px 12px",
-                      cursor: "pointer",
-                      borderBottom: `1px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
-                      color: isDarkMode ? "#fff" : "#1a1a24",
-                    }}
-                    onClick={() => {
-                      setTaskData({
-                        ...taskData,
-                        recipient: {
-                          Name: person.name,
-                          Surname: person.surname,
-                          Phone: person.phone || "",
-                          Email: person.email || "",
-                        },
-                        recipientDisplay: `${person.name} ${person.surname}`,
-                        contacted_person: {
-                          name: `${person.name} ${person.surname}`,
-                          phone: person.phone || "",
-                          email: person.email || "",
-                        },
-                      });
-                      setSearchResults([]);
-                      setIsSearching(false);
-                    }}
-                    onMouseEnter={(e) =>
-                      (e.target.style.backgroundColor = isDarkMode
-                        ? "#2d2d2d"
-                        : "#f3f4f6")
-                    }
-                    onMouseLeave={(e) =>
-                      (e.target.style.backgroundColor = "transparent")
-                    }
-                  >
-                    {person.name} {person.surname}
-                  </li>
-                ))}
+                {searchResults.map((person) => {
+                  const displayName = `${person?.name || ""} ${person?.surname || ""}`.trim();
+                  if (!displayName) return null;
+
+                  return (
+                    <li
+                      key={person._id || Math.random()}
+                      style={{
+                        padding: "12px 16px",
+                        cursor: "pointer",
+                        fontSize: "15px",
+                        color: isDarkMode ? "#e2e8f0" : "#1e2937",
+                        borderBottom: `1px solid ${isDarkMode ? "#333" : "#f1f5f9"}`,
+                      }}
+                      onClick={() => {
+                        setTaskData({
+                          ...taskData,
+                          recipient: {
+                            Name: person.name || "",
+                            Surname: person.surname || "",
+                            Phone: person.phone || "",
+                            Email: person.email || "",
+                          },
+                          recipientDisplay: displayName,
+                        });
+                        setSearchResults([]);
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = isDarkMode ? "#334155" : "#f8fafc";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
+                      }}
+                    >
+                      {displayName}
+                    </li>
+                  );
+                })}
               </ul>
             )}
 
             {/* No results message */}
             {!isSearching &&
-              taskData.recipientDisplay?.trim().length > 0 &&
+              taskData.recipientDisplay?.trim().length > 2 &&
               searchResults.length === 0 &&
               taskData.recipient === null &&
               !isLoadingPeople && (
                 <p
                   style={{
-                    fontSize: "12px",
-                    color: isDarkMode ? "#aaa" : "#6b7280",
-                    margin: "6px 0 0 2px",
+                    fontSize: "13px",
+                    color: isDarkMode ? "#94a3b8" : "#64748b",
+                    margin: "8px 4px 0",
+                    fontStyle: "italic",
                   }}
                 >
                   No matching people found.
