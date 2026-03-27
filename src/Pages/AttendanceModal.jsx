@@ -2537,7 +2537,7 @@ const handleSave = async () => {
       }
       loadPersistentAttendees(eventId).catch(console.error);
       loadEventStatistics().catch(console.error);
-      toast.success("Attendance saved successfully!");
+      // toast.success("Attendance saved successfully!");
     } else {
       throw new Error(result?.message || "Failed to save attendance");
     }
