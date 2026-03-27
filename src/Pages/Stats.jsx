@@ -69,7 +69,6 @@ const toSATime = (d) => {
   try {
     const date = new Date(d);
     if (isNaN(date.getTime())) return null;
-    // South Africa is UTC+2, no daylight saving
     return new Date(
       date.toLocaleString("en-US", { timeZone: "Africa/Johannesburg" }),
     );
@@ -79,7 +78,6 @@ const toSATime = (d) => {
 };
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
-// Add this memoized component OUTSIDE StatsDashboard
 const TaskGroupRow = React.memo(
   ({ group, isExpanded, onToggle, formatDate }) => {
     const { user, tasks, totalCount, completedCount, incompleteCount } = group;
@@ -365,7 +363,6 @@ const StatsDashboard = () => {
     setCalendarLoading(true);
 
     try {
-      // Test with NO query params first
       const url = `${BACKEND_URL}/events/eventsdata`;
       console.log("[TEST FETCH] URL:", url);
 
@@ -414,7 +411,7 @@ const StatsDashboard = () => {
       });
 
       try {
-        const startDate = "2026-01-22"; // adjust as needed
+        const startDate = "2026-01-22"; 
 
         let allEvents = [];
         let page = 1;
@@ -470,12 +467,9 @@ const StatsDashboard = () => {
         console.log(`← Total cells fetched: ${allEvents.length}`);
         if (allEvents.length > 0) console.table(allEvents.slice(0, 5));
 
-        // ────────────────────────────────────────────────
-        // Filter only incomplete / overdue / missed cells
-        // ────────────────────────────────────────────────
         const overdueCells = allEvents.filter((cell) => {
           if ("is_overdue" in cell) {
-            return !!cell.is_overdue; // true → show, false/null/undefined → hide
+            return !!cell.is_overdue;  
           }
 
           const raw = (cell.status || cell.Status || "").trim();
@@ -663,7 +657,6 @@ const StatsDashboard = () => {
     }
   };
 
-  // Excel helpers
   const formatDateForExcel = (dateStr) => {
     if (!dateStr) return "";
     try {
@@ -683,7 +676,6 @@ const StatsDashboard = () => {
     }
   };
 
-  // Excel Download Function
   const downloadFilteredStats = () => {
     try {
       const currentPeriod = getPeriodDisplayText(period);
@@ -932,7 +924,6 @@ const StatsDashboard = () => {
       return calendarEvents.filter((e) => {
         if (!e.date) return false;
 
-        // Create date at local midnight
         const eventDate = new Date(e.date);
         const eventYear = eventDate.getFullYear();
         const eventMonth = String(eventDate.getMonth() + 1).padStart(2, "0");
@@ -950,7 +941,6 @@ const StatsDashboard = () => {
     [calendarEvents],
   );
 
-  // And in eventCounts calculation:
   const eventCounts = {};
   calendarEvents.forEach((e) => {
     if (e.date) {
@@ -971,14 +961,12 @@ const StatsDashboard = () => {
   if (shouldRefresh) {
     toast.success("Event created successfully!");
 
-    // Refresh all relevant data
     fetchStats(true);
     fetchOverdueCells(true);
     fetchCalendarEvents();
 
-    // Optional: small delay for better UX
     setTimeout(() => {
-      console.log("✅ Event created - data refreshed");
+      console.log("Event created - data refreshed");
     }, 300);
   }
 }, [fetchStats, fetchOverdueCells, fetchCalendarEvents]);
@@ -1093,7 +1081,7 @@ const StatsDashboard = () => {
     });
 
     const today = new Date();
-    today.setHours(0, 0, 0, 0); // force local midnight
+    today.setHours(0, 0, 0, 0);
     const todayStr = new Date().toLocaleDateString("en-CA", {
       timeZone: "Africa/Johannesburg",
     });
@@ -1232,7 +1220,6 @@ const StatsDashboard = () => {
                 onClick={() => {
                   console.log("User clicked:", d.date);
                   setSelectedDate(d.date);
-                  // Optional: force scroll or focus
                   window.scrollTo(0, 0);
                 }}
                 sx={{
@@ -1518,11 +1505,9 @@ const StatsDashboard = () => {
             </Select>
           </FormControl>
 
-          {/* CHANGE: Refresh should refresh BOTH stats & cells */}
           <Tooltip title="Refresh">
             <IconButton
               onClick={() => {
-                //CHANGE: forceRefresh=true so both fetches run even if a previous call is mid-flight.
                 fetchStats(true);
                 fetchOverdueCells(true);
               }}
@@ -2265,7 +2250,7 @@ const StatsDashboard = () => {
     },
   }}
 >
-  <DialogTitle
+  {/* <DialogTitle
     sx={{
       backgroundColor: theme.palette.mode === "dark" ? "#1e1e1e" : "#1976d2",
       color: "white",
@@ -2286,9 +2271,9 @@ const StatsDashboard = () => {
     <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: "white" }}>
       <Close />
     </IconButton>
-  </DialogTitle>
+  </DialogTitle> */}
 
-  <DialogContent sx={{ p: 0, height: "100%", overflow: "hidden" }}>
+  <DialogContent sx={{ p: 0, height: "100%", overflow: "auto" }}>
     <Box
       sx={{
         height: "100%",
@@ -2299,10 +2284,10 @@ const StatsDashboard = () => {
       }}
     >
       <CreateEvents
-        key={newEventData.eventTypeName || "default"}   // Important for re-render when type changes
+        key={newEventData.eventTypeName || "default"}  
         user={JSON.parse(localStorage.getItem("userProfile") || "{}")}
         isModal={true}
-        onClose={handleCloseCreateEventModal}           // ← Use this clean handler
+        onClose={handleCloseCreateEventModal}          
         selectedEventType={newEventData.eventTypeName}
         selectedEventTypeObj={eventTypes.find(
           (et) => et.name === newEventData.eventTypeName
