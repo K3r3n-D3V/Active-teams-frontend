@@ -1478,8 +1478,6 @@ const AttendanceModal = ({
 
 const calculateFinancials = (personId) => {
   const ticketInfo = attendeeTicketInfo[personId] || {};
-
-  // ✅ PRIORITIZE DB VALUES (do NOT recalculate if present)
   if (
     ticketInfo.paid !== undefined &&
     ticketInfo.owing !== undefined &&
@@ -1491,8 +1489,6 @@ const calculateFinancials = (personId) => {
       change: ticketInfo.change,
     };
   }
-
-  // 🔁 fallback calculation (only if DB values missing)
   const price = ticketInfo.price || 0;
   const paidAmount = ticketInfo.paidAmount || 0;
 
@@ -1843,9 +1839,7 @@ const loadPreloadedPeople = async (forceRefresh = false) => {
   try {
       const token = localStorage.getItem("access_token");
       const headers = { Authorization: `Bearer ${token}` };
-      
-      // CHANGE: perPage=0 to perPage=200
-      const res = await authFetch(`${BACKEND_URL}/people?perPage=200`, { headers });
+            const res = await authFetch(`${BACKEND_URL}/people?perPage=200`, { headers });
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
       const data = await res.json();
       
@@ -2063,9 +2057,7 @@ useEffect(() => {
         try {
           const token = localStorage.getItem("access_token");
           const headers = { Authorization: `Bearer ${token}` };
-          
-          // CHANGE: perPage=0 to perPage=200
-          const res = await authFetch(`${BACKEND_URL}/people?perPage=200`, { headers });
+                    const res = await authFetch(`${BACKEND_URL}/people?perPage=200`, { headers });
           if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
           const data = await res.json();
           
