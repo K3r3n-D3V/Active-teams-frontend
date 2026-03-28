@@ -4,7 +4,7 @@ import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
-
+const CACHE_DURATION = 30 * 60 * 1000;
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
   return (
@@ -82,7 +82,6 @@ function Spinner({ size = 16, color = "#6b7280" }) {
 export default function DailyTasks() {
   if (!window.globalPeopleCache) window.globalPeopleCache = [];
   if (!window.globalCacheTimestamp) window.globalCacheTimestamp = 0;
-  const CACHE_DURATION = 30 * 60 * 1000;
 
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
@@ -368,155 +367,241 @@ export default function DailyTasks() {
     }
   };
 
-const fetchUserTasks = useCallback(async () => {
-  if (!user?.email) return;
-  const controller = new AbortController();
-  const signal = controller.signal;
+  const fetchUserTasks = useCallback(async () => {
+    if (!user?.email) return;
+    const controller = new AbortController();
+    const signal = controller.signal;
 
-  try {
-    setLoading(true);
-    const res = await authFetch(`${API_URL}/tasks?email=${encodeURIComponent(user.email)}`, { signal });
-    if (!res.ok) throw new Error("Failed to fetch tasks");
-    const data = await res.json();
-    const tasksArray = Array.isArray(data) ? data : data.tasks || [];
+    try {
+      setLoading(true);
+      const res = await authFetch(
+        `${API_URL}/tasks?email=${encodeURIComponent(user.email)}`,
+        { signal },
+      );
+      if (!res.ok) throw new Error("Failed to fetch tasks");
+      const data = await res.json();
+      const tasksArray = Array.isArray(data) ? data : data.tasks || [];
 
-    const normalizedTasks = tasksArray.map((task) => {
-      const isConsolidation = task.taskType === "consolidation" || task.is_consolidation_task;
-      let assignedTo = "";
-      if (isConsolidation) {
-        assignedTo =
-          task.leader_name ||
-          task.leader_assigned ||
-          task.assigned_to ||
-          `${user.name || ""} ${user.surname || ""}`.trim();
-        if (assignedTo.includes("@")) assignedTo = "Consolidation Leader";
-      } else {
-        assignedTo = task.name || task.assignedfor || "";
-      }
-
-      let recipientId = task.recipient_id || task.assignedfor_id || null;
-      if (!recipientId && task.assignedfor_email) {
-        const matchedPerson = window.globalPeopleCache?.find(
-          (p) => p.email.toLowerCase() === task.assignedfor_email.toLowerCase()
-        );
-        recipientId = matchedPerson?._id || null;
-      }
-
-      return {
-        ...task,
-        assignedTo,
-        recipientId,
-        date: task.date || task.followup_date,
-        status: (task.status || "Open").toLowerCase(),
-        taskName: task.name || task.taskName,
-        type: task.type || (task.taskType?.toLowerCase()?.includes("visit") ? "visit" : "call") || "call",
-        leader_name: task.leader_name || task.leader_assigned,
-        leader_assigned: task.leader_assigned,
-        consolidation_name:
-          task.consolidation_name ||
-          (isConsolidation
-            ? `${task.person_name || ""} ${task.person_surname || ""} - ${task.decision_display_name || "Consolidation"}`
-            : task.name),
-        decision_display_name: task.decision_display_name,
-        is_consolidation_task: isConsolidation,
-      };
-    });
-
-    const myTasks = normalizedTasks.filter((task) => {
-      const isMyTask =
-        task.assignedfor === user.email ||
-        task.assigned_to_email === user.email;
-      const isAssignedToSomeoneElse =
-        task.assignedfor &&
-        task.assignedfor !== user.email &&
-        task.assigned_to_email !== user.email;
-      return isMyTask && !isAssignedToSomeoneElse;
-    });
-
-    setTasks(myTasks);
-  } catch (err) {
-    if (err.name !== "AbortError") {
-      console.error("Error fetching user tasks:", err.message);
-    }
-  } finally {
-    if (!signal.aborted) setLoading(false);
-  }
-
-  return () => controller.abort();
-}, [user, authFetch, API_URL]);
-const fetchAllPeople = useCallback(
-  async (forceRefresh = false) => {
-    const now = Date.now();
-    if (!forceRefresh && window.globalPeopleCache && window.globalCacheTimestamp && now - window.globalCacheTimestamp < CACHE_DURATION) {
-      setAllPeople(window.globalPeopleCache);
-      return window.globalPeopleCache;
-    }
-
-    if (isFetchingRef.current) {
-      if (peopleFetchPromiseRef.current) {
-        try {
-          const result = await peopleFetchPromiseRef.current;
-          return result || window.globalPeopleCache || [];
-        } catch (e) {
-          return window.globalPeopleCache || [];
+      const normalizedTasks = tasksArray.map((task) => {
+        const isConsolidation =
+          task.taskType === "consolidation" || task.is_consolidation_task;
+        let assignedTo = "";
+        if (isConsolidation) {
+          assignedTo =
+            task.leader_name ||
+            task.leader_assigned ||
+            task.assigned_to ||
+            `${user.name || ""} ${user.surname || ""}`.trim();
+          if (assignedTo.includes("@")) assignedTo = "Consolidation Leader";
+        } else {
+          assignedTo = task.name || task.assignedfor || "";
         }
-      }
-      return window.globalPeopleCache || [];
-    }
 
-    isFetchingRef.current = true;
-    setIsLoadingPeople(true);
-
-    peopleFetchPromiseRef.current = (async () => {
-      try {
-        let allPeople = [];
-        let page = 1;
-        const perPage = 200;
-
-        while (true) {
-          const response = await authFetch(`${API_URL}/people?perPage=${perPage}&page=${page}`);
-          if (!response || !response.ok) throw new Error("Failed to fetch people");
-          const data = await response.json();
-          const rawPeople = data?.results || [];
-          if (rawPeople.length === 0) break;
-
-          allPeople = allPeople.concat(
-            rawPeople.map((raw) => {
-              const name = (raw.Name || raw.name || "").toString().trim();
-              const surname = (raw.Surname || raw.surname || "").toString().trim();
-              return {
-                _id: (raw._id || raw.id || "").toString(),
-                name,
-                surname,
-                email: (raw.Email || raw.email || "").toString().trim(),
-                phone: (raw.Phone || raw.phone || raw.Number || "").toString().trim(),
-                fullNameLower: `${name} ${surname}`.toLowerCase().trim(),
-              };
-            })
+        let recipientId = task.recipient_id || task.assignedfor_id || null;
+        if (!recipientId && task.assignedfor_email) {
+          const matchedPerson = window.globalPeopleCache?.find(
+            (p) =>
+              p.email.toLowerCase() === task.assignedfor_email.toLowerCase(),
           );
-
-          if (rawPeople.length < perPage) break;
-          page += 1;
+          recipientId = matchedPerson?._id || null;
         }
 
-        window.globalPeopleCache = allPeople;
-        window.globalCacheTimestamp = Date.now();
-        setAllPeople(allPeople);
-        return allPeople;
-      } catch (err) {
-        console.error("Fetch people error:", err);
-        return window.globalPeopleCache || [];
-      } finally {
-        isFetchingRef.current = false;
-        peopleFetchPromiseRef.current = null;
-        setIsLoadingPeople(false);
-      }
-    })();
+        return {
+          ...task,
+          assignedTo,
+          recipientId,
+          date: task.date || task.followup_date,
+          status: (task.status || "Open").toLowerCase(),
+          taskName: task.name || task.taskName,
+          type:
+            task.type ||
+            (task.taskType?.toLowerCase()?.includes("visit")
+              ? "visit"
+              : "call") ||
+            "call",
+          leader_name: task.leader_name || task.leader_assigned,
+          leader_assigned: task.leader_assigned,
+          consolidation_name:
+            task.consolidation_name ||
+            (isConsolidation
+              ? `${task.person_name || ""} ${task.person_surname || ""} - ${task.decision_display_name || "Consolidation"}`
+              : task.name),
+          decision_display_name: task.decision_display_name,
+          is_consolidation_task: isConsolidation,
+        };
+      });
 
-    return await peopleFetchPromiseRef.current;
-  },
-  [API_URL, authFetch]
-);
+      const myTasks = normalizedTasks.filter((task) => {
+        const isMyTask =
+          task.assignedfor === user.email ||
+          task.assigned_to_email === user.email;
+        const isAssignedToSomeoneElse =
+          task.assignedfor &&
+          task.assignedfor !== user.email &&
+          task.assigned_to_email !== user.email;
+        return isMyTask && !isAssignedToSomeoneElse;
+      });
+
+      setTasks(myTasks);
+    } catch (err) {
+      if (err.name !== "AbortError") {
+        console.error("Error fetching user tasks:", err.message);
+      }
+    } finally {
+      if (!signal.aborted) setLoading(false);
+    }
+
+    return () => controller.abort();
+  }, [user, authFetch, API_URL]);
+  const pollIntervalRef = useRef(null);
+
+  const pollUntilCacheComplete = useCallback(
+    (mapPerson) => {
+      // Clear any existing poll
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+
+      let attempts = 0;
+      const MAX_ATTEMPTS = 30; // 30 * 2s = 60s max
+
+      pollIntervalRef.current = setInterval(async () => {
+        attempts++;
+        try {
+          const res = await authFetch(`${API_URL}/cache/people/status`);
+          if (!res?.ok) return;
+          const status = await res.json();
+
+          const isComplete = status?.is_complete ?? false;
+          const progress = status?.cache?.load_progress ?? 0;
+
+          // Fetch latest partial data if progressing
+          if (progress > 0) {
+            const dataRes = await authFetch(`${API_URL}/cache/people`);
+            if (dataRes?.ok) {
+              const data = await dataRes.json();
+              const rawPeople = data?.cached_data || [];
+              if (rawPeople.length > 0) {
+                const mapped = rawPeople.map(mapPerson);
+                window.globalPeopleCache = mapped;
+                window.globalCacheTimestamp = Date.now();
+                setAllPeople(mapped);
+              }
+            }
+          }
+
+          // Done — stop polling, hide banner
+          if (isComplete || attempts >= MAX_ATTEMPTS) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setIsLoadingPeople(false);
+          }
+        } catch (err) {
+          console.error("Poll error:", err);
+          if (attempts >= MAX_ATTEMPTS) {
+            clearInterval(pollIntervalRef.current);
+            pollIntervalRef.current = null;
+            setIsLoadingPeople(false);
+          }
+        }
+      }, 2000); // poll every 2 seconds
+    },
+    [API_URL, authFetch],
+  );
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (pollIntervalRef.current) clearInterval(pollIntervalRef.current);
+      if (fetchPeopleDebounceRef.current)
+        clearTimeout(fetchPeopleDebounceRef.current);
+    };
+  }, []);
+
+  // Fix fetchAllPeople — add finally safety and prevent re-entry properly
+
+  const fetchAllPeople = useCallback(
+    async (forceRefresh = false) => {
+      const now = Date.now();
+
+      // Cache still valid — use it
+      if (
+        !forceRefresh &&
+        window.globalPeopleCache?.length > 0 &&
+        window.globalCacheTimestamp &&
+        now - window.globalCacheTimestamp < CACHE_DURATION
+      ) {
+        setAllPeople(window.globalPeopleCache);
+        return window.globalPeopleCache;
+      }
+
+      if (isFetchingRef.current && peopleFetchPromiseRef.current) {
+        return await peopleFetchPromiseRef.current;
+      }
+      if (isFetchingRef.current) return window.globalPeopleCache || [];
+
+      isFetchingRef.current = true;
+      setIsLoadingPeople(true);
+
+      peopleFetchPromiseRef.current = (async () => {
+        try {
+          const mapPerson = (raw) => {
+            const name = (raw.Name || raw.name || "").toString().trim();
+            const surname = (raw.Surname || raw.surname || "")
+              .toString()
+              .trim();
+            return {
+              _id: (raw._id || raw.id || "").toString(),
+              name,
+              surname,
+              email: (raw.Email || raw.email || "").toString().trim(),
+              phone: (raw.Number || raw.phone || raw.Phone || "")
+                .toString()
+                .trim(),
+              fullNameLower: `${name} ${surname}`.toLowerCase().trim(),
+            };
+          };
+
+          // Single request to /cache/people
+          const res = await authFetch(`${API_URL}/cache/people`);
+          if (!res?.ok) throw new Error("Failed to fetch people cache");
+          const data = await res.json();
+
+          const rawPeople = data?.cached_data || [];
+          const isComplete = data?.is_complete ?? true;
+
+          // Load whatever we have immediately
+          if (rawPeople.length > 0) {
+            const mapped = rawPeople.map(mapPerson);
+            window.globalPeopleCache = mapped;
+            window.globalCacheTimestamp = Date.now();
+            setAllPeople(mapped);
+
+            // If backend is still loading, poll until complete
+            if (!isComplete) {
+              pollUntilCacheComplete(mapPerson);
+            } else {
+              setIsLoadingPeople(false);
+            }
+
+            return mapped;
+          }
+
+          // Cache empty on backend — poll for it
+          pollUntilCacheComplete(mapPerson);
+          return [];
+        } catch (err) {
+          console.error("Fetch people error:", err);
+          setIsLoadingPeople(false);
+          return window.globalPeopleCache || [];
+        } finally {
+          isFetchingRef.current = false;
+          peopleFetchPromiseRef.current = null;
+        }
+      })();
+
+      return await peopleFetchPromiseRef.current;
+    },
+    [API_URL, authFetch],
+  );
 
   useEffect(() => {
     if (!user) return;
@@ -531,161 +616,178 @@ const fetchAllPeople = useCallback(
     }
   }, [user, fetchAllPeople]);
 
-    // === SEARCH PEOPLE FUNCTION (exactly as you requested, but safer) ===
-const searchPeople = useCallback(
-  (peopleList, searchValue) => {
+  // === SEARCH PEOPLE FUNCTION (exactly as you requested, but safer) ===
+  const searchPeople = useCallback((peopleList, searchValue) => {
     if (!searchValue?.trim() || !Array.isArray(peopleList)) return [];
     const searchLower = searchValue.toLowerCase().trim();
-    return peopleList.filter((person) =>
-      (person.fullNameLower || "").includes(searchLower) ||
-      (person.email || "").toLowerCase().includes(searchLower) ||
-      (person.phone || "").toLowerCase().includes(searchLower)
+    return peopleList.filter(
+      (person) =>
+        (person.fullNameLower || "").includes(searchLower) ||
+        (person.email || "").toLowerCase().includes(searchLower) ||
+        (person.phone || "").toLowerCase().includes(searchLower),
     );
-  },
-  []
-);
+  }, []);
 
   // === FETCH PEOPLE (fixed argument passing) ===
-const fetchPeople = useCallback(
-  async (q) => {
-    if (!q?.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
+  // Fix fetchPeople — use cache directly, don't re-fetch if cache exists
+  const fetchPeople = useCallback(
+    async (q) => {
+      if (!q?.trim() || q.trim().length < 2) {
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
 
-    setIsSearching(true);
-    const localSource = window.globalPeopleCache?.length > 0 ? window.globalPeopleCache : allPeople;
-    if (localSource && localSource.length > 0) {
-      const quick = searchPeople(localSource, q);
-      setSearchResults(quick.slice(0, 50));
-    }
+      setIsSearching(true);
 
-    try {
-      const people = await fetchAllPeople(false);
-      const finalResults = searchPeople(people || [], q);
-      setSearchResults(finalResults.slice(0, 50));
-    } catch (err) {
-      console.error("Error searching people:", err);
-      setSearchResults([]);
-    } finally {
-      setIsSearching(false);
-    }
-  },
-  [allPeople, searchPeople, fetchAllPeople]
-);
+      try {
+        // Cache ready — search instantly, no network
+        const localSource =
+          window.globalPeopleCache?.length > 0
+            ? window.globalPeopleCache
+            : allPeople;
+
+        if (localSource.length > 0) {
+          const results = searchPeople(localSource, q);
+          setSearchResults(results.slice(0, 50));
+          return;
+        }
+
+        // Cache empty — hit /people/search-fast directly
+        const res = await authFetch(
+          `${API_URL}/people/search-fast?query=${encodeURIComponent(q.trim())}&limit=25`,
+        );
+
+        if (res.ok) {
+          const data = await res.json();
+          const mapped = (data.results || []).map((raw) => ({
+            _id: raw._id,
+            name: raw.Name || "",
+            surname: raw.Surname || "",
+            email: raw.Email || "",
+            phone: raw.Number || "",
+            fullNameLower: (raw.FullName || `${raw.Name} ${raw.Surname}`)
+              .toLowerCase()
+              .trim(),
+          }));
+          setSearchResults(mapped);
+        }
+      } catch (err) {
+        console.error("Search error:", err);
+        setSearchResults([]);
+      } finally {
+        setIsSearching(false);
+      }
+    },
+    [allPeople, searchPeople, authFetch, API_URL],
+  );
 
   // === FETCH ASSIGNED (fixed argument passing) ===
   const fetchAssigned = useCallback(
-    async (q) => {
-      if (!q || !q.trim()) {
-        setAssignedResults([]);
+  async (q) => {
+    if (!q?.trim()) {
+      setAssignedResults([]);
+      return;
+    }
+
+    const localSource =
+      window.globalPeopleCache?.length > 0
+        ? window.globalPeopleCache
+        : allPeople;
+
+    if (localSource.length > 0) {
+      const results = searchPeople(localSource, q.trim());
+      setAssignedResults(results.slice(0, 50));
+    } else {
+      setAssignedResults([]);
+    }
+  },
+  [allPeople, searchPeople],
+  // No fetchAllPeople dependency — cache only
+);
+
+  // === HANDLE RECIPIENT INPUT (fixed argument passing + minor safety) ===
+  // Fix handleRecipientInput — don't call fetchPeople if cache exists
+  const handleRecipientInput = useCallback(
+    (value) => {
+      setTaskData((prev) => ({
+        ...prev,
+        recipientDisplay: value,
+        recipient: null,
+      }));
+
+      if (!value?.trim()) {
+        setSearchResults([]);
+        setIsSearching(false);
         return;
       }
-      const query = q.trim();
 
+      // Cache ready — instant local search
       const localSource =
         window.globalPeopleCache?.length > 0
           ? window.globalPeopleCache
           : allPeople;
 
-      if (localSource && localSource.length > 0) {
-        try {
-          const quick = searchPeople(localSource, query, "name");
-          setAssignedResults(quick.slice(0, 50));
-        } catch (e) {
-          console.error("Quick local search failed:", e);
-          setAssignedResults([]);
-        }
-      } else {
-        setAssignedResults([]);
+      if (localSource.length > 0) {
+        const quick = searchPeople(localSource, value);
+        setSearchResults(quick.slice(0, 50));
+        setIsSearching(false);
+        return;
       }
 
-      try {
-        const people = await fetchAllPeople(false);
-        const finalResults = searchPeople(people || [], query, "name");
-        setAssignedResults(finalResults.slice(0, 50));
-      } catch (err) {
-        console.error("Error searching assigned people:", err);
+      // Cache not ready — fire search-fast immediately after 2 chars
+      // Don't show "loading" banner, just search
+      if (value.trim().length < 2) {
+        setSearchResults([]);
+        return;
       }
-    },
-    [allPeople, searchPeople, fetchAllPeople],
-  );
 
-  // === HANDLE RECIPIENT INPUT (fixed argument passing + minor safety) ===
-const handleRecipientInput = useCallback(
-  (value) => {
-    setTaskData((prev) => ({
-      ...prev,
-      recipientDisplay: value,
-      recipient: null,
-    }));
-
-    if (!value?.trim()) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-
-    const localSource = window.globalPeopleCache?.length > 0 ? window.globalPeopleCache : allPeople;
-    if (localSource && localSource.length > 0) {
-      const quick = searchPeople(localSource, value);
-      setSearchResults(quick.slice(0, 50));
-      setIsSearching(false);
-    } else {
-      setSearchResults([]);
-      setIsSearching(true);
-    }
-
-    if (fetchPeopleDebounceRef.current) clearTimeout(fetchPeopleDebounceRef.current);
-    fetchPeopleDebounceRef.current = setTimeout(() => fetchPeople(value), RECIPIENT_DEBOUNCE);
-  },
-  [allPeople, searchPeople, fetchPeople]
-);
-
-  useEffect(() => {
-    return () => {
       if (fetchPeopleDebounceRef.current)
         clearTimeout(fetchPeopleDebounceRef.current);
-    };
-  }, []);
+      fetchPeopleDebounceRef.current = setTimeout(
+        () => fetchPeople(value),
+        250,
+      );
+    },
+    [allPeople, searchPeople, fetchPeople],
+  );
 
   const createTask = async (taskPayload) => {
-  try {
-    const res = await authFetch(`${API_URL}/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(taskPayload),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed to create task");
+    try {
+      const res = await authFetch(`${API_URL}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(taskPayload),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to create task");
 
-    if (data.task) {
-      const isAssignedToMe =
-        data.task.assignedfor === user.email ||
-        data.task.assigned_to_email === user.email;
+      if (data.task) {
+        const isAssignedToMe =
+          data.task.assignedfor === user.email ||
+          data.task.assigned_to_email === user.email;
 
-      // Only add to local state if assigned to current user
-      if (isAssignedToMe) {
-        setTasks((prev) => [
-          {
-            ...data.task,
-            assignedTo: data.task.name || `${user.name} ${user.surname}`,
-            date: data.task.followup_date,
-            status: (data.task.status || "Open").toLowerCase(),
-            taskName: data.task.name,
-            type: data.task.type,
-          },
-          ...prev,
-        ]);
+        // Only add to local state if assigned to current user
+        if (isAssignedToMe) {
+          setTasks((prev) => [
+            {
+              ...data.task,
+              assignedTo: data.task.name || `${user.name} ${user.surname}`,
+              date: data.task.followup_date,
+              status: (data.task.status || "Open").toLowerCase(),
+              taskName: data.task.name,
+              type: data.task.type,
+            },
+            ...prev,
+          ]);
+        }
       }
+      return data;
+    } catch (err) {
+      console.error("Error creating task:", err.message);
+      throw err;
     }
-    return data;
-  } catch (err) {
-    console.error("Error creating task:", err.message);
-    throw err;
-  }
-};
+  };
 
   useEffect(() => {
     if (user && !loading) {
@@ -730,161 +832,171 @@ const handleRecipientInput = useCallback(
   };
 
   const updateTask = async (taskId, updatedData) => {
-  try {
-    const isConsolidationTask =
-      selectedTask?.taskType === "consolidation" ||
-      selectedTask?.is_consolidation_task;
+    try {
+      const isConsolidationTask =
+        selectedTask?.taskType === "consolidation" ||
+        selectedTask?.is_consolidation_task;
 
-    if (isConsolidationTask) {
-      updatedData.name = selectedTask.leader_name || selectedTask.name;
-      updatedData.leader_name = selectedTask.leader_name;
-      updatedData.leader_assigned = selectedTask.leader_assigned;
+      if (isConsolidationTask) {
+        updatedData.name = selectedTask.leader_name || selectedTask.name;
+        updatedData.leader_name = selectedTask.leader_name;
+        updatedData.leader_assigned = selectedTask.leader_assigned;
+      }
+
+      if (updatedData.status?.toLowerCase() === "completed") {
+        updatedData.completedAt = new Date().toISOString();
+      }
+
+      const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updatedData),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.message || "Failed to update task");
+
+      setTasks((prev) =>
+        prev.map((t) =>
+          t._id === taskId
+            ? {
+                ...t,
+                ...data.updatedTask,
+                date: data.updatedTask.followup_date,
+                ...(isConsolidationTask && {
+                  leader_name: selectedTask.leader_name,
+                  leader_assigned: selectedTask.leader_assigned,
+                }),
+              }
+            : t,
+        ),
+      );
+      handleClose();
+    } catch (err) {
+      console.error("Error updating task:", err.message);
+      toast.error("Failed to update task: " + err.message);
     }
-
-    if (updatedData.status?.toLowerCase() === "completed") {
-      updatedData.completedAt = new Date().toISOString();
-    }
-
-    const res = await authFetch(`${API_URL}/tasks/${taskId}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updatedData),
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || "Failed to update task");
-
-    setTasks((prev) =>
-      prev.map((t) =>
-        t._id === taskId
-          ? {
-              ...t,
-              ...data.updatedTask,
-              date: data.updatedTask.followup_date,
-              ...(isConsolidationTask && {
-                leader_name: selectedTask.leader_name,
-                leader_assigned: selectedTask.leader_assigned,
-              }),
-            }
-          : t,
-      ),
-    );
-    handleClose();
-  } catch (err) {
-    console.error("Error updating task:", err.message);
-    toast.error("Failed to update task: " + err.message);
-  }
-};
+  };
 
   const handleEdit = (task) => {
-  if (task.status?.toLowerCase() === "completed") {
-    toast.info("This task has been marked as completed and cannot be edited.");
-    return;
-  }
+    if (task.status?.toLowerCase() === "completed") {
+      toast.info(
+        "This task has been marked as completed and cannot be edited.",
+      );
+      return;
+    }
 
-  setSelectedTask(task);
-  setFormType(task.type);
-  setIsModalOpen(true);
+    setSelectedTask(task);
+    setFormType(task.type);
+    setIsModalOpen(true);
 
-  const nameParts = (task.contacted_person?.name || "").split(" ");
-  const firstName = nameParts[0] || "";
-  const lastName = nameParts.slice(1).join(" ") || "";
+    const nameParts = (task.contacted_person?.name || "").split(" ");
+    const firstName = nameParts[0] || "";
+    const lastName = nameParts.slice(1).join(" ") || "";
 
-  setTaskData({
-    taskType:
-      taskTypes.find((t) => (t._id || t.id) === task.taskType)?.name ||
-      task.taskType ||
-      "",
-    recipient: {
-      Name: firstName,
-      Surname: lastName,
-      Phone: task.contacted_person?.phone || task.contacted_person?.Number || "",
-      Email: task.contacted_person?.email || "",
-    },
-    recipientDisplay: task.contacted_person?.name || "",
-    assignedTo: task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
-    assignedEmail: task.assignedfor || user?.email || "",
-    dueDate: formatDateTime(task.date),
-    status: task.status,
-    taskStage: task.status,
-  });
-};
+    setTaskData({
+      taskType:
+        taskTypes.find((t) => (t._id || t.id) === task.taskType)?.name ||
+        task.taskType ||
+        "",
+      recipient: {
+        Name: firstName,
+        Surname: lastName,
+        Phone:
+          task.contacted_person?.phone || task.contacted_person?.Number || "",
+        Email: task.contacted_person?.email || "",
+      },
+      recipientDisplay: task.contacted_person?.name || "",
+      assignedTo:
+        task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
+      assignedEmail: task.assignedfor || user?.email || "",
+      dueDate: formatDateTime(task.date),
+      status: task.status,
+      taskStage: task.status,
+    });
+  };
 
   const handleSubmit = async (e) => {
-  e.preventDefault();
-  setSubmitting(true);
-  try {
-    if (!user?.id) throw new Error("Logged-in user ID not found");
+    e.preventDefault();
+    setSubmitting(true);
+    try {
+      if (!user?.id) throw new Error("Logged-in user ID not found");
 
-    const person = taskData.recipient;
-    if (!person || !person.Name) {
-      throw new Error("Person details not found. Please select a valid recipient.");
-    }
-
-    const isConsolidationTask =
-      selectedTask?.taskType === "consolidation" ||
-      selectedTask?.is_consolidation_task;
-
-    const taskPayload = {
-      memberID: user.id,
-      name: isConsolidationTask
-        ? taskData.assignedTo
-        : taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
-      taskType:
-        taskTypes.find((t) => (t._id || t.id) === taskData.taskType)?.name ||
-        taskData.taskType ||
-        (isConsolidationTask
-          ? "consolidation"
-          : formType === "call"
-            ? "Call Task"
-            : "Visit Task"),
-      contacted_person: {
-        name: `${person.Name} ${person.Surname || ""}`.trim(),
-        phone: person.Phone || person.Number || "",
-        email: person.Email || "",
-      },
-      followup_date: new Date(taskData.dueDate).toISOString(),
-      status: taskData.taskStage || "Open",
-      type: formType || "call",
-      assignedfor: taskData.assignedEmail || user.email,
-      assigned_to_email: taskData.assignedEmail || user.email,
-      created_by_email: user.email,
-      created_by_name: `${user.name} ${user.surname}`.trim(),
-    };
-
-    if (isConsolidationTask) {
-      taskPayload.leader_name = selectedTask.leader_name || taskData.assignedTo;
-      taskPayload.leader_assigned = selectedTask.leader_assigned || taskData.assignedTo;
-      taskPayload.is_consolidation_task = true;
-    }
-
-    if (selectedTask && selectedTask._id) {
-      await updateTask(selectedTask._id, taskPayload);
-      toast.info(`Task for ${person.Name} ${person.Surname} updated successfully!`);
-    } else {
-      await createTask(taskPayload);
-
-      const isAssignedToSomeoneElse =
-        taskData.assignedEmail &&
-        taskData.assignedEmail.toLowerCase() !== user.email.toLowerCase();
-
-      if (isAssignedToSomeoneElse) {
-        toast.success(
-          `You have successfully assigned a task to ${taskData.assignedTo} for ${person.Name} ${person.Surname}`,
-        );
-      } else {
-        toast.success(
-          `You have successfully captured ${person.Name} ${person.Surname}`,
+      const person = taskData.recipient;
+      if (!person || !person.Name) {
+        throw new Error(
+          "Person details not found. Please select a valid recipient.",
         );
       }
+
+      const isConsolidationTask =
+        selectedTask?.taskType === "consolidation" ||
+        selectedTask?.is_consolidation_task;
+
+      const taskPayload = {
+        memberID: user.id,
+        name: isConsolidationTask
+          ? taskData.assignedTo
+          : taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
+        taskType:
+          taskTypes.find((t) => (t._id || t.id) === taskData.taskType)?.name ||
+          taskData.taskType ||
+          (isConsolidationTask
+            ? "consolidation"
+            : formType === "call"
+              ? "Call Task"
+              : "Visit Task"),
+        contacted_person: {
+          name: `${person.Name} ${person.Surname || ""}`.trim(),
+          phone: person.Phone || person.Number || "",
+          email: person.Email || "",
+        },
+        followup_date: new Date(taskData.dueDate).toISOString(),
+        status: taskData.taskStage || "Open",
+        type: formType || "call",
+        assignedfor: taskData.assignedEmail || user.email,
+        assigned_to_email: taskData.assignedEmail || user.email,
+        created_by_email: user.email,
+        created_by_name: `${user.name} ${user.surname}`.trim(),
+      };
+
+      if (isConsolidationTask) {
+        taskPayload.leader_name =
+          selectedTask.leader_name || taskData.assignedTo;
+        taskPayload.leader_assigned =
+          selectedTask.leader_assigned || taskData.assignedTo;
+        taskPayload.is_consolidation_task = true;
+      }
+
+      if (selectedTask && selectedTask._id) {
+        await updateTask(selectedTask._id, taskPayload);
+        toast.info(
+          `Task for ${person.Name} ${person.Surname} updated successfully!`,
+        );
+      } else {
+        await createTask(taskPayload);
+
+        const isAssignedToSomeoneElse =
+          taskData.assignedEmail &&
+          taskData.assignedEmail.toLowerCase() !== user.email.toLowerCase();
+
+        if (isAssignedToSomeoneElse) {
+          toast.success(
+            `You have successfully assigned a task to ${taskData.assignedTo} for ${person.Name} ${person.Surname}`,
+          );
+        } else {
+          toast.success(
+            `You have successfully captured ${person.Name} ${person.Surname}`,
+          );
+        }
+      }
+      handleClose();
+    } catch (err) {
+      console.error("Error adding task:", err.message);
+      toast.error("Failed to create task: " + err.message);
+    } finally {
+      setSubmitting(false);
     }
-    handleClose();
-  } catch (err) {
-    console.error("Error adding task:", err.message);
-    toast.error("Failed to create task: " + err.message);
-  } finally {
-    setSubmitting(false);
-  }
-};
+  };
 
   const filteredTasks = tasks.filter((task) => {
     const taskDate = parseDate(task.date);
@@ -1458,7 +1570,7 @@ const handleRecipientInput = useCallback(
                     <p
                       style={{
                         fontSize: "13px",
-                        color: isDarkMode ? "#00ffdd" : "#ff0000",
+                        color: isDarkMode ? "#fff" : "#1a1a24",
                         margin: "0 0 4px 0",
                         overflow: "hidden",
                         textOverflow: "ellipsis",
@@ -1874,7 +1986,7 @@ const handleRecipientInput = useCallback(
           </div>
 
           {/* Recipient field with loading state */}
-                    {/* Recipient field with loading state */}
+          {/* Recipient field with loading state */}
           <div style={{ position: "relative" }}>
             <label
               style={{
@@ -1947,7 +2059,10 @@ const handleRecipientInput = useCallback(
                     transform: "translateY(-50%)",
                   }}
                 >
-                  <Spinner size={18} color={isDarkMode ? "#94a3b8" : "#64748b"} />
+                  <Spinner
+                    size={18}
+                    color={isDarkMode ? "#94a3b8" : "#64748b"}
+                  />
                 </div>
               )}
             </div>
@@ -1973,7 +2088,8 @@ const handleRecipientInput = useCallback(
                 }}
               >
                 {searchResults.map((person) => {
-                  const displayName = `${person?.name || ""} ${person?.surname || ""}`.trim();
+                  const displayName =
+                    `${person?.name || ""} ${person?.surname || ""}`.trim();
                   if (!displayName) return null;
 
                   return (
@@ -2000,7 +2116,9 @@ const handleRecipientInput = useCallback(
                         setSearchResults([]);
                       }}
                       onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = isDarkMode ? "#334155" : "#f8fafc";
+                        e.currentTarget.style.backgroundColor = isDarkMode
+                          ? "#334155"
+                          : "#f8fafc";
                       }}
                       onMouseLeave={(e) => {
                         e.currentTarget.style.backgroundColor = "transparent";

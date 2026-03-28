@@ -601,7 +601,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       "has_person_steps", "is_recurring", "isrecurring", "recurring", "recurring_days",
       "is_active", "Is_active", "Is active", "time", "Time", "isGlobal", "isTicketed",
       "description", "new_people", "consolidations", "total_attendance", "closed_by",
-      "closed_at", "created_at", "updated_at", "new_people_count", "consolidation_count"
+      "closed_at", "created_at", "updated_at", "new_people_count", "consolidation_count","priceTiers"
     ];
     const exactMatch = excludedFields.includes(key);
     const caseInsensitiveMatch = excludedFields.some((excluded) => excluded.toLowerCase() === keyLower);
