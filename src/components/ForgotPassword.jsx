@@ -45,8 +45,12 @@ const ForgotPassword = ({ mode }) => {
       color: isDark ? "#ffffff" : "#000000",
       bgcolor: "transparent !important",
       "&:-webkit-autofill": {
-        WebkitBoxShadow: isDark ? "0 0 0 100px #1a1a1a inset !important" : "0 0 0 100px #f8f9fa inset !important",
-        WebkitTextFillColor: isDark ? "#ffffff !important" : "#000000 !important",
+        WebkitBoxShadow: isDark
+          ? "0 0 0 100px #1a1a1a inset !important"
+          : "0 0 0 100px #f8f9fa inset !important",
+        WebkitTextFillColor: isDark
+          ? "#ffffff !important"
+          : "#000000 !important",
         transition: "background-color 5000s ease-in-out 0s",
       },
       "&:focus": {
@@ -128,6 +132,7 @@ const ForgotPassword = ({ mode }) => {
         <Typography variant="h5" fontWeight="bold" mb={2}>
           Forgot Password
         </Typography>
+
         <Typography variant="body2" mb={2} sx={{ textAlign: "left" }}>
           Enter your email address to reset your password.
         </Typography>
@@ -137,6 +142,7 @@ const ForgotPassword = ({ mode }) => {
           variant="outlined"
           fullWidth
           required
+          type="email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           sx={inputFieldSx}
@@ -147,12 +153,13 @@ const ForgotPassword = ({ mode }) => {
             {message}
           </Typography>
         )}
+
         {error && (
           <Typography color="error.main" fontSize={14} mb={2}>
             {error}
           </Typography>
         )}
-
+        {/* Submit Button */}
         <Button
           type="submit"
           variant="contained"
