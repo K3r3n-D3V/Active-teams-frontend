@@ -18,6 +18,8 @@ import {
   Autocomplete,
   CircularProgress,
 } from "@mui/material";
+import { useContext } from "react"; // if not already
+import { AuthContext } from "../contexts/AuthContext"
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import PersonIcon from "@mui/icons-material/Person";
 import DescriptionIcon from "@mui/icons-material/Description";
@@ -28,7 +30,6 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Popper } from "@mui/material";
 import { useOrgConfig } from "../contexts/OrgConfigContext";
-
 function generateUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
     const r = (Math.random() * 16) | 0;
@@ -82,7 +83,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     hasPersonSteps,
   } = eventTypeFlags;
   const { getAllHierarchyLevels } = useOrgConfig();
-
+  const { authFetch } = useContext(AuthContext);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [peopleData, setPeopleData] = useState([]);
   const [priceTiers, setPriceTiers] = useState([]);
@@ -375,116 +376,49 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     }
   }, [isTicketedEvent]);
 
+const fetchPeople = async (q) => {
+  console.log("fetchPeople called with:", q);
+  if (!q?.trim() || q.trim().length < 2) {
+    setPeopleData([]);
+    return;
+  }
 
+  try {
+    setIsSearchingPeople(true);
+    console.log("Hitting URL:", `${BACKEND_URL}/people/search-fast?query=${encodeURIComponent(q.trim())}&limit=25`);
 
-  const fetchPeople = async (q) => {
-    if (!q.trim()) {
-      setPeopleData([]);
-      return;
-    }
+    const res = await authFetch(
+      `${BACKEND_URL}/people/search-fast?query=${encodeURIComponent(q.trim())}&limit=25`
+    );
 
-    try {
-      setIsSearchingPeople(true);
-      const token = localStorage.getItem("access_token");
-      const searchWords = q.trim().split(/\s+/);
-      const firstName = searchWords[0] || "";
+    console.log("Response status:", res.status);
+    const data = await res.json();
+    console.log("Raw API response:", data);
+    console.log("Results count:", data?.results?.length);
 
-      let people = [];
+    const people = data?.results || [];
+    const formatted = people.map((p) => ({
+      id:            p._id,
+      fullName:      p.FullName || `${p.Name || ""} ${p.Surname || ""}`.trim(),
+      email:         p.Email || "",
+      leader1:       p["Leader @1"] || p.leader1 || "",
+      leader12:      p["Leader @12"] || p.leader12 || "",
+      leader144:     p["Leader @144"] || p.leader144 || "",
+      leaderValues:  {},
+      org:           "",
+      isDifferentOrg: false,
+    }));
 
-      const res = await fetch(
-        `${BACKEND_URL}/people?name=${encodeURIComponent(firstName)}&perPage=100`,
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      if (!res.ok) throw new Error("Failed to fetch people");
-      const data = await res.json();
-      people = data?.results || [];
-      if (searchWords.length > 1) {
-        people = people.filter((person) => {
-          const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase();
-          return searchWords.every((word) => fullName.includes(word.toLowerCase()));
-        });
-      }
-      if (people.length === 0) {
-        const fallbackRes = await fetch(`${BACKEND_URL}/people?perPage=300`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-        });
-        if (fallbackRes.ok) {
-          const fallbackData = await fallbackRes.json();
-          people = (fallbackData?.results || [])
-            .filter((person) => {
-              const fullName = `${person.Name || ""} ${person.Surname || ""}`.toLowerCase();
-              return searchWords.every((word) => fullName.includes(word.toLowerCase()));
-            })
-            .slice(0, 20);
-        }
-      }
-
-      const userProfile = JSON.parse(localStorage.getItem("userProfile") || "{}");
-      const userOrg = (userProfile?.org_id || "").toLowerCase();
-      const userOrgName = (
-        userProfile?.organization ||
-        userProfile?.Organization ||
-        ""
-      ).toLowerCase();
-
-      const formatted = people.map((p) => {
-        const personOrg = (
-          p.org_id || p.Organization || p.Organisation || ""
-        ).toLowerCase();
-        const personOrgAsId = personOrg.replace(/\s+/g, "-");
-        const userOrgAsName = userOrg.replace(/-/g, " ");
-
-        const isDifferentOrg =
-          userOrg &&
-          personOrg &&
-          personOrg !== userOrg &&
-          personOrgAsId !== userOrg &&
-          personOrg !== userOrgAsName &&
-          !personOrg.includes(userOrgAsName) &&
-          !userOrgAsName.includes(personOrg) &&
-          !(userOrgName && personOrg.includes(userOrgName)) &&
-          !(userOrgName && userOrgName.includes(personOrg));
-
-        const leader1 = p["Leader @1"] || "";
-        const leader12 = p["Leader @12"] || "";
-        const leader144 = p["Leader @144"] || "";
-
-        const leaderValues = {};
-        if (leader1) leaderValues.leader1 = leader1;
-        if (leader12) leaderValues.leader12 = leader12;
-        if (leader144) leaderValues.leader144 = leader144;
-
-        return {
-          id: p._id,
-          fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-          email: p.Email || p.email || "",
-          leader1,
-          leader12,
-          leader144,
-          leaderValues,
-          org: personOrg,
-          isDifferentOrg,
-        };
-      });
-
-      setPeopleData(formatted);
-    } catch (err) {
-      console.error("Error fetching people:", err);
-      toast.error(err.message);
-      setPeopleData([]);
-    } finally {
-      setIsSearchingPeople(false);
-    }
-  };
+    console.log("Formatted people:", formatted);
+    console.log("Setting peopleData to:", formatted.length, "items");
+    setPeopleData(formatted);
+  } catch (err) {
+    console.error("fetchPeople error:", err);
+    setPeopleData([]);
+  } finally {
+    setIsSearchingPeople(false);
+  }
+};
 
   useEffect(() => {
     const queryString = window.location.search

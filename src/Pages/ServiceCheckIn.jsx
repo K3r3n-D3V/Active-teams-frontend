@@ -931,37 +931,55 @@ const sortedFilteredAttendees = useMemo(() => {
   }, [currentEventId, editingPerson, formData, authFetch, fetchRealTimeEventData]);
 
   const handleFinishConsolidation = useCallback(async (task) => {
-    if (!currentEventId) return;
-    const fullName = task.recipientName || `${task.person_name || ""} ${task.person_surname || ""}`.trim() || "Unknown Person";
-    setConsolidationOpen(false);
-    toast.success(`${fullName} consolidated successfully`);
+  if (!currentEventId) return;
+  const fullName = task.recipientName || `${task.person_name || ""} ${task.person_surname || ""}`.trim() || "Unknown Person";
+  setConsolidationOpen(false);
+  toast.success(`${fullName} consolidated successfully`);
 
-    const newCons = {
-      id: task.consolidation_id || `opt_${Date.now()}`,
-      person_name: task.person_name || "",
-      person_surname: task.person_surname || "",
-      person_email: task.person_email || "",
-      person_phone: task.person_phone || "",
-      decision_type: task.decision_type || "Commitment",
-      assigned_to: task.assigned_to || "",
-      status: "active",
-      created_at: new Date().toISOString(),
-    };
+  const newCons = {
+    id: task.consolidation_id || `opt_${Date.now()}`,
+    person_name: task.person_name || "",
+    person_surname: task.person_surname || "",
+    person_email: task.person_email || "",
+    person_phone: task.person_phone || "",
+    decision_type: task.decision_type || "Commitment",
+    assigned_to: task.assigned_to || "",
+    status: "active",
+    created_at: new Date().toISOString(),
+  };
 
-    setRealTimeData(prev => {
-      const base = prev || { present_attendees: [], new_people: [], consolidations: [] };
-      const consArr = [...(base.consolidations || []), newCons];
-      return { ...base, consolidations: consArr, consolidation_count: consArr.length };
-    });
+  setRealTimeData(prev => {
+    const base = prev || { present_attendees: [], new_people: [], consolidations: [] };
+    const consArr = [...(base.consolidations || []), newCons];
+    return { ...base, consolidations: consArr, consolidation_count: consArr.length };
+  });
 
-    setTimeout(async () => {
-      const freshData = await fetchRealTimeEventData(currentEventId);
-      if (freshData) setRealTimeData(freshData);
-    }, 1500);
+  // Wait longer, then merge instead of replace
+  setTimeout(async () => {
+    const freshData = await fetchRealTimeEventData(currentEventId);
+    if (freshData) {
+      setRealTimeData(prev => {
+        if (!prev) return freshData;
+        
+        // If fresh data has at least as many consolidations, trust it
+        const freshCount = freshData.consolidations?.length ?? 0;
+        const prevCount = prev.consolidations?.length ?? 0;
+        
+        if (freshCount >= prevCount) return freshData;
+        
+        // Otherwise keep our optimistic consolidations merged in
+        return {
+          ...freshData,
+          consolidations: prev.consolidations,
+          consolidation_count: prevCount,
+        };
+      });
+    }
+  }, 3000); // increased from 1500 to give backend more time
 
-    notifyTaskUpdate?.();
-    window.dispatchEvent(new CustomEvent("taskUpdated", { detail: { action: "consolidationCreated", task } }));
-  }, [currentEventId, fetchRealTimeEventData, notifyTaskUpdate]);
+  notifyTaskUpdate?.();
+  window.dispatchEvent(new CustomEvent("taskUpdated", { detail: { action: "consolidationCreated", task } }));
+}, [currentEventId, fetchRealTimeEventData, notifyTaskUpdate]);
 
   const handleSaveAndCloseEvent = useCallback(async () => {
     if (!currentEventId) { toast.error("Please select an event first"); return; }
@@ -1613,7 +1631,7 @@ const sortedFilteredAttendees = useMemo(() => {
       <ConsolidationModal
         open={consolidationOpen} onClose={() => setConsolidationOpen(false)}
         attendeesWithStatus={attendeesWithStatus} onFinish={handleFinishConsolidation}
-        consolidatedPeople={filteredConsolidatedPeople} currentEventId={currentEventId}
+        consolidatedPeople={filteredConsolidatedPeople} currentEventId={cleanEventId(currentEventId)}
       />
     </Box>
   );

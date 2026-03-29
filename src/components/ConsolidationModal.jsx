@@ -19,6 +19,8 @@ import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
+const cleanEventId = (id) => id?.split("_")[0] ?? id;
+
 function resolveLeadersFromPerson(person) {
   if (!person) return {};
 
@@ -118,6 +120,7 @@ const ConsolidationModal = ({
     }, 350),
     [authFetch]
   );
+
 
 const resolveLeaderEmail = (leaderName, recipient) => {
   if (!leaderName || !recipient) return "";
@@ -273,7 +276,7 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
         decision_date: new Date().toISOString().split("T")[0],
         assigned_to: leaderInfo.leader,
         assigned_to_email: resolvedLeaderEmail,
-        event_id: currentEventId,
+        event_id: cleanEventId(currentEventId),
         leaders: leadersArray,
         source: "service_consolidation",
         person_data: {
