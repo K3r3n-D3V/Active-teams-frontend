@@ -301,7 +301,7 @@ const PersonCard = React.memo(({ person, onEdit, onDelete, isDragging }) => {
   );
   const getAvatarColor = useCallback(
     (n) =>
-      ["#f44336", "#e91e63", "#9c27b0", "#673ab7", "#3f51b5", "#2196f3"][
+      ["#f44336", "#e01c5d", "#9c27b0", "#6d3ec0", "#3f51b5", "#2196f3"][
         safeStr(n).length % 6
       ],
     [],
