@@ -1006,7 +1006,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
                         ? "Select an organization to see its members"
                         : orgUsersLoading
                         ? "Loading members…"
-                        : "Optional — who invited you?")
+                        : "Please select who invited you")
                     }
                     fullWidth
                     InputProps={{

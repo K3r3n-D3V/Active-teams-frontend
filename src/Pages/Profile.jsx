@@ -379,22 +379,22 @@ export default function Profile() {
     // In updateFormWithProfile, the leaderAt1 display for newly signed-up users
     // whose LeaderPath IDs resolve to null. Add this fallback after the leaders block:
 
-    if (profile?.leaders) {
-      const getLeaderName = (l) =>
-        l ? `${l.name || ""} ${l.surname || ""}`.trim() : "";
+if (profile?.leaders) {
+  const leaderNames = {
+    leaderAt1: profile.leaders.leaderAt1
+      ? `${profile.leaders.leaderAt1.name} ${profile.leaders.leaderAt1.surname}`
+      : profile.invited_by || "",
+    leaderAt12: profile.leaders.leaderAt12
+      ? `${profile.leaders.leaderAt12.name} ${profile.leaders.leaderAt12.surname}`
+      : profile.invited_by || "",
+    leaderAt144: profile.leaders.leaderAt144
+      ? `${profile.leaders.leaderAt144.name} ${profile.leaders.leaderAt144.surname}`
+      : "",
+  };
 
-      const leaderNames = {
-        leaderAt1: getLeaderName(profile.leaders.leaderAt1),
-        leaderAt12: getLeaderName(profile.leaders.leaderAt12),
-        leaderAt144: getLeaderName(profile.leaders.leaderAt144),
-      };
-
-      // Fallback: if leaderAt1 is empty, show the invited_by string
-      if (!leaderNames.leaderAt1 && profile.invited_by) {
-        leaderNames.leaderAt1 = profile.invited_by;
-      }
-
-      setLeaders(leaderNames);
+  setLeaders(leaderNames);
+  localStorage.setItem("leaders", JSON.stringify(leaderNames));
+} else if (profile?.invited_by) {
       localStorage.setItem("leaders", JSON.stringify(leaderNames));
     } else {
       const savedLeaders = JSON.parse(localStorage.getItem("leaders")) || {};
