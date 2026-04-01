@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo, useContext, useRef } from 'react';
 import { AuthContext } from "../contexts/AuthContext";
+import { useSelectedOrg } from "../contexts/SelectedOrgContext";
 import {
   Box, Paper, Typography, TextField, Button, Select, MenuItem,
   FormControl, InputLabel, Table, TableBody, TableCell, TableContainer,
@@ -40,6 +41,7 @@ const SUPREME_ADMIN_EMAIL = "tkgenia1234@gmail.com";
 export default function AdminDashboard() {
   const theme = useTheme();
   const { authFetch, user: currentUser } = useContext(AuthContext);
+  const { selectedOrg: contextSelectedOrg, setSelectedOrg: setContextSelectedOrg } = useSelectedOrg();
   const isSupremeAdmin = currentUser?.is_supreme_admin || currentUser?.email === SUPREME_ADMIN_EMAIL;
 
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
@@ -76,11 +78,16 @@ export default function AdminDashboard() {
   const [creatingUser, setCreatingUser] = useState(false);
   const [deletingUser, setDeletingUser] = useState(false);
   const [organizations, setOrganizations] = useState([]);
-  const [selectedOrg, setSelectedOrg] = useState(() => {
-    if (!isSupremeAdmin && currentUser) {
+  const [selectedOrg, setSelectedOrgState] = useState(() => {
+    // For Supreme admins, use context value if available, otherwise default to Active Church
+    if (isSupremeAdmin) {
+      return contextSelectedOrg || globalOrgFilter || "Active Church";
+    }
+    // For non-supreme admins, use their organization
+    if (currentUser) {
       return currentUser.Organization || currentUser.organization || "Active Church";
     }
-    return globalOrgFilter || "Active Church";
+    return "Active Church";
   });
   const [orgAnchorEl, setOrgAnchorEl] = useState(null);
   const [, setLoadingOrgs] = useState(false);
@@ -297,8 +304,12 @@ export default function AdminDashboard() {
     setSearchTerm('');
     setPage(0);
     setOrgAnchorEl(null);
-    setSelectedOrg(orgName); 
-  }, [selectedOrg]);
+    setSelectedOrgState(orgName);
+    // For Supreme admins, also update the context so other pages can access it
+    if (isSupremeAdmin) {
+      setContextSelectedOrg(orgName);
+    }
+  }, [selectedOrg, isSupremeAdmin, setContextSelectedOrg]);
 
   // ─── manual refresh ──────────────────────────────────────────────────────────
   const handleManualRefresh = useCallback(async () => {

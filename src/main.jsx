@@ -7,6 +7,7 @@ import { UserProvider } from './contexts/UserContext';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { TaskUpdateProvider } from './contexts/TaskUpdateContext';
 import { OrgConfigProvider } from './contexts/OrgConfigContext';
+import { SelectedOrgProvider } from './contexts/SelectedOrgContext';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
@@ -14,11 +15,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
       <ErrorBoundary>
         <AuthProvider>
           <UserProvider>
-            <OrgConfigProvider>
-              <BrowserRouter>
-                <App />
-              </BrowserRouter>
-            </OrgConfigProvider>
+            <SelectedOrgProvider>
+              <OrgConfigProvider>
+                <BrowserRouter>
+                  <App />
+                </BrowserRouter>
+              </OrgConfigProvider>
+            </SelectedOrgProvider>
           </UserProvider>
         </AuthProvider>
       </ErrorBoundary>

@@ -1,5 +1,5 @@
 import React, {
-  
+
   useContext,
   useState,
   useEffect,
@@ -62,6 +62,7 @@ import {
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import { AuthContext } from "../contexts/AuthContext";
+import { useSelectedOrg } from "../contexts/SelectedOrgContext";
 import { useTaskUpdate } from "../contexts/TaskUpdateContext";
 import CreateEvents from "./CreateEvents";
 
@@ -240,6 +241,16 @@ const TaskGroupRow = React.memo(
 
 const StatsDashboard = () => {
   const theme = useTheme();
+  const { authFetch, user } = useContext(AuthContext);
+  const { selectedOrg: contextSelectedOrg } = useSelectedOrg();
+
+  const isSupremeAdmin = user?.is_supreme_admin || user?.email === "tkgenia1234@gmail.com";
+  
+  // Determine which organization to use
+  const activeOrg = isSupremeAdmin && contextSelectedOrg 
+    ? contextSelectedOrg 
+    : (user?.Organization || user?.organization || "");
+
   const isXsDown = useMediaQuery(theme.breakpoints.down("xs"));
   const isSmDown = useMediaQuery(theme.breakpoints.down("sm"));
   const isMdDown = useMediaQuery(theme.breakpoints.down("md"));
@@ -320,7 +331,6 @@ const StatsDashboard = () => {
   const [cells, setCells] = useState([]);
   const [cellsLoading, setCellsLoading] = useState(false);
   const [cellsError, setCellsError] = useState(null);
-  const { authFetch } = useContext(AuthContext);
   const statsLockRef = useRef(false);
   const cellsLockRef = useRef(false);
 
@@ -564,10 +574,13 @@ const StatsDashboard = () => {
       setStats((prev) => ({ ...prev, loading: true, error: null }));
 
       try {
-        const response = await authFetch(
-          `${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}`,
-          { retryOnAuthFailure: true, maxRetries: 1 },
-        );
+        let url = `${BACKEND_URL}/stats/dashboard-comprehensive?period=${period}`;
+        // For Supreme users selecting a different organization, include it as a parameter
+        if (isSupremeAdmin && activeOrg) {
+          url += `&organization=${encodeURIComponent(activeOrg)}`;
+        }
+        
+        const response = await authFetch(url, { retryOnAuthFailure: true, maxRetries: 1 });
 
         if (!response.ok) {
           const errorText = await response.text();
@@ -605,7 +618,7 @@ const StatsDashboard = () => {
         releaseFetchLock(statsLockRef);
       }
     },
-    [period, authFetch],
+    [period, authFetch, isSupremeAdmin, activeOrg],
   );
 
   const handlePeriodChange = (e) => {

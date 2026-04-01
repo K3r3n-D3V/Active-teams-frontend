@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useTheme } from "@mui/material/styles";
 import { useOrgConfig } from "../contexts/OrgConfigContext";
+import { useSelectedOrg } from "../contexts/SelectedOrgContext";
 import AttendanceModal from "./AttendanceModal";
 import IconButton from "@mui/material/IconButton";
 import EditIcon from "@mui/icons-material/Edit";
@@ -983,13 +984,19 @@ const isValidObjectId = (id) => {
   return /^[0-9a-fA-F]{24}$/.test(id);
 };
 const Events = () => {
-  const { authFetch, logout } = React.useContext(AuthContext);
+  const { authFetch, logout, user: authUser } = React.useContext(AuthContext);
   const { orgConfig, configLoaded } = useOrgConfig();
+  const { selectedOrg: contextSelectedOrg } = useSelectedOrg();
   
   // Get user from localStorage immediately (available on login)
   const currentUser = JSON.parse(localStorage.getItem("userProfile")) || {};
   const userOrganization = currentUser?.Organization || currentUser?.organization || "";
   const userOrgId = currentUser?.org_id || "";
+  const isSupremeAdmin = currentUser?.is_supreme_admin || currentUser?.email === "tkgenia1234@gmail.com";
+  
+  // Determine which organization to use
+  // For Supreme admins with selected org, use that; otherwise use user's organization
+  const activeOrganization = isSupremeAdmin && contextSelectedOrg ? contextSelectedOrg : userOrganization;
   
   // Determine isActiveTeams immediately from user data
   const isActiveTeams = userOrgId === "active-teams" || userOrganization === "Active Church";
@@ -998,6 +1005,9 @@ const Events = () => {
     userOrgId,
     userOrganization,
     isActiveTeams,
+    isSupremeAdmin,
+    contextSelectedOrg,
+    activeOrganization,
     orgConfigLoaded: configLoaded,
     orgConfigId: orgConfig?.org_id
   });
@@ -1482,9 +1492,15 @@ const fetchEventsFilters = (filters) => {
   let endpoint = `${BACKEND_URL}/events`;
 
   const eventType = filters.event_type || selectedEventTypeFilter;
-    const userOrg = currentUser?.Organization || currentUser?.organization || "";
+  // Use activeOrganization (which includes context-selected org for Supreme users)
+  const userOrg = activeOrganization || currentUser?.Organization || currentUser?.organization || "";
   const userOrgId = currentUser?.org_id || "";
   const isCellOrg = userOrgId === "active-teams" || userOrg === "Active Church";
+  
+  // For Supreme users selecting a different organization, include it as a parameter
+  if (isSupremeAdmin && userOrg && userOrg !== "Active Church") {
+    params.organization = userOrg;
+  }
   
   const isCellType = isCellOrg && (!eventType || eventType === "CELLS" || eventType === "all" || eventType.toLowerCase() === "cells" || eventType.toLowerCase().includes("cell"));
 
@@ -1591,6 +1607,7 @@ const fetchEventsFilters = (filters) => {
         logout,
         selectedEventTypeFilter,
         selectedStatus,
+        activeOrganization,
       ],
     );
 

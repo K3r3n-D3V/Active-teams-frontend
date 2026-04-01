@@ -9,6 +9,7 @@ import React, {
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { AuthContext } from "../contexts/AuthContext";
 import { UserContext } from "../contexts/UserContext";
+import { useSelectedOrg } from "../contexts/SelectedOrgContext";
 import {
   Box,
   Paper,
@@ -659,13 +660,20 @@ export const PeopleSection = () => {
   const theme = useTheme();
   const { user, authFetch } = useContext(AuthContext);
   const { userProfile } = useContext(UserContext);
+  const { selectedOrg: contextSelectedOrg } = useSelectedOrg();
+
+  const isSupremeAdmin = user?.is_supreme_admin || user?.email === "tkgenia1234@gmail.com";
+
+  // Determine which organization to use
+  // For Supreme admins with selected org, use that; otherwise use user's organization
+  const activeOrg = isSupremeAdmin && contextSelectedOrg 
+    ? contextSelectedOrg 
+    : (user?.org_id || user?.organization || user?.Organization || "");
 
   const currentUserOrg = useMemo(() => {
-    const org = safeStr(
-      user?.org_id || user?.organization || user?.Organization || "",
-    );
+    const org = safeStr(activeOrg);
     return org.toLowerCase().replace(" ", "-");
-  }, [user]);
+  }, [activeOrg]);
 
   const currentUserName = useMemo(() => {
     if (user?.name && user?.surname)
@@ -795,66 +803,29 @@ export const PeopleSection = () => {
       peopleFetchPromiseRef.current = (async () => {
         // Replace the try block inside peopleFetchPromiseRef.current = (async () => { ... })()
         try {
-          const response = await authFetch(`${BACKEND_URL}/cache/people`);
+          // Build the API URL matching Admin pattern
+          let peopleUrl = `${BACKEND_URL}/cache/people`;
+          if (activeOrg) {
+            peopleUrl += `&organization=${encodeURIComponent(activeOrg)}`;
+          }
+          
+          const response = await authFetch(peopleUrl);
           if (!response || !response.ok)
             throw new Error("Failed to fetch people");
           const data = await response.json();
-          if (!data.success)
-            throw new Error(data.error || "Cache returned error");
-
+          
           setCacheInfo({
-            source: safeStr(data.source),
-            org: safeStr(data.organization || orgKey),
+            source: "api",
+            org: safeStr(activeOrg || orgKey),
           });
 
-          const mapped = (data?.cached_data || [])
+          // Handle /admin/users endpoint response format
+          const rawPeople = data?.users || data?.cached_data || [];
+          const mapped = rawPeople
             .map(mapRawPerson)
             .filter(Boolean);
 
-          // ── NEW: if backend is still loading, show partial data and poll ──
-          if (!data.is_complete && data.source === "loading") {
-            if (mapped.length > 0) {
-              setAllPeople(mapped);
-              window.globalPeopleCache = mapped;
-              window.globalCacheTimestamp = Date.now();
-              window.globalPeopleCacheOrg = orgKey;
-            }
-            // Poll every 3s until complete
-            await new Promise((resolve) => {
-              let attempts = 0;
-              const interval = setInterval(async () => {
-                attempts++;
-                try {
-                  const pollRes = await authFetch(
-                    `${BACKEND_URL}/cache/people`,
-                  );
-                  if (!pollRes?.ok) return;
-                  const pollData = await pollRes.json();
-                  const pollMapped = (pollData?.cached_data || [])
-                    .map(mapRawPerson)
-                    .filter(Boolean);
-                  if (pollMapped.length > 0) {
-                    setAllPeople(pollMapped);
-                    window.globalPeopleCache = pollMapped;
-                    window.globalCacheTimestamp = Date.now();
-                    window.globalPeopleCacheOrg = orgKey;
-                  }
-                  if (pollData.is_complete || attempts >= 20) {
-                    clearInterval(interval);
-                    resolve();
-                  }
-                } catch {
-                  if (attempts >= 20) {
-                    clearInterval(interval);
-                    resolve();
-                  }
-                }
-              }, 3000);
-            });
-            return window.globalPeopleCache || [];
-          }
-          // ── END NEW ──
-
+          // The /admin/users endpoint returns data immediately, no polling needed
           window.globalPeopleCache = mapped;
           window.globalCacheTimestamp = Date.now();
           window.globalPeopleCacheOrg = orgKey;
@@ -882,7 +853,7 @@ export const PeopleSection = () => {
 
       return await peopleFetchPromiseRef.current;
     },
-    [BACKEND_URL, authFetch, currentUserOrg],
+    [BACKEND_URL, authFetch, currentUserOrg, activeOrg],
   );
 
   // ── Mount effect ───────────────────────────────────────────────────────────
