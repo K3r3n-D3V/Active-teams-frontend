@@ -67,7 +67,7 @@ export default function AddPersonDialog({
   editingPersonObject = null,
 }) {
   const theme = useTheme();
-  const { authFetch } = useContext(AuthContext);
+  const { authFetch, user } = useContext(AuthContext);
 
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -76,6 +76,7 @@ export default function AddPersonDialog({
   const [addressSuggestions, setAddressSuggestions] = useState([]);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const [originalFormData, setOriginalFormData] = useState(null);
+  const [leaderFieldsEdited, setLeaderFieldsEdited] = useState(false);
 
   const debouncedAddressInput = useDebounce(searchInputs.address || "", 500);
 
@@ -103,6 +104,7 @@ export default function AddPersonDialog({
       setSearchInputs({ invitedBy: "", leader1: "", leader12: "", leader144: "" });
       setShowLeaderFields(false);
       setOriginalFormData(null);
+      setLeaderFieldsEdited(false);
     }
   }, [open]);
 
@@ -118,7 +120,7 @@ export default function AddPersonDialog({
       name: src.name || src.Name || "",
       surname: src.surname || src.Surname || "",
       dob: (src.dob || src.birthday || src.Birthday || "").replace(/\//g, "-"),
-      address: src.address || src.homeAddress || src.Address || "",
+      address: src.location || src.address || src.homeAddress || src.Address || "",
       email: src.email || src.Email || "",
       number: src.number || src.phone || src.Number || src.Phone || "",
       gender: src.gender || src.Gender || "",
@@ -199,9 +201,13 @@ export default function AddPersonDialog({
     else if (!leader12) leader12 = inviterName;
     else if (!leader144) leader144 = inviterName;
 
-    setFormData((p) => ({ ...p, invitedBy: label, leader1, leader12, leader144 }));
+    if (!leaderFieldsEdited) {
+      setFormData((p) => ({ ...p, invitedBy: label, leader1, leader12, leader144 }));
+    } else {
+      setFormData((p) => ({ ...p, invitedBy: label }));
+    }
     setShowLeaderFields(true);
-  }, [preloadedPeople]);
+  }, [preloadedPeople, leaderFieldsEdited]);
 
   const filterOptions = useCallback((options, { inputValue }) => {
     if (!inputValue) return options.slice(0, 30);
@@ -338,10 +344,14 @@ export default function AddPersonDialog({
 
   const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
     const currentValue = formData[name] || "";
+    const isLeaderField = name.startsWith("leader");
+    const allowedRoles = ["leaderat12", "leader", "admin", "manager"];
+    const canEditLeaders = allowedRoles.includes(user?.role);
+    const fieldDisabled = disabled || (isLeaderField && !canEditLeaders);
     return (
       <Autocomplete
         freeSolo
-        disabled={disabled || isSubmitting}
+        disabled={fieldDisabled || isSubmitting}
         options={peopleOptions}
         getOptionLabel={(o) => (typeof o === "string" ? o : o.label)}
         filterOptions={filterOptions}
@@ -355,11 +365,13 @@ export default function AddPersonDialog({
           } else {
             const val = newValue ? (typeof newValue === "string" ? newValue : newValue.label) : "";
             setFormData((p) => ({ ...p, [name]: val }));
+            if (isLeaderField) setLeaderFieldsEdited(true);
           }
         }}
         onInputChange={(_, newInput, reason) => {
           if (reason === "input") {
             setFormData((p) => ({ ...p, [name]: newInput }));
+            if (isLeaderField) setLeaderFieldsEdited(true);
           }
         }}
         renderInput={(params) => (
@@ -442,9 +454,9 @@ export default function AddPersonDialog({
               <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1 }}>
                 Additional Leaders
               </Typography>
-              {renderAutocomplete("leader1", "Leader @1", false, true)}
-              {renderAutocomplete("leader12", "Leader @12", false, true)}
-              {renderAutocomplete("leader144", "Leader @144", false, true)}
+              {renderAutocomplete("leader1", "Leader @1", false, false)}
+              {renderAutocomplete("leader12", "Leader @12", false, false)}
+              {renderAutocomplete("leader144", "Leader @144", false, false)}
             </Box>
           </Collapse>
 
