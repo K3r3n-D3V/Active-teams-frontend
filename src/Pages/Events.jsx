@@ -998,8 +998,8 @@ const Events = () => {
   // For Supreme admins with selected org, use that; otherwise use user's organization
   const activeOrganization = isSupremeAdmin && contextSelectedOrg ? contextSelectedOrg : userOrganization;
   
-  // Determine isActiveTeams immediately from user data
-  const isActiveTeams = userOrgId === "active-teams" || userOrganization === "Active Church";
+  // Determine isActiveTeams based on the currently active organization (switches when Supreme Admin selects a different org)
+  const isActiveTeams = activeOrganization === "Active Church";
   
   console.log("ORG CONFIG:===============", {
     userOrgId,
@@ -1494,8 +1494,7 @@ const fetchEventsFilters = (filters) => {
   const eventType = filters.event_type || selectedEventTypeFilter;
   // Use activeOrganization (which includes context-selected org for Supreme users)
   const userOrg = activeOrganization || currentUser?.Organization || currentUser?.organization || "";
-  const userOrgId = currentUser?.org_id || "";
-  const isCellOrg = userOrgId === "active-teams" || userOrg === "Active Church";
+  const isCellOrg = userOrg === "Active Church";
   
   // For Supreme users selecting a different organization, include it as a parameter
   if (isSupremeAdmin && userOrg && userOrg !== "Active Church") {
@@ -1610,6 +1609,18 @@ const fetchEventsFilters = (filters) => {
         activeOrganization,
       ],
     );
+
+  // Re-fetch events when organization changes for Supreme Admins
+  useEffect(() => {
+    if (isSupremeAdmin && activeOrganization) {
+      eventsCache.current = {};
+      setCurrentPage(1);
+      setEvents([]);
+      setLoading(true);
+      // Trigger a fresh fetch with the new organization
+      fetchEvents({ page: 1, limit: rowsPerPage }, true);
+    }
+  }, [activeOrganization, isSupremeAdmin, rowsPerPage, fetchEvents]);
 
 const fetchEventTypes = useCallback(async () => {
   try {
