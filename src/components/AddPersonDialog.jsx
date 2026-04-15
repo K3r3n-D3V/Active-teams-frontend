@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useContext } from "react";
+import { useEffect, useState, useCallback, useMemo, useContext,useRef } from "react";
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, Typography, useTheme, MenuItem, Autocomplete,
@@ -62,8 +62,7 @@ function extractLeaders(person) {
 
 export default function AddPersonDialog({
   open, onClose, onSave, formData, setFormData,
-  isEdit = false, personId = null, currentEventId,
-  preloadedPeople = [],
+  isEdit = false, personId = null,
   editingPersonObject = null,
 }) {
   const theme = useTheme();
@@ -79,23 +78,85 @@ export default function AddPersonDialog({
   const [leaderFieldsEdited, setLeaderFieldsEdited] = useState(false);
 
   const debouncedAddressInput = useDebounce(searchInputs.address || "", 500);
+  // Add these refs and state near the top of AddPersonDialog
+const [allPeople, setAllPeople] = useState([]);
+const isFetchingRef = useRef(false);
 
-  const peopleOptions = useMemo(() =>
-    preloadedPeople.map((p) => {
-      const name = p.name || p.Name || "";
-      const surname = p.surname || p.Surname || "";
-      const email = p.email || p.Email || "";
-      const fullName = `${name} ${surname}`.trim();
-      return {
-        label: fullName,
-        person: p,
-        FullName: p.fullName || fullName,
-        Email: email,
-        searchText: `${name} ${surname} ${email}`.toLowerCase(),
-      };
-    }),
-    [preloadedPeople]
-  );
+// Add this useEffect to load people on open (same pattern as DailyTasks)
+useEffect(() => {
+  if (!open) return;
+
+  const mapPerson = (raw) => {
+    const name = (raw.Name || raw.name || "").toString().trim();
+    const surname = (raw.Surname || raw.surname || "").toString().trim();
+    return {
+      _id: (raw._id || raw.id || "").toString(),
+      name,
+      surname,
+      email: (raw.Email || raw.email || "").toString().trim(),
+      phone: (raw.Number || raw.phone || raw.Phone || "").toString().trim(),
+      fullName: `${name} ${surname}`.trim(),
+      fullNameLower: `${name} ${surname}`.toLowerCase().trim(),
+      leader1: raw["Leader @1"] || raw.leader1 || "",
+      leader12: raw["Leader @12"] || raw.leader12 || "",
+      leader144: raw["Leader @144"] || raw.leader144 || "",
+    };
+  };
+
+  // Use global cache if fresh
+  const now = Date.now();
+  const CACHE_DURATION = 30 * 60 * 1000;
+  if (
+    window.globalPeopleCache?.length > 0 &&
+    window.globalCacheTimestamp &&
+    now - window.globalCacheTimestamp < CACHE_DURATION
+  ) {
+    setAllPeople(window.globalPeopleCache.map(p => ({
+      ...p,
+      fullNameLower: p.fullNameLower || `${p.name || ""} ${p.surname || ""}`.toLowerCase().trim(),
+      leader1: p.leader1 || "",
+      leader12: p.leader12 || "",
+      leader144: p.leader144 || "",
+    })));
+    return;
+  }
+
+  if (isFetchingRef.current) return;
+  isFetchingRef.current = true;
+
+  (async () => {
+    try {
+      const res = await authFetch(`${BASE_URL}/cache/people`);
+      if (!res.ok) throw new Error("Failed");
+      const data = await res.json();
+      const rawPeople = data?.cached_data || [];
+      if (rawPeople.length > 0) {
+        const mapped = rawPeople.map(mapPerson);
+        window.globalPeopleCache = mapped;
+        window.globalCacheTimestamp = Date.now();
+        setAllPeople(mapped);
+      }
+    } catch (err) {
+      console.error("AddPersonDialog: failed to load people", err);
+    } finally {
+      isFetchingRef.current = false;
+    }
+  })();
+}, [open]);
+
+  // Replace the existing peopleOptions useMemo
+const peopleOptions = useMemo(() => {
+  const source = allPeople.length > 0
+    ? allPeople
+    : (window.globalPeopleCache?.length > 0 ? window.globalPeopleCache : []);
+
+  return source.map((p) => ({
+    label: p.fullName || `${p.name || ""} ${p.surname || ""}`.trim(),
+    person: p,
+    fullNameLower: p.fullNameLower || `${p.name || ""} ${p.surname || ""}`.toLowerCase(),
+    searchText: `${p.fullNameLower || ""} ${p.email || ""} ${p.phone || ""}`,
+  }));
+}, [allPeople]);
 
   useEffect(() => {
     if (!open) {
@@ -177,43 +238,61 @@ export default function AddPersonDialog({
   };
 
   const handleInvitedByChange = useCallback((value) => {
-    if (!value) {
-      setFormData((p) => ({ ...p, invitedBy: "", leader1: "", leader12: "", leader144: "" }));
-      return;
-    }
-    const label = typeof value === "string" ? value : value.label;
-    const matched = preloadedPeople.find((p) => {
-      const fn = `${p.name || p.Name || ""} ${p.surname || p.Surname || ""}`.trim();
-      return fn === label || (p.fullName || "") === label;
-    });
+  if (!value) {
+    setFormData((p) => ({ ...p, invitedBy: "", leader1: "", leader12: "", leader144: "" }));
+    return;
+  }
 
-    if (!matched) {
-      setFormData((p) => ({ ...p, invitedBy: label }));
-      return;
-    }
+  const label = typeof value === "string" ? value : value.label;
+  const candidate = typeof value === "object" && value !== null ? value.person : null;
+  const matched = candidate || peopleOptions.find((o) => {
+    const fn = o.label || "";
+    return fn.toLowerCase() === label.toLowerCase();
+  })?.person;
 
-    const leaders = extractLeaders(matched);
-    const inviterName = `${matched.name || matched.Name || ""} ${matched.surname || matched.Surname || ""}`.trim()
-      || matched.email || matched.Email || label;
+  if (!matched) {
+    setFormData((p) => ({ ...p, invitedBy: label }));
+    return;
+  }
 
-    let { leader1, leader12, leader144 } = leaders;
-    if (!leader1) leader1 = inviterName;
-    else if (!leader12) leader12 = inviterName;
-    else if (!leader144) leader144 = inviterName;
+  const inviterName = matched.fullName || 
+    `${matched.name || matched.Name || ""} ${matched.surname || matched.Surname || ""}`.trim() || 
+    label;
 
-    if (!leaderFieldsEdited) {
-      setFormData((p) => ({ ...p, invitedBy: label, leader1, leader12, leader144 }));
-    } else {
-      setFormData((p) => ({ ...p, invitedBy: label }));
-    }
-    setShowLeaderFields(true);
-  }, [preloadedPeople, leaderFieldsEdited]);
+  const l1 = matched.leader1 || matched["Leader @1"] || "";
+  const l12 = matched.leader12 || matched["Leader @12"] || "";
+  const l144 = matched.leader144 || matched["Leader @144"] || "";
+
+  // Slot inviter into first empty leader level
+  let newL1 = l1;
+  let newL12 = l12;
+  let newL144 = l144;
+
+  if (!l1) {
+    newL1 = inviterName;
+  } else if (!l12) {
+    newL12 = inviterName;
+  } else if (!l144) {
+    newL144 = inviterName;
+  }
+
+  setFormData((p) => ({
+    ...p,
+    invitedBy: label,
+    leader1: newL1,
+    leader12: newL12,
+    leader144: newL144,
+  }));
+  setShowLeaderFields(true);
+}, [peopleOptions]);;
 
   const filterOptions = useCallback((options, { inputValue }) => {
-    if (!inputValue) return options.slice(0, 30);
-    const term = inputValue.toLowerCase();
-    return options.filter((o) => o.searchText.includes(term)).slice(0, 50);
-  }, []);
+  if (!inputValue?.trim()) return options.slice(0, 30);
+  const term = inputValue.toLowerCase().trim();
+  return options
+    .filter((o) => o.searchText.includes(term))
+    .slice(0, 50);
+}, []);
 
   const hasChanges = useMemo(() => {
     if (!isEdit || !originalFormData) return true;
@@ -345,8 +424,9 @@ export default function AddPersonDialog({
   const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
     const currentValue = formData[name] || "";
     const isLeaderField = name.startsWith("leader");
+    const currentRole = String(user?.role || "").toLowerCase();
     const allowedRoles = ["leaderat12", "leader", "admin", "manager"];
-    const canEditLeaders = allowedRoles.includes(user?.role);
+    const canEditLeaders = allowedRoles.includes(currentRole);
     const fieldDisabled = disabled || (isLeaderField && !canEditLeaders);
     return (
       <Autocomplete
