@@ -1001,7 +1001,7 @@ const LeaderSelectionModal = ({
     leader144: [],
   });
 
-  const [, setShowDropdowns] = useState({
+  const [showDropdowns, setShowDropdowns] = useState({
     leader1: false,
     leader12: false,
     leader144: false,
