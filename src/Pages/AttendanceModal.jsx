@@ -249,35 +249,73 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
   }, [inviterSearchInput, peopleList]);
 
   const handleInviterSelect = (person) => {
+   console.log("Selected inviter:", person.fullName);
+
     setFormData((prev) => ({ ...prev, invitedBy: person.fullName }));
     setInviterSearchInput(person.fullName);
     setShowInviterDropdown(false);
     setTouched((prev) => ({ ...prev, invitedBy: true }));
 
-    const inviterName = person.fullName || "";
-    const l1 = person.leader1 || "";
-    const l12 = person.leader12 || "";
-    const l144 = person.leader144 || "";
+    const normalizedFull = (person.fullName || "").trim().toLowerCase();
+    const leader1Raw = (person.leader1 || "").trim().toLowerCase();
+    const leader12Raw = (person.leader12 || "").trim().toLowerCase();
+    const leader144Raw = (person.leader144 || "").trim().toLowerCase();
+    const leader1728Raw = (person.leader1728 || "").trim().toLowerCase();
 
-    // Slot the inviter into the first empty leader level
-    let newL1 = l1;
-    let newL12 = l12;
-    let newL144 = l144;
-
-    if (!l1) {
-      newL1 = inviterName;
-    } else if (!l12) {
-      newL12 = inviterName;
-    } else if (!l144) {
-      newL144 = inviterName;
-    }
-    // If all 3 are filled, keep as-is (inviter's chain is complete)
-
-    setAutoFilledLeaders({
-      leader1: newL1,
-      leader12: newL12,
-      leader144: newL144,
+    console.log("Leadership analysis:", {
+      inviterName: normalizedFull,
+      leader1: person.leader1,
+      leader12: person.leader12,
+      leader144: person.leader144,
+      leader1728: person.leader1728,
     });
+
+    let leadersToFill;
+    const isLeader144 = leader12Raw && !leader144Raw && !leader1728Raw;
+    const isLeader12 =
+      leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
+    const isLeader1 =
+      leader1Raw === normalizedFull ||
+      (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
+
+    console.log("Leadership detection:", {
+      isLeader144,
+      isLeader12,
+      isLeader1,
+      isSelfL1: leader1Raw === normalizedFull,
+    });
+
+    if (isLeader144) {
+      leadersToFill = {
+        leader1: person.leader1 || "",
+        leader12: person.leader12 || "",
+        leader144: person.fullName || "",
+      };
+      console.log("DETECTED: Leader @144");
+    } else if (isLeader12) {
+      leadersToFill = {
+        leader1: person.leader1 || "",
+        leader12: person.fullName || "",
+        leader144: "",
+      };
+      console.log("DETECTED: Leader @12");
+    } else if (isLeader1) {
+      leadersToFill = {
+        leader1: person.fullName || "",
+        leader12: "",
+        leader144: "",
+      };
+    } else {
+      leadersToFill = {
+        leader1: person.leader1 || "",
+        leader12: person.leader12 || "",
+        leader144: person.leader144 || "",
+      };
+      console.log("REGULAR: Person has complete leadership chain");
+    }
+
+    setAutoFilledLeaders(leadersToFill);
+    console.log("Final auto-filled leaders:", leadersToFill);
   };
 
   const handleInviterInputChange = (value) => {

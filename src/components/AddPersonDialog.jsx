@@ -237,54 +237,38 @@ const peopleOptions = useMemo(() => {
     setErrors((p) => ({ ...p, number: "" }));
   };
 
-  const handleInvitedByChange = useCallback((value) => {
-  if (!value) {
-    setFormData((p) => ({ ...p, invitedBy: "", leader1: "", leader12: "", leader144: "" }));
-    return;
-  }
+   const handleInvitedByChange = useCallback((value) => {
+    if (!value) {
+      setFormData((p) => ({ ...p, invitedBy: "", leader1: "", leader12: "", leader144: "" }));
+      return;
+    }
+    const label = typeof value === "string" ? value : value.label;
+    const matched = preloadedPeople.find((p) => {
+      const fn = `${p.name || p.Name || ""} ${p.surname || p.Surname || ""}`.trim();
+      return fn === label || (p.fullName || "") === label;
+    });
 
-  const label = typeof value === "string" ? value : value.label;
-  const candidate = typeof value === "object" && value !== null ? value.person : null;
-  const matched = candidate || peopleOptions.find((o) => {
-    const fn = o.label || "";
-    return fn.toLowerCase() === label.toLowerCase();
-  })?.person;
+    if (!matched) {
+      setFormData((p) => ({ ...p, invitedBy: label }));
+      return;
+    }
 
-  if (!matched) {
-    setFormData((p) => ({ ...p, invitedBy: label }));
-    return;
-  }
+    const leaders = extractLeaders(matched);
+    const inviterName = `${matched.name || matched.Name || ""} ${matched.surname || matched.Surname || ""}`.trim()
+      || matched.email || matched.Email || label;
 
-  const inviterName = matched.fullName || 
-    `${matched.name || matched.Name || ""} ${matched.surname || matched.Surname || ""}`.trim() || 
-    label;
+    let { leader1, leader12, leader144 } = leaders;
+    if (!leader1) leader1 = inviterName;
+    else if (!leader12) leader12 = inviterName;
+    else if (!leader144) leader144 = inviterName;
 
-  const l1 = matched.leader1 || matched["Leader @1"] || "";
-  const l12 = matched.leader12 || matched["Leader @12"] || "";
-  const l144 = matched.leader144 || matched["Leader @144"] || "";
-
-  // Slot inviter into first empty leader level
-  let newL1 = l1;
-  let newL12 = l12;
-  let newL144 = l144;
-
-  if (!l1) {
-    newL1 = inviterName;
-  } else if (!l12) {
-    newL12 = inviterName;
-  } else if (!l144) {
-    newL144 = inviterName;
-  }
-
-  setFormData((p) => ({
-    ...p,
-    invitedBy: label,
-    leader1: newL1,
-    leader12: newL12,
-    leader144: newL144,
-  }));
-  setShowLeaderFields(true);
-}, [peopleOptions]);;
+    if (!leaderFieldsEdited) {
+      setFormData((p) => ({ ...p, invitedBy: label, leader1, leader12, leader144 }));
+    } else {
+      setFormData((p) => ({ ...p, invitedBy: label }));
+    }
+    setShowLeaderFields(true);
+  }, [preloadedPeople, leaderFieldsEdited]);
 
   const filterOptions = useCallback((options, { inputValue }) => {
   if (!inputValue?.trim()) return options.slice(0, 30);
