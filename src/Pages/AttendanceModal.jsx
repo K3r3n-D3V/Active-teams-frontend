@@ -1504,6 +1504,21 @@ const AttendanceModal = ({
     }
   };
 
+  const refreshGlobalPeopleCache = async () => {
+    try {
+      const token = localStorage.getItem("access_token");
+      await authFetch(`${BACKEND_URL}/cache/people/refresh`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      // Clear local cache to force reload on next search
+      delete window.globalPeopleCache;
+      console.log("People cache refreshed successfully");
+    } catch (err) {
+      console.error("Failed to refresh people cache:", err);
+    }
+  };
+
   const loadEventStatistics = async () => {
     if (!event) return;
 
@@ -1850,7 +1865,8 @@ const AttendanceModal = ({
     try {
       const token = localStorage.getItem("access_token");
       const headers = { Authorization: `Bearer ${token}` };
-      const res = await authFetch(`${BACKEND_URL}/people?perPage=200`, {
+      // Fetch all people without limit (or with a very high limit)
+      const res = await authFetch(`${BACKEND_URL}/people?perPage=5000`, {
         headers,
       });
       if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
@@ -1867,6 +1883,7 @@ const AttendanceModal = ({
         const leader144 = person["Leader @144"] || person.leader144 || "";
         const leader1728 = person["Leader @1728"] || person.leader1728 || "";
 
+        // Include leader names in searchText for better search results
         return {
           id: person._id,
           fullName: fullName,
@@ -1878,7 +1895,7 @@ const AttendanceModal = ({
           phone: person.Number || person.Phone || "",
           invitedBy: person.InvitedBy || "",
           searchText:
-            `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase(),
+            `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""} ${leader1} ${leader12} ${leader144} ${leader1728}`.toLowerCase(),
         };
       });
 
@@ -1958,24 +1975,10 @@ const AttendanceModal = ({
         return;
       }
 
-      const source =
-        preloadedPeople.length > 0
-          ? preloadedPeople
-          : window.globalPeopleCache?.data || [];
-
-      if (source.length > 0) {
-        const results = source.filter((p) =>
-          (p.searchText || "").includes(query),
-        );
-        setPeople(results.slice(0, 100));
-        setIsSearching(false);
-        return;
-      }
-
-      // Cache not ready yet — hit API as last resort
+      // For actual searches, use the API to get complete results with all leader fields
       setIsSearching(true);
       authFetch(
-        `${BACKEND_URL}/people/search?query=${encodeURIComponent(query)}&limit=100`,
+        `${BACKEND_URL}/people/search?query=${encodeURIComponent(query)}&limit=500`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("access_token")}`,
@@ -1985,21 +1988,28 @@ const AttendanceModal = ({
         .then((res) => res.json())
         .then((data) => {
           const arr = data.results || [];
-          setPeople(
-            arr.map((p) => ({
+          const formatted = arr.map((p) => {
+            // Handle multiple field name variations for leaders
+            const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || "";
+            const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || "";
+            const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || "";
+            const leader1728 = p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || "";
+            
+            return {
               id: p._id,
               fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
               email: p.Email || "",
-              leader1: p["Leader @1"] || p.leader1 || "",
-              leader12: p["Leader @12"] || p.leader12 || "",
-              leader144: p["Leader @144"] || p.leader144 || "",
-              leader1728: p["Leader @1728"] || p.leader1728 || "",
+              leader1: leader1,
+              leader12: leader12,
+              leader144: leader144,
+              leader1728: leader1728,
               phone: p.Number || p.Phone || "",
               invitedBy: p.InvitedBy || "",
               searchText:
-                `${p.Name || ""} ${p.Surname || ""} ${p.Email || ""}`.toLowerCase(),
-            })),
-          );
+                `${p.Name || ""} ${p.Surname || ""} ${p.Email || ""} ${leader1} ${leader12} ${leader144} ${leader1728}`.toLowerCase(),
+            };
+          });
+          setPeople(formatted);
         })
         .catch(() => setPeople([]))
         .finally(() => setIsSearching(false));
@@ -2260,6 +2270,8 @@ const AttendanceModal = ({
         throw new Error(`Save failed: ${response.status}`);
       }
       console.log(`Saved ${enriched.length} attendees to database`);
+      // Refresh cache after saving attendees
+      await refreshGlobalPeopleCache();
       return true;
     } catch (error) {
       console.error("Failed to save:", error);
@@ -2598,6 +2610,8 @@ const AttendanceModal = ({
 
       if (result && result.success) {
         setIsSaving(false);
+        // Refresh cache after saving attendance
+        await refreshGlobalPeopleCache();
         if (typeof onClose === "function") onClose();
         if (typeof onAttendanceSubmitted === "function") {
           onAttendanceSubmitted().catch(console.error);
@@ -2859,6 +2873,8 @@ const AttendanceModal = ({
   const handlePersonAdded = (newPerson) => {
     console.log("New person added:", newPerson);
 
+    // Refresh backend cache and clear local cache
+    refreshGlobalPeopleCache();
     clearGlobalPeopleCache();
     loadPreloadedPeople(true);
     fetchPeople("");
