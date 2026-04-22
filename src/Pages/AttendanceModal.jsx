@@ -256,66 +256,12 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     setShowInviterDropdown(false);
     setTouched((prev) => ({ ...prev, invitedBy: true }));
 
-    const normalizedFull = (person.fullName || "").trim().toLowerCase();
-    const leader1Raw = (person.leader1 || "").trim().toLowerCase();
-    const leader12Raw = (person.leader12 || "").trim().toLowerCase();
-    const leader144Raw = (person.leader144 || "").trim().toLowerCase();
-    const leader1728Raw = (person.leader1728 || "").trim().toLowerCase();
-
-    console.log("Leadership analysis:", {
-      inviterName: normalizedFull,
-      leader1: person.leader1,
-      leader12: person.leader12,
-      leader144: person.leader144,
-      leader1728: person.leader1728,
+    // Leader fields must be set manually — no auto-fill
+    setAutoFilledLeaders({
+      leader1: "",
+      leader12: "",
+      leader144: "",
     });
-
-    let leadersToFill;
-    const isLeader144 = leader12Raw && !leader144Raw && !leader1728Raw;
-    const isLeader12 =
-      leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw;
-    const isLeader1 =
-      leader1Raw === normalizedFull ||
-      (!leader1Raw && !leader12Raw && !leader144Raw && !leader1728Raw);
-
-    console.log("Leadership detection:", {
-      isLeader144,
-      isLeader12,
-      isLeader1,
-      isSelfL1: leader1Raw === normalizedFull,
-    });
-
-    if (isLeader144) {
-      leadersToFill = {
-        leader1: person.leader1 || "",
-        leader12: person.leader12 || "",
-        leader144: person.fullName || "",
-      };
-      console.log("DETECTED: Leader @144");
-    } else if (isLeader12) {
-      leadersToFill = {
-        leader1: person.leader1 || "",
-        leader12: person.fullName || "",
-        leader144: "",
-      };
-      console.log("DETECTED: Leader @12");
-    } else if (isLeader1) {
-      leadersToFill = {
-        leader1: person.fullName || "",
-        leader12: "",
-        leader144: "",
-      };
-    } else {
-      leadersToFill = {
-        leader1: person.leader1 || "",
-        leader12: person.leader12 || "",
-        leader144: person.leader144 || "",
-      };
-      console.log("REGULAR: Person has complete leadership chain");
-    }
-
-    setAutoFilledLeaders(leadersToFill);
-    console.log("Final auto-filled leaders:", leadersToFill);
   };
 
   const handleInviterInputChange = (value) => {
@@ -369,7 +315,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
       const result = await response.json();
       console.log("Person created:", result);
       toast.success("Person created successfully!");
-      await authFetch(`${BACKEND_URL}/cache/refresh`, { method: "POST" });
+      await authFetch(`${BACKEND_URL}/cache/people/refresh`, { method: "POST" });
       handleClose();
     } catch (error) {
       console.error("Error creating person:", error);
@@ -1050,17 +996,20 @@ const LeaderSelectionModal = ({
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
   useEffect(() => {
-    if (isOpen && autoFilledLeaders) {
-      const filledLeaders = {
-        leader1: autoFilledLeaders.leader1 || "",
-        leader12: autoFilledLeaders.leader12 || "",
-        leader144: autoFilledLeaders.leader144 || "",
-      };
-
-      setLeaderData(filledLeaders);
-      setLeaderSearches(filledLeaders);
+    if (isOpen) {
+      // Always start with empty leader fields — no auto-fill
+      setLeaderData({
+        leader1: "",
+        leader12: "",
+        leader144: "",
+      });
+      setLeaderSearches({
+        leader1: "",
+        leader12: "",
+        leader144: "",
+      });
     }
-  }, [isOpen, autoFilledLeaders]);
+  }, [isOpen]);
 
   const fetchLeaders = async (searchTerm, leaderField) => {
     if (!searchTerm || searchTerm.length < 1) {

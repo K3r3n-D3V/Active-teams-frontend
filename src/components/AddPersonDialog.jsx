@@ -242,7 +242,6 @@ export default function AddPersonDialog({
     }
     const label = typeof value === "string" ? value : value.label;
     setFormData((p) => ({ ...p, invitedBy: label }));
-    setShowLeaderFields(true);
   }, []);
 
   const filterOptions = useCallback((options, { inputValue }) => {
