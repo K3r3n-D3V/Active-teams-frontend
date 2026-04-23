@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo, useContext } from "react";
+import { useEffect, useState, useCallback, useMemo, useContext, useRef } from "react";
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, Typography, useTheme, MenuItem, Autocomplete,
@@ -62,8 +62,7 @@ function extractLeaders(person) {
 
 export default function AddPersonDialog({
   open, onClose, onSave, formData, setFormData,
-  isEdit = false, personId = null, currentEventId,
-  preloadedPeople = [],
+  isEdit = false, personId = null,
   editingPersonObject = null,
 }) {
   const theme = useTheme();
@@ -80,22 +79,81 @@ export default function AddPersonDialog({
 
   const debouncedAddressInput = useDebounce(searchInputs.address || "", 500);
 
-  const peopleOptions = useMemo(() =>
-    preloadedPeople.map((p) => {
-      const name = p.name || p.Name || "";
-      const surname = p.surname || p.Surname || "";
-      const email = p.email || p.Email || "";
-      const fullName = `${name} ${surname}`.trim();
+  const [allPeople, setAllPeople] = useState([]);
+  const isFetchingRef = useRef(false);
+
+  useEffect(() => {
+    if (!open) return;
+
+    const mapPerson = (raw) => {
+      const name = (raw.Name || raw.name || "").toString().trim();
+      const surname = (raw.Surname || raw.surname || "").toString().trim();
       return {
-        label: fullName,
-        person: p,
-        FullName: p.fullName || fullName,
-        Email: email,
-        searchText: `${name} ${surname} ${email}`.toLowerCase(),
+        _id: (raw._id || raw.id || "").toString(),
+        name,
+        surname,
+        email: (raw.Email || raw.email || "").toString().trim(),
+        phone: (raw.Number || raw.phone || raw.Phone || "").toString().trim(),
+        fullName: `${name} ${surname}`.trim(),
+        fullNameLower: `${name} ${surname}`.toLowerCase().trim(),
+        leader1: raw["Leader @1"] || raw.leader1 || "",
+        leader12: raw["Leader @12"] || raw.leader12 || "",
+        leader144: raw["Leader @144"] || raw.leader144 || "",
       };
-    }),
-    [preloadedPeople]
-  );
+    };
+
+    const now = Date.now();
+    const CACHE_DURATION = 30 * 60 * 1000;
+    if (
+      window.globalPeopleCache?.length > 0 &&
+      window.globalCacheTimestamp &&
+      now - window.globalCacheTimestamp < CACHE_DURATION
+    ) {
+      setAllPeople(window.globalPeopleCache.map(p => ({
+        ...p,
+        fullNameLower: p.fullNameLower || `${p.name || ""} ${p.surname || ""}`.toLowerCase().trim(),
+        leader1: p.leader1 || "",
+        leader12: p.leader12 || "",
+        leader144: p.leader144 || "",
+      })));
+      return;
+    }
+
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
+
+    (async () => {
+      try {
+        const res = await authFetch(`${BASE_URL}/cache/people`);
+        if (!res.ok) throw new Error("Failed");
+        const data = await res.json();
+        const rawPeople = data?.cached_data || [];
+        if (rawPeople.length > 0) {
+          const mapped = rawPeople.map(mapPerson);
+          window.globalPeopleCache = mapped;
+          window.globalCacheTimestamp = Date.now();
+          setAllPeople(mapped);
+        }
+      } catch (err) {
+        console.error("AddPersonDialog: failed to load people", err);
+      } finally {
+        isFetchingRef.current = false;
+      }
+    })();
+  }, [open]);
+
+  const peopleOptions = useMemo(() => {
+    const source = allPeople.length > 0
+      ? allPeople
+      : (window.globalPeopleCache?.length > 0 ? window.globalPeopleCache : []);
+
+    return source.map((p) => ({
+      label: p.fullName || `${p.name || ""} ${p.surname || ""}`.trim(),
+      person: p,
+      fullNameLower: p.fullNameLower || `${p.name || ""} ${p.surname || ""}`.toLowerCase(),
+      searchText: `${p.fullNameLower || ""} ${p.email || ""} ${p.phone || ""}`,
+    }));
+  }, [allPeople]);
 
   useEffect(() => {
     if (!open) {
@@ -176,43 +234,22 @@ export default function AddPersonDialog({
     setErrors((p) => ({ ...p, number: "" }));
   };
 
+  // Sets invitedBy only — leader fields are filled manually by the user
   const handleInvitedByChange = useCallback((value) => {
     if (!value) {
-      setFormData((p) => ({ ...p, invitedBy: "", leader1: "", leader12: "", leader144: "" }));
+      setFormData((p) => ({ ...p, invitedBy: "" }));
       return;
     }
     const label = typeof value === "string" ? value : value.label;
-    const matched = preloadedPeople.find((p) => {
-      const fn = `${p.name || p.Name || ""} ${p.surname || p.Surname || ""}`.trim();
-      return fn === label || (p.fullName || "") === label;
-    });
-
-    if (!matched) {
-      setFormData((p) => ({ ...p, invitedBy: label }));
-      return;
-    }
-
-    const leaders = extractLeaders(matched);
-    const inviterName = `${matched.name || matched.Name || ""} ${matched.surname || matched.Surname || ""}`.trim()
-      || matched.email || matched.Email || label;
-
-    let { leader1, leader12, leader144 } = leaders;
-    if (!leader1) leader1 = inviterName;
-    else if (!leader12) leader12 = inviterName;
-    else if (!leader144) leader144 = inviterName;
-
-    if (!leaderFieldsEdited) {
-      setFormData((p) => ({ ...p, invitedBy: label, leader1, leader12, leader144 }));
-    } else {
-      setFormData((p) => ({ ...p, invitedBy: label }));
-    }
-    setShowLeaderFields(true);
-  }, [preloadedPeople, leaderFieldsEdited]);
+    setFormData((p) => ({ ...p, invitedBy: label }));
+  }, []);
 
   const filterOptions = useCallback((options, { inputValue }) => {
-    if (!inputValue) return options.slice(0, 30);
-    const term = inputValue.toLowerCase();
-    return options.filter((o) => o.searchText.includes(term)).slice(0, 50);
+    if (!inputValue?.trim()) return options.slice(0, 30);
+    const term = inputValue.toLowerCase().trim();
+    return options
+      .filter((o) => o.searchText.includes(term))
+      .slice(0, 50);
   }, []);
 
   const hasChanges = useMemo(() => {
@@ -221,14 +258,15 @@ export default function AddPersonDialog({
   }, [isEdit, formData, originalFormData]);
 
   const validate = () => {
-    const required = ["name", "surname", "dob", "address", "email", "number", "gender"];
+    const required = ["name", "surname", "dob", "address", "email", "number", "gender", "leader1"];
     const errs = {};
     required.forEach((f) => { if (!formData[f]?.trim()) errs[f] = "This field is required"; });
     setErrors(errs);
     return Object.keys(errs).length === 0;
   };
+
   const isFormValid = () =>
-    ["name", "surname", "dob", "address", "email", "number", "gender"].every(
+    ["name", "surname", "dob", "address", "email", "number", "gender", "leader1"].every(
       (f) => formData[f]?.toString().trim() !== ""
     );
 
@@ -345,8 +383,9 @@ export default function AddPersonDialog({
   const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
     const currentValue = formData[name] || "";
     const isLeaderField = name.startsWith("leader");
+    const currentRole = String(user?.role || "").toLowerCase();
     const allowedRoles = ["leaderat12", "leader", "admin", "manager"];
-    const canEditLeaders = allowedRoles.includes(user?.role);
+    const canEditLeaders = allowedRoles.includes(currentRole);
     const fieldDisabled = disabled || (isLeaderField && !canEditLeaders);
     return (
       <Autocomplete
@@ -448,20 +487,24 @@ export default function AddPersonDialog({
             select: true, selectOptions: ["Male", "Female"], required: true,
           })}
 
-          {/* Leader fields — always collapsible */}
+          {/* Leader @1 — always visible, required */}
+          <Box sx={{ mt: 1 }}>
+            <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 0.5 }}>
+              Leadership
+            </Typography>
+            {renderAutocomplete("leader1", "Leader @1 *", false, false)}
+          </Box>
+
+          {/* Leader @12 and @144 — collapsible */}
           <Collapse in={showLeaderFields}>
-            <Box sx={{ mt: 2 }}>
-              <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 1 }}>
-                Additional Leaders
-              </Typography>
-              {renderAutocomplete("leader1", "Leader @1", false, false)}
+            <Box>
               {renderAutocomplete("leader12", "Leader @12", false, false)}
               {renderAutocomplete("leader144", "Leader @144", false, false)}
             </Box>
           </Collapse>
 
-          {/* Toggle button — ALWAYS visible */}
-          <Box sx={{ mt: 2, textAlign: "center" }}>
+          {/* Toggle button for @12 and @144 */}
+          <Box sx={{ mt: 1, textAlign: "center" }}>
             <Button
               onClick={() => setShowLeaderFields((v) => !v)}
               startIcon={<LeaderIcon />}
@@ -469,7 +512,7 @@ export default function AddPersonDialog({
               color="primary"
               size="small"
             >
-              {showLeaderFields ? "Hide Leaders" : "View Additional Leaders"}
+              {showLeaderFields ? "Hide Additional Leaders" : "Add Additional Leaders"}
             </Button>
           </Box>
         </Box>

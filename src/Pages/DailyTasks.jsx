@@ -219,13 +219,6 @@ export default function DailyTasks() {
     return `${year}-${month}-${day}T${hours}:${minutes}`;
   };
 
-  console.log("Deleting:", selectedTypeToManage);
-  console.log(
-    "Deleting tasktype:",
-    selectedTypeToManage?.name,
-    selectedTypeToManage?.id,
-  );
-
   const fetchTaskTypes = async () => {
     try {
       const res = await authFetch(`${API_URL}/tasktypes`);
