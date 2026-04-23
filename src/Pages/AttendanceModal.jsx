@@ -1991,11 +1991,9 @@ const AttendanceModal = ({
           return;
         }
       }
-
-      // Fallback to API search, but fetch full details for each result
       setIsSearching(true);
       authFetch(
-        `${BACKEND_URL}/people/search?query=${encodeURIComponent(query)}&limit=100`,
+        `${BACKEND_URL}/people?name=${encodeURIComponent(q)}&perPage=200`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("access_token")}`,
@@ -2003,70 +2001,30 @@ const AttendanceModal = ({
         },
       )
         .then((res) => res.json())
-        .then(async (data) => {
-          const arr = data.results || [];
+        .then((data) => {
+          const arr = data.results || data.people || [];
+          const formatted = arr.map((p) => {
+            // Handle multiple field name variations for leaders
+            const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || "";
+            const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || "";
+            const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || "";
+            const leader1728 = p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || "";
 
-          // For each search result, try to find in cache first, then fetch if needed
-          const peopleWithLeaders = await Promise.all(
-            arr.map(async (person) => {
-              // First check if we have this person in cache
-              const cachedPerson = cachedData.find(p => p.id === person._id);
-              if (cachedPerson) {
-                return cachedPerson;
-              }
-
-              // If not in cache, fetch full details
-              try {
-                const fullRes = await authFetch(`${BACKEND_URL}/people/${person._id}`, {
-                  headers: {
-                    Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-                  },
-                });
-
-                if (fullRes.ok) {
-                  const fullPerson = await fullRes.json();
-                  const personData = fullPerson.person || fullPerson;
-
-                  const leader1 = personData["Leader @1"] || personData["Leader at 1"] || personData["Leader @ 1"] || personData.leader1 || "";
-                  const leader12 = personData["Leader @12"] || personData["Leader at 12"] || personData["Leader @ 12"] || personData.leader12 || "";
-                  const leader144 = personData["Leader @144"] || personData["Leader at 144"] || personData["Leader @ 144"] || personData.leader144 || "";
-                  const leader1728 = personData["Leader @1728"] || personData["Leader at 1728"] || personData["Leader @ 1728"] || personData.leader1728 || "";
-
-                  return {
-                    id: person._id,
-                    fullName: `${personData.Name || ""} ${personData.Surname || ""}`.trim(),
-                    email: personData.Email || "",
-                    leader1: leader1,
-                    leader12: leader12,
-                    leader144: leader144,
-                    leader1728: leader1728,
-                    phone: personData.Number || personData.Phone || "",
-                    invitedBy: personData.InvitedBy || "",
-                    searchText:
-                      `${personData.Name || ""} ${personData.Surname || ""} ${personData.Email || ""} ${leader1} ${leader12} ${leader144} ${leader1728}`.toLowerCase(),
-                  };
-                }
-              } catch (error) {
-                console.error(`Failed to fetch full details for ${person._id}:`, error);
-              }
-
-              // Final fallback - basic info without leaders
-              return {
-                id: person._id,
-                fullName: `${person.Name || ""} ${person.Surname || ""}`.trim(),
-                email: person.Email || "",
-                leader1: "",
-                leader12: "",
-                leader144: "",
-                leader1728: "",
-                phone: person.Number || person.Phone || "",
-                invitedBy: person.InvitedBy || "",
-                searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase(),
-              };
-            })
-          );
-
-          setPeople(peopleWithLeaders);
+            return {
+              id: p._id,
+              fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
+              email: p.Email || "",
+              leader1: leader1,
+              leader12: leader12,
+              leader144: leader144,
+              leader1728: leader1728,
+              phone: p.Number || p.Phone || "",
+              invitedBy: p.InvitedBy || "",
+              searchText:
+                `${p.Name || ""} ${p.Surname || ""} ${p.Email || ""} ${leader1} ${leader12} ${leader144} ${leader1728}`.toLowerCase(),
+            };
+          });
+          setPeople(formatted);
         })
         .catch(() => setPeople([]))
         .finally(() => setIsSearching(false));
