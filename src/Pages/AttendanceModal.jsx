@@ -1975,10 +1975,27 @@ const AttendanceModal = ({
         return;
       }
 
-      // For actual searches, use the API to get complete results with all leader fields
+      // First try to search from cached data (which has leader fields)
+      const cachedData = preloadedPeople.length > 0
+        ? preloadedPeople
+        : window.globalPeopleCache?.data || [];
+
+      if (cachedData.length > 0) {
+        const cachedResults = cachedData.filter((p) =>
+          (p.searchText || "").includes(query)
+        ).slice(0, 100);
+
+        if (cachedResults.length > 0) {
+          setPeople(cachedResults);
+          setIsSearching(false);
+          return;
+        }
+      }
+
+      // Fallback to API search, but fetch full details for each result
       setIsSearching(true);
       authFetch(
-        `${BACKEND_URL}/people/search?query=${encodeURIComponent(query)}&limit=500`,
+        `${BACKEND_URL}/people/search?query=${encodeURIComponent(query)}&limit=100`,
         {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("access_token")}`,
@@ -1986,30 +2003,70 @@ const AttendanceModal = ({
         },
       )
         .then((res) => res.json())
-        .then((data) => {
+        .then(async (data) => {
           const arr = data.results || [];
-          const formatted = arr.map((p) => {
-            // Handle multiple field name variations for leaders
-            const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || "";
-            const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || "";
-            const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || "";
-            const leader1728 = p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || "";
-            
-            return {
-              id: p._id,
-              fullName: `${p.Name || ""} ${p.Surname || ""}`.trim(),
-              email: p.Email || "",
-              leader1: leader1,
-              leader12: leader12,
-              leader144: leader144,
-              leader1728: leader1728,
-              phone: p.Number || p.Phone || "",
-              invitedBy: p.InvitedBy || "",
-              searchText:
-                `${p.Name || ""} ${p.Surname || ""} ${p.Email || ""} ${leader1} ${leader12} ${leader144} ${leader1728}`.toLowerCase(),
-            };
-          });
-          setPeople(formatted);
+
+          // For each search result, try to find in cache first, then fetch if needed
+          const peopleWithLeaders = await Promise.all(
+            arr.map(async (person) => {
+              // First check if we have this person in cache
+              const cachedPerson = cachedData.find(p => p.id === person._id);
+              if (cachedPerson) {
+                return cachedPerson;
+              }
+
+              // If not in cache, fetch full details
+              try {
+                const fullRes = await authFetch(`${BACKEND_URL}/people/${person._id}`, {
+                  headers: {
+                    Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+                  },
+                });
+
+                if (fullRes.ok) {
+                  const fullPerson = await fullRes.json();
+                  const personData = fullPerson.person || fullPerson;
+
+                  const leader1 = personData["Leader @1"] || personData["Leader at 1"] || personData["Leader @ 1"] || personData.leader1 || "";
+                  const leader12 = personData["Leader @12"] || personData["Leader at 12"] || personData["Leader @ 12"] || personData.leader12 || "";
+                  const leader144 = personData["Leader @144"] || personData["Leader at 144"] || personData["Leader @ 144"] || personData.leader144 || "";
+                  const leader1728 = personData["Leader @1728"] || personData["Leader at 1728"] || personData["Leader @ 1728"] || personData.leader1728 || "";
+
+                  return {
+                    id: person._id,
+                    fullName: `${personData.Name || ""} ${personData.Surname || ""}`.trim(),
+                    email: personData.Email || "",
+                    leader1: leader1,
+                    leader12: leader12,
+                    leader144: leader144,
+                    leader1728: leader1728,
+                    phone: personData.Number || personData.Phone || "",
+                    invitedBy: personData.InvitedBy || "",
+                    searchText:
+                      `${personData.Name || ""} ${personData.Surname || ""} ${personData.Email || ""} ${leader1} ${leader12} ${leader144} ${leader1728}`.toLowerCase(),
+                  };
+                }
+              } catch (error) {
+                console.error(`Failed to fetch full details for ${person._id}:`, error);
+              }
+
+              // Final fallback - basic info without leaders
+              return {
+                id: person._id,
+                fullName: `${person.Name || ""} ${person.Surname || ""}`.trim(),
+                email: person.Email || "",
+                leader1: "",
+                leader12: "",
+                leader144: "",
+                leader1728: "",
+                phone: person.Number || person.Phone || "",
+                invitedBy: person.InvitedBy || "",
+                searchText: `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase(),
+              };
+            })
+          );
+
+          setPeople(peopleWithLeaders);
         })
         .catch(() => setPeople([]))
         .finally(() => setIsSearching(false));
@@ -2080,74 +2137,77 @@ const AttendanceModal = ({
     return () => window.removeEventListener("resize", checkScreenSize);
   }, []);
   useEffect(() => {
-    if (isOpen) {
-      const loadPeople = async () => {
-        const now = Date.now();
-        const CACHE_DURATION = 5 * 60 * 1000;
+  if (isOpen) {
+    const loadPeople = async () => {
+      const now = Date.now();
+      const CACHE_DURATION = 5 * 60 * 1000;
 
-        if (
-          window.globalPeopleCache?.data?.length > 0 &&
-          now - window.globalPeopleCache.timestamp < CACHE_DURATION
-        ) {
-          console.log("Using cached people data in AttendanceModal");
-          setPreloadedPeople(window.globalPeopleCache.data);
-          setPeople(window.globalPeopleCache.data.slice(0, 50));
-        } else {
-          console.log("Cache empty or expired, loading fresh data");
-          setIsLoadingPeople(true);
-          try {
-            const token = localStorage.getItem("access_token");
-            const headers = { Authorization: `Bearer ${token}` };
-            const res = await authFetch(`${BACKEND_URL}/people?perPage=200`, {
-              headers,
-            });
-            if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
-            const data = await res.json();
+      if (
+        window.globalPeopleCache?.data?.length > 0 &&
+        now - window.globalPeopleCache.timestamp < CACHE_DURATION
+      ) {
+        console.log("Using cached people data in AttendanceModal");
+        setPreloadedPeople(window.globalPeopleCache.data);
+        setPeople(window.globalPeopleCache.data.slice(0, 50));
+      } else {
+        console.log("Cache empty or expired, loading fresh data");
+        setIsLoadingPeople(true);
+        try {
+          const token = localStorage.getItem("access_token");
+          const headers = { Authorization: `Bearer ${token}` };
+          
+          // CHANGED: Use new endpoint that returns ALL people with complete fields
+          const res = await authFetch(`${BACKEND_URL}/people/all-with-fields?perPage=200`, {
+            headers,
+          });
+          
+          if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
+          const data = await res.json();
 
-            const peopleArray = data.results || data.people || [];
+          const peopleArray = data.results || data.people || [];
 
-            const formatted = peopleArray.map((person) => {
-              const fullName =
-                `${person.Name || ""} ${person.Surname || ""}`.trim();
-              const leader1 = person["Leader @1"] || person.leader1 || "";
-              const leader12 = person["Leader @12"] || person.leader12 || "";
-              const leader144 = person["Leader @144"] || person.leader144 || "";
-              const leader1728 =
-                person["Leader @1728"] || person.leader1728 || "";
+          const formatted = peopleArray.map((person) => {
+            const fullName =
+              `${person.Name || ""} ${person.Surname || ""}`.trim();
+            const leader1 = person["Leader @1"] || person.leader1 || "";
+            const leader12 = person["Leader @12"] || person.leader12 || "";
+            const leader144 = person["Leader @144"] || person.leader144 || "";
+            const leader1728 =
+              person["Leader @1728"] || person.leader1728 || "";
 
-              return {
-                id: person._id,
-                fullName: fullName,
-                email: person.Email || "",
-                leader1: leader1,
-                leader12: leader12,
-                leader144: leader144,
-                leader1728: leader1728,
-                phone: person.Number || person.Phone || "",
-                invitedBy: person.InvitedBy || "",
-                searchText:
-                  `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase(),
-              };
-            });
-
-            window.globalPeopleCache = {
-              data: formatted,
-              timestamp: now,
-              expiry: CACHE_DURATION,
+            return {
+              id: person._id,
+              fullName: fullName,
+              email: person.Email || "",
+              leader1: leader1,
+              leader12: leader12,
+              leader144: leader144,
+              leader1728: leader1728,
+              phone: person.Number || person.Phone || "",
+              invitedBy: person.InvitedBy || "",
+              searchText:
+                `${person.Name || ""} ${person.Surname || ""} ${person.Email || ""}`.toLowerCase(),
             };
-            setPreloadedPeople(formatted);
-            setPeople(formatted.slice(0, 50));
-          } catch (err) {
-            console.error("Error pre-loading people:", err);
-          } finally {
-            setIsLoadingPeople(false);
-          }
-        }
-      };
+          });
 
-      loadPeople();
-    }
-  }, [isOpen, authFetch, BACKEND_URL]);
+          window.globalPeopleCache = {
+            data: formatted,
+            timestamp: now,
+            expiry: CACHE_DURATION,
+          };
+          setPreloadedPeople(formatted);
+          setPeople(formatted.slice(0, 50));
+        } catch (err) {
+          console.error("Error pre-loading people:", err);
+        } finally {
+          setIsLoadingPeople(false);
+        }
+      }
+    };
+
+    loadPeople();
+  }
+}, [isOpen, authFetch, BACKEND_URL]);
 
   useEffect(() => {
     if (activeTab !== 1) return;
