@@ -111,6 +111,19 @@ export default function DailyTasks() {
   const [deletingTaskType, setDeletingTaskType] = useState(false);
   const API_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
+  
+  useEffect(() => {
+    console.log("Total tasks:", tasks.length);
+    console.log("Tasks breakdown:", {
+      all: tasks.length,
+      call: tasks.filter(t => t.type === "call").length,
+      visit: tasks.filter(t => t.type === "visit").length,
+      consolidation: tasks.filter(t => t.taskType === "consolidation" || t.is_consolidation_task).length,
+    });
+    
+    
+  }, [tasks]);
+
   const getCurrentDateTime = () => {
     const now = new Date();
     const offset = now.getTimezoneOffset();
@@ -770,7 +783,8 @@ export default function DailyTasks() {
               date: data.task.followup_date,
               status: (data.task.status || "Open").toLowerCase(),
               taskName: data.task.name,
-              type: data.task.type,
+              // type: data.task.type,
+              type: taskPayload.type,
             },
             ...prev,
           ]);
@@ -943,6 +957,8 @@ export default function DailyTasks() {
         selectedTask?.taskType === "consolidation" ||
         selectedTask?.is_consolidation_task;
 
+        const taskTypeValue = formType || "call"; // "call", "visit", or "consolidation"
+
       const taskPayload = {
         memberID: user.id,
         name: isConsolidationTask
@@ -963,7 +979,8 @@ export default function DailyTasks() {
         },
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
-        type: formType || "call",
+        // type: formType || "call",
+        type: taskTypeValue,
         assignedfor: taskData.assignedEmail || user.email,
         assigned_to_email: taskData.assignedEmail || user.email,
         created_by_email: user.email,
@@ -971,6 +988,7 @@ export default function DailyTasks() {
       };
 
       if (isConsolidationTask) {
+      
         taskPayload.leader_name =
           selectedTask.leader_name || taskData.assignedTo;
         taskPayload.leader_assigned =
@@ -1010,49 +1028,71 @@ export default function DailyTasks() {
   };
 
   const filteredTasks = tasks.filter((task) => {
-    const taskDate = parseDate(task.date);
-    if (!taskDate) return false;
-    let matchesType =
-      filterType === "all" ||
-      task.type === filterType ||
-      (filterType === "consolidation" && task.taskType === "consolidation");
-    let matchesDate = true;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (dateRange === "today") {
-      matchesDate = isSameDay(taskDate, today);
-    } else if (dateRange === "thisWeek") {
-      const startOfWeek = getStartOfWeek(today);
-      const endOfWeek = getEndOfWeek(today);
-      matchesDate = isDateInRange(taskDate, startOfWeek, endOfWeek);
-    } else if (dateRange === "thisMonth") {
-      const startOfMonth = getStartOfMonth(today);
-      const endOfMonth = getEndOfMonth(today);
-      matchesDate = isDateInRange(taskDate, startOfMonth, endOfMonth);
-    } else if (dateRange === "previous7") {
-      const sevenDaysAgo = new Date(today);
-      sevenDaysAgo.setDate(today.getDate() - 6);
-      sevenDaysAgo.setHours(0, 0, 0, 0);
-      const endOfToday = new Date(today);
-      endOfToday.setHours(23, 59, 59, 999);
-      matchesDate = isDateInRange(taskDate, sevenDaysAgo, endOfToday);
-    } else if (dateRange === "previousWeek") {
-      const lastWeekDate = new Date(today);
-      lastWeekDate.setDate(today.getDate() - 7);
-      const startOfLastWeek = getStartOfWeek(lastWeekDate);
-      const endOfLastWeek = getEndOfWeek(lastWeekDate);
-      matchesDate = isDateInRange(taskDate, startOfLastWeek, endOfLastWeek);
-    } else if (dateRange === "previousMonth") {
-      const lastMonthDate = new Date(today);
-      lastMonthDate.setMonth(today.getMonth() - 1);
-      const startOfLastMonth = getStartOfMonth(lastMonthDate);
-      const endOfLastMonth = getEndOfMonth(lastMonthDate);
-      matchesDate = isDateInRange(taskDate, startOfLastMonth, endOfLastMonth);
-    }
+  const taskDate = parseDate(task.date);
+  if (!taskDate) return false;
+  
+  // Inside the task mapping, add this to resolve task type name
+let displayTaskType = task.type || "call";
+if (task.taskType && typeof task.taskType === 'string' && task.taskType.length === 24) {
+  const foundType = taskTypes.find(t => t._id === task.taskType || t.id === task.taskType);
+  if (foundType) {
+    displayTaskType = foundType.name.toLowerCase();
+  }
+}
 
-    return matchesType && matchesDate;
-  });
+const isConsolidation = displayTaskType === "consolidation" || 
+                        task.taskType === "consolidation" || 
+                        task.is_consolidation_task;
+  
+  let matchesType = false;
+  if (filterType === "all") {
+    matchesType = true;
+  } else if (filterType === "consolidation") {
+    matchesType = taskTypeName?.toLowerCase() === "consolidation" || 
+                  task.type === "consolidation" ||
+                  task.is_consolidation_task === true;
+  } else {
+    matchesType = task.type === filterType || 
+                  taskTypeName?.toLowerCase() === filterType;
+  }
+  
+  // Date filtering logic (keep your existing date range logic)
+  let matchesDate = true;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (dateRange === "today") {
+    matchesDate = isSameDay(taskDate, today);
+  } else if (dateRange === "thisWeek") {
+    const startOfWeek = getStartOfWeek(today);
+    const endOfWeek = getEndOfWeek(today);
+    matchesDate = isDateInRange(taskDate, startOfWeek, endOfWeek);
+  } else if (dateRange === "thisMonth") {
+    const startOfMonth = getStartOfMonth(today);
+    const endOfMonth = getEndOfMonth(today);
+    matchesDate = isDateInRange(taskDate, startOfMonth, endOfMonth);
+  } else if (dateRange === "previous7") {
+    const sevenDaysAgo = new Date(today);
+    sevenDaysAgo.setDate(today.getDate() - 6);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+    const endOfToday = new Date(today);
+    endOfToday.setHours(23, 59, 59, 999);
+    matchesDate = isDateInRange(taskDate, sevenDaysAgo, endOfToday);
+  } else if (dateRange === "previousWeek") {
+    const lastWeekDate = new Date(today);
+    lastWeekDate.setDate(today.getDate() - 7);
+    const startOfLastWeek = getStartOfWeek(lastWeekDate);
+    const endOfLastWeek = getEndOfWeek(lastWeekDate);
+    matchesDate = isDateInRange(taskDate, startOfLastWeek, endOfLastWeek);
+  } else if (dateRange === "previousMonth") {
+    const lastMonthDate = new Date(today);
+    lastMonthDate.setMonth(today.getMonth() - 1);
+    const startOfLastMonth = getStartOfMonth(lastMonthDate);
+    const endOfLastMonth = getEndOfMonth(lastMonthDate);
+    matchesDate = isDateInRange(taskDate, startOfLastMonth, endOfLastMonth);
+  }
 
+  return matchesType && matchesDate;
+});
   const downloadFilteredTasks = () => {
     try {
       if (!filteredTasks || filteredTasks.length === 0) {
@@ -1434,63 +1474,116 @@ export default function DailyTasks() {
           </div>
         </div>
 
-        <div
+       <div
+  style={{
+    display: "flex",
+    justifyContent: "center",
+    gap: "8px",
+    marginTop: "20px",
+    flexWrap: "wrap",
+    overflowX: "auto",
+    paddingBottom: "8px",
+  }}
+>
+  {["all", "call", "visit", "consolidation"].map((type) => {
+    // Get the actual task type ID for consolidation from taskTypes
+    let count = 0;
+    if (type === "all") {
+      count = filteredTasks.length; // Count only filtered tasks (respects date range)
+    } else if (type === "consolidation") {
+      // Find the consolidation task type ID
+      const consolidationType = taskTypes.find(
+        t => t.name?.toLowerCase() === "consolidation"
+      );
+      const consolidationId = consolidationType?._id || consolidationType?.id;
+      
+      count = filteredTasks.filter((task) => {
+        // Check by taskType ID or by type field
+        const isConsolidationById = consolidationId && task.taskType === consolidationId;
+        const isConsolidationByName = task.taskType === "consolidation" || 
+                                       task.type === "consolidation" ||
+                                       task.is_consolidation_task === true;
+        return isConsolidationById || isConsolidationByName;
+      }).length;
+    } else {
+      // For call and visit - check by type field or by taskType name
+      count = filteredTasks.filter((task) => {
+        const taskTypeName = task.taskTypeName || task.taskType;
+        return task.type === type || 
+               taskTypeName?.toLowerCase() === type ||
+               (task.taskType && taskTypes.find(t => 
+                 (t._id === task.taskType || t.id === task.taskType) && 
+                 t.name?.toLowerCase() === type
+               ));
+      }).length;
+    }
+
+    return (
+      <button
+        key={type}
+        style={{
+          padding: "8px 16px",
+          borderRadius: "20px",
+          border:
+            filterType === type
+              ? "none"
+              : `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
+          fontWeight: "600",
+          cursor: "pointer",
+          backgroundColor:
+            filterType === type
+              ? isDarkMode
+                ? "#fff"
+                : "#000"
+              : isDarkMode
+                ? "#2d2d2d"
+                : "#ffffff",
+          color:
+            filterType === type
+              ? isDarkMode
+                ? "#000"
+                : "#fff"
+              : isDarkMode
+                ? "#fff"
+                : "#1a1a24",
+          fontSize: "13px",
+          boxShadow:
+            filterType === type
+              ? isDarkMode
+                ? "0 2px 8px rgba(255,255,255,0.1)"
+                : "0 4px 24px rgba(0, 0, 0, 0.08)"
+              : "none",
+          whiteSpace: "nowrap",
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          gap: "8px",
+        }}
+        onClick={() => setFilterType(type)}
+      >
+        {type === "all"
+          ? "All"
+          : type.charAt(0).toUpperCase() + type.slice(1)}
+        <span
           style={{
-            display: "flex",
-            justifyContent: "center",
-            gap: "8px",
-            marginTop: "20px",
-            flexWrap: "wrap",
-            overflowX: "auto",
-            paddingBottom: "8px",
+            backgroundColor: filterType === type 
+              ? (isDarkMode ? "#e0e0e0" : "#333") 
+              : (isDarkMode ? "#444" : "#e5e7eb"),
+            color: filterType === type 
+              ? (isDarkMode ? "#000" : "#fff") 
+              : (isDarkMode ? "#fff" : "#1a1a24"),
+            borderRadius: "12px",
+            padding: "2px 8px",
+            fontSize: "11px",
+            fontWeight: "bold",
           }}
         >
-          {["all", "call", "visit", "consolidation"].map((type) => (
-            <button
-              key={type}
-              style={{
-                padding: "8px 16px",
-                borderRadius: "20px",
-                border:
-                  filterType === type
-                    ? "none"
-                    : `2px solid ${isDarkMode ? "#444" : "#e5e7eb"}`,
-                fontWeight: "600",
-                cursor: "pointer",
-                backgroundColor:
-                  filterType === type
-                    ? isDarkMode
-                      ? "#fff"
-                      : "#000"
-                    : isDarkMode
-                      ? "#2d2d2d"
-                      : "#ffffff",
-                color:
-                  filterType === type
-                    ? isDarkMode
-                      ? "#000"
-                      : "#fff"
-                    : isDarkMode
-                      ? "#fff"
-                      : "#1a1a24",
-                fontSize: "13px",
-                boxShadow:
-                  filterType === type
-                    ? isDarkMode
-                      ? "0 2px 8px rgba(255,255,255,0.1)"
-                      : "0 4px 24px rgba(0, 0, 0, 0.08)"
-                    : "none",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
-              }}
-              onClick={() => setFilterType(type)}
-            >
-              {type === "all"
-                ? "All"
-                : type.charAt(0).toUpperCase() + type.slice(1)}
-            </button>
-          ))}
-        </div>
+          {count}
+        </span>
+      </button>
+    );
+  })}
+</div>
       </div>
 
       {/* Task list container */}
