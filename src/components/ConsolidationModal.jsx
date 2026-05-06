@@ -18,6 +18,17 @@ import { debounce } from "lodash";
 import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
+// Helper to get next Wednesday after a given date
+function getNextWednesday(date = new Date()) {
+  const d = new Date(date);
+  const day = d.getDay();
+  // 3 = Wednesday
+  let daysToAdd = (3 - day + 7) % 7;
+  if (daysToAdd === 0) daysToAdd = 7; // always next week
+  d.setDate(d.getDate() + daysToAdd);
+  d.setHours(12, 0, 0, 0); // set to noon for consistency
+  return d;
+}
 
 const cleanEventId = (id) => id?.split("_")[0] ?? id;
 
@@ -87,7 +98,7 @@ const ConsolidationModal = ({
   const [alreadyConsolidated, setAlreadyConsolidated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { authFetch } = useContext(AuthContext);
+  const { authFetch, user } = useContext(AuthContext);
 
   const decisionTypes = ["First Time", "Recommitment"];
 
@@ -129,7 +140,12 @@ const resolveLeaderEmail = (leaderName, recipient) => {
     const found = recipient.leaders.find(
       (l) => (l.name || "").trim().toLowerCase() === leaderName.trim().toLowerCase()
     );
-    if (found?.email) return found.email;
+    if (found?.email) {
+      let leaderEmailLower = found.email.trim().toLowerCase();
+      return leaderEmailLower;
+    } else {
+      
+    }
   }
   return "";
 };
@@ -223,6 +239,52 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
     }
   }, [recipient, checkIfAlreadyConsolidated]);
 
+  // Import createTask logic from DailyTasks.jsx
+  const createTaskForLeader = async ({ leaderName, leaderEmail, person, eventId, decisionType }) => {
+    try {
+      // Normalize leader email
+      let normalizedEmail = (leaderEmail || "").trim().toLowerCase();
+      if (!normalizedEmail) {
+        console.warn("No leader email found for task assignment. Task will not be visible to leader.");
+        return;
+      }
+      const dueDate = getNextWednesday(new Date());
+      const taskPayload = {
+        memberID: user?.id || '',
+        name: leaderName,
+        taskType: "consolidation",
+        contacted_person: {
+          name: `${person.Name || person.name || ''} ${person.Surname || person.surname || ''}`.trim(),
+          phone: person.Phone || person.phone || '',
+          email: person.Email || person.email || '',
+        },
+        followup_date: dueDate.toISOString(),
+        status: "Open",
+        type: "consolidation",
+        assignedfor: normalizedEmail,
+        assigned_to_email: normalizedEmail,
+        created_by_email: (user?.email || '').trim().toLowerCase(),
+        created_by_name: `${user?.name || ''} ${user?.surname || ''}`.trim(),
+        event_id: eventId,
+        is_consolidation_task: true,
+        decision_type: decisionType,
+      };
+      const res = await authFetch(`${BASE_URL}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(taskPayload),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to create follow-up task");
+      }
+      // Optionally handle response
+    } catch (err) {
+      // Optionally show error to user
+      console.error("Error creating follow-up task:", err.message);
+    }
+  };
+
   const handleFinish = async () => {
     if (isSubmitting) return;
 
@@ -300,6 +362,15 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
 
       if (response.ok) {
         const responseData = await response.json();
+        // Create follow-up task for the leader
+        await createTaskForLeader({
+          leaderName: leaderInfo.leader,
+          leaderEmail: resolvedLeaderEmail,
+          person: recipient,
+          eventId: cleanEventId(currentEventId),
+          decisionType,
+        });
+
         setRecipient(null);
         setAssignedTo("");
         setTaskStage("");
