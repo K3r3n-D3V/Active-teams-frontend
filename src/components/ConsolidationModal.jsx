@@ -15,18 +15,13 @@ import { LoadingButton } from "@mui/lab";
 import dayjs from "dayjs";
 import Autocomplete from "@mui/material/Autocomplete";
 import { debounce } from "lodash";
+import { toast } from "react-toastify";
 import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
-// Helper to get next Wednesday after a given date
-function getNextWednesday(date = new Date()) {
+function getDueDate(date = new Date()) {
   const d = new Date(date);
-  const day = d.getDay();
-  // 3 = Wednesday
-  let daysToAdd = (3 - day + 7) % 7;
-  if (daysToAdd === 0) daysToAdd = 7; // always next week
-  d.setDate(d.getDate() + daysToAdd);
-  d.setHours(12, 0, 0, 0); // set to noon for consistency
+  d.setHours(d.getHours() + 24);
   return d;
 }
 
@@ -104,12 +99,15 @@ const ConsolidationModal = ({
 
   const debouncedSearch = useCallback(
     debounce(async (query) => {
-      if (!query || query.length < 2) { setRecipients([]); return; }
+      if (!query || query.length < 2) {
+        setRecipients([]);
+        return;
+      }
       try {
         setLoadingRecipients(true);
         setError("");
         const response = await authFetch(
-          `${BASE_URL}/people/search?query=${encodeURIComponent(query.trim())}&limit=25`
+          `${BASE_URL}/people/search?query=${encodeURIComponent(query.trim())}&limit=25`,
         );
         if (response.ok) {
           const data = await response.json();
@@ -132,42 +130,58 @@ const ConsolidationModal = ({
     [authFetch]
   );
 
+  const resolveLeaderEmail = (leaderName, recipient) => {
+    if (!leaderName || !recipient) return "";
 
-const resolveLeaderEmail = (leaderName, recipient) => {
-  if (!leaderName || !recipient) return "";
-  
-  if (Array.isArray(recipient.leaders)) {
-    const found = recipient.leaders.find(
-      (l) => (l.name || "").trim().toLowerCase() === leaderName.trim().toLowerCase()
-    );
-    if (found?.email) {
-      let leaderEmailLower = found.email.trim().toLowerCase();
-      return leaderEmailLower;
-    } else {
-      
+    if (Array.isArray(recipient.leaders)) {
+      const found = recipient.leaders.find(
+        (l) =>
+          (l.name || "").trim().toLowerCase() ===
+          leaderName.trim().toLowerCase(),
+      );
+      if (found?.email) {
+        const rawEmail = found.email;
+        const normalized = rawEmail.trim().toLowerCase();
+
+        console.log("Leader Email Found:");
+        console.log("Raw:", rawEmail);
+        console.log("Normalized:", normalized);
+
+        return normalized;
+      }
     }
-  }
-  return "";
-};
+    console.warn("No leader email found for:", recipient);
+    return "";
+  };
 
-  const searchLocalAttendees = useCallback((query) => {
-    if (!query || query.length < 2) { setRecipients([]); return; }
-    const term = query.toLowerCase().trim();
-    const filtered = attendeesWithStatus.filter(p => {
-      const s = `${p.name || ''} ${p.surname || ''} ${p.email || ''} ${p.phone || ''}`.toLowerCase();
-      return s.includes(term);
-    });
-    setRecipients(filtered.slice(0, 25));
-  }, [attendeesWithStatus]);
+  const searchLocalAttendees = useCallback(
+    (query) => {
+      if (!query || query.length < 2) {
+        setRecipients([]);
+        return;
+      }
+      const term = query.toLowerCase().trim();
+      const filtered = attendeesWithStatus.filter((p) => {
+        const s =
+          `${p.name || ""} ${p.surname || ""} ${p.email || ""} ${p.phone || ""}`.toLowerCase();
+        return s.includes(term);
+      });
+      setRecipients(filtered.slice(0, 25));
+    },
+    [attendeesWithStatus],
+  );
 
-  const handleSearch = useCallback((query) => {
-    setSearchQuery(query);
-    if (attendeesWithStatus.length > 0) {
-      searchLocalAttendees(query);
-    } else {
-      debouncedSearch(query);
-    }
-  }, [debouncedSearch, searchLocalAttendees, attendeesWithStatus.length]);
+  const handleSearch = useCallback(
+    (query) => {
+      setSearchQuery(query);
+      if (attendeesWithStatus.length > 0) {
+        searchLocalAttendees(query);
+      } else {
+        debouncedSearch(query);
+      }
+    },
+    [debouncedSearch, searchLocalAttendees, attendeesWithStatus.length],
+  );
 
   useEffect(() => {
     if (open) {
@@ -183,41 +197,56 @@ const resolveLeaderEmail = (leaderName, recipient) => {
     }
   }, [open]);
 
-const checkIfAlreadyConsolidated = useCallback((person) => {
-  if (!person) return false;
-  if (!consolidatedPeople || consolidatedPeople.length === 0) return false;
+  const checkIfAlreadyConsolidated = useCallback(
+    (person) => {
+      if (!person) return false;
+      if (!consolidatedPeople || consolidatedPeople.length === 0) return false;
 
-  const validEntries = consolidatedPeople.filter(
-    (c) =>
-      (c.person_email || c.email) ||
-      ((c.person_name || c.name) && (c.person_surname || c.surname))
+      const validEntries = consolidatedPeople.filter(
+        (c) =>
+          c.person_email ||
+          c.email ||
+          ((c.person_name || c.name) && (c.person_surname || c.surname)),
+      );
+      if (validEntries.length === 0) return false;
+
+      const personEmail = (person.Email || person.email || "")
+        .trim()
+        .toLowerCase();
+      const personFirstName = (person.Name || person.name || "")
+        .trim()
+        .toLowerCase();
+      const personLastName = (person.Surname || person.surname || "")
+        .trim()
+        .toLowerCase();
+      const personFullName = `${personFirstName} ${personLastName}`.trim();
+
+      if (!personEmail && !personFullName) return false;
+
+      return validEntries.some((c) => {
+        const cEmail = (c.email || c.person_email || "").trim().toLowerCase();
+        const cFirstName = (c.name || c.person_name || "").trim().toLowerCase();
+        const cLastName = (c.surname || c.person_surname || "")
+          .trim()
+          .toLowerCase();
+        const cFullName = `${cFirstName} ${cLastName}`.trim();
+
+        if (personEmail && cEmail && personEmail === cEmail) return true;
+
+        if (
+          personFirstName &&
+          personLastName &&
+          cFirstName &&
+          cLastName &&
+          personFullName === cFullName
+        )
+          return true;
+
+        return false;
+      });
+    },
+    [consolidatedPeople],
   );
-  if (validEntries.length === 0) return false;
-
-  const personEmail = (person.Email || person.email || "").trim().toLowerCase();
-  const personFirstName = (person.Name || person.name || "").trim().toLowerCase();
-  const personLastName = (person.Surname || person.surname || "").trim().toLowerCase();
-  const personFullName = `${personFirstName} ${personLastName}`.trim();
-
-  if (!personEmail && !personFullName) return false;
-
-  return validEntries.some((c) => {
-    const cEmail = (c.email || c.person_email || "").trim().toLowerCase();
-    const cFirstName = (c.name || c.person_name || "").trim().toLowerCase();
-    const cLastName = (c.surname || c.person_surname || "").trim().toLowerCase();
-    const cFullName = `${cFirstName} ${cLastName}`.trim();
-
-    if (personEmail && cEmail && personEmail === cEmail) return true;
-
-    if (
-      personFirstName && personLastName &&
-      cFirstName && cLastName &&
-      personFullName === cFullName
-    ) return true;
-
-    return false;
-  });
-}, [consolidatedPeople]);
 
   useEffect(() => {
     if (recipient) {
@@ -228,7 +257,9 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
       setAlreadyConsolidated(isAlready);
 
       if (isAlready) {
-        setError("This person has already been consolidated. Please select someone else.");
+        setError(
+          "This person has already been consolidated. Please select someone else.",
+        );
       } else {
         setError("");
       }
@@ -240,48 +271,79 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
   }, [recipient, checkIfAlreadyConsolidated]);
 
   // Import createTask logic from DailyTasks.jsx
-  const createTaskForLeader = async ({ leaderName, leaderEmail, person, eventId, decisionType }) => {
+  const createTaskForLeader = async ({
+    leaderName,
+    leaderEmail,
+    person,
+    eventId,
+    decisionType,
+  }) => {
     try {
+      console.log("createTaskForLeader INPUT:");
+      console.log("leaderName:", leaderName);
+      console.log("leaderEmail (resolved):", leaderEmail);
+      console.log("person:", person);
       // Normalize leader email
       let normalizedEmail = (leaderEmail || "").trim().toLowerCase();
+
+      console.log("Email Processing:");
+      console.log("Before normalize:", leaderEmail);
+      console.log("After normalize:", normalizedEmail);
       if (!normalizedEmail) {
-        console.warn("No leader email found for task assignment. Task will not be visible to leader.");
+        console.warn(
+          "No leader email found for task assignment. Task will not be visible to leader.",
+        );
+        toast.warning("No leader email found. Task may not be visible to leader.");
         return;
       }
-      const dueDate = getNextWednesday(new Date());
+      const dueDate = getDueDate(new Date());
       const taskPayload = {
-        memberID: user?.id || '',
+        memberID: user?.id || "",
         name: leaderName,
         taskType: "consolidation",
         contacted_person: {
-          name: `${person.Name || person.name || ''} ${person.Surname || person.surname || ''}`.trim(),
-          phone: person.Phone || person.phone || '',
-          email: person.Email || person.email || '',
+          name: `${person.Name || person.name || ""} ${person.Surname || person.surname || ""}`.trim(),
+          phone: person.Phone || person.phone || "",
+          email: person.Email || person.email || "",
         },
         followup_date: dueDate.toISOString(),
         status: "Open",
         type: "consolidation",
         assignedfor: normalizedEmail,
         assigned_to_email: normalizedEmail,
-        created_by_email: (user?.email || '').trim().toLowerCase(),
-        created_by_name: `${user?.name || ''} ${user?.surname || ''}`.trim(),
+        created_by_email: (user?.email || "").trim().toLowerCase(),
+        created_by_name: `${user?.name || ""} ${user?.surname || ""}`.trim(),
         event_id: eventId,
         is_consolidation_task: true,
         decision_type: decisionType,
       };
+      console.log("TASK PAYLOAD:");
+      console.log({
+        assignedfor: normalizedEmail,
+        assigned_to_email: normalizedEmail,
+        created_by_email: (user?.email || "").trim().toLowerCase(),
+        leaderName,
+        person: {
+          name: `${person.Name || person.name || ""} ${person.Surname || person.surname || ""}`.trim(),
+          email: person.Email || person.email || "",
+        },
+        followup_date: dueDate,
+      });
       const res = await authFetch(`${BASE_URL}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(taskPayload),
       });
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
         throw new Error(data.message || "Failed to create follow-up task");
       }
-      // Optionally handle response
+      toast.success("Consolidation task created for leader!");
+      return data;
     } catch (err) {
-      // Optionally show error to user
       console.error("Error creating follow-up task:", err.message);
+      toast.error("Failed to create follow-up task: " + err.message);
+      throw err;
     }
   };
 
@@ -302,13 +364,17 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
     const isAlready = checkIfAlreadyConsolidated(recipient);
     if (isAlready) {
       setAlreadyConsolidated(true);
-      setError("This person has already been consolidated. Please select someone else.");
+      setError(
+        "This person has already been consolidated. Please select someone else.",
+      );
       return;
     }
 
     const leaderInfo = getHighestAvailableLeader(recipient);
     if (!leaderInfo.hasLeader) {
-      setError("Cannot create consolidation task: No leader available for this person.");
+      setError(
+        "Cannot create consolidation task: No leader available for this person.",
+      );
       return;
     }
 
@@ -316,7 +382,9 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
     setLoading(true);
 
     const decisionType =
-      taskStage.toLowerCase() === "recommitment" ? "recommitment" : "first_time";
+      taskStage.toLowerCase() === "recommitment"
+        ? "recommitment"
+        : "first_time";
 
     const leadersMap = resolveLeadersFromPerson(recipient);
     const leadersArray = [
@@ -327,7 +395,12 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
     ];
 
     try {
-      const resolvedLeaderEmail = resolveLeaderEmail(leaderInfo.leader, recipient);
+      const resolvedLeaderEmail = resolveLeaderEmail(
+        leaderInfo.leader,
+        recipient,
+      );
+      // Normalize email to lowercase to ensure consistency
+      const normalizedLeaderEmail = (resolvedLeaderEmail || "").trim().toLowerCase();
 
       const consolidationData = {
         person_name: recipient.Name || recipient.name || "",
@@ -337,7 +410,7 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
         decision_type: decisionType,
         decision_date: new Date().toISOString().split("T")[0],
         assigned_to: leaderInfo.leader,
-        assigned_to_email: resolvedLeaderEmail,
+        assigned_to_email: normalizedLeaderEmail,
         event_id: cleanEventId(currentEventId),
         leaders: leadersArray,
         source: "service_consolidation",
@@ -357,7 +430,7 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
         {
           method: "POST",
           body: JSON.stringify(consolidationData),
-        }
+        },
       );
 
       if (response.ok) {
@@ -365,7 +438,7 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
         // Create follow-up task for the leader
         await createTaskForLeader({
           leaderName: leaderInfo.leader,
-          leaderEmail: resolvedLeaderEmail,
+          leaderEmail: normalizedLeaderEmail,
           person: recipient,
           eventId: cleanEventId(currentEventId),
           decisionType,
@@ -383,7 +456,8 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
 
         onFinish({
           ...responseData,
-          recipientName: `${recipient.Name || recipient.name || ""} ${recipient.Surname || recipient.surname || ""}`.trim(),
+          recipientName:
+            `${recipient.Name || recipient.name || ""} ${recipient.Surname || recipient.surname || ""}`.trim(),
           assignedTo: responseData.assigned_to || leaderInfo.leader,
           taskStage,
           decisionType,
@@ -399,14 +473,16 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
         setError(
           errorData?.detail
             ? `Error: ${errorData.detail}`
-            : `Server error (${response.status})`
+            : `Server error (${response.status})`,
         );
         setIsSubmitting(false);
         setLoading(false);
       }
     } catch (err) {
       console.error("Consolidation error:", err);
-      setError(err.message || "An unexpected error occurred. Please try again.");
+      setError(
+        err.message || "An unexpected error occurred. Please try again.",
+      );
       setIsSubmitting(false);
       setLoading(false);
     }
@@ -417,7 +493,8 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
   };
 
   const renderPersonOption = (props, option) => {
-    const fullName = `${option.Name || option.name || ""} ${option.Surname || option.surname || ""}`.trim();
+    const fullName =
+      `${option.Name || option.name || ""} ${option.Surname || option.surname || ""}`.trim();
     const isConsolidated = checkIfAlreadyConsolidated(option);
     return (
       <li {...props} key={option._id || option.id}>
@@ -425,7 +502,12 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
           <Typography variant="body1">
             {fullName}
             {isConsolidated && (
-              <Typography component="span" variant="caption" color="error" sx={{ ml: 1 }}>
+              <Typography
+                component="span"
+                variant="caption"
+                color="error"
+                sx={{ ml: 1 }}
+              >
                 (Already Consolidated)
               </Typography>
             )}
@@ -543,7 +625,9 @@ const checkIfAlreadyConsolidated = useCallback((person) => {
           margin="normal"
           required
           error={!taskStage && isSubmitting}
-          helperText={!taskStage && isSubmitting ? "Please select the decision made" : ""}
+          helperText={
+            !taskStage && isSubmitting ? "Please select the decision made" : ""
+          }
           sx={roundedInput}
         >
           {decisionTypes.map((type) => (
