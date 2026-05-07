@@ -664,11 +664,13 @@ if (profile?.leaders) {
           setSnackbar({ open: true, message: "Profile picture uploaded successfully!", severity: "success" });
         } else {
           if (setProfilePic) setProfilePic(croppedImage);
+          localStorage.setItem("profilePic", croppedImage);
           setSnackbar({ open: true, message: "Profile picture updated locally", severity: "info" });
         }
       } catch (uploadError) {
         console.error("Avatar upload failed:", uploadError);
         if (setProfilePic) setProfilePic(croppedImage);
+        localStorage.setItem("profilePic", croppedImage);
         setSnackbar({ open: true, message: "Profile picture updated locally only", severity: "warning" });
       }
       setCroppingOpen(false);
