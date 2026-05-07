@@ -367,8 +367,10 @@ export default function DailyTasks() {
 
     try {
       setLoading(true);
+      // Normalize email to lowercase for consistent querying
+      const normalizedEmail = (user.email || "").trim().toLowerCase();
       const res = await authFetch(
-        `${API_URL}/tasks?email=${encodeURIComponent(user.email)}`,
+        `${API_URL}/tasks?email=${encodeURIComponent(normalizedEmail)}`,
         { signal },
       );
       if (!res.ok) throw new Error("Failed to fetch tasks");
@@ -378,14 +380,16 @@ export default function DailyTasks() {
       const normalizedTasks = tasksArray.map((task) => {
         const isConsolidation =
           task.taskType === "consolidation" || task.is_consolidation_task;
+        const isNewPerson =
+          task.taskType === "new_person" || task.is_new_person_task;
         let assignedTo = "";
-        if (isConsolidation) {
+        if (isConsolidation || isNewPerson) {
           assignedTo =
             task.leader_name ||
             task.leader_assigned ||
             task.assigned_to ||
             `${user.name || ""} ${user.surname || ""}`.trim();
-          if (assignedTo.includes("@")) assignedTo = "Consolidation Leader";
+          if (assignedTo.includes("@")) assignedTo = isNewPerson ? "New Person Leader" : "Consolidation Leader";
         } else {
           assignedTo = task.name || task.assignedfor || "";
         }
@@ -416,22 +420,28 @@ export default function DailyTasks() {
           leader_assigned: task.leader_assigned,
           consolidation_name:
             task.consolidation_name ||
-            (isConsolidation
-              ? `${task.person_name || ""} ${task.person_surname || ""} - ${task.decision_display_name || "Consolidation"}`
+            (isConsolidation || isNewPerson
+              ? `${task.person_name || ""} ${task.person_surname || ""} - ${task.decision_display_name || (isNewPerson ? "New Person" : "Consolidation")}`
               : task.name),
           decision_display_name: task.decision_display_name,
           is_consolidation_task: isConsolidation,
+          is_new_person_task: isNewPerson,
         };
       });
 
       const myTasks = normalizedTasks.filter((task) => {
+        // Normalize emails to lowercase for case-insensitive comparison
+        const userEmailLower = (user.email || "").trim().toLowerCase();
+        const taskAssignedForLower = (task.assignedfor || "").trim().toLowerCase();
+        const taskAssignedToEmailLower = (task.assigned_to_email || "").trim().toLowerCase();
+
         const isMyTask =
-          task.assignedfor === user.email ||
-          task.assigned_to_email === user.email;
+          taskAssignedForLower === userEmailLower ||
+          taskAssignedToEmailLower === userEmailLower;
         const isAssignedToSomeoneElse =
           task.assignedfor &&
-          task.assignedfor !== user.email &&
-          task.assigned_to_email !== user.email;
+          taskAssignedForLower !== userEmailLower &&
+          taskAssignedToEmailLower !== userEmailLower;
         return isMyTask && !isAssignedToSomeoneElse;
       });
 
@@ -757,9 +767,14 @@ export default function DailyTasks() {
       if (!res.ok) throw new Error(data.message || "Failed to create task");
 
       if (data.task) {
+        // Normalize emails for case-insensitive comparison
+        const userEmailLower = (user.email || "").trim().toLowerCase();
+        const taskAssignedForLower = (data.task.assignedfor || "").trim().toLowerCase();
+        const taskAssignedToEmailLower = (data.task.assigned_to_email || "").trim().toLowerCase();
+
         const isAssignedToMe =
-          data.task.assignedfor === user.email ||
-          data.task.assigned_to_email === user.email;
+          taskAssignedForLower === userEmailLower ||
+          taskAssignedToEmailLower === userEmailLower;
 
         // Only add to local state if assigned to current user
         if (isAssignedToMe) {
@@ -1009,13 +1024,65 @@ export default function DailyTasks() {
     }
   };
 
+  // Helper function to get consolidation/new person chip info
+  const getTaskChipInfo = (task) => {
+    const isConsolidation = task.is_consolidation_task;
+    const isNewPerson = task.is_new_person_task;
+
+    if (!isConsolidation && !isNewPerson) return null;
+
+    // Get the service date from the task - try multiple field names
+    const serviceDate = task.decision_date || task.created_at || task.date;
+    if (!serviceDate) {
+      if (isConsolidation || isNewPerson) {
+        console.warn("No service date found for task:", task);
+      }
+      return null;
+    }
+
+    const date = new Date(serviceDate);
+    if (isNaN(date.getTime())) {
+      console.warn("Invalid date for task:", serviceDate);
+      return null;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - date.getTime();
+    const diffHours = diffTime / (1000 * 60 * 60);
+    const isOverdue = diffHours > 24;
+
+    // Format the date
+    const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const formattedDate = `${monthNames[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+
+    let text, backgroundColor, color;
+
+    if (isNewPerson) {
+      text = isOverdue ? `Overdue New Person - ${formattedDate}` : `New Person - ${formattedDate}`;
+      backgroundColor = isOverdue ? "#dbeafe" : "#bfdbfe";
+      color = isOverdue ? "#1e40af" : "#1e3a8a";
+    } else {
+      text = isOverdue ? `Overdue Consolidation - ${formattedDate}` : `Consolidation - ${formattedDate}`;
+      backgroundColor = isOverdue ? "#fee2e2" : "#fce7f3";
+      color = isOverdue ? "#991b1b" : "#be185d";
+    }
+
+    return {
+      text,
+      backgroundColor,
+      color,
+      isOverdue
+    };
+  };
+
   const filteredTasks = tasks.filter((task) => {
     const taskDate = parseDate(task.date);
     if (!taskDate) return false;
     let matchesType =
       filterType === "all" ||
       task.type === filterType ||
-      (filterType === "consolidation" && task.taskType === "consolidation");
+      (filterType === "consolidation" && (task.taskType === "consolidation" || task.taskType === "new_person"));
     let matchesDate = true;
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -1530,12 +1597,24 @@ export default function DailyTasks() {
           ) : (
             filteredTasks.map((task) => {
               const recipientName = task.contacted_person?.name || "";
-
               const isConsolidation =
                 task.taskType === "consolidation" || task.is_consolidation_task;
+              const isNewPerson =
+                task.taskType === "new_person" || task.is_new_person_task;
+
+              // Debug consolidation and new person tasks
+              if (isConsolidation || isNewPerson) {
+                console.log(`${isNewPerson ? "New Person" : "Consolidation"} task found:`, {
+                  name: recipientName,
+                  is_consolidation_task: task.is_consolidation_task,
+                  is_new_person_task: task.is_new_person_task,
+                  decision_date: task.decision_date,
+                  created_at: task.created_at,
+                  date: task.date
+                });
+              }
 
               const assignedDisplay = task.assignedTo || "";
-
               const sourceDisplay = task.source_display || "Manual";
 
               return (
@@ -1563,7 +1642,30 @@ export default function DailyTasks() {
                       minWidth: 0,
                     }}
                     onClick={() => handleEdit(task)}
-                  >
+                    >
+                    {(() => {
+                      const chipInfo = getTaskChipInfo(task);
+                      return chipInfo ? (
+                        <div style={{ marginBottom: "6px" }}>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              backgroundColor: chipInfo.backgroundColor,
+                              color: chipInfo.color,
+                              padding: "4px 8px",
+                              borderRadius: "4px",
+                              display: "inline-block",
+                              textTransform: "capitalize",
+                              letterSpacing: "0.3px",
+                            }}
+                          >
+                            {chipInfo.text}
+                          </span>
+                        </div>
+                      ) : null;
+                    })()}
+
                     <p
                       style={{
                         fontWeight: "700",
@@ -1577,6 +1679,7 @@ export default function DailyTasks() {
                     >
                       {recipientName || "No recipient"}
                     </p>
+
 
                     <p
                       style={{

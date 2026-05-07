@@ -134,7 +134,7 @@ const emptyForm = {
 const cleanEventId = (id) => id?.split("_")[0] ?? id;
 
 function ServiceCheckIn() {
-  const { authFetch } = useContext(AuthContext);
+  const { authFetch, user } = useContext(AuthContext);
   const { notifyTaskUpdate } = useTaskUpdate();
 
   const [attendees, setAttendees] = useState(() => {
@@ -840,6 +840,106 @@ const sortedFilteredAttendees = useMemo(() => {
     }
   }, [currentEventId, checkInLoading, presentIds, authFetch, fetchRealTimeEventData]);
 
+  // Helper function to get highest available leader
+  const getHighestAvailableLeader = (person) => {
+    if (!person) return { leader: "No Leader Assigned", level: 0, hasLeader: false };
+    
+    const leaders = [];
+    if (Array.isArray(person.leaders) && person.leaders.length > 0) {
+      person.leaders.forEach(l => {
+        if (l?.level != null && l?.name) {
+          leaders.push({ level: l.level, name: l.name });
+        }
+      });
+    }
+    
+    if (leaders.length === 0) {
+      return { leader: "No Leader Assigned", level: 0, hasLeader: false };
+    }
+    
+    leaders.sort((a, b) => b.level - a.level);
+    return { leader: leaders[0].name, level: leaders[0].level, hasLeader: true };
+  };
+
+  // Helper function to resolve leader email from person object
+  const resolveLeaderEmail = (leaderName, person) => {
+    if (!leaderName || !person) return "";
+    
+    if (Array.isArray(person.leaders)) {
+      const found = person.leaders.find(
+        (l) =>
+          (l.name || "").trim().toLowerCase() ===
+          leaderName.trim().toLowerCase(),
+      );
+      if (found?.email) {
+        return (found.email || "").trim().toLowerCase();
+      }
+    }
+    return "";
+  };
+
+  // Create task for leader when new person is added
+  const createNewPersonTaskForLeader = async ({
+    leaderName,
+    leaderEmail,
+    person,
+    eventId,
+  }) => {
+    try {
+      if (!leaderEmail) {
+        console.warn("No leader email found for task assignment.");
+        toast.warning("No leader email found. Task may not be visible to leader.");
+        return;
+      }
+
+      const normalizedEmail = (leaderEmail || "").trim().toLowerCase();
+      const todayDate = new Date().toISOString().split("T")[0];
+      const dueDate = new Date();
+      dueDate.setHours(dueDate.getHours() + 24);
+
+      const taskPayload = {
+        memberID: user?.id || "",
+        name: leaderName,
+        taskType: "new_person",
+        contacted_person: {
+          name: `${person.Name || person.name || ""} ${person.Surname || person.surname || ""}`.trim(),
+          phone: person.Number || person.phone || "",
+          email: person.Email || person.email || "",
+        },
+        followup_date: dueDate.toISOString(),
+        status: "Open",
+        type: "new_person",
+        assignedfor: normalizedEmail,
+        assigned_to_email: normalizedEmail,
+        created_by_email: (user?.email || "").trim().toLowerCase(),
+        created_by_name: `${user?.name || ""} ${user?.surname || ""}`.trim(),
+        event_id: eventId,
+        is_new_person_task: true,
+        decision_date: todayDate,
+      };
+
+      console.log("NEW PERSON TASK PAYLOAD:", taskPayload);
+
+      const res = await authFetch(`${BASE_URL}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(taskPayload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to create follow-up task");
+      }
+
+      console.log("New person task created successfully!");
+      return data;
+    } catch (err) {
+      console.error("Error creating new person task:", err.message);
+      toast.error("Failed to create new person task: " + err.message);
+      throw err;
+    }
+  };
+
   const handlePersonSave = useCallback(async (responseData) => {
     if (!currentEventId) { toast.error("Please select an event first before adding people"); return; }
     try {
@@ -925,6 +1025,24 @@ const sortedFilteredAttendees = useMemo(() => {
 
           try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch { }
           fetchRealTimeEventData(cleanEventId(currentEventId)).then(fd => { if (fd) setRealTimeData(fd); });
+
+          // Create task for leader when new person is added
+          try {
+            const leaderInfo = getHighestAvailableLeader(newPersonForGrid);
+            if (leaderInfo.hasLeader) {
+              const resolvedLeaderEmail = resolveLeaderEmail(leaderInfo.leader, newPersonForGrid);
+              if (resolvedLeaderEmail) {
+                await createNewPersonTaskForLeader({
+                  leaderName: leaderInfo.leader,
+                  leaderEmail: resolvedLeaderEmail,
+                  person: newPersonForGrid,
+                  eventId: cleanEventId(currentEventId),
+                });
+              }
+            }
+          } catch (taskErr) {
+            console.error("Failed to create new person task:", taskErr);
+          }
         }
       }
     } catch (error) { toast.error(error.message || "Failed to save person"); }

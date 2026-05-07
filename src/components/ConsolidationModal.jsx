@@ -297,6 +297,7 @@ const ConsolidationModal = ({
         return;
       }
       const dueDate = getDueDate(new Date());
+      const todayDate = new Date().toISOString().split("T")[0];
       const taskPayload = {
         memberID: user?.id || "",
         name: leaderName,
@@ -316,6 +317,7 @@ const ConsolidationModal = ({
         event_id: eventId,
         is_consolidation_task: true,
         decision_type: decisionType,
+        decision_date: todayDate,
       };
       console.log("TASK PAYLOAD:");
       console.log({
