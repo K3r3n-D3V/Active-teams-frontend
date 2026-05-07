@@ -354,6 +354,8 @@ export default function AdminDashboard() {
       addActivityLog('ROLE_UPDATED', `Updated ${u?.name}'s role to ${newRole}`);
       const updated = users.map(x => x.id === userId ? { ...x, role: newRole } : x);
       setUsers(updated); globalUsersData = updated;
+          alert(`Role successfully updated to ${newRole}`); // Simple alert for now
+   
       setShowRoleModal(false); setSelectedUser(null);
     } catch (e) { alert(e.message); }
     finally { setUpdatingRole(false); }
