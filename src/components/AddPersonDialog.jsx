@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback, useMemo, useContext, useRef } from "react";
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  TextField, Button, Typography, useTheme, MenuItem, Autocomplete,
-  Box, Alert, Collapse
+  TextField, Button, Typography, useTheme, MenuItem,
+  Box, Alert, Collapse, CircularProgress,
 } from "@mui/material";
 import { Groups as LeaderIcon } from "@mui/icons-material";
 import { LoadingButton } from "@mui/lab";
@@ -12,6 +12,7 @@ import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
+const CACHE_DURATION = 30 * 60 * 1000;
 
 const initialFormState = {
   name: "", surname: "", dob: "", address: "", email: "",
@@ -24,6 +25,55 @@ const uniformInputSx = {
   "& .MuiOutlinedInput-input": { fontSize: "0.95rem", padding: "10px 10px" },
   "& .MuiInputLabel-root": { fontSize: "0.95rem" },
   "& .MuiSelect-select": { fontSize: "0.95rem", padding: "10px 10px" },
+};
+
+// ── Module-level store — lives outside React, never causes re-renders ─────────
+const peopleStore = {
+  list: [],
+  ready: false,
+  loading: false,
+  ts: 0,
+};
+
+const mapPerson = (raw) => {
+  const name    = (raw.Name    || raw.name    || "").toString().trim();
+  const surname = (raw.Surname || raw.surname || "").toString().trim();
+  const fullName = `${name} ${surname}`.trim();
+  const email   = (raw.Email   || raw.email   || "").toString().trim();
+  const phone   = (raw.Number  || raw.phone   || raw.Phone || "").toString().trim();
+
+  let leader1 = raw["Leader @1"] || raw.leader1 || "";
+  let leader12 = raw["Leader @12"] || raw.leader12 || "";
+  let leader144 = raw["Leader @144"] || raw.leader144 || "";
+  if (!leader1 && Array.isArray(raw.leaders)) {
+    for (const l of raw.leaders) {
+      if (l.level === 1   && !leader1)   leader1   = l.name || "";
+      if (l.level === 12  && !leader12)  leader12  = l.name || "";
+      if (l.level === 144 && !leader144) leader144 = l.name || "";
+    }
+  }
+
+  return {
+    _id: (raw._id || raw.id || "").toString(),
+    name, surname, email, phone, fullName,
+    fullNameLower: fullName.toLowerCase(),
+    searchText: `${fullName} ${email} ${phone}`.toLowerCase(),
+    leader1, leader12, leader144,
+  };
+};
+
+// Synchronous in-memory search — instant, no debounce needed
+const searchPeople = (term) => {
+  if (!term || term.length < 1) return [];
+  const t = term.toLowerCase().trim();
+  const results = [];
+  for (const p of peopleStore.list) {
+    if (p.searchText.includes(t)) {
+      results.push(p);
+      if (results.length >= 40) break;
+    }
+  }
+  return results;
 };
 
 const capitaliseWords = (str) =>
@@ -42,215 +92,365 @@ const useDebounce = (value, delay) => {
 
 function extractLeaders(person) {
   if (!person) return { leader1: "", leader12: "", leader144: "" };
-
   if (Array.isArray(person.leaders) && person.leaders.length) {
     let l1 = "", l12 = "", l144 = "";
     for (const l of person.leaders) {
-      if (l.level === 1 && !l1) l1 = l.name || "";
-      if (l.level === 12 && !l12) l12 = l.name || "";
+      if (l.level === 1   && !l1)   l1   = l.name || "";
+      if (l.level === 12  && !l12)  l12  = l.name || "";
       if (l.level === 144 && !l144) l144 = l.name || "";
     }
     if (l1 || l12 || l144) return { leader1: l1, leader12: l12, leader144: l144 };
   }
-
   return {
-    leader1: person["Leader @1"] || person.leader1 || "",
-    leader12: person["Leader @12"] || person.leader12 || "",
+    leader1:   person["Leader @1"]   || person.leader1   || "",
+    leader12:  person["Leader @12"]  || person.leader12  || "",
     leader144: person["Leader @144"] || person.leader144 || "",
   };
 }
 
+// ─── PeopleSearchField ────────────────────────────────────────────────────────
+function PeopleSearchField({ label, value, onChange, disabled, error, required }) {
+  const theme  = useTheme();
+  const isDark = theme.palette.mode === "dark";
+
+  const [inputVal, setInputVal] = useState(value || "");
+  const [results,  setResults]  = useState([]);
+  const [showDrop, setShowDrop] = useState(false);
+  const wrapRef = useRef(null);
+
+  useEffect(() => { setInputVal(value || ""); }, [value]);
+
+  useEffect(() => {
+    const h = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setShowDrop(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setInputVal(val);
+    onChange(val);
+    // Synchronous search — no lag
+    const hits = searchPeople(val);
+    setResults(hits);
+    setShowDrop(val.trim().length >= 1);
+  };
+
+  const handleSelect = (person) => {
+    setInputVal(person.fullName);
+    setResults([]);
+    setShowDrop(false);
+    onChange(person.fullName);
+  };
+
+  const border  = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
+  const bg      = isDark ? "rgba(255,255,255,0.05)" : "#fff";
+
+  return (
+    <Box ref={wrapRef} sx={{ position: "relative", mt: "16px", mb: "8px" }}>
+      <Box sx={{ position: "relative" }}>
+        <input
+          type="text" value={inputVal} disabled={disabled}
+          autoComplete="off" placeholder=" "
+          onChange={handleChange}
+          onFocus={() => {
+            const hits = searchPeople(inputVal);
+            setResults(hits);
+            setShowDrop(inputVal.trim().length >= 1);
+          }}
+          onKeyDown={(e) => { if (e.key === "Escape") setShowDrop(false); }}
+          style={{
+            width: "100%", height: "50px", padding: "10px 10px",
+            fontSize: "0.95rem", borderRadius: "15px",
+            border: `1px solid ${border}`, background: bg,
+            color: theme.palette.text.primary, outline: "none",
+            boxSizing: "border-box", fontFamily: "inherit",
+            cursor: disabled ? "not-allowed" : "text",
+            transition: "background-color 0.2s",
+          }}
+        />
+        <label style={{
+          position: "absolute", left: "10px",
+          top: inputVal ? "-9px" : "50%",
+          transform: inputVal ? "none" : "translateY(-50%)",
+          fontSize: inputVal ? "0.75rem" : "0.95rem",
+          color: error ? "#d32f2f" : theme.palette.text.secondary,
+          background: theme.palette.background.paper,
+          padding: "0 4px", transition: "all 0.15s ease",
+          pointerEvents: "none", lineHeight: 1,
+        }}>
+          {label}{required ? " *" : ""}
+        </label>
+      </Box>
+
+      {error && (
+        <Typography sx={{ fontSize: "0.75rem", color: "#d32f2f", mt: "3px", ml: "10px" }}>{error}</Typography>
+      )}
+      {!peopleStore.ready && peopleStore.loading && (
+        <Typography sx={{ fontSize: "0.72rem", color: "text.secondary", mt: "3px", ml: "10px", display: "flex", alignItems: "center", gap: "4px" }}>
+          <CircularProgress size={10} sx={{ mr: 0.5 }} /> Loading people…
+        </Typography>
+      )}
+
+      {showDrop && (
+        <Box sx={{
+          position: "absolute", top: "100%", left: 0, right: 0, mt: "4px",
+          bgcolor: theme.palette.background.paper,
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: "8px", boxShadow: "0 6px 24px rgba(0,0,0,0.18)",
+          zIndex: 9999, maxHeight: "240px", overflowY: "auto",
+        }}>
+          {results.length > 0 ? results.map((person, idx) => (
+            <Box
+              key={person._id || `${person.fullName}-${idx}`}
+              onMouseDown={() => handleSelect(person)}
+              sx={{
+                px: 2, py: 1.2, cursor: "pointer",
+                borderBottom: `1px solid ${theme.palette.divider}`,
+                "&:last-child": { borderBottom: "none" },
+                "&:hover": { bgcolor: "action.hover" },
+              }}
+            >
+              <Typography sx={{ fontSize: "0.9rem", fontWeight: 500, color: "text.primary" }}>
+                {person.fullName}
+              </Typography>
+              {(person.email || person.phone) && (
+                <Typography sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
+                  {[person.email, person.phone].filter(Boolean).join(" · ")}
+                </Typography>
+              )}
+            </Box>
+          )) : (
+            <Box sx={{ px: 2, py: 1.5 }}>
+              <Typography sx={{ fontSize: "0.85rem", color: "text.secondary" }}>
+                {!peopleStore.ready ? "Still loading people…" : "No matches found"}
+              </Typography>
+            </Box>
+          )}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ─── AddressSearchField ───────────────────────────────────────────────────────
+function AddressSearchField({ value, onChange, error, disabled }) {
+  const theme  = useTheme();
+  const isDark = theme.palette.mode === "dark";
+
+  const [inputVal,    setInputVal]    = useState(value || "");
+  const [suggestions, setSuggestions] = useState([]);
+  const [loading,     setLoading]     = useState(false);
+  const [showDrop,    setShowDrop]    = useState(false);
+  const wrapRef   = useRef(null);
+  const debounced = useDebounce(inputVal, 400);
+
+  useEffect(() => { setInputVal(value || ""); }, [value]);
+
+  useEffect(() => {
+    if (!debounced || debounced.length < 3 || !GEOAPIFY_API_KEY) { setSuggestions([]); return; }
+    const ctrl = new AbortController();
+    setLoading(true);
+    fetch(`https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(debounced)}&apiKey=${GEOAPIFY_API_KEY}`, { signal: ctrl.signal })
+      .then((r) => r.json())
+      .then((d) => { setSuggestions(d.features?.map((f) => f.properties.formatted).filter(Boolean) || []); setShowDrop(true); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+    return () => ctrl.abort();
+  }, [debounced]);
+
+  useEffect(() => {
+    const h = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setShowDrop(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+
+  const border = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
+  const bg     = isDark ? "rgba(255,255,255,0.05)" : "#fff";
+
+  return (
+    <Box ref={wrapRef} sx={{ position: "relative", mt: "16px", mb: "8px" }}>
+      <Box sx={{ position: "relative" }}>
+        <input
+          type="text" value={inputVal} disabled={disabled} autoComplete="off" placeholder=" "
+          onChange={(e) => { setInputVal(e.target.value); onChange(e.target.value); setShowDrop(false); }}
+          onFocus={() => { if (suggestions.length) setShowDrop(true); }}
+          style={{
+            width: "100%", height: "50px", padding: "10px 10px",
+            fontSize: "0.95rem", borderRadius: "15px",
+            border: `1px solid ${border}`, background: bg,
+            color: theme.palette.text.primary, outline: "none",
+            boxSizing: "border-box", fontFamily: "inherit",
+            transition: "background-color 0.2s",
+          }}
+        />
+        <label style={{
+          position: "absolute", left: "10px",
+          top: inputVal ? "-9px" : "50%",
+          transform: inputVal ? "none" : "translateY(-50%)",
+          fontSize: inputVal ? "0.75rem" : "0.95rem",
+          color: error ? "#d32f2f" : theme.palette.text.secondary,
+          background: theme.palette.background.paper,
+          padding: "0 4px", transition: "all 0.15s ease",
+          pointerEvents: "none", lineHeight: 1,
+        }}>
+          Home Address *
+        </label>
+      </Box>
+      {error  && <Typography sx={{ fontSize: "0.75rem", color: "#d32f2f", mt: "3px", ml: "10px" }}>{error}</Typography>}
+      {loading && <Typography sx={{ fontSize: "0.72rem", color: "text.secondary", mt: "3px", ml: "10px" }}>Searching addresses…</Typography>}
+
+      {showDrop && suggestions.length > 0 && (
+        <Box sx={{
+          position: "absolute", top: "100%", left: 0, right: 0, mt: "4px",
+          bgcolor: theme.palette.background.paper,
+          border: `1px solid ${theme.palette.divider}`,
+          borderRadius: "8px", boxShadow: "0 6px 24px rgba(0,0,0,0.18)",
+          zIndex: 9999, maxHeight: "220px", overflowY: "auto",
+        }}>
+          {suggestions.map((addr, idx) => (
+            <Box key={idx} onMouseDown={() => { setInputVal(addr); onChange(addr); setShowDrop(false); }}
+              sx={{
+                px: 2, py: 1.2, cursor: "pointer", fontSize: "0.88rem",
+                color: "text.primary",
+                borderBottom: `1px solid ${theme.palette.divider}`,
+                "&:last-child": { borderBottom: "none" },
+                "&:hover": { bgcolor: "action.hover" },
+              }}
+            >
+              {addr}
+            </Box>
+          ))}
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+// ─── Main Dialog ──────────────────────────────────────────────────────────────
 export default function AddPersonDialog({
   open, onClose, onSave, formData, setFormData,
-  isEdit = false, personId = null,
-  editingPersonObject = null,
+  isEdit = false, personId = null, editingPersonObject = null,
 }) {
   const theme = useTheme();
   const { authFetch, user } = useContext(AuthContext);
 
-  const [errors, setErrors] = useState({});
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [searchInputs, setSearchInputs] = useState({ invitedBy: "", leader1: "", leader12: "", leader144: "" });
-  const [showLeaderFields, setShowLeaderFields] = useState(false);
-  const [addressSuggestions, setAddressSuggestions] = useState([]);
-  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
-  const [originalFormData, setOriginalFormData] = useState(null);
-  const [leaderFieldsEdited, setLeaderFieldsEdited] = useState(false);
+  const [errors,           setErrors]           = useState({});
+  const [isSubmitting,     setIsSubmitting]      = useState(false);
+  const [showLeaderFields, setShowLeaderFields]  = useState(false);
+  const [originalFormData, setOriginalFormData]  = useState(null);
+  const [peopleReady,      setPeopleReady]       = useState(peopleStore.ready);
 
-  const debouncedAddressInput = useDebounce(searchInputs.address || "", 500);
-
-  const [allPeople, setAllPeople] = useState([]);
-  const isFetchingRef = useRef(false);
-
+  // ── Load people into module-level store once ──────────────────────────────
   useEffect(() => {
     if (!open) return;
 
-    const mapPerson = (raw) => {
-      const name = (raw.Name || raw.name || "").toString().trim();
-      const surname = (raw.Surname || raw.surname || "").toString().trim();
-      return {
-        _id: (raw._id || raw.id || "").toString(),
-        name,
-        surname,
-        email: (raw.Email || raw.email || "").toString().trim(),
-        phone: (raw.Number || raw.phone || raw.Phone || "").toString().trim(),
-        fullName: `${name} ${surname}`.trim(),
-        fullNameLower: `${name} ${surname}`.toLowerCase().trim(),
-        leader1: raw["Leader @1"] || raw.leader1 || "",
-        leader12: raw["Leader @12"] || raw.leader12 || "",
-        leader144: raw["Leader @144"] || raw.leader144 || "",
-      };
-    };
-
-    const now = Date.now();
-    const CACHE_DURATION = 30 * 60 * 1000;
-    if (
-      window.globalPeopleCache?.length > 0 &&
-      window.globalCacheTimestamp &&
-      now - window.globalCacheTimestamp < CACHE_DURATION
-    ) {
-      setAllPeople(window.globalPeopleCache.map(p => ({
-        ...p,
-        fullNameLower: p.fullNameLower || `${p.name || ""} ${p.surname || ""}`.toLowerCase().trim(),
-        leader1: p.leader1 || "",
-        leader12: p.leader12 || "",
-        leader144: p.leader144 || "",
-      })));
+    // Already loaded and fresh
+    if (peopleStore.ready && Date.now() - peopleStore.ts < CACHE_DURATION) {
+      setPeopleReady(true);
       return;
     }
 
-    if (isFetchingRef.current) return;
-    isFetchingRef.current = true;
+    // Already fetching — component will re-render when done
+    if (peopleStore.loading) return;
+
+    // Seed from existing window cache if available (set by AttendanceModal etc.)
+    const flatCache = Array.isArray(window.globalPeopleCache) ? window.globalPeopleCache : null;
+    const objCache  = window.globalPeopleCache?.data;
+    const cacheTs   = window.globalCacheTimestamp || window.globalPeopleCache?.timestamp || 0;
+
+    if (flatCache?.length > 0 && Date.now() - cacheTs < CACHE_DURATION) {
+      peopleStore.list  = flatCache.map((p) => p.searchText ? p : mapPerson(p)).filter((p) => p.fullName);
+      peopleStore.ready = true;
+      peopleStore.ts    = cacheTs;
+      setPeopleReady(true);
+      return;
+    }
+    if (objCache?.length > 0 && Date.now() - cacheTs < CACHE_DURATION) {
+      peopleStore.list  = objCache.map((p) => p.searchText ? p : mapPerson(p)).filter((p) => p.fullName);
+      peopleStore.ready = true;
+      peopleStore.ts    = cacheTs;
+      setPeopleReady(true);
+      return;
+    }
+
+    // Fetch fresh data
+    peopleStore.loading = true;
+    setPeopleReady(false);
 
     (async () => {
       try {
+        let rawPeople = [];
+
         const res = await authFetch(`${BASE_URL}/cache/people`);
-        if (!res.ok) throw new Error("Failed");
-        const data = await res.json();
-        const rawPeople = data?.cached_data || [];
+        if (res.ok) {
+          const data = await res.json();
+          rawPeople = data?.cached_data || data?.results || data?.people || [];
+        }
+
+        // Fallback
+        if (rawPeople.length === 0) {
+          const res2 = await authFetch(`${BASE_URL}/people?perPage=500`);
+          if (res2.ok) {
+            const d2 = await res2.json();
+            rawPeople = d2?.results || d2?.people || [];
+          }
+        }
+
         if (rawPeople.length > 0) {
-          const mapped = rawPeople.map(mapPerson);
-          window.globalPeopleCache = mapped;
+          const mapped = rawPeople.map(mapPerson).filter((p) => p.fullName);
+          peopleStore.list  = mapped;
+          peopleStore.ready = true;
+          peopleStore.ts    = Date.now();
+          // Keep window cache in sync for other components
+          window.globalPeopleCache    = mapped;
           window.globalCacheTimestamp = Date.now();
-          setAllPeople(mapped);
         }
       } catch (err) {
         console.error("AddPersonDialog: failed to load people", err);
       } finally {
-        isFetchingRef.current = false;
+        peopleStore.loading = false;
+        setPeopleReady(peopleStore.ready);
       }
     })();
   }, [open]);
 
-  const peopleOptions = useMemo(() => {
-    const source = allPeople.length > 0
-      ? allPeople
-      : (window.globalPeopleCache?.length > 0 ? window.globalPeopleCache : []);
-
-    return source.map((p) => ({
-      label: p.fullName || `${p.name || ""} ${p.surname || ""}`.trim(),
-      person: p,
-      fullNameLower: p.fullNameLower || `${p.name || ""} ${p.surname || ""}`.toLowerCase(),
-      searchText: `${p.fullNameLower || ""} ${p.email || ""} ${p.phone || ""}`,
-    }));
-  }, [allPeople]);
-
+  // ── Reset on close ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) {
       setIsSubmitting(false);
       setErrors({});
-      setSearchInputs({ invitedBy: "", leader1: "", leader12: "", leader144: "" });
       setShowLeaderFields(false);
       setOriginalFormData(null);
-      setLeaderFieldsEdited(false);
     }
   }, [open]);
 
+  // ── Populate form in edit mode ────────────────────────────────────────────
   useEffect(() => {
-    if (!open || !isEdit) return;
-
-    const src = editingPersonObject || null;
-    if (!src) return;
-
-    const leaders = extractLeaders(src);
-
+    if (!open || !isEdit || !editingPersonObject) return;
+    const leaders  = extractLeaders(editingPersonObject);
+    const src      = editingPersonObject;
     const initData = {
-      name: src.name || src.Name || "",
-      surname: src.surname || src.Surname || "",
-      dob: (src.dob || src.birthday || src.Birthday || "").replace(/\//g, "-"),
-      address: src.location || src.address || src.homeAddress || src.Address || "",
-      email: src.email || src.Email || "",
-      number: src.number || src.phone || src.Number || src.Phone || "",
-      gender: src.gender || src.Gender || "",
+      name:      src.name      || src.Name      || "",
+      surname:   src.surname   || src.Surname   || "",
+      dob:       (src.dob || src.birthday || src.Birthday || "").replace(/\//g, "-"),
+      address:   src.location  || src.address   || src.homeAddress || src.Address || "",
+      email:     src.email     || src.Email     || "",
+      number:    src.number    || src.phone     || src.Number || src.Phone || "",
+      gender:    src.gender    || src.Gender    || "",
       invitedBy: src.invitedBy || src.InvitedBy || "",
-      leader1: leaders.leader1,
-      leader12: leaders.leader12,
+      leader1:   leaders.leader1,
+      leader12:  leaders.leader12,
       leader144: leaders.leader144,
-      stage: src.stage || src.Stage || "Win",
+      stage:     src.stage     || src.Stage     || "Win",
     };
-
     setFormData(initData);
     setOriginalFormData(initData);
     setShowLeaderFields(true);
   }, [open, isEdit, editingPersonObject]);
 
-  useEffect(() => {
-    if (!debouncedAddressInput || debouncedAddressInput.length < 3) {
-      setAddressSuggestions([]);
-      return;
-    }
-    if (!GEOAPIFY_API_KEY) return;
-    const controller = new AbortController();
-    (async () => {
-      setIsLoadingAddress(true);
-      try {
-        const res = await fetch(
-          `https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(debouncedAddressInput)}&apiKey=${GEOAPIFY_API_KEY}`,
-          { signal: controller.signal }
-        );
-        if (!res.ok) throw new Error();
-        const data = await res.json();
-        setAddressSuggestions(
-          data.features?.map((f) => ({ label: f.properties.formatted, address: f.properties.formatted })) || []
-        );
-      } catch { /* noop */ }
-      finally { setIsLoadingAddress(false); }
-    })();
-    return () => controller.abort();
-  }, [debouncedAddressInput]);
-
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((p) => ({ ...p, [name]: value }));
-    setErrors((p) => ({ ...p, [name]: "" }));
-  };
-  const handleNameChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((p) => ({ ...p, [name]: capitaliseWords(value) }));
-    setErrors((p) => ({ ...p, [name]: "" }));
-  };
-  const handleNumberChange = (e) => {
-    setFormData((p) => ({ ...p, number: digitsOnly(e.target.value) }));
-    setErrors((p) => ({ ...p, number: "" }));
-  };
-
-  // Sets invitedBy only — leader fields are filled manually by the user
-  const handleInvitedByChange = useCallback((value) => {
-    if (!value) {
-      setFormData((p) => ({ ...p, invitedBy: "" }));
-      return;
-    }
-    const label = typeof value === "string" ? value : value.label;
-    setFormData((p) => ({ ...p, invitedBy: label }));
-  }, []);
-
-  const filterOptions = useCallback((options, { inputValue }) => {
-    if (!inputValue?.trim()) return options.slice(0, 30);
-    const term = inputValue.toLowerCase().trim();
-    return options
-      .filter((o) => o.searchText.includes(term))
-      .slice(0, 50);
-  }, []);
+  const canEditLeaders = ["leaderat12", "leader", "admin", "manager"]
+    .includes(String(user?.role || "").toLowerCase());
 
   const hasChanges = useMemo(() => {
     if (!isEdit || !originalFormData) return true;
@@ -266,9 +466,8 @@ export default function AddPersonDialog({
   };
 
   const isFormValid = () =>
-    ["name", "surname", "dob", "address", "email", "number", "gender", "leader1"].every(
-      (f) => formData[f]?.toString().trim() !== ""
-    );
+    ["name", "surname", "dob", "address", "email", "number", "gender", "leader1"]
+      .every((f) => formData[f]?.toString().trim() !== "");
 
   const handleSaveClick = async () => {
     if (!validate() || isSubmitting) return;
@@ -276,30 +475,21 @@ export default function AddPersonDialog({
     try {
       const payload = {
         invitedBy: formData.invitedBy || "",
-        name: formData.name,
-        surname: formData.surname,
-        gender: formData.gender,
-        email: formData.email,
-        number: formData.number,
-        phone: formData.number,
+        name: formData.name, surname: formData.surname,
+        gender: formData.gender, email: formData.email,
+        number: formData.number, phone: formData.number,
         dob: formData.dob ? formData.dob.replace(/-/g, "/") : "",
         address: formData.address,
         leaders: [formData.leader1 || "", formData.leader12 || "", formData.leader144 || "", ""],
-        leader1: formData.leader1 || "",
-        leader12: formData.leader12 || "",
-        leader144: formData.leader144 || "",
+        leader1: formData.leader1 || "", leader12: formData.leader12 || "", leader144: formData.leader144 || "",
         stage: formData.stage || "Win",
       };
 
-      let response;
       if (isEdit && personId) {
-        response = await authFetch(`${BASE_URL}/people/${personId}`, {
-          method: "PATCH",
-          body: JSON.stringify(payload),
-        });
+        const response = await authFetch(`${BASE_URL}/people/${personId}`, { method: "PATCH", body: JSON.stringify(payload) });
         if (response.ok) {
           const data = await response.json();
-          const normalizedData = {
+          onSave({
             _id: personId,
             name: data.person?.Name || payload.name,
             surname: data.person?.Surname || payload.surname,
@@ -315,26 +505,28 @@ export default function AddPersonDialog({
             leader144: data.person?.["Leader @144"] ?? formData.leader144 ?? "",
             stage: data.person?.Stage || payload.stage || "Win",
             fullName: `${payload.name} ${payload.surname}`.trim(),
-          };
-          onSave({ ...normalizedData, __updatedNewPerson: true });
+            __updatedNewPerson: true,
+          });
         } else {
           const err = await response.json().catch(() => ({}));
           throw new Error(err.detail || `Update failed (${response.status})`);
         }
       } else {
-        response = await authFetch(`${BASE_URL}/people`, {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        const response = await authFetch(`${BASE_URL}/people`, { method: "POST", body: JSON.stringify(payload) });
         if (response.ok) {
           const data = await response.json();
           const created = data.person || data;
-          const backendLeaders = {
-            leader1: created["Leader @1"] || created.leader1 || "",
-            leader12: created["Leader @12"] || created.leader12 || "",
-            leader144: created["Leader @144"] || created.leader144 || "",
-          };
-          onSave({ ...data, person: { ...created, ...backendLeaders } });
+          // Invalidate store so next open re-fetches fresh data including new person
+          peopleStore.ready = false;
+          onSave({
+            ...data,
+            person: {
+              ...created,
+              leader1:   created["Leader @1"]   || created.leader1   || "",
+              leader12:  created["Leader @12"]  || created.leader12  || "",
+              leader144: created["Leader @144"] || created.leader144 || "",
+            },
+          });
         } else {
           const err = await response.json().catch(() => ({}));
           throw new Error(err.detail || `Save failed (${response.status})`);
@@ -359,10 +551,13 @@ export default function AddPersonDialog({
   const renderTextField = (name, label, options = {}) => {
     const { select, selectOptions, type } = options;
     const currentValue = formData[name] || "";
-    let onChange = handleInputChange;
-    if (name === "name" || name === "surname") onChange = handleNameChange;
-    if (name === "number") onChange = handleNumberChange;
-
+    const onChange = (e) => {
+      let val = e.target.value;
+      if (name === "name" || name === "surname") val = capitaliseWords(val);
+      if (name === "number") val = digitsOnly(val);
+      setFormData((p) => ({ ...p, [name]: val }));
+      setErrors((p) => ({ ...p, [name]: "" }));
+    };
     return (
       <TextField
         margin="normal" fullWidth label={label} name={name}
@@ -380,51 +575,6 @@ export default function AddPersonDialog({
     );
   };
 
-  const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
-    const currentValue = formData[name] || "";
-    const isLeaderField = name.startsWith("leader");
-    const currentRole = String(user?.role || "").toLowerCase();
-    const allowedRoles = ["leaderat12", "leader", "admin", "manager"];
-    const canEditLeaders = allowedRoles.includes(currentRole);
-    const fieldDisabled = disabled || (isLeaderField && !canEditLeaders);
-    return (
-      <Autocomplete
-        freeSolo
-        disabled={fieldDisabled || isSubmitting}
-        options={peopleOptions}
-        getOptionLabel={(o) => (typeof o === "string" ? o : o.label)}
-        filterOptions={filterOptions}
-        value={
-          peopleOptions.find((o) => o.label === currentValue) ||
-          (currentValue ? { label: currentValue } : null)
-        }
-        onChange={(_, newValue) => {
-          if (isInvite) {
-            handleInvitedByChange(newValue);
-          } else {
-            const val = newValue ? (typeof newValue === "string" ? newValue : newValue.label) : "";
-            setFormData((p) => ({ ...p, [name]: val }));
-            if (isLeaderField) setLeaderFieldsEdited(true);
-          }
-        }}
-        onInputChange={(_, newInput, reason) => {
-          if (reason === "input") {
-            setFormData((p) => ({ ...p, [name]: newInput }));
-            if (isLeaderField) setLeaderFieldsEdited(true);
-          }
-        }}
-        renderInput={(params) => (
-          <TextField
-            {...params} label={label} error={!!errors[name]}
-            helperText={errors[name]} margin="normal" fullWidth sx={uniformInputSx}
-          />
-        )}
-        noOptionsText="No matches found"
-        blurOnSelect clearOnBlur handleHomeEndKeys
-      />
-    );
-  };
-
   return (
     <Dialog
       open={open} onClose={handleClose} maxWidth="md" fullWidth
@@ -432,9 +582,17 @@ export default function AddPersonDialog({
       PaperProps={{ sx: { borderRadius: 3, m: 2, maxHeight: "90vh" } }}
     >
       <DialogTitle sx={{ pb: 1 }}>
-        <Typography variant="h5" component="div">
-          {isEdit ? "Update Person" : "Add New Person"}
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Typography variant="h5" component="div">
+            {isEdit ? "Update Person" : "Add New Person"}
+          </Typography>
+          {!peopleReady && (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <CircularProgress size={16} />
+              <Typography variant="caption" color="text.secondary">Loading people…</Typography>
+            </Box>
+          )}
+        </Box>
       </DialogTitle>
 
       <DialogContent dividers>
@@ -448,70 +606,57 @@ export default function AddPersonDialog({
           {renderTextField("name", "First Name *", { required: true })}
           {renderTextField("surname", "Last Name *", { required: true })}
           {renderTextField("dob", "Date of Birth *", { type: "date", required: true })}
-          {renderAutocomplete("invitedBy", "Invited By", true, false)}
 
-          {/* Address autocomplete */}
-          <Autocomplete
-            freeSolo
-            options={addressSuggestions}
-            getOptionLabel={(o) => (typeof o === "string" ? o : o.label || o.address || "")}
-            value={formData.address}
-            onChange={(_, newValue) => {
-              const address = typeof newValue === "string" ? newValue : newValue?.address || newValue?.label || "";
-              setFormData((p) => ({ ...p, address }));
-              setErrors((p) => ({ ...p, address: "" }));
-            }}
-            onInputChange={(_, newInput) => {
-              setSearchInputs((p) => ({ ...p, address: newInput }));
-              setFormData((p) => ({ ...p, address: newInput }));
-              setErrors((p) => ({ ...p, address: "" }));
-            }}
-            loading={isLoadingAddress}
-            loadingText="Searching addresses…"
-            noOptionsText={
-              (searchInputs.address || "").length < 3 ? "Type at least 3 characters" : "No addresses found"
-            }
-            renderInput={(params) => (
-              <TextField
-                {...params} label="Home Address *" error={!!errors.address}
-                helperText={errors.address} margin="normal" fullWidth sx={uniformInputSx}
-              />
-            )}
+          <PeopleSearchField
+            label="Invited By"
+            value={formData.invitedBy}
+            onChange={(val) => { setFormData((p) => ({ ...p, invitedBy: val })); setErrors((p) => ({ ...p, invitedBy: "" })); }}
             disabled={isSubmitting}
-            blurOnSelect clearOnBlur={false}
+            error={errors.invitedBy}
+          />
+
+          <AddressSearchField
+            value={formData.address}
+            onChange={(val) => { setFormData((p) => ({ ...p, address: val })); setErrors((p) => ({ ...p, address: "" })); }}
+            error={errors.address}
+            disabled={isSubmitting}
           />
 
           {renderTextField("email", "Email Address *", { type: "email", required: true })}
           {renderTextField("number", "Phone Number *", { required: true })}
-          {renderTextField("gender", "Gender *", {
-            select: true, selectOptions: ["Male", "Female"], required: true,
-          })}
+          {renderTextField("gender", "Gender *", { select: true, selectOptions: ["Male", "Female"], required: true })}
 
-          {/* Leader @1 — always visible, required */}
           <Box sx={{ mt: 1 }}>
-            <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 0.5 }}>
-              Leadership
-            </Typography>
-            {renderAutocomplete("leader1", "Leader @1 *", false, false)}
+            <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 0.5 }}>Leadership</Typography>
+            <PeopleSearchField
+              label="Leader @1"
+              value={formData.leader1}
+              onChange={(val) => { setFormData((p) => ({ ...p, leader1: val })); setErrors((p) => ({ ...p, leader1: "" })); }}
+              disabled={isSubmitting || !canEditLeaders}
+              error={errors.leader1}
+              required
+            />
           </Box>
 
-          {/* Leader @12 and @144 — collapsible */}
           <Collapse in={showLeaderFields}>
             <Box>
-              {renderAutocomplete("leader12", "Leader @12", false, false)}
-              {renderAutocomplete("leader144", "Leader @144", false, false)}
+              <PeopleSearchField
+                label="Leader @12"
+                value={formData.leader12}
+                onChange={(val) => setFormData((p) => ({ ...p, leader12: val }))}
+                disabled={isSubmitting || !canEditLeaders}
+              />
+              <PeopleSearchField
+                label="Leader @144"
+                value={formData.leader144}
+                onChange={(val) => setFormData((p) => ({ ...p, leader144: val }))}
+                disabled={isSubmitting || !canEditLeaders}
+              />
             </Box>
           </Collapse>
 
-          {/* Toggle button for @12 and @144 */}
           <Box sx={{ mt: 1, textAlign: "center" }}>
-            <Button
-              onClick={() => setShowLeaderFields((v) => !v)}
-              startIcon={<LeaderIcon />}
-              variant="outlined"
-              color="primary"
-              size="small"
-            >
+            <Button onClick={() => setShowLeaderFields((v) => !v)} startIcon={<LeaderIcon />} variant="outlined" color="primary" size="small">
               {showLeaderFields ? "Hide Additional Leaders" : "Add Additional Leaders"}
             </Button>
           </Box>
@@ -519,12 +664,9 @@ export default function AddPersonDialog({
       </DialogContent>
 
       <DialogActions sx={{ p: 2 }}>
-        <Button onClick={handleClose} color="inherit" disabled={isSubmitting}>
-          Cancel
-        </Button>
+        <Button onClick={handleClose} color="inherit" disabled={isSubmitting}>Cancel</Button>
         <LoadingButton
-          onClick={handleSaveClick}
-          variant="contained" color="primary"
+          onClick={handleSaveClick} variant="contained" color="primary"
           loading={isSubmitting}
           disabled={!isFormValid() || (isEdit && !hasChanges)}
           sx={{ minWidth: 100 }}
