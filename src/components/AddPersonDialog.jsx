@@ -116,6 +116,8 @@ function PeopleSearchField({ label, value, onChange, disabled, error, required }
   const [inputVal, setInputVal] = useState(value || "");
   const [results,  setResults]  = useState([]);
   const [showDrop, setShowDrop] = useState(false);
+  const [isHovering, setIsHovering] = useState(false);
+  const [isFocused, setIsFocused] = useState(false);
   const wrapRef = useRef(null);
 
   useEffect(() => { setInputVal(value || ""); }, [value]);
@@ -129,73 +131,100 @@ function PeopleSearchField({ label, value, onChange, disabled, error, required }
   const handleChange = (e) => {
     const val = e.target.value;
     setInputVal(val);
-    onChange(val);
-    // Synchronous search — no lag
-    const hits = searchPeople(val);
-    setResults(hits);
-    setShowDrop(val.trim().length >= 1);
+    onChange(val, null); // null = typed, not selected — no autofill
+    
+    // Show results immediately if people store is ready, or show loading state
+    if (val.trim().length >= 1) {
+      if (peopleStore.ready) {
+        const hits = searchPeople(val);
+        setResults(hits);
+        setShowDrop(true);
+      } else {
+        // Show dropdown with "Still loading" message
+        setResults([]);
+        setShowDrop(true);
+      }
+    } else {
+      setShowDrop(false);
+      setResults([]);
+    }
   };
 
   const handleSelect = (person) => {
     setInputVal(person.fullName);
     setResults([]);
     setShowDrop(false);
-    onChange(person.fullName);
+    onChange(person.fullName, person); // pass full person for autofill
   };
 
+  const fieldId = `psf-${label.replace(/\s+/g, "-").toLowerCase()}`;
   const border  = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
-  const bg      = isDark ? "rgba(255,255,255,0.05)" : "#fff";
+  const hoverBorder = error ? "#d32f2f" : (isDark ? "rgb(255, 255, 255)" : "rgba(0,0,0,0.4)");
+  const focusBorder = error ? "#d32f2f" : theme.palette.primary.main;
+  
+  const bg       = "transparent";
+  const hoverBg = "transparent";
+
+  let displayBg = bg;
+  let displayBorder = border;
+  
+  if (isFocused) {
+    displayBorder = focusBorder;
+  } else if (isHovering && !disabled) {
+    displayBorder = hoverBorder;
+  }
 
   return (
     <Box ref={wrapRef} sx={{ position: "relative", mt: "16px", mb: "8px" }}>
       <Box sx={{ position: "relative" }}>
         <input
+          id={fieldId}
+          className={`psf-input-${fieldId}`}
           type="text" value={inputVal} disabled={disabled}
-          autoComplete="off" placeholder=" "
+          autoComplete="off" placeholder={label}
           onChange={handleChange}
+          onMouseEnter={() => !disabled && setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
           onFocus={() => {
-            const hits = searchPeople(inputVal);
-            setResults(hits);
-            setShowDrop(inputVal.trim().length >= 1);
+            setIsFocused(true);
+            if (inputVal.trim().length >= 1 && peopleStore.ready) {
+              const hits = searchPeople(inputVal);
+              setResults(hits);
+              setShowDrop(true);
+            } else if (inputVal.trim().length >= 1) {
+              setShowDrop(true);
+            }
           }}
+          onBlur={() => setIsFocused(false)}
           onKeyDown={(e) => { if (e.key === "Escape") setShowDrop(false); }}
           style={{
-            width: "100%", height: "50px", padding: "10px 10px",
+            width: "100%", height: "50px", padding: "10px 14px",
             fontSize: "0.95rem", borderRadius: "15px",
-            border: `1px solid ${border}`, background: bg,
+            border: `1px solid ${displayBorder}`, background: displayBg,
             color: theme.palette.text.primary, outline: "none",
             boxSizing: "border-box", fontFamily: "inherit",
             cursor: disabled ? "not-allowed" : "text",
-            transition: "background-color 0.2s",
+            transition: "background-color 0.2s ease, border-color 0.2s ease",
           }}
         />
-        <label style={{
-          position: "absolute", left: "10px",
-          top: inputVal ? "-9px" : "50%",
-          transform: inputVal ? "none" : "translateY(-50%)",
-          fontSize: inputVal ? "0.75rem" : "0.95rem",
-          color: error ? "#d32f2f" : theme.palette.text.secondary,
-          background: theme.palette.background.paper,
-          padding: "0 4px", transition: "all 0.15s ease",
-          pointerEvents: "none", lineHeight: 1,
-        }}>
-          {label}{required ? " *" : ""}
-        </label>
       </Box>
 
       {error && (
-        <Typography sx={{ fontSize: "0.75rem", color: "#d32f2f", mt: "3px", ml: "10px" }}>{error}</Typography>
+        <Typography sx={{ fontSize: "0.75rem", color: "#d32f2f", mt: "3px", ml: "14px" }}>{error}</Typography>
       )}
-      {!peopleStore.ready && peopleStore.loading && (
-        <Typography sx={{ fontSize: "0.72rem", color: "text.secondary", mt: "3px", ml: "10px", display: "flex", alignItems: "center", gap: "4px" }}>
-          <CircularProgress size={10} sx={{ mr: 0.5 }} /> Loading people…
-        </Typography>
+      {!peopleStore.ready && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mt: "4px", ml: "14px" }}>
+          <CircularProgress size={11} />
+          <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>
+            {peopleStore.loading ? "Loading people data, search will be ready shortly…" : "Preparing search…"}
+          </Typography>
+        </Box>
       )}
 
       {showDrop && (
         <Box sx={{
           position: "absolute", top: "100%", left: 0, right: 0, mt: "4px",
-          bgcolor: theme.palette.background.paper,
+          background: "background.paper", bgcolor: theme.palette.background.paper,
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: "8px", boxShadow: "0 6px 24px rgba(0,0,0,0.18)",
           zIndex: 9999, maxHeight: "240px", overflowY: "auto",
@@ -242,18 +271,20 @@ function AddressSearchField({ value, onChange, error, disabled }) {
   const [suggestions, setSuggestions] = useState([]);
   const [loading,     setLoading]     = useState(false);
   const [showDrop,    setShowDrop]    = useState(false);
+  const [isHovering,  setIsHovering]  = useState(false);
+  const [isFocused,   setIsFocused]   = useState(false);
   const wrapRef   = useRef(null);
-  const debounced = useDebounce(inputVal, 400);
+  const debounced = useDebounce(inputVal, 300);
 
   useEffect(() => { setInputVal(value || ""); }, [value]);
 
   useEffect(() => {
-    if (!debounced || debounced.length < 3 || !GEOAPIFY_API_KEY) { setSuggestions([]); return; }
+    if (!debounced || debounced.length < 2 || !GEOAPIFY_API_KEY) { setSuggestions([]); return; }
     const ctrl = new AbortController();
     setLoading(true);
     fetch(`https://api.geoapify.com/v1/geocode/autocomplete?text=${encodeURIComponent(debounced)}&apiKey=${GEOAPIFY_API_KEY}`, { signal: ctrl.signal })
       .then((r) => r.json())
-      .then((d) => { setSuggestions(d.features?.map((f) => f.properties.formatted).filter(Boolean) || []); setShowDrop(true); })
+      .then((d) => { setSuggestions(d.features?.map((f) => f.properties.formatted).filter(Boolean) || []); if (debounced.length >= 2) setShowDrop(true); })
       .catch(() => {})
       .finally(() => setLoading(false));
     return () => ctrl.abort();
@@ -265,40 +296,53 @@ function AddressSearchField({ value, onChange, error, disabled }) {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const border = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
-  const bg     = isDark ? "rgba(255,255,255,0.05)" : "#fff";
+  const addrFieldId = "psf-home-address";
+  const border   = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
+  const hoverBorder = error ? "#d32f2f" : (isDark ? "rgb(255, 255, 255)" : "rgba(0,0,0,0.4)");
+  const focusBorder = error ? "#d32f2f" : theme.palette.primary.main;
+  
+  const bg       = "transparent";
+  const hoverBg = "transparent";
+
+  let displayBg = bg;
+  let displayBorder = border;
+  
+  if (isFocused) {
+    displayBorder = focusBorder;
+  } else if (isHovering && !disabled) {
+    displayBorder = hoverBorder;
+  }
 
   return (
     <Box ref={wrapRef} sx={{ position: "relative", mt: "16px", mb: "8px" }}>
       <Box sx={{ position: "relative" }}>
         <input
-          type="text" value={inputVal} disabled={disabled} autoComplete="off" placeholder=" "
+          id={addrFieldId}
+          className={`psf-input-${addrFieldId}`}
+          type="text" value={inputVal} disabled={disabled}
+          autoComplete="off" placeholder="Home Address"
           onChange={(e) => { setInputVal(e.target.value); onChange(e.target.value); setShowDrop(false); }}
-          onFocus={() => { if (suggestions.length) setShowDrop(true); }}
+          onMouseEnter={() => !disabled && setIsHovering(true)}
+          onMouseLeave={() => setIsHovering(false)}
+          onFocus={() => { setIsFocused(true); if (suggestions.length) setShowDrop(true); }}
+          onBlur={() => setIsFocused(false)}
           style={{
-            width: "100%", height: "50px", padding: "10px 10px",
+            width: "100%", height: "50px", padding: "10px 14px",
             fontSize: "0.95rem", borderRadius: "15px",
-            border: `1px solid ${border}`, background: bg,
+            border: `1px solid ${displayBorder}`, background: displayBg,
             color: theme.palette.text.primary, outline: "none",
             boxSizing: "border-box", fontFamily: "inherit",
-            transition: "background-color 0.2s",
+            transition: "background-color 0.2s ease, border-color 0.2s ease",
           }}
         />
-        <label style={{
-          position: "absolute", left: "10px",
-          top: inputVal ? "-9px" : "50%",
-          transform: inputVal ? "none" : "translateY(-50%)",
-          fontSize: inputVal ? "0.75rem" : "0.95rem",
-          color: error ? "#d32f2f" : theme.palette.text.secondary,
-          background: theme.palette.background.paper,
-          padding: "0 4px", transition: "all 0.15s ease",
-          pointerEvents: "none", lineHeight: 1,
-        }}>
-          Home Address *
-        </label>
       </Box>
-      {error  && <Typography sx={{ fontSize: "0.75rem", color: "#d32f2f", mt: "3px", ml: "10px" }}>{error}</Typography>}
-      {loading && <Typography sx={{ fontSize: "0.72rem", color: "text.secondary", mt: "3px", ml: "10px" }}>Searching addresses…</Typography>}
+      {error  && <Typography sx={{ fontSize: "0.75rem", color: "#d32f2f", mt: "3px", ml: "14px" }}>{error}</Typography>}
+      {loading && (
+        <Box sx={{ display: "flex", alignItems: "center", gap: "6px", mt: "4px", ml: "14px" }}>
+          <CircularProgress size={11} />
+          <Typography sx={{ fontSize: "0.72rem", color: "text.secondary" }}>Searching addresses…</Typography>
+        </Box>
+      )}
 
       {showDrop && suggestions.length > 0 && (
         <Box sx={{
@@ -377,12 +421,15 @@ export default function AddPersonDialog({
     // Fetch fresh data
     peopleStore.loading = true;
     setPeopleReady(false);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+    let didCancel = false;
 
     (async () => {
       try {
         let rawPeople = [];
 
-        const res = await authFetch(`${BASE_URL}/cache/people`);
+        const res = await authFetch(`${BASE_URL}/cache/people`, { signal: controller.signal });
         if (res.ok) {
           const data = await res.json();
           rawPeople = data?.cached_data || data?.results || data?.people || [];
@@ -390,7 +437,7 @@ export default function AddPersonDialog({
 
         // Fallback
         if (rawPeople.length === 0) {
-          const res2 = await authFetch(`${BASE_URL}/people?perPage=500`);
+          const res2 = await authFetch(`${BASE_URL}/people?perPage=500`, { signal: controller.signal });
           if (res2.ok) {
             const d2 = await res2.json();
             rawPeople = d2?.results || d2?.people || [];
@@ -405,14 +452,31 @@ export default function AddPersonDialog({
           // Keep window cache in sync for other components
           window.globalPeopleCache    = mapped;
           window.globalCacheTimestamp = Date.now();
+        } else {
+          // Even if no data, mark as ready to unblock search
+          peopleStore.ready = true;
+          peopleStore.ts = Date.now();
         }
       } catch (err) {
-        console.error("AddPersonDialog: failed to load people", err);
+        if (controller.signal.aborted) {
+          console.warn("AddPersonDialog: people fetch aborted");
+        } else {
+          console.error("AddPersonDialog: failed to load people", err);
+        }
+        peopleStore.ready = true;
+        peopleStore.ts = Date.now();
       } finally {
+        clearTimeout(timeoutId);
         peopleStore.loading = false;
-        setPeopleReady(peopleStore.ready);
+        if (!didCancel) setPeopleReady(peopleStore.ready);
       }
     })();
+
+    return () => {
+      didCancel = true;
+      controller.abort();
+      clearTimeout(timeoutId);
+    };
   }, [open]);
 
   // ── Reset on close ────────────────────────────────────────────────────────
@@ -610,9 +674,45 @@ export default function AddPersonDialog({
           <PeopleSearchField
             label="Invited By"
             value={formData.invitedBy}
-            onChange={(val) => { setFormData((p) => ({ ...p, invitedBy: val })); setErrors((p) => ({ ...p, invitedBy: "" })); }}
+            onChange={(val, person) => {
+              setFormData((p) => {
+                const update = { ...p, invitedBy: val };
+                if (person) {
+                  // Build ancestor chain root-first from inviter's own leaders
+                  const ancestors = [
+                    person.leader1,
+                    person.leader12,
+                    person.leader144,
+                  ].filter(Boolean);
+ 
+                  // Only add inviter to chain if fewer than 3 levels above them
+                  // If already 3 deep, inviter is just invitedBy — leaders come from their chain as-is
+                  if (ancestors.length < 3) {
+                    ancestors.push(person.fullName);
+                  }
+ 
+                  // leader1  = root (always index 0)
+                  // leader12 = second-to-last
+                  // leader144 = last (only when 3 entries exist)
+                  //
+                  // [Gavin, Sasha]            → l1=Gavin, l12=Sasha,   l144=""
+                  // [Gavin, Thabo, Blessing]  → l1=Gavin, l12=Thabo,   l144=Blessing
+                  // [Gavin, Thabo, Blessing] (inviter already has 3) → same, inviter not appended
+                  update.leader1   = ancestors[0] || "";
+                  update.leader12  = ancestors.length >= 2 ? ancestors[ancestors.length - 2] : "";
+                  update.leader144 = ancestors.length >= 3 ? ancestors[ancestors.length - 1] : "";
+                } else {
+                  update.leader1   = "";
+                  update.leader12  = "";
+                  update.leader144 = "";
+                }
+                return update;
+              });
+              setErrors((p) => ({ ...p, invitedBy: "", leader1: "", leader12: "", leader144: "" }));
+            }}
             disabled={isSubmitting}
             error={errors.invitedBy}
+            sx={uniformInputSx}
           />
 
           <AddressSearchField
@@ -620,6 +720,7 @@ export default function AddPersonDialog({
             onChange={(val) => { setFormData((p) => ({ ...p, address: val })); setErrors((p) => ({ ...p, address: "" })); }}
             error={errors.address}
             disabled={isSubmitting}
+            sx={uniformInputSx}
           />
 
           {renderTextField("email", "Email Address *", { type: "email", required: true })}
@@ -627,13 +728,13 @@ export default function AddPersonDialog({
           {renderTextField("gender", "Gender *", { select: true, selectOptions: ["Male", "Female"], required: true })}
 
           <Box sx={{ mt: 1 }}>
-            <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 0.5 }}>Leadership</Typography>
             <PeopleSearchField
               label="Leader @1"
               value={formData.leader1}
               onChange={(val) => { setFormData((p) => ({ ...p, leader1: val })); setErrors((p) => ({ ...p, leader1: "" })); }}
               disabled={isSubmitting || !canEditLeaders}
               error={errors.leader1}
+              sx={uniformInputSx}
               required
             />
           </Box>
@@ -645,19 +746,21 @@ export default function AddPersonDialog({
                 value={formData.leader12}
                 onChange={(val) => setFormData((p) => ({ ...p, leader12: val }))}
                 disabled={isSubmitting || !canEditLeaders}
+                sx={uniformInputSx}
               />
               <PeopleSearchField
                 label="Leader @144"
                 value={formData.leader144}
                 onChange={(val) => setFormData((p) => ({ ...p, leader144: val }))}
                 disabled={isSubmitting || !canEditLeaders}
+                sx={uniformInputSx}
               />
             </Box>
           </Collapse>
 
           <Box sx={{ mt: 1, textAlign: "center" }}>
             <Button onClick={() => setShowLeaderFields((v) => !v)} startIcon={<LeaderIcon />} variant="outlined" color="primary" size="small">
-              {showLeaderFields ? "Hide Additional Leaders" : "Add Additional Leaders"}
+              {showLeaderFields ? "Hide Additional Leaders" : "View Additional Leaders"}
             </Button>
           </Box>
         </Box>
