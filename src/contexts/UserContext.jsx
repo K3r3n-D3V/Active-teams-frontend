@@ -1,42 +1,90 @@
-import React, { createContext, useState, useEffect } from "react";
+import React, { createContext, useState, useEffect, useCallback } from "react";
 
 export const UserContext = createContext();
 
+const DEFAULT_AVATARS = {
+  female: "https://cdn-icons-png.flaticon.com/512/6997/6997662.png",
+  male: "https://cdn-icons-png.flaticon.com/512/6997/6997675.png",
+  neutral: "https://cdn-icons-png.flaticon.com/512/147/147144.png",
+};
+
+const getDefaultAvatar = (userDataOrGender) => {
+  if (!userDataOrGender) return DEFAULT_AVATARS.neutral;
+
+  const gender = typeof userDataOrGender === "string"
+    ? userDataOrGender
+    : userDataOrGender?.gender;
+
+  if (!gender) return DEFAULT_AVATARS.neutral;
+
+  const normalized = String(gender).trim().toLowerCase();
+  if (normalized === "female") return DEFAULT_AVATARS.female;
+  if (normalized === "male") return DEFAULT_AVATARS.male;
+  return DEFAULT_AVATARS.neutral;
+};
+
+const getProfilePictureFromUser = (userData) => {
+  if (!userData) return DEFAULT_AVATARS.neutral;
+  return (
+    userData.profile_picture ||
+    userData.avatarUrl ||
+    userData.profilePicUrl ||
+    getDefaultAvatar(userData)
+  );
+};
+
+const normalizeUserProfile = (userData) => {
+  if (!userData) return null;
+  const profilePicture = getProfilePictureFromUser(userData);
+  return {
+    ...userData,
+    profile_picture: profilePicture,
+    avatarUrl: profilePicture,
+    profilePicUrl: profilePicture,
+  };
+};
+
 export const UserProvider = ({ children }) => {
-  const [profilePic, setProfilePic] = useState("https://cdn-icons-png.flaticon.com/512/147/147144.png");
+  const [profilePic, setProfilePic] = useState(DEFAULT_AVATARS.neutral);
   const [userProfile, setUserProfile] = useState(null);
 
-  // Load user profile and profile picture from localStorage on mount
-  useEffect(() => {
-    const initializeUserData = () => {
-      try {
-        // Load user profile
-        const savedProfile = localStorage.getItem('userProfile');
-        if (savedProfile) {
-          const parsedProfile = JSON.parse(savedProfile);
-          setUserProfile(parsedProfile);
-          
-          // Set profile picture from user profile if available
-          const picFromProfile = parsedProfile?.profile_picture || 
-                               parsedProfile?.avatarUrl || 
-                               parsedProfile?.profilePicUrl;
-          if (picFromProfile) {
-            setProfilePic(picFromProfile);
-          }
-        }
+  const initializeUserData = useCallback(() => {
+    try {
+      const savedProfile = localStorage.getItem('userProfile');
+      let parsedProfile = null;
 
-        // Load standalone profile picture (for backward compatibility)
+      if (savedProfile) {
+        parsedProfile = JSON.parse(savedProfile);
+        const normalizedProfile = normalizeUserProfile(parsedProfile);
+        setUserProfile(normalizedProfile);
+
+        const savedPic = localStorage.getItem('profilePic');
+        const defaultAvatarUrls = Object.values(DEFAULT_AVATARS);
+        const isSavedPicCustom = savedPic && !defaultAvatarUrls.includes(savedPic);
+
+        setProfilePic(
+          !normalizedProfile.profile_picture && isSavedPicCustom
+            ? savedPic
+            : normalizedProfile.profile_picture
+        );
+
+        localStorage.setItem('userProfile', JSON.stringify(normalizedProfile));
+      } else {
         const savedPic = localStorage.getItem('profilePic');
         if (savedPic) {
           setProfilePic(savedPic);
+        } else {
+          setProfilePic(DEFAULT_AVATARS.neutral);
         }
-      } catch (error) {
-        console.error('Error initializing user data:', error);
       }
-    };
-
-    initializeUserData();
+    } catch (error) {
+      console.error('Error initializing user data:', error);
+    }
   }, []);
+
+  useEffect(() => {
+    initializeUserData();
+  }, [initializeUserData]);
 
   //  REMOVED THIS EFFECT - Let AuthContext manage userProfile in localStorage
   // useEffect(() => {
@@ -70,28 +118,30 @@ export const UserProvider = ({ children }) => {
     }
   };
 
-  // Enhanced setUserProfile that also updates profilePic
+  // Enhanced setUserProfile that also updates profilePic and gender default avatars
   const setUserProfileEnhanced = (newUserProfile) => {
-    setUserProfile(newUserProfile);
-    
-    //  Only save to localStorage if we have data
-    if (newUserProfile) {
-      localStorage.setItem('userProfile', JSON.stringify(newUserProfile));
-      
-      // Update profile picture from the new user profile
-      const picFromProfile = newUserProfile?.profile_picture || 
-                           newUserProfile?.avatarUrl || 
-                           newUserProfile?.profilePicUrl;
-      if (picFromProfile && picFromProfile !== profilePic) {
-        setProfilePic(picFromProfile);
-        localStorage.setItem('profilePic', picFromProfile);
-      }
+    if (!newUserProfile) {
+      setUserProfile(null);
+      localStorage.removeItem('userProfile');
+      setProfilePic(DEFAULT_AVATARS.neutral);
+      localStorage.removeItem('profilePic');
+      return;
     }
+
+    const normalizedProfile = normalizeUserProfile(newUserProfile);
+    setUserProfile(normalizedProfile);
+    localStorage.setItem('userProfile', JSON.stringify(normalizedProfile));
+    setProfilePic(normalizedProfile.profile_picture);
+    localStorage.setItem('profilePic', normalizedProfile.profile_picture);
   };
+
+  const loadUserProfile = useCallback(() => {
+    initializeUserData();
+  }, [initializeUserData]);
 
   const clearUserData = () => {
     setUserProfile(null);
-    setProfilePic("https://cdn-icons-png.flaticon.com/512/147/147144.png");
+    setProfilePic(DEFAULT_AVATARS.neutral);
     localStorage.removeItem('userProfile');
     localStorage.removeItem('profilePic');
   };
@@ -102,6 +152,7 @@ export const UserProvider = ({ children }) => {
       setProfilePic: setProfilePicEnhanced, 
       userProfile, 
       setUserProfile: setUserProfileEnhanced,
+      loadUserProfile,
       clearUserData
     }}>
       {children}

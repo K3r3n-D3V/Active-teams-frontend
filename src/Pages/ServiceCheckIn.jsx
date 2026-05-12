@@ -521,7 +521,7 @@ function ServiceCheckIn() {
       ...a,
       present: presentIds.has(a._id),
       isNew: newPeopleIds.has(a._id),
-      id: a._id,
+      id: a._id || a.email || `temp-${a.email}`,
     })),
     [attendees, presentIds, newPeopleIds]
   );
@@ -1360,6 +1360,7 @@ const sortedFilteredAttendees = useMemo(() => {
           <Paper variant="outlined" sx={{ boxShadow: 3, overflow: "hidden", width: "100%", height: gridHeight, minHeight: gridMinHeight }}>
             <DataGrid
               rows={sortedFilteredAttendees} columns={mainColumns}
+              getRowId={(row) => row.id || row._id || row.email || `temp-${Math.random()}`}
               loading={isLoadingPeople} pagination
               paginationModel={{ page, pageSize: rowsPerPage }}
               onPaginationModelChange={model => { setPage(model.page); setRowsPerPage(model.pageSize); }}

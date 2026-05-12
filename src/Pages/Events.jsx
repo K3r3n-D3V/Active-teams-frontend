@@ -764,36 +764,25 @@ ${xmlCols}
     if (!event) return [];
 
     const eventDate = event.date;
-    let attendees = [];
+    let people = event.registrations || event.attendees || [];
 
-    // Check attendance object by date key first
-    if (event.attendance && typeof event.attendance === "object") {
-      const dateAttendance = event.attendance[eventDate];
-      if (dateAttendance) {
-        attendees = dateAttendance.attendees || [];
-      }
-    }
+    if (people.length === 0) return [];
 
-    if (attendees.length === 0) {
-      attendees = event.attendees || [];
-    }
-
-    if (attendees.length === 0) return [];
-
-    return attendees.map((att) => ({
+    return people.map((person) => ({
       "Event Name": event.eventName || event["Event Name"] || "",
       "Event Date": eventDate,
-      "Name": att.fullName || att.name || "",
-      "Email": att.email || "",
+      "Name": person.fullName || person.name || "",
+      "Email": person.email || "",
       "Event Leader Name": event.eventLeaderName || event.Leader || "",
       "Leader @12": event.leader12 || "",
-      "Phone": att.phone || "",
-      "Decision": att.decision || "",
-      "Price Tier": att.priceTier || "",
-      "Payment Method": att.paymentMethod || "",
-      "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-      "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-      "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
+      "Phone": person.phone || "",
+      "Decision": person.decision || "",
+      "Price Tier": person.priceTier || "",
+      "Payment Method": person.paymentMethod || "",
+      "Price": person.price !== undefined ? `R${Number(person.price).toFixed(2)}` : "",
+      "Paid": person.paid !== undefined ? `R${Number(person.paid).toFixed(2)}` : "",
+      "Owing": person.owing !== undefined ? `R${Number(person.owing).toFixed(2)}` : "",
+      "Note": "",
     }));
   };
 
@@ -1403,6 +1392,10 @@ ${xmlCols}
       for (const ev of fullEvents) {
         const rows = normalizeEventAttendance(ev);
         if (rows && rows.length > 0) {
+          // For did_not_meet events, mark all rows as Did Not Meet
+          if (status === "did_not_meet") {
+            rows.forEach(row => row.Note = "Did Not Meet");
+          }
           allRows.push(...rows);
         } else if (
           status === "did_not_meet" ||

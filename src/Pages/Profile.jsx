@@ -247,7 +247,7 @@ export default function Profile() {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
   const { userProfile, setUserProfile, setProfilePic, profilePic } = useContext(UserContext);
-  const { authFetch } = useContext(AuthContext);
+  const { authFetch, updateProfilePicture } = useContext(AuthContext);
 
   const [loggedInUserRole, setLoggedInUserRole] = useState(() => {
     const storedProfile = localStorage.getItem("userProfile");
@@ -326,6 +326,14 @@ export default function Profile() {
       'Female': 'Female'
     };
     return genderMap[gender] || gender;
+  };
+
+  const getDefaultAvatar = (gender) => {
+    if (!gender) return "https://cdn-icons-png.flaticon.com/512/147/147144.png";
+    const normalized = String(gender).trim().toLowerCase();
+    if (normalized === "female") return "https://cdn-icons-png.flaticon.com/512/6997/6997662.png";
+    if (normalized === "male") return "https://cdn-icons-png.flaticon.com/512/6997/6997675.png";
+    return "https://cdn-icons-png.flaticon.com/512/147/147144.png";
   };
 
   const checkIfCanEdit = useCallback((roleToCheck) => {
@@ -475,15 +483,32 @@ if (profile?.leaders) {
         }
 
         if (profileData && isMounted) {
-          updateFormWithProfile(profileData);
-          if (setUserProfile) setUserProfile(profileData);
-          if (profileData.profile_picture && setProfilePic) {
-            setProfilePic(profileData.profile_picture);
-          }
+          const finalProfileData = {
+            ...profileData,
+            profile_picture:
+              profileData.profile_picture ||
+              profileData.avatarUrl ||
+              profileData.profilePicUrl ||
+              getDefaultAvatar(profileData.gender),
+            avatarUrl:
+              profileData.profile_picture ||
+              profileData.avatarUrl ||
+              profileData.profilePicUrl ||
+              getDefaultAvatar(profileData.gender),
+            profilePicUrl:
+              profileData.profile_picture ||
+              profileData.avatarUrl ||
+              profileData.profilePicUrl ||
+              getDefaultAvatar(profileData.gender),
+          };
 
-          if (profileData.role) {
-            setLoggedInUserRole(profileData.role);
-            localStorage.setItem("userRole", profileData.role);
+          updateFormWithProfile(finalProfileData);
+          if (setUserProfile) setUserProfile(finalProfileData);
+          if (setProfilePic) setProfilePic(finalProfileData.profile_picture);
+
+          if (finalProfileData.role) {
+            setLoggedInUserRole(finalProfileData.role);
+            localStorage.setItem("userRole", finalProfileData.role);
           }
 
           hasFetchedProfile.current = true;
@@ -660,15 +685,19 @@ if (profile?.leaders) {
           if (setProfilePic) setProfilePic(url);
           const updatedProfile = { ...userProfile, profile_picture: url, avatarUrl: url, profilePicUrl: url };
           if (setUserProfile) setUserProfile(updatedProfile);
+          if (updateProfilePicture) updateProfilePicture(url);
           localStorage.setItem("userProfile", JSON.stringify(updatedProfile));
           setSnackbar({ open: true, message: "Profile picture uploaded successfully!", severity: "success" });
         } else {
           if (setProfilePic) setProfilePic(croppedImage);
+          localStorage.setItem("profilePic", croppedImage);
           setSnackbar({ open: true, message: "Profile picture updated locally", severity: "info" });
         }
       } catch (uploadError) {
         console.error("Avatar upload failed:", uploadError);
         if (setProfilePic) setProfilePic(croppedImage);
+        if (updateProfilePicture) updateProfilePicture(croppedImage);
+        localStorage.setItem("profilePic", croppedImage);
         setSnackbar({ open: true, message: "Profile picture updated locally only", severity: "warning" });
       }
       setCroppingOpen(false);

@@ -1,9 +1,10 @@
 import React from "react";
-import { useMemo, useState, useEffect, useContext } from "react";
+import { useMemo, useState, useEffect, useContext, useRef } from "react";
 import { Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
 import { createTheme, ThemeProvider, CssBaseline } from "@mui/material";
 
 import { AuthContext } from "./contexts/AuthContext";
+import { UserContext } from "./contexts/UserContext";
 
 import Sidebar from "./components/Sidebar";
 import TopbarProfile from "./components/TopbarProfile";
@@ -34,7 +35,7 @@ const ProtectedHome = withAuthCheck(Home, ['admin', 'leader', 'leaderAt12', 'use
 const ProtectedProfile = withAuthCheck(Profile, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
 const ProtectedPeople = withAuthCheck(People, ['admin', 'leader', 'leaderAt12']);
 const ProtectedEvents = withAuthCheck(Events, ['admin', 'leader', 'leaderAt12', 'registrant'], true); 
-const ProtectedStats = withAuthCheck(Stats, ['admin']);
+const ProtectedStats = withAuthCheck(Stats, ['admin','leaderAt12']);
 const ProtectedCheckIn = withAuthCheck(ServiceCheckIn, ['admin', 'registrant', 'leaderAt12']);
 const ProtectedDailyTasks = withAuthCheck(DailyTasks, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
 const ProtectedAdmin = withAuthCheck(Admin, ['admin']);
@@ -43,9 +44,11 @@ const ProtectedAttendance = withAuthCheck(AttendanceModal, ['admin', 'leader', '
 const ProtectedEventDetails = withAuthCheck(EventDetails, ['admin', 'leader', 'leaderAt12', 'user', 'registrant']);
 
 function App() {
-const { user, loading } = useContext(AuthContext);
+  const { user, loading, authFetch } = useContext(AuthContext);
+  const { loadUserProfile, setUserProfile, setProfilePic } = useContext(UserContext);
   const navigate = useNavigate();
   const location = useLocation();
+  const profileRefreshDone = useRef(false);
   const [mode, setMode] = useState(() => localStorage.getItem("themeMode") || "light");
   const theme = useMemo(() => createTheme({ palette: { mode } }), [mode]);
 
@@ -81,6 +84,79 @@ const { user, loading } = useContext(AuthContext);
     }
   }, [splashFinished, loading]);
 
+  useEffect(() => {
+    if (!loading && user && loadUserProfile) {
+      loadUserProfile();
+    }
+  }, [loading, user, loadUserProfile]);
+
+  useEffect(() => {
+    const refreshProfile = async () => {
+      if (!authFetch || !user) return;
+
+      const token =
+        localStorage.getItem("access_token") ||
+        localStorage.getItem("token") ||
+        localStorage.getItem("accessToken");
+      if (!token) return;
+
+      let userId = user?.user_id || user?.id || user?.sub;
+      if (!userId) {
+        try {
+          const payload = JSON.parse(atob(token.split(".")[1]));
+          userId = payload.user_id || payload.sub || payload.id;
+        } catch (e) {
+          return;
+        }
+      }
+
+      if (!userId) return;
+
+      try {
+        const backendUrl = import.meta.env.VITE_BACKEND_URL;
+        const response = await authFetch(`${backendUrl}/profile/${userId}`);
+        if (!response.ok) return;
+
+        const profileData = await response.json();
+
+        const getDefaultAvatarUrl = (gender) => {
+          if (!gender) return "https://cdn-icons-png.flaticon.com/512/147/147144.png";
+          const normalized = String(gender).trim().toLowerCase();
+          if (normalized === "female") return "https://cdn-icons-png.flaticon.com/512/6997/6997662.png";
+          if (normalized === "male") return "https://cdn-icons-png.flaticon.com/512/6997/6997675.png";
+          return "https://cdn-icons-png.flaticon.com/512/147/147144.png";
+        };
+
+        const finalProfilePic =
+          profileData.profile_picture && profileData.profile_picture.trim()
+            ? profileData.profile_picture
+            : getDefaultAvatarUrl(profileData.gender);
+
+        const finalProfile = {
+          ...profileData,
+          profile_picture: finalProfilePic,
+          avatarUrl: finalProfilePic,
+          profilePicUrl: finalProfilePic,
+        };
+
+        if (setUserProfile) setUserProfile(finalProfile);
+        if (setProfilePic) setProfilePic(finalProfilePic);
+      } catch (error) {
+        console.error("App profile refresh error:", error);
+      }
+    };
+
+    if (!loading && user && !profileRefreshDone.current) {
+      profileRefreshDone.current = true;
+      refreshProfile();
+    }
+  }, [loading, user, authFetch, setUserProfile, setProfilePic]);
+
+  useEffect(() => {
+    if (!user) {
+      profileRefreshDone.current = false;
+    }
+  }, [user]);
 
   if (showSplash || loading) {
     return (
