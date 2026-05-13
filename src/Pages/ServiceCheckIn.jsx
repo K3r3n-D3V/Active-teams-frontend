@@ -521,7 +521,7 @@ function ServiceCheckIn() {
       ...a,
       present: presentIds.has(a._id),
       isNew: newPeopleIds.has(a._id),
-      id: a._id,
+      id: a._id || a.email || `temp-${a.email}`,
     })),
     [attendees, presentIds, newPeopleIds]
   );
@@ -1478,6 +1478,7 @@ const sortedFilteredAttendees = useMemo(() => {
           <Paper variant="outlined" sx={{ boxShadow: 3, overflow: "hidden", width: "100%", height: gridHeight, minHeight: gridMinHeight }}>
             <DataGrid
               rows={sortedFilteredAttendees} columns={mainColumns}
+              getRowId={(row) => row.id || row._id || row.email || `temp-${Math.random()}`}
               loading={isLoadingPeople} pagination
               paginationModel={{ page, pageSize: rowsPerPage }}
               onPaginationModelChange={model => { setPage(model.page); setRowsPerPage(model.pageSize); }}
@@ -1486,7 +1487,7 @@ const sortedFilteredAttendees = useMemo(() => {
               slotProps={{ toolbar: { showQuickFilter: !isSm, quickFilterProps: { debounceMs: 500 } } }}
               disableRowSelectionOnClick
               sortModel={sortModel} onSortModelChange={model => { setPage(0); setSortModel(model); }}
-              getRowId={row => row._id} rowHeight={isSm ? 44 : 52} columnHeaderHeight={isSm ? 40 : 48}
+              // getRowId={row => row._id} rowHeight={isSm ? 44 : 52} columnHeaderHeight={isSm ? 40 : 48}
               sx={{
                 width: "100%", height: "100%",
                 "& .MuiDataGrid-cell": { display: "flex", alignItems: "center", px: isSm ? "4px" : "8px", fontSize: isSm ? "0.72rem" : "0.85rem", py: "2px" },
