@@ -1092,7 +1092,7 @@ if (profile?.leaders) {
                   <AccordionDetails>
                     <Grid container spacing={3}>
                       <Grid size={{ xs: 12 }}>
-                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Current Password</Typography>
+                        <Typography variant="body2" sx={{ mb: 1, fontWeight: 600, color: isDark ? "#cccccc" : "#666666" }}>Insert Current Password</Typography>
                         <TextField
                           value={form.currentPassword || ""}
                           onChange={handleChange("currentPassword")}
@@ -1101,16 +1101,14 @@ if (profile?.leaders) {
                           error={!!errors.currentPassword}
                           helperText={errors.currentPassword}
                           autoComplete="current-password"
-                          slotProps={{
-                            input: {
-                              endAdornment: (
-                                <InputAdornment position="end">
-                                  <IconButton onClick={() => togglePasswordVisibility("current")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}>
-                                    {showPassword.current ? <VisibilityOff /> : <Visibility />}
-                                  </IconButton>
-                                </InputAdornment>
-                              ),
-                            },
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton onClick={() => togglePasswordVisibility("current")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}>
+                                  {showPassword.current ? <VisibilityOff /> : <Visibility />}
+                                </IconButton>
+                              </InputAdornment>
+                            ),
                           }}
                           sx={commonFieldSx}
                         />
@@ -1125,16 +1123,14 @@ if (profile?.leaders) {
                           error={!!errors.newPassword}
                           helperText={errors.newPassword}
                           autoComplete="new-password"
-                          slotProps={{
-                            input: {
-                              endAdornment: (
-                                <InputAdornment position="end">
-                                  <IconButton onClick={() => togglePasswordVisibility("new")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}>
-                                    {showPassword.new ? <VisibilityOff /> : <Visibility />}
-                                  </IconButton>
-                                </InputAdornment>
-                              ),
-                            },
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton onClick={() => togglePasswordVisibility("new")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}>
+                                  {showPassword.new ? <VisibilityOff /> : <Visibility />}
+                                </IconButton>
+                              </InputAdornment>
+                            ),
                           }}
                           sx={commonFieldSx}
                         />
@@ -1149,16 +1145,14 @@ if (profile?.leaders) {
                           error={!!errors.confirmPassword}
                           helperText={errors.confirmPassword}
                           autoComplete="new-password"
-                          slotProps={{
-                            input: {
-                              endAdornment: (
-                                <InputAdornment position="end">
-                                  <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}>
-                                    {showPassword.confirm ? <VisibilityOff /> : <Visibility />}
-                                  </IconButton>
-                                </InputAdornment>
-                              ),
-                            },
+                          InputProps={{
+                            endAdornment: (
+                              <InputAdornment position="end">
+                                <IconButton onClick={() => togglePasswordVisibility("confirm")} edge="end" sx={{ color: isDark ? "#cccccc" : "#666666" }}>
+                                  {showPassword.confirm ? <VisibilityOff /> : <Visibility />}
+                                </IconButton>
+                              </InputAdornment>
+                            ),
                           }}
                           sx={commonFieldSx}
                         />
