@@ -4,6 +4,7 @@ import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
+import { useTaskUpdate } from "../contexts/TaskUpdateContext";
 const CACHE_DURATION = 30 * 60 * 1000;
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
@@ -87,6 +88,7 @@ export default function DailyTasks() {
   const isDarkMode = theme.palette.mode === "dark";
 
   const { user, authFetch } = useContext(AuthContext);
+  const { updateCount } = useTaskUpdate();
 
   const [tasks, setTasks] = useState([]);
   const [taskTypes, setTaskTypes] = useState([]);
@@ -369,19 +371,34 @@ export default function DailyTasks() {
       setLoading(true);
       // Normalize email to lowercase for consistent querying
       const normalizedEmail = (user.email || "").trim().toLowerCase();
-      const res = await authFetch(
+      const taskUrls = [
         `${API_URL}/tasks?email=${encodeURIComponent(normalizedEmail)}`,
-        { signal },
-      );
-      if (!res.ok) throw new Error("Failed to fetch tasks");
-      const data = await res.json();
-      const tasksArray = Array.isArray(data) ? data : data.tasks || [];
+        `${API_URL}/tasks?assigned_to_email=${encodeURIComponent(normalizedEmail)}`,
+        `${API_URL}/tasks?assignedfor=${encodeURIComponent(normalizedEmail)}`,
+      ];
+
+      let tasksArray = [];
+      for (const url of taskUrls) {
+        const res = await authFetch(url, { signal });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const nextTasks = Array.isArray(data) ? data : data.tasks || [];
+        if (nextTasks.length > 0) {
+          tasksArray = nextTasks;
+          break;
+        }
+      }
 
       const normalizedTasks = tasksArray.map((task) => {
+        // Normalize taskType to lowercase
+        const normalizedTaskType = (task.taskType || "").toLowerCase();
         const isConsolidation =
-          task.taskType === "consolidation" || task.is_consolidation_task;
+          normalizedTaskType === "consolidation" || task.is_consolidation_task;
         const isNewPerson =
-          task.taskType === "new_person" || task.is_new_person_task;
+          normalizedTaskType === "service follow up" ||
+          normalizedTaskType === "Service follow up" ||
+          normalizedTaskType === "new_person" ||
+          task.is_new_person_task;
         let assignedTo = "";
         if (isConsolidation || isNewPerson) {
           assignedTo =
@@ -412,8 +429,12 @@ export default function DailyTasks() {
           taskName: task.name || task.taskName,
           type:
             task.type ||
-            (task.taskType?.toLowerCase()?.includes("visit")
+            (normalizedTaskType === "service follow up" || normalizedTaskType === "Service follow up"
+              ? "Service follow up"
+              : normalizedTaskType?.includes("visit")
               ? "visit"
+              : normalizedTaskType?.includes("follow up")
+              ? "follow up"
               : "call") ||
             "call",
           leader_name: task.leader_name || task.leader_assigned,
@@ -1050,7 +1071,8 @@ export default function DailyTasks() {
     today.setHours(0, 0, 0, 0);
     const diffTime = today.getTime() - date.getTime();
     const diffHours = diffTime / (1000 * 60 * 60);
-    const isOverdue = diffHours > 24;
+    const isCompleted = ["completed", "done"].includes(task.status?.toLowerCase());
+    const isOverdue = !isCompleted && diffHours > 24;
 
     // Format the date
     const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -1288,6 +1310,14 @@ export default function DailyTasks() {
       window.removeEventListener("taskUpdated", handleTaskUpdated);
     };
   }, [user]);
+
+  // Listen for task updates from TaskUpdateContext
+  useEffect(() => {
+    if (updateCount > 0) {
+      console.log("Task update from context:", updateCount);
+      fetchUserTasks();
+    }
+  }, [updateCount, fetchUserTasks]);
 
   // Whether people are still being loaded for the first time
   const peopleNotLoadedYet =
@@ -1600,7 +1630,10 @@ export default function DailyTasks() {
               const isConsolidation =
                 task.taskType === "consolidation" || task.is_consolidation_task;
               const isNewPerson =
-                task.taskType === "new_person" || task.is_new_person_task;
+                task.taskType === "service follow up" ||
+                task.taskType === "Service follow up" ||
+                task.taskType === "new_person" ||
+                task.is_new_person_task;
 
               // Debug consolidation and new person tasks
               if (isConsolidation || isNewPerson) {

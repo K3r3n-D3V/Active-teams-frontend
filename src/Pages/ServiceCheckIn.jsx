@@ -900,7 +900,7 @@ const sortedFilteredAttendees = useMemo(() => {
       const taskPayload = {
         memberID: user?.id || "",
         name: leaderName,
-        taskType: "new_person",
+        taskType: "Service follow up",
         contacted_person: {
           name: `${person.Name || person.name || ""} ${person.Surname || person.surname || ""}`.trim(),
           phone: person.Number || person.phone || "",
@@ -908,7 +908,7 @@ const sortedFilteredAttendees = useMemo(() => {
         },
         followup_date: dueDate.toISOString(),
         status: "Open",
-        type: "new_person",
+        type: "Service follow up",
         assignedfor: normalizedEmail,
         assigned_to_email: normalizedEmail,
         created_by_email: (user?.email || "").trim().toLowerCase(),

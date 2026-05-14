@@ -291,10 +291,15 @@ const ConsolidationModal = ({
       console.log("After normalize:", normalizedEmail);
       if (!normalizedEmail) {
         console.warn(
-          "No leader email found for task assignment. Task will not be visible to leader.",
+          "No leader email found for task assignment. Assigning to current user.",
         );
-        toast.warning("No leader email found. Task may not be visible to leader.");
-        return;
+        normalizedEmail = (user?.email || "").trim().toLowerCase();
+        if (!normalizedEmail) {
+          toast.error("No email available for task assignment.");
+          return;
+        }
+        // If no leader, assign to user
+        leaderName = `${user?.name || ""} ${user?.surname || ""}`.trim();
       }
       const dueDate = getDueDate(new Date());
       const todayDate = new Date().toISOString().split("T")[0];

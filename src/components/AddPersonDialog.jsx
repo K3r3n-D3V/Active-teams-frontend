@@ -639,56 +639,6 @@ export default function AddPersonDialog({
     );
   };
 
-  const renderAutocomplete = (name, label, isInvite = false, disabled = false) => {
-    const currentValue = formData[name] || "";
-    const isLeaderField = name.startsWith("leader");
-    const currentRole = String(user?.role || "").toLowerCase();
-    const allowedRoles = ["leaderat12", "leader", "admin", "manager"];
-    const canEditLeaders = allowedRoles.includes(currentRole);
-    const fieldDisabled = disabled || (isLeaderField && !canEditLeaders);
-    return (
-      <Autocomplete
-        freeSolo
-        disabled={fieldDisabled || isSubmitting}
-        options={peopleOptions}
-        getOptionLabel={(o) => (typeof o === "string" ? o : o.label)}
-        filterOptions={filterOptions}
-        value={
-          peopleOptions.find((o) => o.label === currentValue) ||
-          (currentValue ? { label: currentValue } : null)
-        }
-        onChange={(_, newValue) => {
-          if (isInvite) {
-            handleInvitedByChange(newValue);
-          } else {
-            const val = newValue ? (typeof newValue === "string" ? newValue : newValue.label) : "";
-            setFormData((p) => ({ ...p, [name]: val }));
-            if (isLeaderField) setLeaderFieldsEdited(true);
-          }
-        }}
-        onInputChange={(_, newInput, reason) => {
-          if (reason === "input") {
-            setFormData((p) => ({ ...p, [name]: newInput }));
-            if (isLeaderField) setLeaderFieldsEdited(true);
-          }
-        }}
-        renderInput={(params) => (
-          <TextField
-            {...params} label={label} error={!!errors[name]}
-            helperText={errors[name]} margin="normal" fullWidth sx={uniformInputSx}
-          />
-        )}
-        renderOption={(props, option, { index }) => (
-          <li {...props} key={option.person?._id || option.label || `option-${index}`}>
-            {option.label}
-          </li>
-        )}
-        noOptionsText="No matches found"
-        blurOnSelect clearOnBlur handleHomeEndKeys
-      />
-    );
-  };
-
   return (
     <Dialog
       open={open} onClose={handleClose} maxWidth="md" fullWidth
@@ -720,40 +670,55 @@ export default function AddPersonDialog({
           {renderTextField("name", "First Name *", { required: true })}
           {renderTextField("surname", "Last Name *", { required: true })}
           {renderTextField("dob", "Date of Birth *", { type: "date", required: true })}
-          {renderAutocomplete("invitedBy", "Invited By", true, false)}
 
-          {/* Address autocomplete */}
-          <Autocomplete
-            freeSolo
-            options={addressSuggestions}
-            getOptionLabel={(o) => (typeof o === "string" ? o : o.label || o.address || "")}
+          <PeopleSearchField
+            label="Invited By"
+            value={formData.invitedBy}
+            onChange={(val, person) => {
+              setFormData((p) => {
+                const update = { ...p, invitedBy: val };
+                if (person) {
+                  // Build ancestor chain root-first from inviter's own leaders
+                  const ancestors = [
+                    person.leader1,
+                    person.leader12,
+                    person.leader144,
+                  ].filter(Boolean);
+ 
+                  // Only add inviter to chain if fewer than 3 levels above them
+                  // If already 3 deep, inviter is just invitedBy — leaders come from their chain as-is
+                  if (ancestors.length < 3) {
+                    ancestors.push(person.fullName);
+                  }
+ 
+                  // leader1  = root (always index 0)
+                  // leader12 = second-to-last
+                  // leader144 = last (only when 3 entries exist)
+                  //
+                  // [Gavin, Sasha]            → l1=Gavin, l12=Sasha,   l144=""
+                  // [Gavin, Thabo, Blessing]  → l1=Gavin, l12=Thabo,   l144=Blessing
+                  // [Gavin, Thabo, Blessing] (inviter already has 3) → same, inviter not appended
+                  update.leader1   = ancestors[0] || "";
+                  update.leader12  = ancestors.length >= 2 ? ancestors[ancestors.length - 2] : "";
+                  update.leader144 = ancestors.length >= 3 ? ancestors[ancestors.length - 1] : "";
+                } else {
+                  update.leader1   = "";
+                  update.leader12  = "";
+                  update.leader144 = "";
+                }
+                return update;
+              });
+              setErrors((p) => ({ ...p, invitedBy: "", leader1: "", leader12: "", leader144: "" }));
+            }}
+            disabled={isSubmitting}
+            error={errors.invitedBy}
+            sx={uniformInputSx}
+          />
+
+          <AddressSearchField
             value={formData.address}
-            onChange={(_, newValue) => {
-              const address = typeof newValue === "string" ? newValue : newValue?.address || newValue?.label || "";
-              setFormData((p) => ({ ...p, address }));
-              setErrors((p) => ({ ...p, address: "" }));
-            }}
-            onInputChange={(_, newInput) => {
-              setSearchInputs((p) => ({ ...p, address: newInput }));
-              setFormData((p) => ({ ...p, address: newInput }));
-              setErrors((p) => ({ ...p, address: "" }));
-            }}
-            loading={isLoadingAddress}
-            loadingText="Searching addresses…"
-            noOptionsText={
-              (searchInputs.address || "").length < 3 ? "Type at least 3 characters" : "No addresses found"
-            }
-            renderInput={(params) => (
-              <TextField
-                {...params} label="Home Address *" error={!!errors.address}
-                helperText={errors.address} margin="normal" fullWidth sx={uniformInputSx}
-              />
-            )}
-            renderOption={(props, option, { index }) => (
-              <li {...props} key={option.label || option.address || `address-${index}`}>
-                {option.label || option.address}
-              </li>
-            )}
+            onChange={(val) => { setFormData((p) => ({ ...p, address: val })); setErrors((p) => ({ ...p, address: "" })); }}
+            error={errors.address}
             disabled={isSubmitting}
             sx={uniformInputSx}
           />
