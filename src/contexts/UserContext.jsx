@@ -1,4 +1,5 @@
-import React, { createContext, useState, useEffect, useCallback } from "react";
+import React, { createContext, useState, useEffect, useCallback, useContext } from "react";
+import { AuthContext } from "./AuthContext";
 
 export const UserContext = createContext();
 
@@ -47,9 +48,19 @@ const normalizeUserProfile = (userData) => {
 export const UserProvider = ({ children }) => {
   const [profilePic, setProfilePic] = useState(DEFAULT_AVATARS.neutral);
   const [userProfile, setUserProfile] = useState(null);
+  const authContext = useContext(AuthContext);
 
   const initializeUserData = useCallback(() => {
     try {
+      // If AuthContext has a user, use that as source of truth
+      if (authContext?.user) {
+        const normalizedProfile = normalizeUserProfile(authContext.user);
+        setUserProfile(normalizedProfile);
+        setProfilePic(normalizedProfile.profile_picture);
+        return;
+      }
+
+      // Fallback to localStorage if AuthContext user not available yet
       const savedProfile = localStorage.getItem('userProfile');
       let parsedProfile = null;
 
@@ -80,11 +91,24 @@ export const UserProvider = ({ children }) => {
     } catch (error) {
       console.error('Error initializing user data:', error);
     }
-  }, []);
+  }, [authContext?.user]);
+
 
   useEffect(() => {
     initializeUserData();
   }, [initializeUserData]);
+
+  // Sync with AuthContext when user changes
+  useEffect(() => {
+    if (authContext?.user) {
+      const normalizedProfile = normalizeUserProfile(authContext.user);
+      setUserProfile(normalizedProfile);
+      setProfilePic(normalizedProfile.profile_picture);
+    } else {
+      setUserProfile(null);
+      setProfilePic(DEFAULT_AVATARS.neutral);
+    }
+  }, [authContext?.user]);
 
   //  REMOVED THIS EFFECT - Let AuthContext manage userProfile in localStorage
   // useEffect(() => {
