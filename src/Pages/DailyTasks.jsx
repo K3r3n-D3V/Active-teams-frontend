@@ -377,17 +377,20 @@ export default function DailyTasks() {
         `${API_URL}/tasks?assignedfor=${encodeURIComponent(normalizedEmail)}`,
       ];
 
-      let tasksArray = [];
+      const tasksMap = new Map();
       for (const url of taskUrls) {
         const res = await authFetch(url, { signal });
         if (!res.ok) continue;
         const data = await res.json();
         const nextTasks = Array.isArray(data) ? data : data.tasks || [];
-        if (nextTasks.length > 0) {
-          tasksArray = nextTasks;
-          break;
-        }
+        nextTasks.forEach((task) => {
+          const key = String(task._id || task.id || task.taskId || JSON.stringify(task));
+          if (!tasksMap.has(key)) {
+            tasksMap.set(key, task);
+          }
+        });
       }
+      const tasksArray = Array.from(tasksMap.values());
 
       const normalizedTasks = tasksArray.map((task) => {
         // Normalize taskType to lowercase
@@ -424,12 +427,19 @@ export default function DailyTasks() {
           ...task,
           assignedTo,
           recipientId,
-          date: task.date || task.followup_date,
+          date:
+            task.date ||
+            task.followup_date ||
+            task.completedAt ||
+            task.completed_at ||
+            task.createdAt ||
+            task.created_at,
           status: (task.status || "Open").toLowerCase(),
+          taskType: normalizedTaskType,
           taskName: task.name || task.taskName,
           type:
             task.type ||
-            (normalizedTaskType === "service follow up" || normalizedTaskType === "Service follow up"
+            (normalizedTaskType === "service follow up"
               ? "Service follow up"
               : normalizedTaskType?.includes("visit")
               ? "visit"
@@ -455,14 +465,21 @@ export default function DailyTasks() {
         const userEmailLower = (user.email || "").trim().toLowerCase();
         const taskAssignedForLower = (task.assignedfor || "").trim().toLowerCase();
         const taskAssignedToEmailLower = (task.assigned_to_email || "").trim().toLowerCase();
+        const taskCreatedByLower = (task.created_by_email || task.created_by || "").trim().toLowerCase();
 
+        // Consider a task "mine" if it's assigned for me, assigned to me, or I created it.
+        // This avoids tasks disappearing when the backend clears assigned fields on completion.
         const isMyTask =
           taskAssignedForLower === userEmailLower ||
-          taskAssignedToEmailLower === userEmailLower;
+          taskAssignedToEmailLower === userEmailLower ||
+          taskCreatedByLower === userEmailLower;
+
         const isAssignedToSomeoneElse =
           task.assignedfor &&
           taskAssignedForLower !== userEmailLower &&
-          taskAssignedToEmailLower !== userEmailLower;
+          taskAssignedToEmailLower !== userEmailLower &&
+          taskCreatedByLower !== userEmailLower;
+
         return isMyTask && !isAssignedToSomeoneElse;
       });
 
@@ -882,7 +899,7 @@ export default function DailyTasks() {
   const updateTask = async (taskId, updatedData) => {
     try {
       const isConsolidationTask =
-        selectedTask?.taskType === "consolidation" ||
+        (selectedTask?.taskType || "").toLowerCase() === "consolidation" ||
         selectedTask?.is_consolidation_task;
 
       if (isConsolidationTask) {
@@ -909,7 +926,11 @@ export default function DailyTasks() {
             ? {
                 ...t,
                 ...data.updatedTask,
-                date: data.updatedTask.followup_date,
+                // Preserve assignment fields if backend response omits them
+                assignedfor: data.updatedTask.assignedfor || t.assignedfor,
+                assigned_to_email: data.updatedTask.assigned_to_email || t.assigned_to_email,
+                created_by_email: data.updatedTask.created_by_email || t.created_by_email,
+                date: data.updatedTask.followup_date || t.date,
                 ...(isConsolidationTask && {
                   leader_name: selectedTask.leader_name,
                   leader_assigned: selectedTask.leader_assigned,
@@ -976,7 +997,7 @@ export default function DailyTasks() {
       }
 
       const isConsolidationTask =
-        selectedTask?.taskType === "consolidation" ||
+        (selectedTask?.taskType || "").toLowerCase() === "consolidation" ||
         selectedTask?.is_consolidation_task;
 
       const taskPayload = {
@@ -1053,7 +1074,13 @@ export default function DailyTasks() {
     if (!isConsolidation && !isNewPerson) return null;
 
     // Get the service date from the task - try multiple field names
-    const serviceDate = task.decision_date || task.created_at || task.date;
+    const serviceDate =
+      task.decision_date ||
+      task.created_at ||
+      task.completedAt ||
+      task.completed_at ||
+      task.followup_date ||
+      task.date;
     if (!serviceDate) {
       if (isConsolidation || isNewPerson) {
         console.warn("No service date found for task:", task);
@@ -1631,7 +1658,6 @@ export default function DailyTasks() {
                 task.taskType === "consolidation" || task.is_consolidation_task;
               const isNewPerson =
                 task.taskType === "service follow up" ||
-                task.taskType === "Service follow up" ||
                 task.taskType === "new_person" ||
                 task.is_new_person_task;
 
@@ -1970,7 +1996,7 @@ export default function DailyTasks() {
               textAlign: "center",
             }}
           >
-            {selectedTask?.taskType === "consolidation" ||
+            {(selectedTask?.taskType || "").toLowerCase() === "consolidation" ||
             selectedTask?.is_consolidation_task
               ? "Consolidation Task"
               : formType === "call"
@@ -2307,7 +2333,7 @@ export default function DailyTasks() {
                 marginBottom: "6px",
               }}
             >
-              {selectedTask?.taskType === "consolidation" ||
+              {(selectedTask?.taskType || "").toLowerCase() === "consolidation" ||
               selectedTask?.is_consolidation_task
                 ? "Leader Assigned"
                 : "Assigned To"}
@@ -2325,7 +2351,7 @@ export default function DailyTasks() {
                 });
                 if (
                   !(
-                    selectedTask?.taskType === "consolidation" ||
+                    (selectedTask?.taskType || "").toLowerCase() === "consolidation" ||
                     selectedTask?.is_consolidation_task
                   )
                 ) {
