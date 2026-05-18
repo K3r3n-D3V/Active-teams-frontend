@@ -1162,78 +1162,98 @@ export default function DailyTasks() {
   };
 
   const filteredTasks = tasks.filter((task) => {
-    const isCompleted = (task.status || "").toLowerCase() === "completed";
-    const isConsolidationOrFollowUp =
-      task.is_consolidation_task === true || task.is_new_person_task === true;
+  const isCompleted = (task.status || "").toLowerCase() === "completed";
+  const isConsolidationOrFollowUp =
+    task.is_consolidation_task === true || task.is_new_person_task === true;
 
-    const matchesType =
-      filterType === "all" ||
-      task.type === filterType ||
-      (filterType === "consolidation" && isConsolidationOrFollowUp);
+  const matchesType =
+    filterType === "all" ||
+    task.type === filterType ||
+    (filterType === "consolidation" && isConsolidationOrFollowUp);
 
-    if (!matchesType) return false;
+  if (!matchesType) return false;
 
-    const rawDate =
-      task.followup_date ||
-      task.date ||
-      task.completedAt ||
-      task.completed_at ||
-      task.createdAt ||
-      task.created_at;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
 
-    const taskDate = parseDate(rawDate);
-    const completedDate = parseDate(task.completedAt || task.completed_at);
+  // OPEN tasks: overdue ones always show, future/today ones show normally
+  if (!isCompleted) {
+    const followupDate = parseDate(task.followup_date || task.date);
+    // No date at all — show open consolidation/followup, hide others
+    if (!followupDate) return isConsolidationOrFollowUp;
+    // Overdue open tasks always show regardless of date filter
+    if (followupDate < today) return true;
+    // Not overdue — apply normal date filter below
+  }
 
-    // Open consolidation/follow-up with no parseable date — always show
-    if (!taskDate && !isCompleted && isConsolidationOrFollowUp) return true;
-    if (!taskDate) return false;
+  // COMPLETED tasks and non-overdue open tasks: apply date filter
+  // Completed tasks use completedAt date; open non-overdue use followup_date
+  const completedDate = parseDate(task.completedAt || task.completed_at);
+  const followupDate = parseDate(task.followup_date || task.date);
+  const fallbackDate = parseDate(task.createdAt || task.created_at);
 
-    const dateToCheck = isCompleted && completedDate ? completedDate : taskDate;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+  const dateToCheck = isCompleted
+    ? (completedDate || followupDate || fallbackDate)
+    : (followupDate || fallbackDate);
 
-    // Open overdue tasks always show
-    if (!isCompleted && taskDate < today) return true;
+  if (!dateToCheck) return false;
 
-    let matchesDate = true;
-    if (dateRange === "today") {
-      matchesDate = isSameDay(dateToCheck, today);
-      if (!matchesDate && isCompleted && completedDate) {
-        matchesDate = isSameDay(completedDate, today);
+  const getStart = getStartOfWeek;
+  const getEnd = getEndOfWeek;
+
+  switch (dateRange) {
+    case "today":
+      // Completed: show if completed today OR (no completedAt) followup was today
+      if (isCompleted) {
+        return (
+          (completedDate && isSameDay(completedDate, today)) ||
+          (!completedDate && followupDate && isSameDay(followupDate, today))
+        );
       }
-    } else if (dateRange === "thisWeek") {
+      return isSameDay(dateToCheck, today);
+
+    case "thisWeek": {
       const start = getStartOfWeek(today);
       const end = getEndOfWeek(today);
-      matchesDate = isDateInRange(dateToCheck, start, end);
-      if (!matchesDate && isCompleted && completedDate) {
-        matchesDate = isDateInRange(completedDate, start, end);
+      if (isCompleted) {
+        return (
+          (completedDate && isDateInRange(completedDate, start, end)) ||
+          (!completedDate && followupDate && isDateInRange(followupDate, start, end))
+        );
       }
-    } else if (dateRange === "thisMonth") {
-      matchesDate = isDateInRange(
-        dateToCheck,
-        getStartOfMonth(today),
-        getEndOfMonth(today),
-      );
-    } else if (dateRange === "previousWeek") {
+      return isDateInRange(dateToCheck, start, end);
+    }
+
+    case "thisMonth": {
+      const start = getStartOfMonth(today);
+      const end = getEndOfMonth(today);
+      return isDateInRange(dateToCheck, start, end);
+    }
+
+    case "previousWeek": {
       const lastWeekDate = new Date(today);
       lastWeekDate.setDate(today.getDate() - 7);
-      matchesDate = isDateInRange(
+      return isDateInRange(
         dateToCheck,
         getStartOfWeek(lastWeekDate),
-        getEndOfWeek(lastWeekDate),
-      );
-    } else if (dateRange === "previousMonth") {
-      const lastMonthDate = new Date(today);
-      lastMonthDate.setMonth(today.getMonth() - 1);
-      matchesDate = isDateInRange(
-        dateToCheck,
-        getStartOfMonth(lastMonthDate),
-        getEndOfMonth(lastMonthDate),
+        getEndOfWeek(lastWeekDate)
       );
     }
 
-    return matchesDate;
-  });
+    case "previousMonth": {
+      const lastMonthDate = new Date(today);
+      lastMonthDate.setMonth(today.getMonth() - 1);
+      return isDateInRange(
+        dateToCheck,
+        getStartOfMonth(lastMonthDate),
+        getEndOfMonth(lastMonthDate)
+      );
+    }
+
+    default:
+      return true;
+  }
+});
 
   const downloadFilteredTasks = () => {
     try {
