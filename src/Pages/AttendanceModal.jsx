@@ -2483,6 +2483,8 @@ const AttendanceModal = ({
       person.fullName.toLowerCase().includes(searchName.toLowerCase()) ||
       person.email.toLowerCase().includes(searchName.toLowerCase()),
   );
+
+  
   const handleSave = async () => {
     if (isSaving) return;
     setIsSaving(true);
