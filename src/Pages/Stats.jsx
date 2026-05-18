@@ -804,17 +804,11 @@ const StatsDashboard = () => {
 
       const wbout = XLSX.write(wb, {
         bookType: "xlsx",
-        type: "binary",
+        type: "array",
         bookSST: false,
       });
 
-      const buffer = new ArrayBuffer(wbout.length);
-      const view = new Uint8Array(buffer);
-      for (let i = 0; i < wbout.length; ++i) {
-        view[i] = wbout.charCodeAt(i) & 0xff;
-      }
-
-      const blob = new Blob([buffer], {
+      const blob = new Blob([wbout], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
@@ -823,14 +817,22 @@ const StatsDashboard = () => {
 
       link.href = url;
       link.download = fileName;
+      link.target = "_blank";
+      link.rel = "noopener";
       link.style.display = "none";
       document.body.appendChild(link);
-      link.click();
+      link.dispatchEvent(
+        new MouseEvent("click", {
+          view: window,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
 
       setTimeout(() => {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-      }, 100);
+      }, 200);
 
       toast.success(`Downloaded ${dataToExport.length} records (${sheetName})`);
     } catch (error) {
@@ -1530,13 +1532,22 @@ const StatsDashboard = () => {
             >
               <Refresh />
             </IconButton>
-          </Tooltip>
-
+          </Tooltip> 
+          {/* Download button should download based  */}
           <Button
-            variant="outlined"
             size="small"
-            startIcon={<Download />}
             onClick={downloadFilteredStats}
+            startIcon={<Download />}
+            variant="outlined"
+            disabled={
+              stats.loading ||
+              cellsLoading ||
+              (activeTab === 0
+                ? filteredOverdueCells.length === 0
+                : activeTab === 1
+                ? filteredTasks.length === 0
+                : filteredEvents.length === 0)
+            }
           >
             Download
           </Button>
@@ -1550,19 +1561,19 @@ const StatsDashboard = () => {
         <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="Overdue Cells"
-            value={filteredOverdueCells.length}
-            subtitle={getPeriodDisplayText(period)}
-            icon={<Warning />}
             color="warning"
+            subtitle={getPeriodDisplayText(period)}
+            value={filteredOverdueCells.length}
+            icon={<Warning />}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="Tasks Due"
-            value={stats.overview?.tasks_due_in_period || 0}
             subtitle={getPeriodDisplayText(period)}
-            icon={<Task />}
             color="secondary"
+            value={stats.overview?.tasks_due_in_period || 0}
+            icon={<Task />}
           />
         </Grid>
       </Grid>
@@ -1570,10 +1581,10 @@ const StatsDashboard = () => {
       {/* Tabs */}
       <Paper variant="outlined" sx={{ mb: 2 }}>
         <Tabs
+          variant={isSmDown ? "scrollable" : "standard"}
+          centered
           value={activeTab}
           onChange={(_, v) => setActiveTab(v)}
-          centered
-          variant={isSmDown ? "scrollable" : "standard"}
         >
           <Tab label={`Overdue Cells (${filteredOverdueCells.length})`} />
           <Tab label={`Tasks (${filteredTasks.length})`} />
@@ -1620,12 +1631,12 @@ const StatsDashboard = () => {
                   variant="outlined"
                 />
                 <Button
+                  color="warning"
                   variant="outlined"
                   size="small"
-                  color="warning"
-                  startIcon={<Visibility fontSize="small" />}
-                  onClick={() => setOverdueModalOpen(true)}
                   disabled={filteredOverdueCells.length === 0}
+                  onClick={() => setOverdueModalOpen(true)}
+                  startIcon={<Visibility fontSize="small" />}
                 >
                   View All
                 </Button>
@@ -1663,14 +1674,14 @@ const StatsDashboard = () => {
             ) : filteredOverdueCells.length === 0 ? (
               <Box
                 sx={{
+                  px: 3,
+                  textAlign: "center",
+                  color: "text.secondary",
+                  justifyContent: "center",
+                  alignItems: "center",
                   flexGrow: 1,
                   display: "flex",
                   flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "text.secondary",
-                  textAlign: "center",
-                  px: 3,
                 }}
               >
                 <Warning
