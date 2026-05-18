@@ -42,14 +42,16 @@ const mapPerson = (raw) => {
   const email   = (raw.Email   || raw.email   || "").toString().trim();
   const phone   = (raw.Number  || raw.phone   || raw.Phone || "").toString().trim();
 
-  let leader1 = raw["Leader @1"] || raw.leader1 || "";
-  let leader12 = raw["Leader @12"] || raw.leader12 || "";
-  let leader144 = raw["Leader @144"] || raw.leader144 || "";
-  if (!leader1 && Array.isArray(raw.leaders)) {
+  let leader1   = raw["Leader @1"]   || raw["leader @1"]   || raw.leader1   || raw["Leader at 1"]   || "";
+  let leader12  = raw["Leader @12"]  || raw["leader @12"]  || raw.leader12  || raw["Leader at 12"]  || "";
+  let leader144 = raw["Leader @144"] || raw["leader @144"] || raw.leader144 || raw["Leader at 144"] || "";
+
+  if ((!leader1 || !leader12) && Array.isArray(raw.leaders)) {
     for (const l of raw.leaders) {
-      if (l.level === 1   && !leader1)   leader1   = l.name || "";
-      if (l.level === 12  && !leader12)  leader12  = l.name || "";
-      if (l.level === 144 && !leader144) leader144 = l.name || "";
+      const n = l.name || "";
+      if (l.level === 1   && !leader1)   leader1   = n;
+      if (l.level === 12  && !leader12)  leader12  = n;
+      if (l.level === 144 && !leader144) leader144 = n;
     }
   }
 
@@ -131,16 +133,13 @@ function PeopleSearchField({ label, value, onChange, disabled, error, required }
   const handleChange = (e) => {
     const val = e.target.value;
     setInputVal(val);
-    onChange(val, null); // null = typed, not selected — no autofill
-    
-    // Show results immediately if people store is ready, or show loading state
+    onChange(val, null);
     if (val.trim().length >= 1) {
       if (peopleStore.ready) {
         const hits = searchPeople(val);
         setResults(hits);
         setShowDrop(true);
       } else {
-        // Show dropdown with "Still loading" message
         setResults([]);
         setShowDrop(true);
       }
@@ -154,32 +153,23 @@ function PeopleSearchField({ label, value, onChange, disabled, error, required }
     setInputVal(person.fullName);
     setResults([]);
     setShowDrop(false);
-    onChange(person.fullName, person); // pass full person for autofill
+    onChange(person.fullName, person);
   };
 
   const fieldId = `psf-${label.replace(/\s+/g, "-").toLowerCase()}`;
-  const border  = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
-  const hoverBorder = error ? "#d32f2f" : (isDark ? "rgb(255, 255, 255)" : "rgba(0,0,0,0.4)");
+  const border      = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
+  const hoverBorder = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.4)"  : "rgba(0,0,0,0.4)");
   const focusBorder = error ? "#d32f2f" : theme.palette.primary.main;
-  
-  const bg       = "transparent";
-  const hoverBg = "transparent";
 
-  let displayBg = bg;
   let displayBorder = border;
-  
-  if (isFocused) {
-    displayBorder = focusBorder;
-  } else if (isHovering && !disabled) {
-    displayBorder = hoverBorder;
-  }
+  if (isFocused) displayBorder = focusBorder;
+  else if (isHovering && !disabled) displayBorder = hoverBorder;
 
   return (
     <Box ref={wrapRef} sx={{ position: "relative", mt: "16px", mb: "8px" }}>
       <Box sx={{ position: "relative" }}>
         <input
           id={fieldId}
-          className={`psf-input-${fieldId}`}
           type="text" value={inputVal} disabled={disabled}
           autoComplete="off" placeholder={label}
           onChange={handleChange}
@@ -200,11 +190,12 @@ function PeopleSearchField({ label, value, onChange, disabled, error, required }
           style={{
             width: "100%", height: "50px", padding: "10px 14px",
             fontSize: "0.95rem", borderRadius: "15px",
-            border: `1px solid ${displayBorder}`, background: displayBg,
+            border: `1px solid ${displayBorder}`,
+            background: "transparent",
             color: theme.palette.text.primary, outline: "none",
             boxSizing: "border-box", fontFamily: "inherit",
             cursor: disabled ? "not-allowed" : "text",
-            transition: "background-color 0.2s ease, border-color 0.2s ease",
+            transition: "border-color 0.2s ease",
           }}
         />
       </Box>
@@ -224,7 +215,7 @@ function PeopleSearchField({ label, value, onChange, disabled, error, required }
       {showDrop && (
         <Box sx={{
           position: "absolute", top: "100%", left: 0, right: 0, mt: "4px",
-          background: "background.paper", bgcolor: theme.palette.background.paper,
+          bgcolor: theme.palette.background.paper,
           border: `1px solid ${theme.palette.divider}`,
           borderRadius: "8px", boxShadow: "0 6px 24px rgba(0,0,0,0.18)",
           zIndex: 9999, maxHeight: "240px", overflowY: "auto",
@@ -296,31 +287,20 @@ function AddressSearchField({ value, onChange, error, disabled }) {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
-  const addrFieldId = "psf-home-address";
-  const border   = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
-  const hoverBorder = error ? "#d32f2f" : (isDark ? "rgb(255, 255, 255)" : "rgba(0,0,0,0.4)");
+  const border      = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)");
+  const hoverBorder = error ? "#d32f2f" : (isDark ? "rgba(255,255,255,0.4)"  : "rgba(0,0,0,0.4)");
   const focusBorder = error ? "#d32f2f" : theme.palette.primary.main;
-  
-  const bg       = "transparent";
-  const hoverBg = "transparent";
 
-  let displayBg = bg;
   let displayBorder = border;
-  
-  if (isFocused) {
-    displayBorder = focusBorder;
-  } else if (isHovering && !disabled) {
-    displayBorder = hoverBorder;
-  }
+  if (isFocused) displayBorder = focusBorder;
+  else if (isHovering && !disabled) displayBorder = hoverBorder;
 
   return (
     <Box ref={wrapRef} sx={{ position: "relative", mt: "16px", mb: "8px" }}>
       <Box sx={{ position: "relative" }}>
         <input
-          id={addrFieldId}
-          className={`psf-input-${addrFieldId}`}
           type="text" value={inputVal} disabled={disabled}
-          autoComplete="off" placeholder="Home Address"
+          autoComplete="off" placeholder="Home Address *"
           onChange={(e) => { setInputVal(e.target.value); onChange(e.target.value); setShowDrop(false); }}
           onMouseEnter={() => !disabled && setIsHovering(true)}
           onMouseLeave={() => setIsHovering(false)}
@@ -329,10 +309,11 @@ function AddressSearchField({ value, onChange, error, disabled }) {
           style={{
             width: "100%", height: "50px", padding: "10px 14px",
             fontSize: "0.95rem", borderRadius: "15px",
-            border: `1px solid ${displayBorder}`, background: displayBg,
+            border: `1px solid ${displayBorder}`,
+            background: "transparent",
             color: theme.palette.text.primary, outline: "none",
             boxSizing: "border-box", fontFamily: "inherit",
-            transition: "background-color 0.2s ease, border-color 0.2s ease",
+            transition: "border-color 0.2s ease",
           }}
         />
       </Box>
@@ -385,20 +366,16 @@ export default function AddPersonDialog({
   const [originalFormData, setOriginalFormData]  = useState(null);
   const [peopleReady,      setPeopleReady]       = useState(peopleStore.ready);
 
-  // ── Load people into module-level store once ──────────────────────────────
   useEffect(() => {
     if (!open) return;
 
-    // Already loaded and fresh
     if (peopleStore.ready && Date.now() - peopleStore.ts < CACHE_DURATION) {
       setPeopleReady(true);
       return;
     }
 
-    // Already fetching — component will re-render when done
     if (peopleStore.loading) return;
 
-    // Seed from existing window cache if available (set by AttendanceModal etc.)
     const flatCache = Array.isArray(window.globalPeopleCache) ? window.globalPeopleCache : null;
     const objCache  = window.globalPeopleCache?.data;
     const cacheTs   = window.globalCacheTimestamp || window.globalPeopleCache?.timestamp || 0;
@@ -418,24 +395,20 @@ export default function AddPersonDialog({
       return;
     }
 
-    // Fetch fresh data
     peopleStore.loading = true;
     setPeopleReady(false);
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
     let didCancel = false;
 
     (async () => {
       try {
         let rawPeople = [];
-
         const res = await authFetch(`${BASE_URL}/cache/people`, { signal: controller.signal });
         if (res.ok) {
           const data = await res.json();
           rawPeople = data?.cached_data || data?.results || data?.people || [];
         }
-
-        // Fallback
         if (rawPeople.length === 0) {
           const res2 = await authFetch(`${BASE_URL}/people?perPage=500`, { signal: controller.signal });
           if (res2.ok) {
@@ -443,28 +416,21 @@ export default function AddPersonDialog({
             rawPeople = d2?.results || d2?.people || [];
           }
         }
-
         if (rawPeople.length > 0) {
           const mapped = rawPeople.map(mapPerson).filter((p) => p.fullName);
           peopleStore.list  = mapped;
           peopleStore.ready = true;
           peopleStore.ts    = Date.now();
-          // Keep window cache in sync for other components
           window.globalPeopleCache    = mapped;
           window.globalCacheTimestamp = Date.now();
         } else {
-          // Even if no data, mark as ready to unblock search
           peopleStore.ready = true;
-          peopleStore.ts = Date.now();
+          peopleStore.ts    = Date.now();
         }
       } catch (err) {
-        if (controller.signal.aborted) {
-          console.warn("AddPersonDialog: people fetch aborted");
-        } else {
-          console.error("AddPersonDialog: failed to load people", err);
-        }
+        if (!controller.signal.aborted) console.error("AddPersonDialog: failed to load people", err);
         peopleStore.ready = true;
-        peopleStore.ts = Date.now();
+        peopleStore.ts    = Date.now();
       } finally {
         clearTimeout(timeoutId);
         peopleStore.loading = false;
@@ -472,14 +438,9 @@ export default function AddPersonDialog({
       }
     })();
 
-    return () => {
-      didCancel = true;
-      controller.abort();
-      clearTimeout(timeoutId);
-    };
+    return () => { didCancel = true; controller.abort(); clearTimeout(timeoutId); };
   }, [open]);
 
-  // ── Reset on close ────────────────────────────────────────────────────────
   useEffect(() => {
     if (!open) {
       setIsSubmitting(false);
@@ -489,7 +450,6 @@ export default function AddPersonDialog({
     }
   }, [open]);
 
-  // ── Populate form in edit mode ────────────────────────────────────────────
   useEffect(() => {
     if (!open || !isEdit || !editingPersonObject) return;
     const leaders  = extractLeaders(editingPersonObject);
@@ -580,7 +540,6 @@ export default function AddPersonDialog({
         if (response.ok) {
           const data = await response.json();
           const created = data.person || data;
-          // Invalidate store so next open re-fetches fresh data including new person
           peopleStore.ready = false;
           onSave({
             ...data,
@@ -684,13 +643,13 @@ export default function AddPersonDialog({
                     person.leader12,
                     person.leader144,
                   ].filter(Boolean);
- 
+
                   // Only add inviter to chain if fewer than 3 levels above them
                   // If already 3 deep, inviter is just invitedBy — leaders come from their chain as-is
                   if (ancestors.length < 3) {
                     ancestors.push(person.fullName);
                   }
- 
+
                   // leader1  = root (always index 0)
                   // leader12 = second-to-last
                   // leader144 = last (only when 3 entries exist)
@@ -712,7 +671,6 @@ export default function AddPersonDialog({
             }}
             disabled={isSubmitting}
             error={errors.invitedBy}
-            sx={uniformInputSx}
           />
 
           <AddressSearchField
@@ -720,7 +678,6 @@ export default function AddPersonDialog({
             onChange={(val) => { setFormData((p) => ({ ...p, address: val })); setErrors((p) => ({ ...p, address: "" })); }}
             error={errors.address}
             disabled={isSubmitting}
-            sx={uniformInputSx}
           />
 
           {renderTextField("email", "Email Address *", { type: "email", required: true })}
@@ -728,13 +685,13 @@ export default function AddPersonDialog({
           {renderTextField("gender", "Gender *", { select: true, selectOptions: ["Male", "Female"], required: true })}
 
           <Box sx={{ mt: 1 }}>
+            <Typography variant="subtitle2" color="textSecondary" sx={{ mb: 0.5 }}>Leadership</Typography>
             <PeopleSearchField
               label="Leader @1"
               value={formData.leader1}
               onChange={(val) => { setFormData((p) => ({ ...p, leader1: val })); setErrors((p) => ({ ...p, leader1: "" })); }}
               disabled={isSubmitting || !canEditLeaders}
               error={errors.leader1}
-              sx={uniformInputSx}
               required
             />
           </Box>
@@ -746,21 +703,19 @@ export default function AddPersonDialog({
                 value={formData.leader12}
                 onChange={(val) => setFormData((p) => ({ ...p, leader12: val }))}
                 disabled={isSubmitting || !canEditLeaders}
-                sx={uniformInputSx}
               />
               <PeopleSearchField
                 label="Leader @144"
                 value={formData.leader144}
                 onChange={(val) => setFormData((p) => ({ ...p, leader144: val }))}
                 disabled={isSubmitting || !canEditLeaders}
-                sx={uniformInputSx}
               />
             </Box>
           </Collapse>
 
           <Box sx={{ mt: 1, textAlign: "center" }}>
             <Button onClick={() => setShowLeaderFields((v) => !v)} startIcon={<LeaderIcon />} variant="outlined" color="primary" size="small">
-              {showLeaderFields ? "Hide Additional Leaders" : "View Additional Leaders"}
+              {showLeaderFields ? "Hide Additional Leaders" : "Add Additional Leaders"}
             </Button>
           </Box>
         </Box>

@@ -375,9 +375,46 @@ const login = async (email, password) => {
         }
 
         if (finalAccess && finalUser) {
-          if (mounted) {
-            setUser(finalUser);
-            setIsAuthenticated(true);
+          // Verify stored user matches current token by fetching from backend
+          try {
+            const headerWithAuth = {
+              'Authorization': `Bearer ${finalAccess}`,
+              'Content-Type': 'application/json'
+            };
+            const res = await fetch(`${BACKEND_URL}/profile/${finalUser.id}`, {
+              headers: headerWithAuth
+            });
+            
+            if (res.ok) {
+              const backendUser = await res.json();
+              // Check if the backend user email matches stored user email
+              if (backendUser.email && finalUser.email && 
+                  backendUser.email.toLowerCase() !== finalUser.email.toLowerCase()) {
+                console.warn('Stored user mismatch detected. Using backend user.');
+                const verifiedUser = ensureUserWithAvatar(backendUser);
+                persistUser(verifiedUser);
+                if (mounted) {
+                  setUser(verifiedUser);
+                  setIsAuthenticated(true);
+                }
+              } else {
+                // User verified, use stored version
+                if (mounted) {
+                  setUser(finalUser);
+                  setIsAuthenticated(true);
+                }
+              }
+            } else {
+              // Backend fetch failed, logout
+              if (mounted) logout();
+            }
+          } catch (verifyError) {
+            console.error('Error verifying user:', verifyError);
+            // On verification error, still set the user but will catch actual auth errors later
+            if (mounted) {
+              setUser(finalUser);
+              setIsAuthenticated(true);
+            }
           }
         } else if (finalAccess && !finalUser) {
           if (mounted) logout();
