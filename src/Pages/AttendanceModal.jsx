@@ -249,7 +249,7 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
   }, [inviterSearchInput, peopleList]);
 
   const handleInviterSelect = (person) => {
-   console.log("Selected inviter:", person.fullName);
+    console.log("Selected inviter:", person.fullName);
 
     setFormData((prev) => ({ ...prev, invitedBy: person.fullName }));
     setInviterSearchInput(person.fullName);
@@ -279,51 +279,53 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
     }
   };
 
-const handleSubmit = async (finalLeaderInfo) => {
-  try {
-    const payload = {
-      invitedBy: formData.invitedBy,
-      name: formData.name,
-      surname: formData.surname,
-      gender: formData.gender,
-      email: formData.email,
-      number: formData.mobile,
-      dob: formData.dob,
-      address: formData.address,
-      leaders: [
-        finalLeaderInfo.leader1 || "",
-        finalLeaderInfo.leader12 || "",
-        finalLeaderInfo.leader144 || "",
-        finalLeaderInfo.leader1728 || "",
-      ].filter((leader) => leader.trim() !== ""),
-      stage: "Win",
-    };
+  const handleSubmit = async (finalLeaderInfo) => {
+    try {
+      const payload = {
+        invitedBy: formData.invitedBy,
+        name: formData.name,
+        surname: formData.surname,
+        gender: formData.gender,
+        email: formData.email,
+        number: formData.mobile,
+        dob: formData.dob,
+        address: formData.address,
+        leaders: [
+          finalLeaderInfo.leader1 || "",
+          finalLeaderInfo.leader12 || "",
+          finalLeaderInfo.leader144 || "",
+          finalLeaderInfo.leader1728 || "",
+        ].filter((leader) => leader.trim() !== ""),
+        stage: "Win",
+      };
 
-    console.log("Submitting new person:", payload);
-    const response = await authFetch(`${BACKEND_URL}/people`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
+      console.log("Submitting new person:", payload);
+      const response = await authFetch(`${BACKEND_URL}/people`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.detail || "Failed to create person");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || "Failed to create person");
+      }
+
+      const result = await response.json();
+      console.log("Person created:", result);
+      toast.success("Person created successfully!");
+
+      await authFetch(`${BACKEND_URL}/cache/people/refresh`, {
+        method: "POST",
+      });
+      handleClose();
+    } catch (error) {
+      console.error("Error creating person:", error);
+      toast.error(`Error: ${error.message}`);
     }
-
-    const result = await response.json();
-    console.log("Person created:", result);
-    toast.success("Person created successfully!");
-
-    await authFetch(`${BACKEND_URL}/cache/people/refresh`, { method: "POST" });
-    handleClose();
-  } catch (error) {
-    console.error("Error creating person:", error);
-    toast.error(`Error: ${error.message}`);
-  }
-};
+  };
 
   const isFieldEmpty = (fieldName) => {
     const value =
@@ -994,6 +996,7 @@ const LeaderSelectionModal = ({
   });
 
   const [, setLoadingLeaders] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -1127,14 +1130,19 @@ const LeaderSelectionModal = ({
   };
   console.log("leadership set", handleLeaderSelect);
 
-  const handleSubmitLeaders = () => {
+  const handleSubmitLeaders = async () => {
+    setIsSubmitting(true);
     const finalLeaderInfo = {
       leader1: leaderData.leader1 || "",
       leader12: leaderData.leader12 || "",
       leader144: leaderData.leader144 || "",
       leader1728: "",
     };
-    onSubmit(finalLeaderInfo);
+    try {
+      await onSubmit(finalLeaderInfo);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const leaderLabels = {
@@ -1373,10 +1381,16 @@ const LeaderSelectionModal = ({
           </button>
           <button
             type="button"
-            style={styles.submitBtn}
+            style={{
+              ...styles.submitBtn,
+              opacity: isSubmitting ? 0.65 : 1,
+              cursor: isSubmitting ? "not-allowed" : "pointer",
+              pointerEvents: isSubmitting ? "none" : "auto",
+            }}
             onClick={handleSubmitLeaders}
+            disabled={isSubmitting}
           >
-            Create Person
+            {isSubmitting ? "Creating Person..." : "Create Person"}
           </button>
         </div>
       </div>
@@ -1423,21 +1437,23 @@ const AttendanceModal = ({
   const [isMobile, setIsMobile] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const [showDidNotMeetConfirm, setShowDidNotMeetConfirm] = useState(false);
-  const [persistentCommonAttendees, setPersistentCommonAttendees] = useState([]);
+  const [persistentCommonAttendees, setPersistentCommonAttendees] = useState(
+    [],
+  );
   const [preloadedPeople, setPreloadedPeople] = useState([]);
 
   // ─── NEW: flag to prevent duplicate consolidation calls if Save is clicked twice ───
   const [consolidationsCreated, setConsolidationsCreated] = useState(false);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
-  
-  const isTicketedEvent = event?.isTicketed === true || event?.isTicketed === "true" || false;
-  const eventPriceTiers = (
-    event?.priceTiers || 
+
+  const isTicketedEvent =
+    event?.isTicketed === true || event?.isTicketed === "true" || false;
+  const eventPriceTiers =
+    event?.priceTiers ||
     event?.formData?.priceTiers ||
     event?.price_tiers ||
-    []
-  );
+    [];
 
   const theme = useTheme();
 
@@ -1472,7 +1488,8 @@ const AttendanceModal = ({
   // ─── NEW: Get the highest-level leader available on a person object ───
   // Mirrors the ServiceCheckIn getHighestAvailableLeader helper
   const getHighestAvailableLeader = (person) => {
-    if (!person) return { leader: "No Leader Assigned", level: 0, hasLeader: false };
+    if (!person)
+      return { leader: "No Leader Assigned", level: 0, hasLeader: false };
 
     const leaders = [];
     if (Array.isArray(person.leaders) && person.leaders.length > 0) {
@@ -1485,9 +1502,12 @@ const AttendanceModal = ({
 
     // Also consider flat leader fields if the structured array is empty
     if (leaders.length === 0) {
-      if (person.leader144 && person.leader144.trim()) leaders.push({ level: 144, name: person.leader144.trim() });
-      if (person.leader12 && person.leader12.trim()) leaders.push({ level: 12, name: person.leader12.trim() });
-      if (person.leader1 && person.leader1.trim()) leaders.push({ level: 1, name: person.leader1.trim() });
+      if (person.leader144 && person.leader144.trim())
+        leaders.push({ level: 144, name: person.leader144.trim() });
+      if (person.leader12 && person.leader12.trim())
+        leaders.push({ level: 12, name: person.leader12.trim() });
+      if (person.leader1 && person.leader1.trim())
+        leaders.push({ level: 1, name: person.leader1.trim() });
     }
 
     if (leaders.length === 0) {
@@ -1495,7 +1515,11 @@ const AttendanceModal = ({
     }
 
     leaders.sort((a, b) => b.level - a.level);
-    return { leader: leaders[0].name, level: leaders[0].level, hasLeader: true };
+    return {
+      leader: leaders[0].name,
+      level: leaders[0].level,
+      hasLeader: true,
+    };
   };
 
   // ─── NEW: Resolve a leader's email from the person's structured leaders array ───
@@ -1525,8 +1549,12 @@ const AttendanceModal = ({
   }) => {
     try {
       if (!leaderEmail) {
-        console.warn("No leader email found — cell consolidation task not created.");
-        toast.warning("No leader email found. Consolidation task may not be visible to leader.");
+        console.warn(
+          "No leader email found — cell consolidation task not created.",
+        );
+        toast.warning(
+          "No leader email found. Consolidation task may not be visible to leader.",
+        );
         return;
       }
 
@@ -1552,7 +1580,8 @@ const AttendanceModal = ({
         assignedfor: normalizedEmail,
         assigned_to_email: normalizedEmail,
         created_by_email: (currentUser?.email || "").trim().toLowerCase(),
-        created_by_name: `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        created_by_name:
+          `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
         event_id: eventId,
         is_new_person_task: true,
         decision_date: todayDate,
@@ -1569,7 +1598,9 @@ const AttendanceModal = ({
 
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
-        throw new Error(data.message || "Failed to create cell consolidation task");
+        throw new Error(
+          data.message || "Failed to create cell consolidation task",
+        );
       }
 
       console.log("Cell consolidation task created successfully!");
@@ -1585,7 +1616,9 @@ const AttendanceModal = ({
     const assignedTo = resolveAssignedTo(person);
 
     if (!assignedTo) {
-      console.warn(`No leader found for ${person.fullName} — skipping consolidation`);
+      console.warn(
+        `No leader found for ${person.fullName} — skipping consolidation`,
+      );
       return { success: false, skipped: true, name: person.fullName };
     }
 
@@ -1605,7 +1638,7 @@ const AttendanceModal = ({
       event_id: eventId || "",
       source: "cell_consolidation",
       leaders: [person.leader12, person.leader144].filter(
-        (l) => l && l.trim() !== ""
+        (l) => l && l.trim() !== "",
       ),
       notes: "",
     };
@@ -1949,7 +1982,8 @@ const AttendanceModal = ({
             price: att.price ?? att.Price ?? 0,
             ageGroup: att.ageGroup || att.AgeGroup || "",
             paymentMethod: att.paymentMethod || att.PaymentMethod || "Cash",
-            paidAmount: att.paidAmount ?? att.PaidAmount ?? att.paid ?? att.Paid ?? 0,
+            paidAmount:
+              att.paidAmount ?? att.PaidAmount ?? att.paid ?? att.Paid ?? 0,
             paid: att.paid ?? att.Paid ?? 0,
             owing: att.owing ?? att.Owing ?? 0,
             change: att.change ?? att.Change ?? 0,
@@ -1962,14 +1996,35 @@ const AttendanceModal = ({
           if (att.id) {
             newTicketInfo[att.id] = {
               ...newTicketInfo[att.id],
-              priceName: att.priceName ?? att.PriceName ?? newTicketInfo[att.id]?.priceName ?? "",
-              price: att.price ?? att.Price ?? newTicketInfo[att.id]?.price ?? 0,
-              ageGroup: att.ageGroup ?? att.AgeGroup ?? newTicketInfo[att.id]?.ageGroup ?? "",
-              paymentMethod: att.paymentMethod ?? att.PaymentMethod ?? newTicketInfo[att.id]?.paymentMethod ?? "Cash",
-              paidAmount: att.paidAmount ?? att.PaidAmount ?? att.paid ?? att.Paid ?? newTicketInfo[att.id]?.paidAmount ?? 0,
+              priceName:
+                att.priceName ??
+                att.PriceName ??
+                newTicketInfo[att.id]?.priceName ??
+                "",
+              price:
+                att.price ?? att.Price ?? newTicketInfo[att.id]?.price ?? 0,
+              ageGroup:
+                att.ageGroup ??
+                att.AgeGroup ??
+                newTicketInfo[att.id]?.ageGroup ??
+                "",
+              paymentMethod:
+                att.paymentMethod ??
+                att.PaymentMethod ??
+                newTicketInfo[att.id]?.paymentMethod ??
+                "Cash",
+              paidAmount:
+                att.paidAmount ??
+                att.PaidAmount ??
+                att.paid ??
+                att.Paid ??
+                newTicketInfo[att.id]?.paidAmount ??
+                0,
               paid: att.paid ?? att.Paid ?? newTicketInfo[att.id]?.paid ?? 0,
-              owing: att.owing ?? att.Owing ?? newTicketInfo[att.id]?.owing ?? 0,
-              change: att.change ?? att.Change ?? newTicketInfo[att.id]?.change ?? 0,
+              owing:
+                att.owing ?? att.Owing ?? newTicketInfo[att.id]?.owing ?? 0,
+              change:
+                att.change ?? att.Change ?? newTicketInfo[att.id]?.change ?? 0,
             };
           }
         });
@@ -2128,14 +2183,15 @@ const AttendanceModal = ({
         return;
       }
 
-      const cachedData = preloadedPeople.length > 0
-        ? preloadedPeople
-        : window.globalPeopleCache?.data || [];
+      const cachedData =
+        preloadedPeople.length > 0
+          ? preloadedPeople
+          : window.globalPeopleCache?.data || [];
 
       if (cachedData.length > 0) {
-        const cachedResults = cachedData.filter((p) =>
-          (p.searchText || "").includes(query)
-        ).slice(0, 100);
+        const cachedResults = cachedData
+          .filter((p) => (p.searchText || "").includes(query))
+          .slice(0, 100);
 
         if (cachedResults.length > 0) {
           setPeople(cachedResults);
@@ -2156,10 +2212,30 @@ const AttendanceModal = ({
         .then((data) => {
           const arr = data.results || data.people || [];
           const formatted = arr.map((p) => {
-            const leader1 = p["Leader @1"] || p["Leader at 1"] || p["Leader @ 1"] || p.leader1 || "";
-            const leader12 = p["Leader @12"] || p["Leader at 12"] || p["Leader @ 12"] || p.leader12 || "";
-            const leader144 = p["Leader @144"] || p["Leader at 144"] || p["Leader @ 144"] || p.leader144 || "";
-            const leader1728 = p["Leader @1728"] || p["Leader at 1728"] || p["Leader @ 1728"] || p.leader1728 || "";
+            const leader1 =
+              p["Leader @1"] ||
+              p["Leader at 1"] ||
+              p["Leader @ 1"] ||
+              p.leader1 ||
+              "";
+            const leader12 =
+              p["Leader @12"] ||
+              p["Leader at 12"] ||
+              p["Leader @ 12"] ||
+              p.leader12 ||
+              "";
+            const leader144 =
+              p["Leader @144"] ||
+              p["Leader at 144"] ||
+              p["Leader @ 144"] ||
+              p.leader144 ||
+              "";
+            const leader1728 =
+              p["Leader @1728"] ||
+              p["Leader at 1728"] ||
+              p["Leader @ 1728"] ||
+              p.leader1728 ||
+              "";
 
             return {
               id: p._id,
@@ -2265,11 +2341,14 @@ const AttendanceModal = ({
           try {
             const token = localStorage.getItem("access_token");
             const headers = { Authorization: `Bearer ${token}` };
-            
-            const res = await authFetch(`${BACKEND_URL}/people/all-with-fields?perPage=200`, {
-              headers,
-            });
-            
+
+            const res = await authFetch(
+              `${BACKEND_URL}/people/all-with-fields?perPage=200`,
+              {
+                headers,
+              },
+            );
+
             if (!res.ok) throw new Error(`HTTP error! status: ${res.status}`);
             const data = await res.json();
 
@@ -2457,7 +2536,7 @@ const AttendanceModal = ({
       toast.info(`${person.fullName} is already in attendees list`);
       return;
     }
-    
+
     const personWithLeaders = {
       id: person.id,
       fullName: person.fullName,
@@ -2822,7 +2901,10 @@ const AttendanceModal = ({
                 try {
                   const leaderInfo = getHighestAvailableLeader(attendee);
                   if (leaderInfo.hasLeader) {
-                    const resolvedLeaderEmail = resolveLeaderEmail(leaderInfo.leader, attendee);
+                    const resolvedLeaderEmail = resolveLeaderEmail(
+                      leaderInfo.leader,
+                      attendee,
+                    );
                     if (resolvedLeaderEmail) {
                       await createCellConsolidationTaskForLeader({
                         leaderName: leaderInfo.leader,
@@ -2834,7 +2916,10 @@ const AttendanceModal = ({
                   }
                 } catch (taskErr) {
                   // Don't block the overall result if only the task fails
-                  console.error(`Due-date task failed for ${attendee.fullName}:`, taskErr);
+                  console.error(
+                    `Due-date task failed for ${attendee.fullName}:`,
+                    taskErr,
+                  );
                 }
 
                 return consolidationResult;
@@ -3157,7 +3242,8 @@ const AttendanceModal = ({
 
     // Build person object from the created person response
     const createdPerson = {
-      fullName: `${newPerson.Name || newPerson.name || ""} ${newPerson.Surname || newPerson.surname || ""}`.trim(),
+      fullName:
+        `${newPerson.Name || newPerson.name || ""} ${newPerson.Surname || newPerson.surname || ""}`.trim(),
       email: newPerson.Email || newPerson.email || "",
       phone: newPerson.Number || newPerson.phone || "",
       // Correct field mapping from POST /people response
@@ -3198,7 +3284,10 @@ const AttendanceModal = ({
       });
       toast.success(`Consolidation task created for ${createdPerson.fullName}`);
     } catch (err) {
-      console.error("Failed to create consolidation record for new person:", err);
+      console.error(
+        "Failed to create consolidation record for new person:",
+        err,
+      );
       toast.warning(
         `${createdPerson.fullName} was added but the consolidation record could not be created`,
       );
@@ -3209,7 +3298,10 @@ const AttendanceModal = ({
     try {
       const leaderInfo = getHighestAvailableLeader(createdPerson);
       if (leaderInfo.hasLeader) {
-        const resolvedLeaderEmail = resolveLeaderEmail(leaderInfo.leader, createdPerson);
+        const resolvedLeaderEmail = resolveLeaderEmail(
+          leaderInfo.leader,
+          createdPerson,
+        );
         if (resolvedLeaderEmail) {
           await createCellConsolidationTaskForLeader({
             leaderName: leaderInfo.leader,
@@ -3218,12 +3310,17 @@ const AttendanceModal = ({
             eventId,
           });
         } else {
-          console.warn("Leader found but no email resolvable — skipping due-date task");
+          console.warn(
+            "Leader found but no email resolvable — skipping due-date task",
+          );
         }
       }
     } catch (taskErr) {
       // Do not block — consolidation record was already created; only the task failed
-      console.error("Failed to create cell consolidation due-date task:", taskErr);
+      console.error(
+        "Failed to create cell consolidation due-date task:",
+        taskErr,
+      );
     }
   };
   // ─── END NEW ───
