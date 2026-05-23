@@ -761,30 +761,67 @@ ${xmlCols}
   };
 
   const normalizeEventAttendance = (event) => {
-    if (!event) return [];
+  if (!event) return [];
+  const eventDate = event.date;
+  
+  // Collect ALL people associated with the event, from every known field
+  const peopleMap = new Map(); // keyed by email or name to dedupe
 
-    const eventDate = event.date;
-    let people = event.registrations || event.attendees || [];
-
-    if (people.length === 0) return [];
-
-    return people.map((person) => ({
-      "Event Name": event.eventName || event["Event Name"] || "",
-      "Event Date": eventDate,
-      "Name": person.fullName || person.name || "",
-      "Email": person.email || "",
-      "Event Leader Name": event.eventLeaderName || event.Leader || "",
-      "Leader @12": event.leader12 || "",
-      "Phone": person.phone || "",
-      "Decision": person.decision || "",
-      "Price Tier": person.priceTier || "",
-      "Payment Method": person.paymentMethod || "",
-      "Price": person.price !== undefined ? `R${Number(person.price).toFixed(2)}` : "",
-      "Paid": person.paid !== undefined ? `R${Number(person.paid).toFixed(2)}` : "",
-      "Owing": person.owing !== undefined ? `R${Number(person.owing).toFixed(2)}` : "",
-      "Note": "",
-    }));
+  const addPeople = (list, checkedIn) => {
+    if (!Array.isArray(list)) return;
+    list.forEach((person) => {
+      const key = person.email || person.fullName || person.name || Math.random();
+      if (!peopleMap.has(key)) {
+        peopleMap.set(key, { ...person, checkedIn });
+      } else if (checkedIn) {
+        // If we've seen them before but now know they checked in, update
+        peopleMap.set(key, { ...peopleMap.get(key), checkedIn: true });
+      }
+    });
   };
+
+  // 1. Attendance by date (checked-in people)
+  if (event.attendance && typeof event.attendance === "object") {
+    const dateAttendance = event.attendance[eventDate];
+    if (dateAttendance?.attendees) addPeople(dateAttendance.attendees, true);
+  }
+
+  // 2. Top-level attendees (checked-in)
+  addPeople(event.attendees, true);
+
+  // 3. Registered/invited people (not necessarily checked in)
+  addPeople(event.registrants, false);
+  addPeople(event.registered, false);
+  addPeople(event.invited, false);
+  addPeople(event.members, false);
+  addPeople(event.persistent_attendees, false);
+
+  // 4. attendance_data block
+  if (event.attendance_data) {
+    addPeople(event.attendance_data.attendees, true);
+    addPeople(event.attendance_data.registrants, false);
+    addPeople(event.attendance_data.registered, false);
+  }
+
+  if (peopleMap.size === 0) return [];
+
+  return Array.from(peopleMap.values()).map((person) => ({
+    "Event Name": event.eventName || event["Event Name"] || "",
+    "Event Date": eventDate,
+    "Checked In": person.checkedIn ? "Yes" : "No",   // ← new column
+    "Name": person.fullName || person.name || "",
+    "Email": person.email || "",
+    "Event Leader Name": event.eventLeaderName || event.Leader || "",
+    "Leader @12": event.leader12 || "",
+    "Phone": person.phone || "",
+    "Decision": person.decision || "",
+    "Price Tier": person.priceTier || "",
+    "Payment Method": person.paymentMethod || "",
+    "Price": person.price !== undefined ? `R${Number(person.price).toFixed(2)}` : "",
+    "Paid": person.paid !== undefined ? `R${Number(person.paid).toFixed(2)}` : "",
+    "Owing": person.owing !== undefined ? `R${Number(person.owing).toFixed(2)}` : "",
+  }));
+};
 
   const fetchEventFull = async (event) => {
 
@@ -808,39 +845,33 @@ ${xmlCols}
   };
 
   const downloadEventAttendance = async (event) => {
-    const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
-    try {
-      toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
+  const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
+  try {
+    toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
 
-      const hasLocalAttendance =
-        (event?.attendees && event.attendees.length > 0) ||
-        (event?.attendance && Object.keys(event.attendance).length > 0) ||
-        (event?.attendance_data && Array.isArray(event.attendance_data.attendees) && event.attendance_data.attendees.length > 0) ||
-        (event?.checked_in_count && event.checked_in_count > 0) ||
-        (event?.persistent_attendees && event.persistent_attendees.length > 0);
+    const fullEvent = await fetchEventFull(event); // Always fetch full event
 
-      const fullEvent = hasLocalAttendance ? event : await fetchEventFull(event);
+    const rows = normalizeEventAttendance(fullEvent);
 
-      const rows = normalizeEventAttendance(fullEvent);
-      if (!rows || rows.length === 0) {
-        toast.dismiss(TOAST_ID);
-        toast.info("No attendees found for this event.");
-        return;
-      }
-
-      buildXlsFromRows(
-        rows,
-        `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
-      );
-
+    if (!rows || rows.length === 0) {
       toast.dismiss(TOAST_ID);
-      toast.success(`Downloaded attendance of ${rows.length} members`);
-    } catch (err) {
-      console.error("Download event attendance failed:", err);
-      toast.dismiss(TOAST_ID);
-      toast.error("Failed to download event attendance");
+      toast.info("No people associated with this event.");
+      return;
     }
-  };
+
+    buildXlsFromRows(
+      rows,
+      `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
+    );
+
+    toast.dismiss(TOAST_ID);
+    toast.success(`Downloaded ${rows.length} people for this event`);
+  } catch (err) {
+    console.error("Download event attendance failed:", err);
+    toast.dismiss(TOAST_ID);
+    toast.error("Failed to download event attendance");
+  }
+};
 
   return (
     <div
@@ -1213,74 +1244,96 @@ ${xmlCols}
     return results;
   };
   const downloadEventAttendance = async (event) => {
-    const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
-    try {
-      toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
-      const hasLocalAttendance =
-        (event?.attendees && event.attendees.length > 0) ||
-        (event?.attendance && Object.keys(event.attendance).length > 0) ||
-        (event?.attendance_data && Array.isArray(event.attendance_data.attendees) && event.attendance_data.attendees.length > 0) ||
-        (event?.checked_in_count && event.checked_in_count > 0) ||
-        (event?.persistent_attendees && event.persistent_attendees.length > 0);
+  const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
+  try {
+    toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
 
-      const fullEvent = hasLocalAttendance ? event : await fetchEventFull(event);
+    const fullEvent = await fetchEventFull(event); // Always fetch full event
 
-      const rows = normalizeEventAttendance(fullEvent);
-      if (!rows || rows.length === 0) {
-        toast.dismiss(TOAST_ID);
-        toast.info("No attendees found for this event.");
-        return;
-      }
+    const rows = normalizeEventAttendance(fullEvent);
 
-      buildXlsFromRows(
-        rows,
-        `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
-      );
-
+    if (!rows || rows.length === 0) {
       toast.dismiss(TOAST_ID);
-      toast.success(`Downloaded attendance of ${rows.length} members`);
-    } catch (err) {
-      console.error("Download event attendance failed:", err);
-      toast.dismiss(TOAST_ID);
-      toast.error("Failed to download event attendance");
+      toast.info("No people associated with this event.");
+      return;
     }
-  };
+
+    buildXlsFromRows(
+      rows,
+      `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
+    );
+
+    toast.dismiss(TOAST_ID);
+    toast.success(`Downloaded ${rows.length} people for this event`);
+  } catch (err) {
+    console.error("Download event attendance failed:", err);
+    toast.dismiss(TOAST_ID);
+    toast.error("Failed to download event attendance");
+  }
+};
 
   const normalizeEventAttendance = (event) => {
-    if (!event) return [];
-    const eventDate = event.date;
-    let attendees = [];
+  if (!event) return [];
+  const eventDate = event.date;
+  
+  // Collect ALL people associated with the event, from every known field
+  const peopleMap = new Map(); // keyed by email or name to dedupe
 
-    if (event.attendance && typeof event.attendance === "object") {
-      const dateAttendance = event.attendance[eventDate];
-      if (dateAttendance) {
-        attendees = dateAttendance.attendees || [];
+  const addPeople = (list, checkedIn) => {
+    if (!Array.isArray(list)) return;
+    list.forEach((person) => {
+      const key = person.email || person.fullName || person.name || Math.random();
+      if (!peopleMap.has(key)) {
+        peopleMap.set(key, { ...person, checkedIn });
+      } else if (checkedIn) {
+        // If we've seen them before but now know they checked in, update
+        peopleMap.set(key, { ...peopleMap.get(key), checkedIn: true });
       }
-    }
-
-    // Fall back to top-level attendees
-    if (attendees.length === 0) {
-      attendees = event.attendees || [];
-    }
-
-    if (attendees.length === 0) return [];
-
-    return attendees.map((att) => ({
-      "Event Name": event.eventName || event["Event Name"] || "",
-      "Event Date": eventDate,
-      "Name": att.fullName || att.name || "",
-      "Email": att.email || "",
-      "Event Leader Name": event.eventLeaderName || event.Leader || "",
-      "Leader @12": event.leader12 || "",
-      "Phone": att.phone || "",
-      "Decision": att.decision || "",
-      "Price Tier": att.priceTier || "",
-      "Payment Method": att.paymentMethod || "",
-      "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-      "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-      "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-    }));
+    });
   };
+
+  // 1. Attendance by date (checked-in people)
+  if (event.attendance && typeof event.attendance === "object") {
+    const dateAttendance = event.attendance[eventDate];
+    if (dateAttendance?.attendees) addPeople(dateAttendance.attendees, true);
+  }
+
+  // 2. Top-level attendees (checked-in)
+  addPeople(event.attendees, true);
+
+  // 3. Registered/invited people (not necessarily checked in)
+  addPeople(event.registrants, false);
+  addPeople(event.registered, false);
+  addPeople(event.invited, false);
+  addPeople(event.members, false);
+  addPeople(event.persistent_attendees, false);
+
+  // 4. attendance_data block
+  if (event.attendance_data) {
+    addPeople(event.attendance_data.attendees, true);
+    addPeople(event.attendance_data.registrants, false);
+    addPeople(event.attendance_data.registered, false);
+  }
+
+  if (peopleMap.size === 0) return [];
+
+  return Array.from(peopleMap.values()).map((person) => ({
+    "Event Name": event.eventName || event["Event Name"] || "",
+    "Event Date": eventDate,
+    "Checked In": person.checkedIn ? "Yes" : "No",   // ← new column
+    "Name": person.fullName || person.name || "",
+    "Email": person.email || "",
+    "Event Leader Name": event.eventLeaderName || event.Leader || "",
+    "Leader @12": event.leader12 || "",
+    "Phone": person.phone || "",
+    "Decision": person.decision || "",
+    "Price Tier": person.priceTier || "",
+    "Payment Method": person.paymentMethod || "",
+    "Price": person.price !== undefined ? `R${Number(person.price).toFixed(2)}` : "",
+    "Paid": person.paid !== undefined ? `R${Number(person.paid).toFixed(2)}` : "",
+    "Owing": person.owing !== undefined ? `R${Number(person.owing).toFixed(2)}` : "",
+  }));
+};
 
   const fetchEventFull = async (event) => {
     try {
