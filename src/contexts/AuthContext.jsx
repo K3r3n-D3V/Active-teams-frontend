@@ -1,5 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback } from "react";
-import { createClient } from "../"
+import { createClient } from "@supabase/supabase-js";
 
 
 const supabase = createClient(
@@ -7,7 +7,7 @@ const supabase = createClient(
   import.meta.env.VITE_SUPABASE_ANON_KEY,
 );
 
-export { supabase }; // re-export so other files can import it from here
+export { supabase }; 
 
 const KEY_USER = "userProfile";
 const KEY_PROFILE_PIC = "profilePic";
