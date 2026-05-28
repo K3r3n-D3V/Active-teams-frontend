@@ -660,18 +660,46 @@ const MobileEventCard = ({
   }
   const isDark = theme.palette.mode === "dark";
   const borderColor = isDark ? theme.palette.divider : "#e9ecef";
-
+  const { authFetch} = React.useContext(AuthContext);
   const attendeesCount = event.attendees?.length || 0;
   const isCellEvent =
     selectedEventTypeFilter === "all" ||
     selectedEventTypeFilter === "CELLS" ||
     selectedEventTypeFilter === "Cells";
-
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const escapeHtml = (s) =>
     String(s || "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+
+const findEventTypeByName = (typeName) => {
+    if (!typeName || typeName === "all") {
+      return {
+        name: "CELLS",
+        isGlobal: false,
+        isTicketed: false,
+        hasPersonSteps: true,
+      };
+    }
+
+    // Look for the event type in your eventTypes array
+    const found = eventTypes.find((et) => {
+      const etName = et.name || et.eventTypeName || et.displayName || "";
+      return etName.toLowerCase() === typeName.toLowerCase();
+    });
+
+    if (found) {
+      return found;
+    }
+
+    return {
+      name: typeName,
+      isGlobal: false,
+      isTicketed: false,
+      hasPersonSteps: false,
+    };
+  };
 
   const buildXlsFromRows = (rows, fileBaseName = "export") => {
     if (!rows || rows.length === 0) {
@@ -1016,7 +1044,7 @@ const normalizeEventAttendance = (event) => {
         )}
         <Tooltip title="Download Attendance (Event)" arrow>
           <IconButton
-            onClick={() => downloadEventAttendance(params.row)}
+            onClick={() => downloadEventAttendance(event)}
             size="small"
             sx={{ color: "#1976d2" }}
           >
