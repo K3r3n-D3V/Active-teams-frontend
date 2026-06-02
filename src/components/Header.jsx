@@ -1,10 +1,10 @@
 // components/Home.jsx
 import React, { useState } from "react";
-import EventRegistrationForm from "./EventRegistrationForm";
+// import EventRegistrationForm from "./EventRegistrationForm";
 import styles from "../styles/Header.module.css";
 
 export default function Home() {
-  const [openPopup, setOpenPopup] = useState(false);
+
 
   const sections = [
     { image: "/image1.PNG" },
@@ -16,10 +16,11 @@ export default function Home() {
 
   return (
     <div className={styles.container}>
+
       {sections.map((sec, index) => (
         <section
           key={index}
-          onClick={() => setOpenPopup(true)}
+
           className={styles.section}
           style={{
             backgroundImage: `url(${sec.image})`,
@@ -27,19 +28,6 @@ export default function Home() {
         />
       ))}
 
-      {openPopup && (
-        <div className={styles.popupOverlay}>
-          <div className={styles.popupContent}>
-            <button
-              className={styles.closeButton}
-              onClick={() => setOpenPopup(false)}
-            >
-              &times;
-            </button>
-            <EventRegistrationForm />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
