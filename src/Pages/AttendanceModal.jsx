@@ -1476,11 +1476,13 @@ const AttendanceModal = ({
   // ─── NEW: Helper to resolve which leader gets the consolidation task ───
   // Uses leader144 if available, falls back to leader12
   const resolveAssignedTo = (person) => {
-    if (person.leader144 && person.leader144.trim() !== "") {
-      return person.leader144.trim();
+    const leader144 = person.leader144?.trim() || "";
+    const leader12 = person.leader12?.trim() || "";
+    if (leader144 && leader144 !== leader12) {
+      return leader144;
     }
-    if (person.leader12 && person.leader12.trim() !== "") {
-      return person.leader12.trim();
+    if (leader12) {
+      return leader12;
     }
     return null;
   };
