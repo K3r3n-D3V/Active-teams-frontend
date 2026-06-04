@@ -1487,6 +1487,34 @@ const AttendanceModal = ({
     return null;
   };
 
+  const getAttendanceEventId = (eventObject) => {
+    if (!eventObject) return "";
+
+    const rawId = eventObject._id || eventObject.id || "";
+    if (!rawId) return "";
+
+    const [baseId, ...suffixParts] = rawId.split("_");
+    const suffix = suffixParts.join("_");
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (suffix && dateRegex.test(suffix)) {
+      return rawId;
+    }
+
+    const originalEventId = eventObject.original_event_id || baseId;
+    const dateSource =
+      eventObject.date ||
+      eventObject.event_date ||
+      eventObject.event_date_exact ||
+      eventObject.event_date_iso ||
+      "";
+    const cleanDate = String(dateSource).split("T")[0].split(" ")[0];
+
+    return originalEventId && cleanDate
+      ? `${originalEventId}_${cleanDate}`
+      : originalEventId || rawId;
+  };
+
   // ─── NEW: Get the highest-level leader available on a person object ───
   // Mirrors the ServiceCheckIn getHighestAvailableLeader helper
   const getHighestAvailableLeader = (person) => {
@@ -2470,7 +2498,7 @@ const AttendanceModal = ({
   const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
     if (!event) return false;
 
-    let eventId = event.original_event_id || event._id || event.id;
+    let eventId = getAttendanceEventId(event);
 
     if (!eventId || eventId === "undefined") {
       console.error(
@@ -2724,10 +2752,7 @@ const AttendanceModal = ({
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
     const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
-    let eventId = event.original_event_id || event._id || event?._id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
+    const eventId = getAttendanceEventId(event);
 
     if (!eventId) {
       toast.error("Event ID is missing, cannot submit attendance.");
@@ -2791,6 +2816,7 @@ const AttendanceModal = ({
       const shouldMarkAsDidNotMeet =
         didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
       const payload = {
+        event_id: eventId,
         attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
         persistent_attendees: persistentCommonAttendees.map((p) => {
           const ticketOverride = isTicketedEvent
@@ -3134,10 +3160,7 @@ const AttendanceModal = ({
     setManualHeadcount("");
     setAttendeeTicketInfo({});
 
-    let eventId = event.original_event_id || event._id || event?._id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
+    const eventId = getAttendanceEventId(event);
 
     if (!eventId) {
       setIsSaving(false);
@@ -3146,6 +3169,7 @@ const AttendanceModal = ({
 
     try {
       const payload = {
+        event_id: eventId,
         attendees: [],
         persistent_attendees: persistentCommonAttendees.map((p) => {
           const ticketOverride = isTicketedEvent
