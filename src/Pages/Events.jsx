@@ -1267,7 +1267,7 @@ ${xmlCols}
   const findEventTypeByName = (typeName) => {
     if (!typeName || typeName === "all") {
       return {
-        name: "CELLS",
+        name: "Cells",
         isGlobal: false,
         isTicketed: false,
         hasPersonSteps: true,

@@ -267,7 +267,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
         console.log("Looking for event type:", selectedEventType);
         if (selectedEventType === "all" || selectedEventType.toUpperCase() === "ALL CELLS") {
           return {
-            eventType: "CELLS",
+            eventType: "Cells",
             isGlobal: false,
             isTicketed: false,
             hasPersonSteps: true,
@@ -672,7 +672,7 @@ const fetchPeople = async (q) => {
         eventTypeToSend === "all" ||
         eventTypeToSend.toLowerCase() === "all cells"
       ) {
-        eventTypeToSend = "CELLS";
+        eventTypeToSend = "Cells";
       }
 
       if (!eventTypeToSend) {
