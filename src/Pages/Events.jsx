@@ -2630,11 +2630,42 @@ const getFilteredEventTypes = (allEventTypes) => {
     ],
   );
 
+  const getAttendanceEventId = (eventObject) => {
+    if (!eventObject) return "";
+
+    const rawId = eventObject._id || eventObject.id || "";
+    if (!rawId) return "";
+
+    const [baseId, ...suffixParts] = rawId.split("_");
+    const suffix = suffixParts.join("_");
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (suffix && dateRegex.test(suffix)) {
+      return rawId;
+    }
+
+    const originalEventId = eventObject.original_event_id || baseId;
+    const dateSource =
+      eventObject.date ||
+      eventObject.event_date ||
+      eventObject.event_date_exact ||
+      eventObject.event_date_iso ||
+      "";
+    const cleanDate = String(dateSource).split("T")[0].split(" ")[0];
+
+    return originalEventId && cleanDate
+      ? `${originalEventId}_${cleanDate}`
+      : originalEventId || rawId;
+  };
+
   const handleAttendanceSubmit = useCallback(
     async (data) => {
       try {
         const token = localStorage.getItem("access_token");
-        const eventId = selectedEvent._id;
+        const eventId = getAttendanceEventId(selectedEvent);
+        if (!eventId) {
+          throw new Error("No valid event id found for attendance submission");
+        }
         const eventName = selectedEvent.eventName || "Event";
         const eventDate = selectedEvent.date || "";
 
@@ -2650,6 +2681,7 @@ const getFilteredEventTypes = (allEventTypes) => {
 
         if (data === "did_not_meet") {
           payload = {
+            event_id: eventId,
             attendees: [],
             all_attendees: [],
             leaderEmail,
@@ -2659,6 +2691,7 @@ const getFilteredEventTypes = (allEventTypes) => {
           };
         } else if (Array.isArray(data)) {
           payload = {
+            event_id: eventId,
             attendees: data,
             all_attendees: data,
             leaderEmail,
@@ -2669,6 +2702,7 @@ const getFilteredEventTypes = (allEventTypes) => {
         } else {
           payload = {
             ...data,
+            event_id: eventId,
             leaderEmail,
             leaderName,
             event_date: eventDate,
