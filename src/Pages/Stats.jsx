@@ -317,6 +317,7 @@ const StatsDashboard = () => {
   const [calendarLoading, setCalendarLoading] = useState(false);
   const [viewMoreModalOpen, setViewMoreModalOpen] = useState(false);
   const [cells, setCells] = useState([]);
+  const [isDownloading, setIsDownloading] = useState(false);
   const [cellsLoading, setCellsLoading] = useState(false);
   const [cellsError, setCellsError] = useState(null);
   const { authFetch } = useContext(AuthContext);
@@ -804,17 +805,11 @@ const StatsDashboard = () => {
 
       const wbout = XLSX.write(wb, {
         bookType: "xlsx",
-        type: "binary",
+        type: "array",
         bookSST: false,
       });
 
-      const buffer = new ArrayBuffer(wbout.length);
-      const view = new Uint8Array(buffer);
-      for (let i = 0; i < wbout.length; ++i) {
-        view[i] = wbout.charCodeAt(i) & 0xff;
-      }
-
-      const blob = new Blob([buffer], {
+      const blob = new Blob([wbout], {
         type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       });
 
@@ -823,14 +818,22 @@ const StatsDashboard = () => {
 
       link.href = url;
       link.download = fileName;
+      link.target = "_blank";
+      link.rel = "noopener";
       link.style.display = "none";
       document.body.appendChild(link);
-      link.click();
+      link.dispatchEvent(
+        new MouseEvent("click", {
+          view: window,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
 
       setTimeout(() => {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
-      }, 100);
+      }, 200);
 
       toast.success(`Downloaded ${dataToExport.length} records (${sheetName})`);
     } catch (error) {
@@ -838,6 +841,67 @@ const StatsDashboard = () => {
       toast.error("Error creating Excel file: " + error.message);
     }
   };
+  const handleDownloadCalendar = useCallback(() => {
+    if (isDownloading) return;
+
+    try {
+      setIsDownloading(true);
+
+      if (!calendarEvents || calendarEvents.length === 0) {
+        toast.warning("No calendar data available to download.");
+        return;
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+
+      const dataToExport = calendarEvents.map((event) => ({
+        "Event ID":     event._id || "",
+        "Event Name":   event.eventName || "Unnamed Event",
+        "Event Type":   event.eventTypeName || "",
+        Date:           event.date ? formatDateForExcel(event.date) : "",
+        Time:           event.time || "",
+        Location:       event.location || "",
+        "Event Leader": event.eventLeaderName || "",
+        "Leader Email": event.eventLeaderEmail || "",
+        Status:         event.status || event.Status || "incomplete",
+        "Is Recurring": event.isRecurring ? "Yes" : "No",
+        Description:    event.description || "",
+        "Created At":   event.created_at ? formatDateForExcel(event.created_at) : "",
+        "Updated At":   event.updated_at ? formatDateForExcel(event.updated_at) : "",
+      }));
+
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.json_to_sheet(dataToExport);
+      XLSX.utils.book_append_sheet(wb, ws, "Calendar");
+
+      const fileName = `calendar_events_${today}.xlsx`;
+      const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array", bookSST: false });
+      const blob = new Blob([wbout], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+
+      const link = document.createElement("a");
+      const url = URL.createObjectURL(blob);
+      link.href = url;
+      link.download = fileName;
+      link.style.display = "none";
+      document.body.appendChild(link);
+      link.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 200);
+
+      toast.success(`Downloaded ${dataToExport.length} calendar events`);
+
+    } catch (error) {
+      console.error("Calendar download error:", error);
+      toast.error("Failed to download calendar: " + error.message);
+    } finally {
+      setIsDownloading(false);
+    }
+  }, [calendarEvents, formatDateForExcel, isDownloading]);
 
   useEffect(() => {
     fetchCalendarEvents();
@@ -1530,15 +1594,24 @@ const StatsDashboard = () => {
             >
               <Refresh />
             </IconButton>
-          </Tooltip>
-
+          </Tooltip> 
+          {/* Download button should download based  */}
           <Button
-            variant="outlined"
             size="small"
-            startIcon={<Download />}
             onClick={downloadFilteredStats}
+            startIcon={ <Download />}
+            variant="outlined"
+            disabled={
+              stats.loading ||
+              cellsLoading ||
+              (activeTab === 0
+                ? filteredOverdueCells.length === 0
+                : activeTab === 1
+                ? filteredTasks.length === 0
+                : filteredEvents.length === 0)
+            }
           >
-            Download
+            {isDownloading ? "Downloading..." : "Download"}
           </Button>
         </Box>
       </Box>
@@ -1550,19 +1623,19 @@ const StatsDashboard = () => {
         <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="Overdue Cells"
-            value={filteredOverdueCells.length}
-            subtitle={getPeriodDisplayText(period)}
-            icon={<Warning />}
             color="warning"
+            subtitle={getPeriodDisplayText(period)}
+            value={filteredOverdueCells.length}
+            icon={<Warning />}
           />
         </Grid>
         <Grid item xs={12} sm={6} md={4}>
           <StatCard
             title="Tasks Due"
-            value={stats.overview?.tasks_due_in_period || 0}
             subtitle={getPeriodDisplayText(period)}
-            icon={<Task />}
             color="secondary"
+            value={stats.overview?.tasks_due_in_period || 0}
+            icon={<Task />}
           />
         </Grid>
       </Grid>
@@ -1570,10 +1643,10 @@ const StatsDashboard = () => {
       {/* Tabs */}
       <Paper variant="outlined" sx={{ mb: 2 }}>
         <Tabs
+          variant={isSmDown ? "scrollable" : "standard"}
+          centered
           value={activeTab}
           onChange={(_, v) => setActiveTab(v)}
-          centered
-          variant={isSmDown ? "scrollable" : "standard"}
         >
           <Tab label={`Overdue Cells (${filteredOverdueCells.length})`} />
           <Tab label={`Tasks (${filteredTasks.length})`} />
@@ -1620,12 +1693,12 @@ const StatsDashboard = () => {
                   variant="outlined"
                 />
                 <Button
+                  color="warning"
                   variant="outlined"
                   size="small"
-                  color="warning"
-                  startIcon={<Visibility fontSize="small" />}
-                  onClick={() => setOverdueModalOpen(true)}
                   disabled={filteredOverdueCells.length === 0}
+                  onClick={() => setOverdueModalOpen(true)}
+                  startIcon={<Visibility fontSize="small" />}
                 >
                   View All
                 </Button>
@@ -1663,14 +1736,14 @@ const StatsDashboard = () => {
             ) : filteredOverdueCells.length === 0 ? (
               <Box
                 sx={{
+                  px: 3,
+                  textAlign: "center",
+                  color: "text.secondary",
+                  justifyContent: "center",
+                  alignItems: "center",
                   flexGrow: 1,
                   display: "flex",
                   flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "text.secondary",
-                  textAlign: "center",
-                  px: 3,
                 }}
               >
                 <Warning
@@ -1967,6 +2040,16 @@ const StatsDashboard = () => {
                   <Typography variant="subtitle1" fontWeight="medium">
                     Event Calendar ({calendarEvents.length} events total)
                   </Typography>
+                <Box display="flex" gap={1}>       
+              <Button
+                  variant="outlined"
+                 size="small"
+                 startIcon={isDownloading ? <CircularProgress size={14} /> : <Download />}
+                 onClick={handleDownloadCalendar}
+                 disabled={isDownloading || calendarEvents.length === 0}
+                >
+                  {isDownloading ? "Downloading..." : "Download"}
+                  </Button>  
                   <Button
                     variant="contained"
                     size="small"
@@ -1976,6 +2059,7 @@ const StatsDashboard = () => {
                     Create Event
                   </Button>
                 </Box>
+              </Box>
               </Box>
 
               <Box

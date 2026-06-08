@@ -1,6 +1,6 @@
 // components/Home.jsx
 import React, { useState } from "react";
-import EventRegistrationForm from "./EventRegistrationForm";
+// import EventRegistrationForm from "./EventRegistrationForm";
 import styles from "../styles/Header.module.css";
 
 export default function Home() {
@@ -19,27 +19,12 @@ export default function Home() {
       {sections.map((sec, index) => (
         <section
           key={index}
-          onClick={() => setOpenPopup(true)}
           className={styles.section}
           style={{
             backgroundImage: `url(${sec.image})`,
           }}
         />
       ))}
-
-      {openPopup && (
-        <div className={styles.popupOverlay}>
-          <div className={styles.popupContent}>
-            <button
-              className={styles.closeButton}
-              onClick={() => setOpenPopup(false)}
-            >
-              &times;
-            </button>
-            <EventRegistrationForm />
-          </div>
-        </div>
-      )}
     </div>
   );
 }
