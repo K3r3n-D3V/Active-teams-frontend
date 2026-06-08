@@ -225,6 +225,10 @@ const authFetch = useCallback(async (url, options = {}) => {
     
     return res;
   } catch (error) {
+    if (error?.name === 'AbortError') {
+      // Swallow abort errors from request cancellation, they are handled by callers.
+      throw error;
+    }
     console.error('authFetch error:', error);
     throw error;
   }
