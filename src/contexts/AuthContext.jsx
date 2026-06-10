@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
+import { normalizeRole } from '../utils/roleNormalizer';
 
 const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}` || 'http://localhost:8000';
 
@@ -35,9 +36,14 @@ export const AuthProvider = ({ children }) => {
 
   const ensureUserWithAvatar = (userData) => {
     if (!userData) return null;
-    const normalizedRole = userData.role && String(userData.role).trim().length
+    let userRole = userData.role && String(userData.role).trim().length
       ? userData.role
       : 'user';
+    
+    // Normalize the role to handle various formats from backend
+    // e.g., "leader at 12", "leader@12" -> "leaderat12"
+    userRole = normalizeRole(userRole);
+    
     const profilePicture = userData.profile_picture || 
                           userData.avatarUrl || 
                           userData.profilePicUrl || 
@@ -47,7 +53,7 @@ export const AuthProvider = ({ children }) => {
     
     return {
       ...userData,
-      role: normalizedRole,
+      role: userRole,
       is_supreme_admin: isSupremeAdmin,
       profile_picture: profilePicture,
       avatarUrl: profilePicture,
@@ -375,9 +381,46 @@ const login = async (email, password) => {
         }
 
         if (finalAccess && finalUser) {
-          if (mounted) {
-            setUser(finalUser);
-            setIsAuthenticated(true);
+          // Verify stored user matches current token by fetching from backend
+          try {
+            const headerWithAuth = {
+              'Authorization': `Bearer ${finalAccess}`,
+              'Content-Type': 'application/json'
+            };
+            const res = await fetch(`${BACKEND_URL}/profile/${finalUser.id}`, {
+              headers: headerWithAuth
+            });
+            
+            if (res.ok) {
+              const backendUser = await res.json();
+              // Check if the backend user email matches stored user email
+              if (backendUser.email && finalUser.email && 
+                  backendUser.email.toLowerCase() !== finalUser.email.toLowerCase()) {
+                console.warn('Stored user mismatch detected. Using backend user.');
+                const verifiedUser = ensureUserWithAvatar(backendUser);
+                persistUser(verifiedUser);
+                if (mounted) {
+                  setUser(verifiedUser);
+                  setIsAuthenticated(true);
+                }
+              } else {
+                // User verified, use stored version
+                if (mounted) {
+                  setUser(finalUser);
+                  setIsAuthenticated(true);
+                }
+              }
+            } else {
+              // Backend fetch failed, logout
+              if (mounted) logout();
+            }
+          } catch (verifyError) {
+            console.error('Error verifying user:', verifyError);
+            // On verification error, still set the user but will catch actual auth errors later
+            if (mounted) {
+              setUser(finalUser);
+              setIsAuthenticated(true);
+            }
           }
         } else if (finalAccess && !finalUser) {
           if (mounted) logout();
