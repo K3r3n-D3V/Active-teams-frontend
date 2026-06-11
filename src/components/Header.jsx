@@ -1,6 +1,4 @@
-// components/Home.jsx
 import React, { useState } from "react";
-// import EventRegistrationForm from "./EventRegistrationForm";
 import styles from "../styles/Header.module.css";
 
 export default function Home() {
