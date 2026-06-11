@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import styles from "../styles/Header.module.css";
 
 export default function Home() {
-  const [openPopup, setOpenPopup] = useState(false);
+
 
   const sections = [
     { image: "/image1.PNG" },
@@ -16,15 +16,18 @@ export default function Home() {
 
   return (
     <div className={styles.container}>
+
       {sections.map((sec, index) => (
         <section
           key={index}
+
           className={styles.section}
           style={{
             backgroundImage: `url(${sec.image})`,
           }}
         />
       ))}
+
     </div>
   );
 }
