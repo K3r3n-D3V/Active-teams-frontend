@@ -5023,7 +5023,7 @@ const getTypeValue = (type) => {
                                 </Tooltip>
                               )}
                               <Tooltip
-                                title="Download Attendance (Event)"
+                                title="Download Event"
                                 arrow
                               >
                                 <IconButton
