@@ -1014,7 +1014,7 @@ const normalizeEventAttendance = (event) => {
             </IconButton>
           </Tooltip>
         )}
-        <Tooltip title="Download Attendance (Event)" arrow>
+        <Tooltip title="Download Event Attendance" arrow>
           <IconButton
             onClick={() => downloadEventAttendance(params.row)}
             size="small"
