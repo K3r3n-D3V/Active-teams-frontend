@@ -707,11 +707,19 @@ const findEventTypeByName = (typeName) => {
       return;
     }
 
-    const headers = Object.keys(rows[0]);
+    // Build a union of all keys across all rows so that columns aren't
+    // omitted when the first row lacks some fields (common when merging
+    // ticketed/non-ticketed rows from multiple events).
+    const headerSet = rows.reduce((set, r) => {
+      Object.keys(r || {}).forEach((k) => set.add(k));
+      return set;
+    }, new Set());
+    const headers = Array.from(headerSet);
+
     const columnWidths = headers.map((header) => {
       let maxLength = header.length;
       rows.forEach((r) => {
-        const v = String(r[header] || "");
+        const v = String((r && r[header]) || "");
         if (v.length > maxLength) maxLength = v.length;
       });
       return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
@@ -1183,11 +1191,18 @@ const Events = () => {
       return;
     }
 
-    const headers = Object.keys(rows[0]);
+    // Build a union of all keys across all rows so exported files include
+    // columns that may be missing in the first row (e.g., Paid/Owing/etc).
+    const headerSet = rows.reduce((set, r) => {
+      Object.keys(r || {}).forEach((k) => set.add(k));
+      return set;
+    }, new Set());
+    const headers = Array.from(headerSet);
+
     const columnWidths = headers.map((header) => {
       let maxLength = header.length;
       rows.forEach((r) => {
-        const v = String(r[header] || "");
+        const v = String((r && r[header]) || "");
         if (v.length > maxLength) maxLength = v.length;
       });
       return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
@@ -5085,7 +5100,7 @@ const getTypeValue = (type) => {
                                 </Tooltip>
                               )}
                               <Tooltip
-                                title="Download Attendance (Event)"
+                                title="Download Event"
                                 arrow
                               >
                                 <IconButton
