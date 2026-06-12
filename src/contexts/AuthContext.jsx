@@ -122,23 +122,55 @@ export const AuthProvider = ({ children }) => {
         });
 
         if (res.ok) {
-          // Old backend accepted the credentials — create the user in Supabase Auth
-          const { error: signUpError } = await supabase.auth.admin?.createUser?.({
-            email,
-            password,
-            email_confirm: true,
-          }) ?? await supabase.auth.signUp({ email, password });
+          const { data: signUpData, error: signUpError } =
+            await supabase.auth.signUp({ email, password });
 
-          if (!signUpError) {
-            // Now sign them in properly
+          if (signUpError) {
+            const errorMessage = String(signUpError.message || '').toLowerCase();
+            const alreadyRegistered =
+              signUpError.status === 400 &&
+              /already registered|duplicate key|user already exists|user already registered/i.test(
+                errorMessage,
+              );
+            const signupsDisabled =
+              signUpError.status === 400 &&
+              /signups are not allowed|signup is disabled|signups not allowed/i.test(
+                errorMessage,
+              );
+
+            if (alreadyRegistered) {
+              const retry = await supabase.auth.signInWithPassword({ email, password });
+              if (!retry.error) {
+                authData = retry.data;
+                authError = null;
+                migratedOk = true;
+                console.log(`Silently signed in existing Supabase user: ${email}`);
+              } else {
+                console.warn('Sign-in retry after existing Supabase account failed:', retry.error);
+              }
+            } else if (signupsDisabled) {
+              authError = new Error(
+                'Supabase signup is disabled. Enable email/password signups in Supabase Auth settings or migrate users server-side.',
+              );
+              console.warn(authError.message);
+            } else {
+              console.warn('Supabase migration sign-up failed:', signUpError);
+            }
+          } else {
             const retry = await supabase.auth.signInWithPassword({ email, password });
             if (!retry.error) {
-              authData  = retry.data;
+              authData = retry.data;
               authError = null;
               migratedOk = true;
               console.log(`Silently migrated user: ${email}`);
+            } else {
+              console.warn('Supabase sign-in after migration failed:', retry.error);
             }
           }
+        } else {
+          const text = await res.text().catch(() => 'unknown body');
+          authError = new Error(`Legacy login failed (${res.status}): ${text}`);
+          console.warn(authError.message);
         }
       } catch (migrationErr) {
         console.warn('Migration attempt failed:', migrationErr.message);
