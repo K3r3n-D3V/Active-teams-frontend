@@ -1724,6 +1724,16 @@ const fetchEventsFilters = (filters) => {
           console.log("Received events:", data.events?.length || 0);
 
           const allEvents = data.events || [];
+          const sample = allEvents[0];
+         if (sample) {
+           console.log("SAMPLE EVENT leader fields:", {
+             leader1: sample.leader1,
+             leader1Name: sample.leader1Name,
+             leaderAt1: sample.leaderAt1,
+             leaderAt1Name: sample.leaderAt1Name,
+           });
+         }
+
           const filtered = allEvents;
 
           console.log("Final events to display:", filtered.length);

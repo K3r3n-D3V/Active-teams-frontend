@@ -19,7 +19,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { useContext } from "react"; // if not already
-import { AuthContext } from "../contexts/AuthContext"
+import { AuthContext } from "../contexts/AuthContext";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import PersonIcon from "@mui/icons-material/Person";
 import DescriptionIcon from "@mui/icons-material/Description";
@@ -65,11 +65,18 @@ const SameWidthPopper = (props) => {
   );
 };
 
-const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, selectedEventTypeObj }) => {
+const CreateEvents = ({
+  user,
+  isModal,
+  onClose,
+  eventTypes,
+  selectedEventType,
+  selectedEventTypeObj,
+}) => {
   const navigate = useNavigate();
   const { id: paramEventID } = useParams();
   const [autoPopulatedFields, setAutoPopulatedFields] = useState(new Set());
-  const [eventId, setEventId] = useState(paramEventID ? paramEventID : null)
+  const [eventId, setEventId] = useState(paramEventID ? paramEventID : null);
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   const [eventTypeFlags, setEventTypeFlags] = useState({
@@ -181,8 +188,8 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
 
         const biasParam = biasLonLat
           ? `&bias=proximity:${encodeURIComponent(
-            biasLonLat.lon,
-          )},${encodeURIComponent(biasLonLat.lat)}`
+              biasLonLat.lon,
+            )},${encodeURIComponent(biasLonLat.lat)}`
           : "";
 
         const url =
@@ -268,7 +275,10 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
       }
       if (selectedEventType) {
         console.log("Looking for event type:", selectedEventType);
-        if (selectedEventType === "all" || selectedEventType.toUpperCase() === "ALL CELLS") {
+        if (
+          selectedEventType === "all" ||
+          selectedEventType.toUpperCase() === "ALL CELLS"
+        ) {
           return {
             eventType: "CELLS",
             isGlobal: false,
@@ -338,8 +348,10 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
       eventType,
       ...(prev.hasPersonSteps && !hasPersonSteps
         ? {
-          ...Object.fromEntries(getAllHierarchyLevels().map(h => [h.field, ""])),
-        }
+            ...Object.fromEntries(
+              getAllHierarchyLevels().map((h) => [h.field, ""]),
+            ),
+          }
         : {}),
     }));
   }, [selectedEventTypeObj, selectedEventType, eventTypes]);
@@ -380,15 +392,15 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
   }, [isTicketedEvent]);
 
   useEffect(() => {
-    const queryString = window.location.search
-    const queries = new URLSearchParams(queryString)
+    const queryString = window.location.search;
+    const queries = new URLSearchParams(queryString);
     if (selectedEventTypeObj.isTicketed === true) {
-      console.log("Event ID", queries.get("eventId"))
-      setEventId(queries.get("eventId"))
+      console.log("Event ID", queries.get("eventId"));
+      setEventId(queries.get("eventId"));
     }
-  }, [])
+  }, []);
   useEffect(() => {
-    console.log("dd", eventId)
+    console.log("dd", eventId);
     if (!eventId) return;
     const fetchEventData = async () => {
       try {
@@ -513,6 +525,12 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
   };
 
   const setLeaderSelection = (field, person) => {
+    console.log(
+      "PERSON SELECTED for",
+      field,
+      ":",
+      JSON.stringify(person, null, 2),
+    );
     setSelectedLeaders((prev) => ({
       ...prev,
       [field]: person,
@@ -553,6 +571,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
   };
 
   const handleEventLeaderSelection = (person) => {
+    console.log("EVENT LEADER SELECTED:", JSON.stringify(person, null, 2));
     setSelectedEventLeader(person);
     const leaderValues = person?.leaderValues || {};
     const selectedLeaderObjects = {};
@@ -614,11 +633,10 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
       updated[index] = { ...updated[index], [field]: value };
       setFormData((prev) => ({
         ...prev,
-        "priceTiers": updated,
+        priceTiers: updated,
       }));
       return updated;
     });
-
   };
 
   const handleRemovePriceTier = (index) => {
@@ -734,6 +752,16 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     return days[date.getDay()];
   };
 
+  console.log(
+    "LEADER DEBUG selectedLeaders:",
+    JSON.stringify(selectedLeaders, null, 2),
+  );
+  console.log("LEADER DEBUG formData leaders:", {
+    leader1: formData.leader1,
+    leader12: formData.leader12,
+    leader144: formData.leader144,
+  });
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!validateForm()) {
@@ -830,22 +858,32 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
 
       if (hasPersonSteps && !isGlobalEvent) {
         payload.leader1 = selectedLeaders.leader1?.id || formData.leader1 || "";
-        payload.leader1Name = selectedLeaders.leader1?.fullName || formData.leader1 || "";
+        payload.leader1Name =
+          selectedLeaders.leader1?.fullName || formData.leader1 || "";
         payload.leaderAt1 = payload.leader1;
         payload.leaderAt1Name = payload.leader1Name;
 
-        payload.leader12 = selectedLeaders.leader12?.id || formData.leader12 || "";
-        payload.leader12Name = selectedLeaders.leader12?.fullName || formData.leader12 || "";
+        payload.leader12 =
+          selectedLeaders.leader12?.id || formData.leader12 || "";
+        payload.leader12Name =
+          selectedLeaders.leader12?.fullName || formData.leader12 || "";
         payload.leaderAt12 = payload.leader12;
         payload.leaderAt12Name = payload.leader12Name;
 
-        payload.leader144 = selectedLeaders.leader144?.id || formData.leader144 || "";
-        payload.leader144Name = selectedLeaders.leader144?.fullName || formData.leader144 || "";
+        payload.leader144 =
+          selectedLeaders.leader144?.id || formData.leader144 || "";
+        payload.leader144Name =
+          selectedLeaders.leader144?.fullName || formData.leader144 || "";
         payload.leaderAt144 = payload.leader144;
         payload.leaderAt144Name = payload.leader144Name;
       }
 
-      console.log("Final Payload:", payload);
+      console.log("FINAL PAYLOAD leader fields:", {
+        leader1: payload.leader1,
+        leader1Name: payload.leader1Name,
+        leaderAt1: payload.leaderAt1,
+        leaderAt1Name: payload.leaderAt1Name,
+      });
 
       const token = localStorage.getItem("access_token");
       const headers = {
@@ -926,40 +964,40 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
 
   const containerStyle = isModal
     ? {
-      padding: "0",
-      minHeight: "auto",
-      backgroundColor: "transparent",
-      width: "100%",
-      height: "100%",
-      maxHeight: "none",
-      overflowY: "auto",
-    }
+        padding: "0",
+        minHeight: "auto",
+        backgroundColor: "transparent",
+        width: "100%",
+        height: "100%",
+        maxHeight: "none",
+        overflowY: "auto",
+      }
     : {
-      minHeight: "100vh",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
-      px: 2,
-    };
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
+        px: 2,
+      };
 
   const cardStyle = isModal
     ? {
-      width: "100%",
-      height: "100%",
-      padding: "1.5rem",
-      borderRadius: 0,
-      boxShadow: "none",
-      backgroundColor: "transparent",
-      maxHeight: "none",
-      overflow: "visible",
-    }
+        width: "100%",
+        height: "100%",
+        padding: "1.5rem",
+        borderRadius: 0,
+        boxShadow: "none",
+        backgroundColor: "transparent",
+        maxHeight: "none",
+        overflow: "visible",
+      }
     : {
-      width: { xs: "100%", sm: "85%", md: "700px" },
-      p: 5,
-      borderRadius: "20px",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-    };
+        width: { xs: "100%", sm: "85%", md: "700px" },
+        p: 5,
+        borderRadius: "20px",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+      };
 
   const darkModeStyles = {
     textField: {
@@ -1105,10 +1143,10 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
           ...cardStyle,
           ...(isDarkMode && !isModal
             ? {
-              bgcolor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              border: `1px solid ${theme.palette.divider}`,
-            }
+                bgcolor: theme.palette.background.paper,
+                color: theme.palette.text.primary,
+                border: `1px solid ${theme.palette.divider}`,
+              }
             : {}),
         }}
       >
@@ -1161,7 +1199,9 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
                 value={formData.eventType || ""}
                 onChange={(e) => {
                   const selectedName = e.target.value;
-                  const selectedObj = eventTypes.find((et) => et.name === selectedName);
+                  const selectedObj = eventTypes.find(
+                    (et) => et.name === selectedName,
+                  );
                   setFormData((prev) => ({ ...prev, eventType: selectedName }));
                   if (selectedObj) {
                     setEventTypeFlags({
@@ -1182,11 +1222,16 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
                     {et.name}
                   </MenuItem>
                 ))}
-                {formData.eventType && !eventTypes.find((et) => et.name === formData.eventType) && (
-                  <MenuItem key="__current__" value={formData.eventType} sx={{ display: "none" }}>
-                    {formData.eventType}
-                  </MenuItem>
-                )}
+                {formData.eventType &&
+                  !eventTypes.find((et) => et.name === formData.eventType) && (
+                    <MenuItem
+                      key="__current__"
+                      value={formData.eventType}
+                      sx={{ display: "none" }}
+                    >
+                      {formData.eventType}
+                    </MenuItem>
+                  )}
               </TextField>
             )}
             <TextField
@@ -1274,9 +1319,7 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
                       value={tier.name}
                       onChange={(e) => {
                         handlePriceTierChange(index, "name", e.target.value);
-                      }
-
-                      }
+                      }}
                       fullWidth
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
@@ -1471,7 +1514,9 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
                 <Paper
                   sx={{
                     width: "100%",
-                    bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+                    bgcolor: isDarkMode
+                      ? theme.palette.background.paper
+                      : "#fff",
                     border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
                   }}
                 >
@@ -1522,17 +1567,17 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
                       option.city ||
                       option.state ||
                       option.postcode) && (
-                        <Typography variant="caption" color="text.secondary">
-                          {[
-                            option.suburb,
-                            option.city,
-                            option.state,
-                            option.postcode,
-                          ]
-                            .filter(Boolean)
-                            .join(" • ")}
-                        </Typography>
-                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        {[
+                          option.suburb,
+                          option.city,
+                          option.state,
+                          option.postcode,
+                        ]
+                          .filter(Boolean)
+                          .join(" • ")}
+                      </Typography>
+                    )}
                   </Box>
                 </li>
               )}
@@ -1560,6 +1605,27 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
                 sx={{ mb: 2, ...darkModeStyles.autocomplete }}
                 required
               />
+
+              {formData.eventLeaderEmail && (
+                <TextField
+                  label="Event Leader Email"
+                  value={formData.eventLeaderEmail}
+                  onChange={(e) =>
+                    handleChange("eventLeaderEmail", e.target.value)
+                  }
+                  fullWidth
+                  size="small"
+                  sx={{ mt: 1, ...darkModeStyles.textField }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
+                  }}
+                  helperText="Auto-filled from selected leader — edit if needed"
+                />
+              )}
             </Box>
 
             {hasPersonSteps && !isGlobalEvent && (
@@ -1576,7 +1642,8 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
                 />
 
                 {getAllHierarchyLevels().map((h) => {
-                  const isAutoFilled = autoPopulatedFields.has(h.field) && !!formData[h.field];
+                  const isAutoFilled =
+                    autoPopulatedFields.has(h.field) && !!formData[h.field];
                   return isAutoFilled ? (
                     <TextField
                       key={h.field}
@@ -1588,22 +1655,36 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
                         mb: 2,
                         ...darkModeStyles.textField,
                         "& .MuiOutlinedInput-root": {
-                          ...darkModeStyles.textField["& .MuiOutlinedInput-root"],
-                          bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
+                          ...darkModeStyles.textField[
+                            "& .MuiOutlinedInput-root"
+                          ],
+                          bgcolor: isDarkMode
+                            ? "rgba(255,255,255,0.04)"
+                            : "rgba(0,0,0,0.04)",
                         },
                       }}
                       InputProps={{
                         readOnly: true,
                         endAdornment: (
                           <InputAdornment position="end">
-                            <Typography variant="caption" sx={{ color: "success.main", fontSize: "0.7rem", whiteSpace: "nowrap" }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: "success.main",
+                                fontSize: "0.7rem",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
                               Auto-filled
                             </Typography>
                           </InputAdornment>
                         ),
                       }}
                       error={!!errors[h.field]}
-                      helperText={errors[h.field] || `Auto-filled from ${formData.eventLeader}`}
+                      helperText={
+                        errors[h.field] ||
+                        `Auto-filled from ${formData.eventLeader}`
+                      }
                     />
                   ) : (
                     <PeopleSearchAutocomplete
@@ -1611,13 +1692,17 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
                       label={`${h.label} *`}
                       value={selectedLeaders[h.field]}
                       inputValue={formData[h.field] || ""}
-                      onInputChange={(value) => handleLeaderInputChange(h.field, value)}
+                      onInputChange={(value) =>
+                        handleLeaderInputChange(h.field, value)
+                      }
                       onChange={(person) => setLeaderSelection(h.field, person)}
                       authFetch={authFetch}
                       backendUrl={BACKEND_URL}
                       placeholder={`Search ${h.label}`}
                       error={errors[h.field]}
-                      helperText={errors[h.field] || `Search and select ${h.label}`}
+                      helperText={
+                        errors[h.field] || `Search and select ${h.label}`
+                      }
                       sx={{ mb: 2, ...darkModeStyles.autocomplete }}
                       required
                     />
