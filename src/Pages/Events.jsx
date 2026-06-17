@@ -42,6 +42,7 @@ import EditEventModal from "./EditEventModal";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
+import {supabase} from '../services/supabase-client'
 
 const formatRecurringDays = (recurringDays) => {
   if (!recurringDays || recurringDays.length === 0) {
@@ -1698,8 +1699,9 @@ const fetchEventsFilters = (filters) => {
           const filtered = allEvents;
 
           console.log("Final events to display:", filtered.length);
-
+ 
           setEvents(filtered);
+          console.log("FETCHED EVENTS:",filtered);
           setTotalEvents(data.total_events || 0);
           setTotalPages(data.total_pages || 1);
         } catch (error) {
@@ -1730,19 +1732,19 @@ const fetchEventsFilters = (filters) => {
       ],
     );
 
+const [fetchedEventTypes, setFetchedEventTypes] = useState([]);
 const fetchEventTypes = useCallback(async () => {
   try {
     const token = localStorage.getItem("access_token");
 
-    const response = await authFetch(`${BACKEND_URL}/event-types`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-
-    if (!response.ok) {
-      throw new Error("Failed to fetch event types");
+    const {data:eventTypesData, error} = await supabase.from('event_types').select('*')
+    if (error){
+      console.log("supabase error: ",error.message);
+      throw new Error("supabase error: ",error.message);
     }
+    console.log("EVENT TYPES DATA:", eventTypesData);
 
-    const eventTypesData = await response.json();
+   
     
     let filteredTypes = eventTypesData.filter((type) => {
       if (isActiveTeams && (type.name === "Cells" || type.name === "CELLS" || type.name?.toLowerCase() === "cells")) {
