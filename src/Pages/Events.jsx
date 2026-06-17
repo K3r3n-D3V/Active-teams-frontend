@@ -850,10 +850,39 @@ const normalizeEventAttendance = (event) => {
   );
   console.log("LEADER  FIELDS:", leaderKeys.reduce((acc, k) => ({ ...acc, [k]: event[k] }), {}));
 
-  
-  const leaderAt12  = event.leader12 || event.leaderAt12 || event.leader_at_12 || "";
-  const leaderAt1   = event.leader1  || event.leaderAt1  || event.leader_at_1  || event.leaderAt1Name  || "";
-  const leaderAt144 = event.leader144 || event.leaderAt144 || event.leader_at_144 || event.leaderAt144Name || "";
+  const getLeaderValue = (...keys) => {
+    for (const key of keys) {
+      const value = event[key];
+      if (value === undefined || value === null || value === "") continue;
+      if (typeof value === "object") {
+        return value.fullName || value.name || value.id || "";
+      }
+      return String(value);
+    }
+    return "";
+  };
+
+  const leaderAt12 = getLeaderValue(
+    "leader12Name",
+    "leaderAt12Name",
+    "leader12",
+    "leaderAt12",
+    "leader_at_12",
+  );
+  const leaderAt1 = getLeaderValue(
+    "leader1Name",
+    "leaderAt1Name",
+    "leader1",
+    "leaderAt1",
+    "leader_at_1",
+  );
+  const leaderAt144 = getLeaderValue(
+    "leader144Name",
+    "leaderAt144Name",
+    "leader144",
+    "leaderAt144",
+    "leader_at_144",
+  );
 
   const hasLeaderHierarchy = leaderAt1 || leaderAt12 || leaderAt144;
 
@@ -1013,12 +1042,12 @@ const normalizeEventAttendance = (event) => {
       {isCellEvent && (
         <div style={styles.mobileCardRow}>
           <span style={styles.mobileCardLabel}>Leader @1:</span>
-          <span style={styles.mobileCardValue}>{event.leader1 || "N/A"}</span>
+          <span style={styles.mobileCardValue}>{event.leader1Name || event.leader1 || "N/A"}</span>
         </div>
       )}
       {!event.isTicketed && <div style={styles.mobileCardRow}>
         <span style={styles.mobileCardLabel}>Leader @12:</span>
-        <span style={styles.mobileCardValue}>{event.leader12 || "N/A"}</span>
+        <span style={styles.mobileCardValue}>{event.leader12Name ||event.leaderAt12Name || event.leader12 || event.leaderAt12 || event.leader_at_12 || "N/A"}</span>
       </div>}
       <div style={styles.mobileActions}>
         <Tooltip title={`View Attendance (${attendeesCount} people)`}>
@@ -1399,9 +1428,9 @@ const normalizeEventAttendance = (event) => {
 
   // Resolve leader hierarchy from the event itself
   // Adjust these field names to match whatever your API actually returns
-  const leaderAt1   = event.leaderAt1   || event.leader_at_1   || event.leaderAt1Name   || "";
-  const leaderAt12  = event.leaderAt12  || event.leader_at_12  || event.leaderAt12Name  || event.leader12 || "";
-  const leaderAt144 = event.leaderAt144 || event.leader_at_144 || event.leaderAt144Name || "";
+  const leaderAt1   = event.leader1Name || event.leaderAt1Name || event.leaderAt1 || event.leader_at_1 || "";
+  const leaderAt12  = event.leader12Name || event.leaderAt12Name || event.leaderAt12 || event.leader_at_12 || event.leader12 || "";
+  const leaderAt144 = event.leader144Name || event.leaderAt144Name || event.leaderAt144 || event.leader_at_144 || "";
 
   const hasLeaderHierarchy = leaderAt1 || leaderAt12 || leaderAt144;
 
@@ -1566,8 +1595,8 @@ const normalizeEventAttendance = (event) => {
             Name: "",
             Email: "",
             "Event Leader Name ": ev.eventLeaderName || ev.leaderName || ev.eventLeader || ev.leader || "",
-            "Leader @12": ev.leader12 || "",
-            "Leader @144": ev.leader144 || "",
+            "Leader @12": ev.leader12Name || ev.leaderAt12Name || ev.leader12 || "",
+            "Leader @144": ev.leader144Name || ev.leaderAt144Name || ev.leader144 || "",
             Phone: "",
             Decision: "",
             "Price Tier": "",
@@ -1710,6 +1739,16 @@ const fetchEventsFilters = (filters) => {
           console.log("Received events:", data.events?.length || 0);
 
           const allEvents = data.events || [];
+          const sample = allEvents[0];
+         if (sample) {
+           console.log("SAMPLE EVENT leader fields:", {
+             leader1: sample.leader1,
+             leader1Name: sample.leader1Name,
+             leaderAt1: sample.leaderAt1,
+             leaderAt1Name: sample.leaderAt1Name,
+           });
+         }
+
           const filtered = allEvents;
 
           console.log("Final events to display:", filtered.length);

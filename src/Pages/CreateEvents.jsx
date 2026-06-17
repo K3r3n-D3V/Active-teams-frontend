@@ -19,7 +19,7 @@ import {
   CircularProgress,
 } from "@mui/material";
 import { useContext } from "react"; // if not already
-import { AuthContext } from "../contexts/AuthContext"
+import { AuthContext } from "../contexts/AuthContext";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import PersonIcon from "@mui/icons-material/Person";
 import DescriptionIcon from "@mui/icons-material/Description";
@@ -30,6 +30,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import { Popper } from "@mui/material";
 import { useOrgConfig } from "../contexts/OrgConfigContext";
+import PeopleSearchAutocomplete from "../components/PeopleSearchAutocomplete";
 function generateUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, function (c) {
     const r = (Math.random() * 16) | 0;
@@ -64,14 +65,20 @@ const SameWidthPopper = (props) => {
   );
 };
 
-const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, selectedEventTypeObj }) => {
+const CreateEvents = ({
+  user,
+  isModal,
+  onClose,
+  eventTypes,
+  selectedEventType,
+  selectedEventTypeObj,
+}) => {
   const navigate = useNavigate();
   const { id: paramEventID } = useParams();
   const [autoPopulatedFields, setAutoPopulatedFields] = useState(new Set());
-  const [eventId, setEventId] = useState(paramEventID ? paramEventID : null)
+  const [eventId, setEventId] = useState(paramEventID ? paramEventID : null);
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
-  const [isSearchingPeople, setIsSearchingPeople] = useState(false);
   const [eventTypeFlags, setEventTypeFlags] = useState({
     isGlobal: false,
     isTicketed: false,
@@ -85,10 +92,8 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
   const { getAllHierarchyLevels } = useOrgConfig();
   const { authFetch } = useContext(AuthContext);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [peopleData, setPeopleData] = useState([]);
+  const [selectedEventLeader, setSelectedEventLeader] = useState(null);
   const [priceTiers, setPriceTiers] = useState([]);
-
-  const isSelectingFromDropdown = useRef(false);
 
   const isAdmin = user?.role === "admin";
   console.log("view role", isAdmin);
@@ -107,6 +112,12 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     description: "",
     leader1: "",
     leader12: "",
+    leader144: "",
+  });
+  const [selectedLeaders, setSelectedLeaders] = useState({
+    leader1: null,
+    leader12: null,
+    leader144: null,
   });
 
   const [isRecurring, setIsRecurring] = useState(false);
@@ -123,7 +134,6 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
 
   // Bias location for better SA results
   const [biasLonLat, setBiasLonLat] = useState(null);
-  const searchDebounceRef = useRef(null);
 
   useEffect(() => {
     if (!navigator.geolocation) return;
@@ -178,8 +188,8 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
 
         const biasParam = biasLonLat
           ? `&bias=proximity:${encodeURIComponent(
-            biasLonLat.lon,
-          )},${encodeURIComponent(biasLonLat.lat)}`
+              biasLonLat.lon,
+            )},${encodeURIComponent(biasLonLat.lat)}`
           : "";
 
         const url =
@@ -265,7 +275,10 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
       }
       if (selectedEventType) {
         console.log("Looking for event type:", selectedEventType);
-        if (selectedEventType === "all" || selectedEventType.toUpperCase() === "ALL CELLS") {
+        if (
+          selectedEventType === "all" ||
+          selectedEventType.toUpperCase() === "ALL CELLS"
+        ) {
           return {
             eventType: "CELLS",
             isGlobal: false,
@@ -335,8 +348,10 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
       eventType,
       ...(prev.hasPersonSteps && !hasPersonSteps
         ? {
-          ...Object.fromEntries(getAllHierarchyLevels().map(h => [h.field, ""])),
-        }
+            ...Object.fromEntries(
+              getAllHierarchyLevels().map((h) => [h.field, ""]),
+            ),
+          }
         : {}),
     }));
   }, [selectedEventTypeObj, selectedEventType, eventTypes]);
@@ -376,60 +391,16 @@ const CreateEvents = ({ user, isModal, onClose, eventTypes, selectedEventType, s
     }
   }, [isTicketedEvent]);
 
-const fetchPeople = async (q) => {
-  console.log("fetchPeople called with:", q);
-  if (!q?.trim() || q.trim().length < 2) {
-    setPeopleData([]);
-    return;
-  }
-
-  try {
-    setIsSearchingPeople(true);
-    console.log("Hitting URL:", `${BACKEND_URL}/people/search-fast?query=${encodeURIComponent(q.trim())}&limit=25`);
-
-    const res = await authFetch(
-      `${BACKEND_URL}/people/search-fast?query=${encodeURIComponent(q.trim())}&limit=25`
-    );
-
-    console.log("Response status:", res.status);
-    const data = await res.json();
-    console.log("Raw API response:", data);
-    console.log("Results count:", data?.results?.length);
-
-    const people = data?.results || [];
-    const formatted = people.map((p) => ({
-      id:            p._id,
-      fullName:      p.FullName || `${p.Name || ""} ${p.Surname || ""}`.trim(),
-      email:         p.Email || "",
-      leader1:       p["Leader @1"] || p.leader1 || "",
-      leader12:      p["Leader @12"] || p.leader12 || "",
-      leader144:     p["Leader @144"] || p.leader144 || "",
-      leaderValues:  {},
-      org:           "",
-      isDifferentOrg: false,
-    }));
-
-    console.log("Formatted people:", formatted);
-    console.log("Setting peopleData to:", formatted.length, "items");
-    setPeopleData(formatted);
-  } catch (err) {
-    console.error("fetchPeople error:", err);
-    setPeopleData([]);
-  } finally {
-    setIsSearchingPeople(false);
-  }
-};
-
   useEffect(() => {
-    const queryString = window.location.search
-    const queries = new URLSearchParams(queryString)
+    const queryString = window.location.search;
+    const queries = new URLSearchParams(queryString);
     if (selectedEventTypeObj.isTicketed === true) {
-      console.log("Event ID", queries.get("eventId"))
-      setEventId(queries.get("eventId"))
+      console.log("Event ID", queries.get("eventId"));
+      setEventId(queries.get("eventId"));
     }
-  }, [])
+  }, []);
   useEffect(() => {
-    console.log("dd", eventId)
+    console.log("dd", eventId);
     if (!eventId) return;
     const fetchEventData = async () => {
       try {
@@ -496,6 +467,40 @@ const fetchPeople = async (q) => {
         }
 
         setFormData((prev) => ({ ...prev, ...data }));
+
+        setSelectedLeaders({
+          leader1:
+            data.leader1 || data.leader1Name
+              ? {
+                  id: data.leader1 || data.leader1Name,
+                  fullName: data.leader1Name || data.leader1,
+                }
+              : null,
+          leader12:
+            data.leader12 || data.leader12Name
+              ? {
+                  id: data.leader12 || data.leader12Name,
+                  fullName: data.leader12Name || data.leader12,
+                }
+              : null,
+          leader144:
+            data.leader144 || data.leader144Name
+              ? {
+                  id: data.leader144 || data.leader144Name,
+                  fullName: data.leader144Name || data.leader144,
+                }
+              : null,
+        });
+
+        setSelectedEventLeader(
+          data.eventLeader
+            ? {
+                id: data.eventLeaderId || data.eventLeader,
+                fullName: data.eventLeader,
+              }
+            : null,
+        );
+
         window.history.replaceState({}, "", window.location.pathname);
       } catch (err) {
         console.error("Failed to fetch event:", err);
@@ -517,6 +522,93 @@ const fetchPeople = async (q) => {
         [field]: value,
       };
     });
+  };
+
+  const setLeaderSelection = (field, person) => {
+    console.log(
+      "PERSON SELECTED for",
+      field,
+      ":",
+      JSON.stringify(person, null, 2),
+    );
+    setSelectedLeaders((prev) => ({
+      ...prev,
+      [field]: person,
+    }));
+    setFormData((prev) => ({
+      ...prev,
+      [field]: person?.fullName || "",
+    }));
+    if (errors[field]) {
+      setErrors((prevErrors) => ({ ...prevErrors, [field]: "" }));
+    }
+  };
+
+  const handleLeaderInputChange = (field, value) => {
+    setSelectedLeaders((prev) => ({
+      ...prev,
+      [field]: null,
+    }));
+    setFormData((prev) => ({
+      ...prev,
+      [field]: value,
+    }));
+    if (errors[field]) {
+      setErrors((prevErrors) => ({ ...prevErrors, [field]: "" }));
+    }
+  };
+
+  const handleEventLeaderInputChange = (value) => {
+    setSelectedEventLeader(null);
+    setAutoPopulatedFields(new Set());
+    setFormData((prev) => ({
+      ...prev,
+      eventLeader: value,
+    }));
+    if (errors.eventLeader) {
+      setErrors((prevErrors) => ({ ...prevErrors, eventLeader: "" }));
+    }
+  };
+
+  const handleEventLeaderSelection = (person) => {
+    console.log("EVENT LEADER SELECTED:", JSON.stringify(person, null, 2));
+    setSelectedEventLeader(person);
+    const leaderValues = person?.leaderValues || {};
+    const selectedLeaderObjects = {};
+
+    if (hasPersonSteps && !isGlobalEvent) {
+      getAllHierarchyLevels().forEach((h) => {
+        const fieldValue = leaderValues[h.field];
+        if (fieldValue) {
+          selectedLeaderObjects[h.field] = {
+            id: fieldValue,
+            fullName: fieldValue,
+          };
+        }
+      });
+    }
+
+    setSelectedLeaders((prev) => ({
+      ...prev,
+      ...selectedLeaderObjects,
+    }));
+
+    if (hasPersonSteps && !isGlobalEvent) {
+      const filled = new Set(
+        Object.keys(leaderValues).filter((field) => leaderValues[field]),
+      );
+      setAutoPopulatedFields(filled);
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      eventLeader: person?.fullName || "",
+      eventLeaderEmail: person?.email?.toLowerCase() || prev.eventLeaderEmail,
+      ...(hasPersonSteps && !isGlobalEvent ? leaderValues : {}),
+    }));
+    if (errors.eventLeader) {
+      setErrors((prevErrors) => ({ ...prevErrors, eventLeader: "" }));
+    }
   };
 
   const handleDayChange = (day) => {
@@ -541,11 +633,10 @@ const fetchPeople = async (q) => {
       updated[index] = { ...updated[index], [field]: value };
       setFormData((prev) => ({
         ...prev,
-        "priceTiers": updated,
+        priceTiers: updated,
       }));
       return updated;
     });
-
   };
 
   const handleRemovePriceTier = (index) => {
@@ -567,7 +658,10 @@ const fetchPeople = async (q) => {
       description: "",
       leader1: "",
       leader12: "",
+      leader144: "",
     });
+    setSelectedEventLeader(null);
+    setSelectedLeaders({ leader1: null, leader12: null, leader144: null });
     setPriceTiers([]);
     setErrors({});
   };
@@ -623,9 +717,15 @@ const fetchPeople = async (q) => {
         ].filter(Boolean).length;
         getAllHierarchyLevels().forEach((h, idx) => {
           if (autoPopulatedFields.has(h.field)) return;
-          if (formData[h.field]) return;
+          if (!formData[h.field]) {
+            newErrors[h.field] = `${h.label} is required`;
+            return;
+          }
+          if (!selectedLeaders[h.field]) {
+            newErrors[h.field] = `Select a valid ${h.label} from the list`;
+            return;
+          }
           if (idx >= leaderDepth && leaderDepth > 0) return;
-          newErrors[h.field] = `${h.label} is required`;
         });
       }
     } else {
@@ -651,6 +751,16 @@ const fetchPeople = async (q) => {
     ];
     return days[date.getDay()];
   };
+
+  console.log(
+    "LEADER DEBUG selectedLeaders:",
+    JSON.stringify(selectedLeaders, null, 2),
+  );
+  console.log("LEADER DEBUG formData leaders:", {
+    leader1: formData.leader1,
+    leader12: formData.leader12,
+    leader144: formData.leader144,
+  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -747,31 +857,42 @@ const fetchPeople = async (q) => {
       }
 
       if (hasPersonSteps && !isGlobalEvent) {
-        payload.leader1 = formData.leader1 || "";
-        payload.leader12 = formData.leader12 || "";
+        payload.leaderAt1 = payload.leader1Name;
+        payload.leaderAt1Name = payload.leader1Name;
+
+        payload.leaderAt12 = payload.leader12Name;
+        payload.leaderAt12Name = payload.leader12Name;
+
+        payload.leaderAt144 = payload.leader144Name;
+        payload.leaderAt144Name = payload.leader144Name;
       }
 
-      console.log("Final Payload:", payload);
+      console.log("FINAL PAYLOAD leader fields:", {
+        leader1: payload.leader1,
+        leader1Name: payload.leader1Name,
+        leaderAt1: payload.leaderAt1,
+        leaderAt1Name: payload.leaderAt1Name,
+      });
 
       const token = localStorage.getItem("access_token");
       const headers = {
         Authorization: token ? `Bearer ${token}` : "",
         "Content-Type": "application/json",
       };
-      const response = eventId ?
-        await authFetch(`${BACKEND_URL}/events/${eventId}`, {
-          method: "PUT",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData)
-        })
+      const response = eventId
+        ? await authFetch(`${BACKEND_URL}/events/${eventId}`, {
+            method: "PUT",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(payload),
+          })
         : await axios.post(
-          `${BACKEND_URL.replace(/\/$/, "")}/events`,
-          payload,
-          { headers },
-        );
+            `${BACKEND_URL.replace(/\/$/, "")}/events`,
+            payload,
+            { headers },
+          );
 
       console.log("Response:", response.data);
 
@@ -832,40 +953,40 @@ const fetchPeople = async (q) => {
 
   const containerStyle = isModal
     ? {
-      padding: "0",
-      minHeight: "auto",
-      backgroundColor: "transparent",
-      width: "100%",
-      height: "100%",
-      maxHeight: "none",
-      overflowY: "auto",
-    }
+        padding: "0",
+        minHeight: "auto",
+        backgroundColor: "transparent",
+        width: "100%",
+        height: "100%",
+        maxHeight: "none",
+        overflowY: "auto",
+      }
     : {
-      minHeight: "100vh",
-      display: "flex",
-      justifyContent: "center",
-      alignItems: "center",
-      bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
-      px: 2,
-    };
+        minHeight: "100vh",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        bgcolor: isDarkMode ? "#121212" : "#f5f5f5",
+        px: 2,
+      };
 
   const cardStyle = isModal
     ? {
-      width: "100%",
-      height: "100%",
-      padding: "1.5rem",
-      borderRadius: 0,
-      boxShadow: "none",
-      backgroundColor: "transparent",
-      maxHeight: "none",
-      overflow: "visible",
-    }
+        width: "100%",
+        height: "100%",
+        padding: "1.5rem",
+        borderRadius: 0,
+        boxShadow: "none",
+        backgroundColor: "transparent",
+        maxHeight: "none",
+        overflow: "visible",
+      }
     : {
-      width: { xs: "100%", sm: "85%", md: "700px" },
-      p: 5,
-      borderRadius: "20px",
-      boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
-    };
+        width: { xs: "100%", sm: "85%", md: "700px" },
+        p: 5,
+        borderRadius: "20px",
+        boxShadow: "0 8px 32px rgba(0,0,0,0.15)",
+      };
 
   const darkModeStyles = {
     textField: {
@@ -1011,10 +1132,10 @@ const fetchPeople = async (q) => {
           ...cardStyle,
           ...(isDarkMode && !isModal
             ? {
-              bgcolor: theme.palette.background.paper,
-              color: theme.palette.text.primary,
-              border: `1px solid ${theme.palette.divider}`,
-            }
+                bgcolor: theme.palette.background.paper,
+                color: theme.palette.text.primary,
+                border: `1px solid ${theme.palette.divider}`,
+              }
             : {}),
         }}
       >
@@ -1067,7 +1188,9 @@ const fetchPeople = async (q) => {
                 value={formData.eventType || ""}
                 onChange={(e) => {
                   const selectedName = e.target.value;
-                  const selectedObj = eventTypes.find((et) => et.name === selectedName);
+                  const selectedObj = eventTypes.find(
+                    (et) => et.name === selectedName,
+                  );
                   setFormData((prev) => ({ ...prev, eventType: selectedName }));
                   if (selectedObj) {
                     setEventTypeFlags({
@@ -1088,11 +1211,16 @@ const fetchPeople = async (q) => {
                     {et.name}
                   </MenuItem>
                 ))}
-                {formData.eventType && !eventTypes.find((et) => et.name === formData.eventType) && (
-                  <MenuItem key="__current__" value={formData.eventType} sx={{ display: "none" }}>
-                    {formData.eventType}
-                  </MenuItem>
-                )}
+                {formData.eventType &&
+                  !eventTypes.find((et) => et.name === formData.eventType) && (
+                    <MenuItem
+                      key="__current__"
+                      value={formData.eventType}
+                      sx={{ display: "none" }}
+                    >
+                      {formData.eventType}
+                    </MenuItem>
+                  )}
               </TextField>
             )}
             <TextField
@@ -1180,9 +1308,7 @@ const fetchPeople = async (q) => {
                       value={tier.name}
                       onChange={(e) => {
                         handlePriceTierChange(index, "name", e.target.value);
-                      }
-
-                      }
+                      }}
                       fullWidth
                       size="small"
                       sx={{ mb: 2, ...darkModeStyles.textField }}
@@ -1377,7 +1503,9 @@ const fetchPeople = async (q) => {
                 <Paper
                   sx={{
                     width: "100%",
-                    bgcolor: isDarkMode ? theme.palette.background.paper : "#fff",
+                    bgcolor: isDarkMode
+                      ? theme.palette.background.paper
+                      : "#fff",
                     border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
                   }}
                 >
@@ -1428,211 +1556,134 @@ const fetchPeople = async (q) => {
                       option.city ||
                       option.state ||
                       option.postcode) && (
-                        <Typography variant="caption" color="text.secondary">
-                          {[
-                            option.suburb,
-                            option.city,
-                            option.state,
-                            option.postcode,
-                          ]
-                            .filter(Boolean)
-                            .join(" • ")}
-                        </Typography>
-                      )}
+                      <Typography variant="caption" color="text.secondary">
+                        {[
+                          option.suburb,
+                          option.city,
+                          option.state,
+                          option.postcode,
+                        ]
+                          .filter(Boolean)
+                          .join(" • ")}
+                      </Typography>
+                    )}
                   </Box>
                 </li>
               )}
             />
-            <Box sx={{ mb: 3, position: "relative" }}>
-              <TextField
+            <Box sx={{ mb: 3 }}>
+              <PeopleSearchAutocomplete
                 label="Event Leader *"
-                value={formData.eventLeader}
-                onChange={(e) => {
-                  const value = e.target.value;
-                  handleChange("eventLeader", value);
-                  setPeopleData([]);
-                  if (autoPopulatedFields.size > 0) {
-                    setAutoPopulatedFields(new Set());
+                value={selectedEventLeader}
+                inputValue={formData.eventLeader || ""}
+                onInputChange={(value) => handleEventLeaderInputChange(value)}
+                onChange={(person) => {
+                  if (!person) {
+                    setSelectedEventLeader(null);
+                    return;
                   }
-                  if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-                  if (value.trim().length >= 2) {
-                    searchDebounceRef.current = setTimeout(() => {
-                      fetchPeople(value);
-                    }, 300);
-                  }
+                  handleEventLeaderSelection(person);
                 }}
-                onFocus={() => {
-                  if (formData.eventLeader.length >= 2) {
-                    fetchPeople(formData.eventLeader);
-                  }
-                }}
-                onBlur={() => {
-                  if (!isSelectingFromDropdown.current) {
-                    setTimeout(() => {
-                      if (!isSelectingFromDropdown.current) {
-                        setPeopleData([]);
-                      }
-                    }, 200);
-                  }
-                }}
-                fullWidth
-                size="small"
-                sx={darkModeStyles.textField}
-                error={!!errors.eventLeader}
-                helperText={
-                  errors.eventLeader ||
-                  (isSearchingPeople
-                    ? "Searching..."
-                    : "Type at least 2 characters to search")
-                }
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <PersonIcon />
-                    </InputAdornment>
-                  ),
-                }}
+                authFetch={authFetch}
+                backendUrl={BACKEND_URL}
                 placeholder="Type name and surname to search..."
-                autoComplete="off"
+                error={errors.eventLeader}
+                helperText={
+                  errors.eventLeader || "Type at least 2 characters to search"
+                }
+                sx={{ mb: 2, ...darkModeStyles.autocomplete }}
+                required
               />
 
-              {/* Dropdown results */}
-              {peopleData.length > 0 && (
-                <Box
-                  sx={{
-                    position: "absolute",
-                    top: "100%",
-                    left: 0,
-                    right: 0,
-                    zIndex: 20000,
-                    backgroundColor: isDarkMode
-                      ? theme.palette.background.paper
-                      : "#fff",
-                    border: `1px solid ${isDarkMode ? theme.palette.divider : "#ccc"}`,
-                    borderRadius: "4px",
-                    boxShadow: "0 4px 12px rgba(0,0,0,0.15)",
-                    maxHeight: "200px",
-                    overflowY: "auto",
-                    mt: 0.5,
+              {formData.eventLeaderEmail && (
+                <TextField
+                  label="Event Leader Email"
+                  value={formData.eventLeaderEmail}
+                  onChange={(e) =>
+                    handleChange("eventLeaderEmail", e.target.value)
+                  }
+                  fullWidth
+                  size="small"
+                  sx={{ mt: 1, ...darkModeStyles.textField }}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <PersonIcon />
+                      </InputAdornment>
+                    ),
                   }}
-                >
-                  {peopleData.map((person) => (
-                    <Box
-                      key={person.id || `${person.fullName}-${person.email}`}
-                      sx={{
-                        padding: "12px",
-                        borderBottom: `1px solid ${isDarkMode ? theme.palette.divider : "#f0f0f0"}`,
-                        "&:hover": {
-                          backgroundColor: isDarkMode ? "rgba(255,255,255,0.1)" : "#f5f5f5",
-                        },
-                        "&:last-child": { borderBottom: "none" },
-                        opacity: person.isDifferentOrg ? 0.5 : 1,
-                        cursor: person.isDifferentOrg ? "not-allowed" : "pointer",
-                      }}
-                      onMouseDown={() => {
-                        if (person.isDifferentOrg) return;
-                        isSelectingFromDropdown.current = true;
-                      }}
-                      onMouseUp={() => {
-                        if (person.isDifferentOrg) return;
-                        isSelectingFromDropdown.current = false;
-                        const selectedName = person.fullName;
-                        const selectedEmail = person.email;
-
-                        if (hasPersonSteps && !isGlobalEvent) {
-                          const populated = new Set(Object.keys(person.leaderValues || {}));
-                          setAutoPopulatedFields(populated);
-
-                          setFormData((prev) => ({
-                            ...prev,
-                            eventLeader: selectedName,
-                            eventName: selectedName,
-                            eventLeaderEmail: selectedEmail.toLowerCase(),
-                            email: selectedEmail.toLowerCase(),
-                            ...(person.leaderValues || {}),
-                          }));
-                        } else {
-                          setAutoPopulatedFields(new Set());
-                          setFormData((prev) => ({
-                            ...prev,
-                            eventLeader: selectedName,
-                            eventLeaderEmail: selectedEmail.toLowerCase(),
-                          }));
-                        }
-                        setPeopleData([]);
-                      }}
-                    >
-                      <Typography variant="body1" fontWeight="500">
-                        {person.fullName}
-                        {person.isDifferentOrg && (
-                          <span style={{ color: "red", fontSize: "0.75rem", marginLeft: 8 }}>
-                            Different organisation — cannot select
-                          </span>
-                        )}
-                      </Typography>
-                      <Typography variant="body2" sx={{ color: "text.secondary", fontSize: "0.75rem" }}>
-                        {person.email}
-                        {person.leader1 && ` • L@1: ${person.leader1}`}
-                        {person.leader12 && ` • L@12: ${person.leader12}`}
-                        {person.leader144 && ` • L@144: ${person.leader144}`}
-                        {person.org && ` • Org: ${person.org}`}
-                      </Typography>
-                    </Box>
-                  ))}
-                </Box>
+                  helperText="Auto-filled from selected leader — edit if needed"
+                />
               )}
             </Box>
 
             {hasPersonSteps && !isGlobalEvent && (
               <>
-                <TextField
-                  label="Email *"
-                  value={formData.email || ""}
-                  onChange={(e) => handleChange("email", e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.email}
-                  helperText={errors.email || "Enter the email for this event"}
-                />
 
                 {getAllHierarchyLevels().map((h) => {
-                  const isAutoFilled = autoPopulatedFields.has(h.field) && !!formData[h.field];
-                  return (
+                  const isAutoFilled =
+                    autoPopulatedFields.has(h.field) && !!formData[h.field];
+                  return isAutoFilled ? (
                     <TextField
                       key={h.field}
-                      label={isAutoFilled ? h.label : `${h.label} *`}
+                      label={h.label}
                       value={formData[h.field] || ""}
-                      onChange={(e) => !isAutoFilled && handleChange(h.field, e.target.value)}
                       fullWidth
                       size="small"
                       sx={{
                         mb: 2,
                         ...darkModeStyles.textField,
-                        ...(isAutoFilled && {
-                          "& .MuiOutlinedInput-root": {
-                            ...darkModeStyles.textField["& .MuiOutlinedInput-root"],
-                            bgcolor: isDarkMode ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.04)",
-                          },
-                        }),
+                        "& .MuiOutlinedInput-root": {
+                          ...darkModeStyles.textField[
+                            "& .MuiOutlinedInput-root"
+                          ],
+                          bgcolor: isDarkMode
+                            ? "rgba(255,255,255,0.04)"
+                            : "rgba(0,0,0,0.04)",
+                        },
                       }}
                       InputProps={{
-                        readOnly: isAutoFilled,
-                        endAdornment: isAutoFilled ? (
+                        readOnly: true,
+                        endAdornment: (
                           <InputAdornment position="end">
-                            <Typography variant="caption" sx={{ color: "success.main", fontSize: "0.7rem", whiteSpace: "nowrap" }}>
+                            <Typography
+                              variant="caption"
+                              sx={{
+                                color: "success.main",
+                                fontSize: "0.7rem",
+                                whiteSpace: "nowrap",
+                              }}
+                            >
                               Auto-filled
                             </Typography>
                           </InputAdornment>
-                        ) : undefined,
+                        ),
                       }}
                       error={!!errors[h.field]}
                       helperText={
                         errors[h.field] ||
-                        (isAutoFilled
-                          ? `Auto-filled from ${formData.eventLeader}`
-                          : `Enter the ${h.label} for this event`)
+                        `Auto-filled from ${formData.eventLeader}`
                       }
+                    />
+                  ) : (
+                    <PeopleSearchAutocomplete
+                      key={h.field}
+                      label={`${h.label} *`}
+                      value={selectedLeaders[h.field]}
+                      inputValue={formData[h.field] || ""}
+                      onInputChange={(value) =>
+                        handleLeaderInputChange(h.field, value)
+                      }
+                      onChange={(person) => setLeaderSelection(h.field, person)}
+                      authFetch={authFetch}
+                      backendUrl={BACKEND_URL}
+                      placeholder={`Search ${h.label}`}
+                      error={errors[h.field]}
+                      helperText={
+                        errors[h.field] || `Search and select ${h.label}`
+                      }
+                      sx={{ mb: 2, ...darkModeStyles.autocomplete }}
+                      required
                     />
                   );
                 })}
