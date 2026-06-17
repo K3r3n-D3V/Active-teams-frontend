@@ -1039,7 +1039,7 @@ const normalizeEventAttendance = (event) => {
       )}
       {!event.isTicketed && <div style={styles.mobileCardRow}>
         <span style={styles.mobileCardLabel}>Leader @12:</span>
-        <span style={styles.mobileCardValue}>{event.leader12Name || event.leader12 || "N/A"}</span>
+        <span style={styles.mobileCardValue}>{event.leader12Name ||event.leaderAt12Name || event.leader12 || event.leaderAt12 || event.leader_at_12 || "N/A"}</span>
       </div>}
       <div style={styles.mobileActions}>
         <Tooltip title={`View Attendance (${attendeesCount} people)`}>

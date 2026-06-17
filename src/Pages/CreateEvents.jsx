@@ -857,24 +857,13 @@ const CreateEvents = ({
       }
 
       if (hasPersonSteps && !isGlobalEvent) {
-        payload.leader1 = selectedLeaders.leader1?.id || formData.leader1 || "";
-        payload.leader1Name =
-          selectedLeaders.leader1?.fullName || formData.leader1 || "";
-        payload.leaderAt1 = payload.leader1;
+        payload.leaderAt1 = payload.leader1Name;
         payload.leaderAt1Name = payload.leader1Name;
 
-        payload.leader12 =
-          selectedLeaders.leader12?.id || formData.leader12 || "";
-        payload.leader12Name =
-          selectedLeaders.leader12?.fullName || formData.leader12 || "";
-        payload.leaderAt12 = payload.leader12;
+        payload.leaderAt12 = payload.leader12Name;
         payload.leaderAt12Name = payload.leader12Name;
 
-        payload.leader144 =
-          selectedLeaders.leader144?.id || formData.leader144 || "";
-        payload.leader144Name =
-          selectedLeaders.leader144?.fullName || formData.leader144 || "";
-        payload.leaderAt144 = payload.leader144;
+        payload.leaderAt144 = payload.leader144Name;
         payload.leaderAt144Name = payload.leader144Name;
       }
 
@@ -1630,16 +1619,6 @@ const CreateEvents = ({
 
             {hasPersonSteps && !isGlobalEvent && (
               <>
-                <TextField
-                  label="Email *"
-                  value={formData.email || ""}
-                  onChange={(e) => handleChange("email", e.target.value)}
-                  fullWidth
-                  size="small"
-                  sx={{ mb: 2, ...darkModeStyles.textField }}
-                  error={!!errors.email}
-                  helperText={errors.email || "Enter the email for this event"}
-                />
 
                 {getAllHierarchyLevels().map((h) => {
                   const isAutoFilled =
