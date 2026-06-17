@@ -1,4 +1,5 @@
 import React, { createContext, useState, useEffect, useCallback } from 'react';
+import { normalizeRole } from '../utils/roleNormalizer';
 
 const BACKEND_URL = `${import.meta.env.VITE_BACKEND_URL}` || 'http://localhost:8000';
 
@@ -35,9 +36,14 @@ export const AuthProvider = ({ children }) => {
 
   const ensureUserWithAvatar = (userData) => {
     if (!userData) return null;
-    const normalizedRole = userData.role && String(userData.role).trim().length
+    let userRole = userData.role && String(userData.role).trim().length
       ? userData.role
       : 'user';
+    
+    // Normalize the role to handle various formats from backend
+    // e.g., "leader at 12", "leader@12" -> "leaderat12"
+    userRole = normalizeRole(userRole);
+    
     const profilePicture = userData.profile_picture || 
                           userData.avatarUrl || 
                           userData.profilePicUrl || 
@@ -47,7 +53,7 @@ export const AuthProvider = ({ children }) => {
     
     return {
       ...userData,
-      role: normalizedRole,
+      role: userRole,
       is_supreme_admin: isSupremeAdmin,
       profile_picture: profilePicture,
       avatarUrl: profilePicture,

@@ -110,6 +110,19 @@ function extractLeaders(person) {
   };
 }
 
+function normalizeLeaderChain({ leader1, leader12, leader144 }) {
+  const normalized = [leader1, leader12, leader144]
+    .filter(Boolean)
+    .map((name) => name.trim())
+    .filter((name, index, arr) => arr.indexOf(name) === index);
+
+  return {
+    leader1: normalized[0] || "",
+    leader12: normalized[1] || "",
+    leader144: normalized[2] || "",
+  };
+}
+
 // ─── PeopleSearchField ────────────────────────────────────────────────────────
 function PeopleSearchField({ label, value, onChange, disabled, error, required }) {
   const theme  = useTheme();
@@ -497,6 +510,12 @@ export default function AddPersonDialog({
     if (!validate() || isSubmitting) return;
     setIsSubmitting(true);
     try {
+      const normalizedLeaders = normalizeLeaderChain({
+        leader1: formData.leader1,
+        leader12: formData.leader12,
+        leader144: formData.leader144,
+      });
+
       const payload = {
         invitedBy: formData.invitedBy || "",
         name: formData.name, surname: formData.surname,
@@ -504,8 +523,15 @@ export default function AddPersonDialog({
         number: formData.number, phone: formData.number,
         dob: formData.dob ? formData.dob.replace(/-/g, "/") : "",
         address: formData.address,
-        leaders: [formData.leader1 || "", formData.leader12 || "", formData.leader144 || "", ""],
-        leader1: formData.leader1 || "", leader12: formData.leader12 || "", leader144: formData.leader144 || "",
+        leaders: [
+          normalizedLeaders.leader1,
+          normalizedLeaders.leader12,
+          normalizedLeaders.leader144,
+          "",
+        ],
+        leader1: normalizedLeaders.leader1,
+        leader12: normalizedLeaders.leader12,
+        leader144: normalizedLeaders.leader144,
         stage: formData.stage || "Win",
       };
 
@@ -637,32 +663,30 @@ export default function AddPersonDialog({
               setFormData((p) => {
                 const update = { ...p, invitedBy: val };
                 if (person) {
-                  // Build ancestor chain root-first from inviter's own leaders
                   const ancestors = [
                     person.leader1,
                     person.leader12,
                     person.leader144,
-                  ].filter(Boolean);
+                  ]
+                    .filter(Boolean)
+                    .map((name) => name.trim());
 
-                  // Only add inviter to chain if fewer than 3 levels above them
-                  // If already 3 deep, inviter is just invitedBy — leaders come from their chain as-is
-                  if (ancestors.length < 3) {
-                    ancestors.push(person.fullName);
+                  const inviterName = person.fullName?.trim();
+                  if (
+                    inviterName &&
+                    ancestors.length < 3 &&
+                    ancestors[ancestors.length - 1] !== inviterName
+                  ) {
+                    ancestors.push(inviterName);
                   }
 
-                  // leader1  = root (always index 0)
-                  // leader12 = second-to-last
-                  // leader144 = last (only when 3 entries exist)
-                  //
-                  // [Gavin, Sasha]            → l1=Gavin, l12=Sasha,   l144=""
-                  // [Gavin, Thabo, Blessing]  → l1=Gavin, l12=Thabo,   l144=Blessing
-                  // [Gavin, Thabo, Blessing] (inviter already has 3) → same, inviter not appended
-                  update.leader1   = ancestors[0] || "";
-                  update.leader12  = ancestors.length >= 2 ? ancestors[ancestors.length - 2] : "";
-                  update.leader144 = ancestors.length >= 3 ? ancestors[ancestors.length - 1] : "";
+                  const uniqueAncestors = [...new Set(ancestors)];
+                  update.leader1 = uniqueAncestors[0] || "";
+                  update.leader12 = uniqueAncestors[1] || "";
+                  update.leader144 = uniqueAncestors[2] || "";
                 } else {
-                  update.leader1   = "";
-                  update.leader12  = "";
+                  update.leader1 = "";
+                  update.leader12 = "";
                   update.leader144 = "";
                 }
                 return update;

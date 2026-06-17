@@ -660,18 +660,46 @@ const MobileEventCard = ({
   }
   const isDark = theme.palette.mode === "dark";
   const borderColor = isDark ? theme.palette.divider : "#e9ecef";
-
+  const { authFetch} = React.useContext(AuthContext);
   const attendeesCount = event.attendees?.length || 0;
   const isCellEvent =
     selectedEventTypeFilter === "all" ||
     selectedEventTypeFilter === "CELLS" ||
     selectedEventTypeFilter === "Cells";
-
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const escapeHtml = (s) =>
     String(s || "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+
+const findEventTypeByName = (typeName) => {
+    if (!typeName || typeName === "all") {
+      return {
+        name: "CELLS",
+        isGlobal: false,
+        isTicketed: false,
+        hasPersonSteps: true,
+      };
+    }
+
+    // Look for the event type in your eventTypes array
+    const found = eventTypes.find((et) => {
+      const etName = et.name || et.eventTypeName || et.displayName || "";
+      return etName.toLowerCase() === typeName.toLowerCase();
+    });
+
+    if (found) {
+      return found;
+    }
+
+    return {
+      name: typeName,
+      isGlobal: false,
+      isTicketed: false,
+      hasPersonSteps: false,
+    };
+  };
 
   const buildXlsFromRows = (rows, fileBaseName = "export") => {
     if (!rows || rows.length === 0) {
@@ -679,11 +707,19 @@ const MobileEventCard = ({
       return;
     }
 
-    const headers = Object.keys(rows[0]);
+    // Build a union of all keys across all rows so that columns aren't
+    // omitted when the first row lacks some fields (common when merging
+    // ticketed/non-ticketed rows from multiple events).
+    const headerSet = rows.reduce((set, r) => {
+      Object.keys(r || {}).forEach((k) => set.add(k));
+      return set;
+    }, new Set());
+    const headers = Array.from(headerSet);
+
     const columnWidths = headers.map((header) => {
       let maxLength = header.length;
       rows.forEach((r) => {
-        const v = String(r[header] || "");
+        const v = String((r && r[header]) || "");
         if (v.length > maxLength) maxLength = v.length;
       });
       return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
@@ -1016,7 +1052,7 @@ const normalizeEventAttendance = (event) => {
         )}
         <Tooltip title="Download Attendance (Event)" arrow>
           <IconButton
-            onClick={() => downloadEventAttendance(params.row)}
+            onClick={() => downloadEventAttendance(event)}
             size="small"
             sx={{ color: "#1976d2" }}
           >
@@ -1155,11 +1191,18 @@ const Events = () => {
       return;
     }
 
-    const headers = Object.keys(rows[0]);
+    // Build a union of all keys across all rows so exported files include
+    // columns that may be missing in the first row (e.g., Paid/Owing/etc).
+    const headerSet = rows.reduce((set, r) => {
+      Object.keys(r || {}).forEach((k) => set.add(k));
+      return set;
+    }, new Set());
+    const headers = Array.from(headerSet);
+
     const columnWidths = headers.map((header) => {
       let maxLength = header.length;
       rows.forEach((r) => {
-        const v = String(r[header] || "");
+        const v = String((r && r[header]) || "");
         if (v.length > maxLength) maxLength = v.length;
       });
       return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
@@ -2602,11 +2645,42 @@ const getFilteredEventTypes = (allEventTypes) => {
     ],
   );
 
+  const getAttendanceEventId = (eventObject) => {
+    if (!eventObject) return "";
+
+    const rawId = eventObject._id || eventObject.id || "";
+    if (!rawId) return "";
+
+    const [baseId, ...suffixParts] = rawId.split("_");
+    const suffix = suffixParts.join("_");
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (suffix && dateRegex.test(suffix)) {
+      return rawId;
+    }
+
+    const originalEventId = eventObject.original_event_id || baseId;
+    const dateSource =
+      eventObject.date ||
+      eventObject.event_date ||
+      eventObject.event_date_exact ||
+      eventObject.event_date_iso ||
+      "";
+    const cleanDate = String(dateSource).split("T")[0].split(" ")[0];
+
+    return originalEventId && cleanDate
+      ? `${originalEventId}_${cleanDate}`
+      : originalEventId || rawId;
+  };
+
   const handleAttendanceSubmit = useCallback(
     async (data) => {
       try {
         const token = localStorage.getItem("access_token");
-        const eventId = selectedEvent._id;
+        const eventId = getAttendanceEventId(selectedEvent);
+        if (!eventId) {
+          throw new Error("No valid event id found for attendance submission");
+        }
         const eventName = selectedEvent.eventName || "Event";
         const eventDate = selectedEvent.date || "";
 
@@ -2622,6 +2696,7 @@ const getFilteredEventTypes = (allEventTypes) => {
 
         if (data === "did_not_meet") {
           payload = {
+            event_id: eventId,
             attendees: [],
             all_attendees: [],
             leaderEmail,
@@ -2631,6 +2706,7 @@ const getFilteredEventTypes = (allEventTypes) => {
           };
         } else if (Array.isArray(data)) {
           payload = {
+            event_id: eventId,
             attendees: data,
             all_attendees: data,
             leaderEmail,
@@ -2641,6 +2717,7 @@ const getFilteredEventTypes = (allEventTypes) => {
         } else {
           payload = {
             ...data,
+            event_id: eventId,
             leaderEmail,
             leaderName,
             event_date: eventDate,
@@ -5023,7 +5100,7 @@ const getTypeValue = (type) => {
                                 </Tooltip>
                               )}
                               <Tooltip
-                                title="Download Attendance (Event)"
+                                title="Download Event"
                                 arrow
                               >
                                 <IconButton

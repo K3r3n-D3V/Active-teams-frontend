@@ -1476,13 +1476,43 @@ const AttendanceModal = ({
   // ─── NEW: Helper to resolve which leader gets the consolidation task ───
   // Uses leader144 if available, falls back to leader12
   const resolveAssignedTo = (person) => {
-    if (person.leader144 && person.leader144.trim() !== "") {
-      return person.leader144.trim();
+    const leader144 = person.leader144?.trim() || "";
+    const leader12 = person.leader12?.trim() || "";
+    if (leader144 && leader144 !== leader12) {
+      return leader144;
     }
-    if (person.leader12 && person.leader12.trim() !== "") {
-      return person.leader12.trim();
+    if (leader12) {
+      return leader12;
     }
     return null;
+  };
+
+  const getAttendanceEventId = (eventObject) => {
+    if (!eventObject) return "";
+
+    const rawId = eventObject._id || eventObject.id || "";
+    if (!rawId) return "";
+
+    const [baseId, ...suffixParts] = rawId.split("_");
+    const suffix = suffixParts.join("_");
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (suffix && dateRegex.test(suffix)) {
+      return rawId;
+    }
+
+    const originalEventId = eventObject.original_event_id || baseId;
+    const dateSource =
+      eventObject.date ||
+      eventObject.event_date ||
+      eventObject.event_date_exact ||
+      eventObject.event_date_iso ||
+      "";
+    const cleanDate = String(dateSource).split("T")[0].split(" ")[0];
+
+    return originalEventId && cleanDate
+      ? `${originalEventId}_${cleanDate}`
+      : originalEventId || rawId;
   };
 
   // ─── NEW: Get the highest-level leader available on a person object ───
@@ -2468,7 +2498,7 @@ const AttendanceModal = ({
   const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
     if (!event) return false;
 
-    let eventId = event.original_event_id || event._id || event.id;
+    let eventId = getAttendanceEventId(event);
 
     if (!eventId || eventId === "undefined") {
       console.error(
@@ -2722,10 +2752,7 @@ const AttendanceModal = ({
     const attendeesList = Object.keys(checkedIn).filter((id) => checkedIn[id]);
     const finalHeadcount = manualHeadcount ? parseInt(manualHeadcount) : 0;
 
-    let eventId = event.original_event_id || event._id || event?._id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
+    const eventId = getAttendanceEventId(event);
 
     if (!eventId) {
       toast.error("Event ID is missing, cannot submit attendance.");
@@ -2789,6 +2816,7 @@ const AttendanceModal = ({
       const shouldMarkAsDidNotMeet =
         didNotMeet && attendeesList.length === 0 && finalHeadcount === 0;
       const payload = {
+        event_id: eventId,
         attendees: shouldMarkAsDidNotMeet ? [] : selectedAttendees,
         persistent_attendees: persistentCommonAttendees.map((p) => {
           const ticketOverride = isTicketedEvent
@@ -3086,14 +3114,20 @@ const AttendanceModal = ({
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
 
-    const headers = Object.keys(rows[0]);
+    // Ensure header row includes all possible keys from all rows so columns
+    // like Paid/Owing/Change/Decision appear even if the first row lacks them.
+    const headerSet = rows.reduce((set, r) => {
+      Object.keys(r || {}).forEach((k) => set.add(k));
+      return set;
+    }, new Set());
+    const headers = Array.from(headerSet);
 
-    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%;font-family:Calibri,Arial,sans-serif;}th{background-color:#a3aca3ff;color:white;font-weight:bold;padding:12px 8px;text-align:center;border:1px solid #ddd;font-size:11pt;white-space:nowrap;}td{padding:8px;border:1px solid #ddd;font-size:10pt;text-align:left;}tr:nth-child(even){background-color:#f2f2f2;}</style></head><body><table border="1"><thead>`;
+    let html = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel"><head><meta charset="utf-8"><style>table{border-collapse:collapse;width:100%;font-family:Calibri,Arial,sans-serif;}th{background-color:#a3aca3ff;color:white;font-weight:bold;padding:12px 8px;text-align:center;border:1px solid #ddd;font-size:11pt;white-space:nowrap;}td{padding:8px;border:1px solid #ddd;font-size:10pt;text-align:left;}tr:nth-child(even){background-color:#f2f2f2;}</style></head><body><table border="1"><thead><tr>`;
 
     headers.forEach((h) => {
       html += `<th>${escapeHtml(h)}</th>`;
     });
-    html += `</thead><tbody>`;
+    html += `</tr></thead><tbody>`;
     rows.forEach((row) => {
       html += `<tr>`;
       headers.forEach((h) => {
@@ -3132,10 +3166,7 @@ const AttendanceModal = ({
     setManualHeadcount("");
     setAttendeeTicketInfo({});
 
-    let eventId = event.original_event_id || event._id || event?._id;
-    if (eventId && eventId.includes("_")) {
-      eventId = eventId.split("_")[0];
-    }
+    const eventId = getAttendanceEventId(event);
 
     if (!eventId) {
       setIsSaving(false);
@@ -3144,6 +3175,7 @@ const AttendanceModal = ({
 
     try {
       const payload = {
+        event_id: eventId,
         attendees: [],
         persistent_attendees: persistentCommonAttendees.map((p) => {
           const ticketOverride = isTicketedEvent
@@ -4811,7 +4843,7 @@ const AttendanceModal = ({
                 <polyline points="7 10 12 15 17 10" />
                 <line x1="12" y1="15" x2="12" y2="3" />
               </svg>
-              DOWNLOAD DATA
+              Download Attendance
             </button>
 
             <div
