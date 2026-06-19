@@ -2392,24 +2392,6 @@ const StatsDashboard = () => {
       />
     </Box>
   </DialogContent>
-
-  <DialogActions sx={{ p: 2, gap: 1, borderTop: "1px solid", borderColor: "divider" }}>
-    <Button
-      variant="outlined"
-      fullWidth
-      onClick={() => setCreateEventModalOpen(false)}
-    >
-      Cancel
-    </Button>
-    <Button
-      variant="contained"
-      fullWidth
-      onClick={handleSaveEvent}
-      sx={{ bgcolor: "#1976d2", "&:hover": { bgcolor: "#1565c0" } }}
-    >
-      Create Event
-    </Button>
-  </DialogActions>
 </Dialog>
 
       {/* OVERDUE CELLS MODAL */}
