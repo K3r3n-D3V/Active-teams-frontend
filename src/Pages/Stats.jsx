@@ -1077,15 +1077,11 @@ const StatsDashboard = () => {
         time: newEventData.time,
         location: newEventData.location || null,
         description: newEventData.description || null,
-        eventLeaderName:
-          newEventData.eventLeaderName ||
-          `${user.name || ""} ${user.surname || ""}`.trim() ||
-          "Unknown Leader",
-        eventLeaderEmail: newEventData.eventLeaderEmail || user.email || null,
         isRecurring: newEventData.isRecurring,
         status: "incomplete",
         created_at: new Date().toISOString(),
-      };
+        calendarOnly: true,          // ← ADD THIS
+};
 
       const res = await authFetch(`${BACKEND_URL}/events`, {
         method: "POST",
@@ -2372,7 +2368,7 @@ const StatsDashboard = () => {
     </IconButton>
   </DialogTitle>
 
-  <DialogContent sx={{ p: 0, height: "100%", overflow: "hidden" }}>
+  <DialogContent sx={{ p: 0, overflow: "auto" }}>
     <Box
       sx={{
         height: "100%",
@@ -2383,19 +2379,37 @@ const StatsDashboard = () => {
       }}
     >
       <CreateEvents
-        key={newEventData.eventTypeName || "default"}   // Important for re-render when type changes
+        key={newEventData.eventTypeName || "default"}
         user={JSON.parse(localStorage.getItem("userProfile") || "{}")}
         isModal={true}
-        onClose={handleCloseCreateEventModal}           // ← Use this clean handler
+        onClose={handleCloseCreateEventModal}
         selectedEventType={newEventData.eventTypeName}
-        selectedEventTypeObj={eventTypes.find(
-          (et) => et.name === newEventData.eventTypeName
-        )}
+        selectedEventTypeObj={
+          eventTypes.find((et) => et.name === newEventData.eventTypeName) ?? null
+        }
         eventTypes={filteredEventTypes}
         defaultEventType={globalEvent?.name || "Global Events"}
       />
     </Box>
   </DialogContent>
+
+  <DialogActions sx={{ p: 2, gap: 1, borderTop: "1px solid", borderColor: "divider" }}>
+    <Button
+      variant="outlined"
+      fullWidth
+      onClick={() => setCreateEventModalOpen(false)}
+    >
+      Cancel
+    </Button>
+    <Button
+      variant="contained"
+      fullWidth
+      onClick={handleSaveEvent}
+      sx={{ bgcolor: "#1976d2", "&:hover": { bgcolor: "#1565c0" } }}
+    >
+      Create Event
+    </Button>
+  </DialogActions>
 </Dialog>
 
       {/* OVERDUE CELLS MODAL */}
