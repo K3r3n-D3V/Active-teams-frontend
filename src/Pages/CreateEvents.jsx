@@ -421,13 +421,12 @@ const fetchPeople = async (q) => {
 };
 
   useEffect(() => {
-    const queryString = window.location.search
-    const queries = new URLSearchParams(queryString)
-    if (selectedEventTypeObj.isTicketed === true) {
-      console.log("Event ID", queries.get("eventId"))
-      setEventId(queries.get("eventId"))
-    }
-  }, [])
+  const queryString = window.location.search
+  const queries = new URLSearchParams(queryString)
+  if (selectedEventTypeObj?.isTicketed === true) {
+    setEventId(queries.get("eventId"))
+  }
+}, [])
   useEffect(() => {
     console.log("dd", eventId)
     if (!eventId) return;
