@@ -1927,20 +1927,23 @@ const AttendanceModal = ({
     try {
       const token = localStorage.getItem("token");
 
-      const response = await authFetch(
-        `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-        { headers: { Authorization: `Bearer ${token}` } },
-      );
+      // const response = await authFetch(
+      //   `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
+      //   { headers: { Authorization: `Bearer ${token}` } },
+      // );
 
-      if (!response.ok) {
-        console.error("Failed to load persistent attendees:", response.status);
-        return;
-      }
+      // if (!response.ok) {
+      //   console.error("Failed to load persistent attendees:", response.status);
+      //   return;
+      // }
 
-      const data = await response.json();
+      // const data = await response.json();
 
-      const persistentList = data.persistent_attendees || [];
-      const checkedInList = data.checked_in_attendees || [];
+      console.log("EVENT",event)
+
+      const persistentList = event.persistent_attendees || [];
+      const checkedInList = event.attendees || [];
+      console.log("CHECKED IN LIST:", checkedInList);
 
       setPersistentCommonAttendees(persistentList);
 

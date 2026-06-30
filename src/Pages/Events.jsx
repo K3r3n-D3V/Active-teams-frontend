@@ -2490,31 +2490,31 @@ const getFilteredEventTypes = (allEventTypes) => {
         eventId = eventId.split("_")[0];
       }
 
-      if (!eventId || eventId === "undefined") {
+      if (true) {
         console.error("handleCaptureClick: no valid ID on event", event);
         setSelectedEvent(event);
         setAttendanceModalOpen(true);
         return;
       }
 
-      const response = await fetch(`${BACKEND_URL}/events/${eventId}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      if (!response.ok) {
-        console.error("Failed to fetch full event, using local event data");
-        setSelectedEvent(event);
-        setAttendanceModalOpen(true);
-        return;
-      }
-      const fullEvent = await response.json();
-      const enrichedEvent = {
-        ...event,
-        ...fullEvent,
-        _id: originalId,
-        original_event_id: eventId,
-      };
-      setSelectedEvent(enrichedEvent);
-      setAttendanceModalOpen(true);
+      // const response = await fetch(`${BACKEND_URL}/events/${eventId}`, {
+      //   headers: { Authorization: `Bearer ${token}` }
+      // });
+      // if (!response.ok) {
+      //   console.error("Failed to fetch full event, using local event data");
+      //   setSelectedEvent(event);
+      //   setAttendanceModalOpen(true);
+      //   return;
+      // }
+      // const fullEvent = await response.json();
+      // const enrichedEvent = {
+      //   ...event,
+      //   ...fullEvent,
+      //   _id: originalId,
+      //   original_event_id: eventId,
+      // };
+      // setSelectedEvent(enrichedEvent);
+      // setAttendanceModalOpen(true);
     } catch (err) {
       console.error("Failed to fetch full event:", err);
       setSelectedEvent(event);
