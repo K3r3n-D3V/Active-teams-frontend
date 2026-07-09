@@ -934,6 +934,7 @@ export default function DailyTasks() {
         updatedData.assignedfor = updatedData.assignedfor || leaderAssigned;
         updatedData.assigned_to_email =
           updatedData.assigned_to_email || leaderAssigned;
+        updatedData.assignedTo = leaderName;
       }
 
       if (updatedData.status?.toLowerCase() === "completed") {
@@ -956,29 +957,12 @@ export default function DailyTasks() {
                 ...data.updatedTask,
                 date: data.updatedTask.followup_date,
                 ...(isConsolidationTask && {
-                  leader_name:
-                    data.updatedTask.leader_name ||
-                    updatedData.leader_name ||
-                    selectedTask.leader_name ||
-                    "",
+                  leader_name: updatedData.leader_name || selectedTask.leader_name || "",
                   leader_assigned:
-                    data.updatedTask.leader_assigned ||
-                    updatedData.leader_assigned ||
-                    selectedTask.leader_assigned ||
-                    "",
-                  assignedTo:
-                    data.updatedTask.assignedTo ||
-                    data.updatedTask.name ||
-                    updatedData.name ||
-                    "",
-                  assignedfor:
-                    data.updatedTask.assignedfor ||
-                    updatedData.assignedfor ||
-                    "",
-                  assigned_to_email:
-                    data.updatedTask.assigned_to_email ||
-                    updatedData.assigned_to_email ||
-                    "",
+                    updatedData.leader_assigned || selectedTask.leader_assigned || "",
+                  assignedTo: updatedData.assignedTo || updatedData.leader_name || "",
+                  assignedfor: updatedData.assignedfor || "",
+                  assigned_to_email: updatedData.assigned_to_email || "",
                 }),
               }
             : t,
@@ -1098,6 +1082,7 @@ export default function DailyTasks() {
       const taskPayload = {
         memberID: user.id,
         name: assigneeName,
+        assignedTo: assigneeName,
         taskType:
           taskTypes.find(
             (t) => String(t._id || t.id) === String(taskData.taskType),
