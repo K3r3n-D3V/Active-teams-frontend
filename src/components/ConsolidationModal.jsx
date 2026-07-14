@@ -27,23 +27,61 @@ function getDueDate(date = new Date()) {
 
 const cleanEventId = (id) => id?.split("_")[0] ?? id;
 
+function normalizeLeaderValue(value) {
+  if (value == null) return "";
+  if (typeof value === "string") return value.trim();
+  return String(value).trim();
+}
+
 function resolveLeadersFromPerson(person) {
   if (!person) return {};
 
+  const leaderEntries = [];
+
   if (Array.isArray(person.leaders) && person.leaders.length > 0) {
-    const map = {};
-    for (const l of person.leaders) {
-      if (l?.level != null && l?.name) {
-        map[`leader${l.level}`] = l.name;
+    for (const leader of person.leaders) {
+      const level = leader?.level ?? leader?.Level ?? leader?.leader_level ?? leader?.leaderLevel;
+      const name = normalizeLeaderValue(
+        leader?.name || leader?.full_name || leader?.leader_name || leader?.leaderName,
+      );
+      if (level != null && name) {
+        leaderEntries.push({ level: Number(level), name, email: normalizeLeaderValue(leader?.email || leader?.Email || leader?.leader_email || leader?.leaderEmail || leader?.mail) });
       }
     }
-    if (Object.keys(map).length > 0) return map;
   }
 
-  const map = {};
-  for (const key of Object.keys(person)) {
-    if (/^leader\d+$/.test(key) && person[key]) map[key] = person[key];
+  const directFields = [
+    { level: 1, keys: ["leader1", "leaderAt1", "leader_at_1", "Leader @1", "Leader at 1"] },
+    { level: 12, keys: ["leader12", "leaderAt12", "leader_at_12", "Leader @12", "Leader at 12"] },
+    { level: 144, keys: ["leader144", "leaderAt144", "leader_at_144", "Leader @144", "Leader at 144"] },
+    { level: 1728, keys: ["leader1728", "leaderAt1728", "leader_at_1728", "Leader @1728", "Leader at 1728"] },
+  ];
+
+  for (const group of directFields) {
+    for (const key of group.keys) {
+      const rawValue = person?.[key];
+      if (rawValue) {
+        leaderEntries.push({
+          level: group.level,
+          name: normalizeLeaderValue(rawValue),
+          email: normalizeLeaderValue(
+            person?.[`${key}Email`] || person?.[`${key}_email`] || person?.[`${key}email`] || person?.[`${key}EmailAddress`] || person?.[`${key}emailAddress`],
+          ),
+        });
+        break;
+      }
+    }
   }
+
+  const seen = new Set();
+  const map = {};
+  for (const entry of leaderEntries) {
+    const key = `${entry.level}:${entry.name.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    map[`leader${entry.level}`] = entry.name;
+  }
+
   if (Object.keys(map).length > 0) return map;
 
   return {
@@ -62,7 +100,7 @@ function getHighestAvailableLeader(person) {
       level: parseInt(key.replace("leader", ""), 10),
       name: name || "",
     }))
-    .filter(e => !isNaN(e.level) && e.name.trim())
+    .filter((entry) => !Number.isNaN(entry.level) && entry.name.trim())
     .sort((a, b) => b.level - a.level);
 
   if (entries.length > 0) {
@@ -133,24 +171,36 @@ const ConsolidationModal = ({
   const resolveLeaderEmail = (leaderName, recipient) => {
     if (!leaderName || !recipient) return "";
 
+    const normalizedLeaderName = (leaderName || "").trim().toLowerCase();
+    const directFields = [
+      { name: recipient?.leader1, email: recipient?.leader1Email || recipient?.leader1_email || recipient?.leader1email || recipient?.leader1EmailAddress || recipient?.leader1emailAddress },
+      { name: recipient?.leader12, email: recipient?.leader12Email || recipient?.leader12_email || recipient?.leader12email || recipient?.leader12EmailAddress || recipient?.leader12emailAddress },
+      { name: recipient?.leader144, email: recipient?.leader144Email || recipient?.leader144_email || recipient?.leader144email || recipient?.leader144EmailAddress || recipient?.leader144emailAddress },
+      { name: recipient?.leader1728, email: recipient?.leader1728Email || recipient?.leader1728_email || recipient?.leader1728email || recipient?.leader1728EmailAddress || recipient?.leader1728emailAddress },
+      { name: recipient?.["Leader @1"], email: recipient?.["Leader @1 Email"] || recipient?.["Leader @1_email"] || recipient?.["Leader @1email"] },
+      { name: recipient?.["Leader @12"], email: recipient?.["Leader @12 Email"] || recipient?.["Leader @12_email"] || recipient?.["Leader @12email"] },
+      { name: recipient?.["Leader @144"], email: recipient?.["Leader @144 Email"] || recipient?.["Leader @144_email"] || recipient?.["Leader @144email"] },
+      { name: recipient?.["Leader @1728"], email: recipient?.["Leader @1728 Email"] || recipient?.["Leader @1728_email"] || recipient?.["Leader @1728email"] },
+    ];
+
+    for (const candidate of directFields) {
+      if ((candidate.name || "").trim().toLowerCase() === normalizedLeaderName && candidate.email) {
+        return candidate.email.trim().toLowerCase();
+      }
+    }
+
     if (Array.isArray(recipient.leaders)) {
-      const found = recipient.leaders.find(
-        (l) =>
-          (l.name || "").trim().toLowerCase() ===
-          leaderName.trim().toLowerCase(),
-      );
+      const found = recipient.leaders.find((leader) => {
+        const leaderNameValue = normalizeLeaderValue(leader?.name || leader?.full_name || leader?.leader_name || leader?.leaderName);
+        return leaderNameValue.toLowerCase() === normalizedLeaderName;
+      });
       if (found?.email) {
         const rawEmail = found.email;
         const normalized = rawEmail.trim().toLowerCase();
-
-        console.log("Leader Email Found:");
-        console.log("Raw:", rawEmail);
-        console.log("Normalized:", normalized);
-
         return normalized;
       }
     }
-    console.warn("No leader email found for:", recipient);
+
     return "";
   };
 
@@ -290,16 +340,9 @@ const ConsolidationModal = ({
       console.log("Before normalize:", leaderEmail);
       console.log("After normalize:", normalizedEmail);
       if (!normalizedEmail) {
-        console.warn(
-          "No leader email found for task assignment. Assigning to current user.",
-        );
-        normalizedEmail = (user?.email || "").trim().toLowerCase();
-        if (!normalizedEmail) {
-          toast.error("No email available for task assignment.");
-          return;
-        }
-        // If no leader, assign to user
-        leaderName = `${user?.name || ""} ${user?.surname || ""}`.trim();
+        console.warn("No leader email found for task assignment.");
+        toast.warning("No leader email is available for this person, so the consolidation task was not assigned.");
+        return;
       }
       const dueDate = getDueDate(new Date());
       const todayDate = new Date().toISOString().split("T")[0];
