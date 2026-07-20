@@ -20,6 +20,8 @@ import { CircularProgress, Box, Typography } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { AuthContext } from "../contexts/AuthContext";
 import { useOrgConfig } from "../contexts/OrgConfigContext";
+import {supabase} from '../services/supabase-client'
+
 const GEOAPIFY_API_KEY = import.meta.env.VITE_GEOAPIFY_API_KEY;
 const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
@@ -1476,6 +1478,7 @@ const AttendanceModal = ({
   // ─── NEW: Helper to resolve which leader gets the consolidation task ───
   // Uses leader144 if available, falls back to leader12
   const resolveAssignedTo = (person) => {
+
     if (person.leader144 && person.leader144.trim() !== "") {
       return person.leader144.trim();
     }
@@ -1612,7 +1615,8 @@ const AttendanceModal = ({
   };
 
   // ─── NEW: Fire POST /consolidations for a single person ───
-  const createCellConsolidation = async ({ person, decisionType, eventId }) => {
+  const createCellConsolidation = async ({ person, decisionType, eventId, session_id }) => {
+    //logic to get assigned person's details:
     const assignedTo = resolveAssignedTo(person);
 
     if (!assignedTo) {
@@ -1641,6 +1645,8 @@ const AttendanceModal = ({
         (l) => l && l.trim() !== "",
       ),
       notes: "",
+      person_id: person.person_id || person.id,
+      session_id: session_id || ""
     };
 
     const response = await authFetch(`${BACKEND_URL}/consolidations`, {
@@ -1654,8 +1660,11 @@ const AttendanceModal = ({
       throw new Error(errorData.detail || `HTTP ${response.status}`);
     }
 
-    return { success: true, name: person.fullName };
-  };
+  }
+
+
+    
+  
 
   const calculateFinancials = (personId) => {
     const ticketInfo = attendeeTicketInfo[personId] || {};
@@ -1917,8 +1926,9 @@ const AttendanceModal = ({
       console.error("Error loading event statistics:", error);
     }
   };
-
+console.log("NEW CHECKED IN",decisionTypes)
   const loadPersistentAttendees = async (eventId) => {
+    
     if (!eventId || eventId === "undefined") {
       console.error("Invalid eventId:", eventId);
       return;
@@ -1927,44 +1937,61 @@ const AttendanceModal = ({
     try {
       const token = localStorage.getItem("token");
 
-      // const response = await authFetch(
-      //   `${BACKEND_URL}/events/${eventId}/persistent-attendees`,
-      //   { headers: { Authorization: `Bearer ${token}` } },
-      // );
+      // 1. Build the query string dynamically
+      const queryParams = new URLSearchParams({
+        event_name: event.eventName,
+        session_id: event.session_id,
+        event_leader: event.eventLeaderName,
+        leader_at_12: event.leader12
+      }).toString();
+    
+      const event_id= event.event_id;
 
-      // if (!response.ok) {
-      //   console.error("Failed to load persistent attendees:", response.status);
-      //   return;
-      // }
+      // 2. Append it to your endpoint URL
+      const response = await authFetch(
+        `${BACKEND_URL}/events/${event_id}/persistent-attendees?${queryParams}`,
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+          }
+        }
+      );
 
-      // const data = await response.json();
+      if (!response.ok) {
+        console.error("Failed to load persistent attendees:", response.status);
+        return;
+      }
 
-      console.log("EVENT",event)
+      const data = await response.json();
 
-      const persistentList = event.persistent_attendees || [];
-      const checkedInList = event.attendees || [];
-      console.log("CHECKED IN LIST:", checkedInList);
+      console.log("THE EVENT",event)
 
+      const persistentList = data.persistent_attendees || [];
+      const checkedInList = data.attendees || [];
+      
       setPersistentCommonAttendees(persistentList);
 
-      const isCompleted =
-        data.attendance_status === "complete" ||
-        data.attendance_status === "did_not_meet";
+      const isCompleted = true
+        event.status === "complete" ||
+        event.status === "did_not_meet";
+
       const newCheckedIn = {};
       persistentList.forEach((att) => {
         if (att.id) newCheckedIn[att.id] = false;
       });
-      if (isCompleted && data.attendance_status !== "did_not_meet") {
+
+      if (isCompleted && event.status !== "did_not_meet") {
         checkedInList.forEach((att) => {
           if (att.id) newCheckedIn[att.id] = true;
         });
       }
+      
       setCheckedIn(newCheckedIn);
 
       const newDecisions = {};
       const newDecisionTypes = {};
 
-      if (isCompleted && data.attendance_status !== "did_not_meet") {
+      if (isCompleted && event.status !== "did_not_meet") {
         checkedInList.forEach((att) => {
           if (att.id && att.decision) {
             newDecisions[att.id] = true;
@@ -2540,8 +2567,28 @@ const AttendanceModal = ({
       return;
     }
 
+    //temp solution:
+      const queryParams = new URLSearchParams({
+        email: person.email,
+        full_name: person.fullName
+      }).toString();
+
+     const token = localStorage.getItem("token"); 
+     const response = await authFetch(
+        `${BACKEND_URL}/get_person_uuid?${queryParams}`,
+        { 
+          headers: { 
+            Authorization: `Bearer ${token}`,
+          }
+        }
+      );
+
+      const data = await response.json();
+   
+    
+    console.log("PERSON ID",data)
     const personWithLeaders = {
-      id: person.id,
+      id: data,
       fullName: person.fullName,
       email: person.email,
       leader12: person.leader12 || "",
@@ -2668,29 +2715,29 @@ const AttendanceModal = ({
       }
     });
 
-    savedAttendees.forEach((savedAtt) => {
-      if (savedAtt && savedAtt.id) {
-        const attendeeId = savedAtt.id;
-        if (attendeeId && !combinedMap.has(attendeeId)) {
-          combinedMap.set(attendeeId, {
-            id: attendeeId,
-            fullName: savedAtt.fullName || savedAtt.name || "Unknown Person",
-            email: savedAtt.email || "",
-            leader12: savedAtt.leader12 || "",
-            leader144: savedAtt.leader144 || "",
-            phone: savedAtt.phone || "",
-            priceName: savedAtt.priceName || "",
-            price: savedAtt.price || 0,
-            ageGroup: savedAtt.ageGroup || "",
-            paymentMethod: savedAtt.paymentMethod || "",
-            paidAmount: savedAtt.paidAmount || 0,
-            checked_in: savedAtt.checked_in !== false,
-            decision: savedAtt.decision || "",
-            isPersistent: false,
-          });
-        }
-      }
-    });
+    // savedAttendees.forEach((savedAtt) => {
+    //   if (savedAtt && savedAtt.id) {
+    //     const attendeeId = savedAtt.id;
+    //     if (attendeeId && !combinedMap.has(attendeeId)) {
+    //       combinedMap.set(attendeeId, {
+    //         id: attendeeId,
+    //         fullName: savedAtt.fullName || savedAtt.name || "Unknown Person",
+    //         email: savedAtt.email || "",
+    //         leader12: savedAtt.leader12 || "",
+    //         leader144: savedAtt.leader144 || "",
+    //         phone: savedAtt.phone || "",
+    //         priceName: savedAtt.priceName || "",
+    //         price: savedAtt.price || 0,
+    //         ageGroup: savedAtt.ageGroup || "",
+    //         paymentMethod: savedAtt.paymentMethod || "",
+    //         paidAmount: savedAtt.paidAmount || 0,
+    //         checked_in: savedAtt.checked_in !== false,
+    //         decision: savedAtt.decision || "",
+    //         isPersistent: false,
+    //       });
+    //     }
+    //   }
+    // });
 
     return Array.from(combinedMap.values());
   };
@@ -2759,7 +2806,7 @@ const AttendanceModal = ({
             owing = price;
             change = 0;
           }
-
+          console.log("davido", person)
           const attendee = {
             id: person.id,
             name: person.fullName || "",
@@ -2841,10 +2888,14 @@ const AttendanceModal = ({
         leaderEmail: currentUser?.email || "",
         leaderName:
           `${currentUser?.name || ""} ${currentUser?.surname || ""}`.trim(),
+        leader12: event?.leader12 || "",
         did_not_meet: shouldMarkAsDidNotMeet,
         isTicketed: isTicketedEvent,
         week: get_current_week_identifier(),
         headcount: finalHeadcount,
+        session_id: event?.session_id || "",
+        event_id: event?.event_id || "",
+        event_name: event?.eventName || "",
       };
 
       console.log("Saving payload:", payload);
@@ -2875,7 +2926,8 @@ const AttendanceModal = ({
         result = await response.json();
       }
 
-      if (result && result.success) {
+      // if (result && result.success) {
+      if (true) {
         // ─── NEW: Fire consolidation tasks for each person who made a decision ───
         // Only fire if we haven't already done so (prevents double-fire on double-click)
         if (!consolidationsCreated) {
@@ -2897,7 +2949,8 @@ const AttendanceModal = ({
                 const consolidationResult = await createCellConsolidation({
                   person: attendee,
                   decisionType,
-                  eventId,
+                  eventId: event?.event_id || "",
+                  session_id: event?.session_id || ""
                 });
 
                 // 2. Also create the due-date follow-up task (mirrors ServiceCheckIn logic)
@@ -3284,6 +3337,7 @@ const AttendanceModal = ({
         person: createdPerson,
         decisionType: "first_time",
         eventId,
+        session_id: event?.session_id || ""
       });
       toast.success(`Consolidation task created for ${createdPerson.fullName}`);
     } catch (err) {

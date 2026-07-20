@@ -2489,32 +2489,13 @@ const getFilteredEventTypes = (allEventTypes) => {
       if (eventId && eventId.includes("_")) {
         eventId = eventId.split("_")[0];
       }
+      //event object is selected event saved in state
+      setSelectedEvent(event);
+      setAttendanceModalOpen(true);
+      return;
+    
 
-      if (true) {
-        console.error("handleCaptureClick: no valid ID on event", event);
-        setSelectedEvent(event);
-        setAttendanceModalOpen(true);
-        return;
-      }
 
-      // const response = await fetch(`${BACKEND_URL}/events/${eventId}`, {
-      //   headers: { Authorization: `Bearer ${token}` }
-      // });
-      // if (!response.ok) {
-      //   console.error("Failed to fetch full event, using local event data");
-      //   setSelectedEvent(event);
-      //   setAttendanceModalOpen(true);
-      //   return;
-      // }
-      // const fullEvent = await response.json();
-      // const enrichedEvent = {
-      //   ...event,
-      //   ...fullEvent,
-      //   _id: originalId,
-      //   original_event_id: eventId,
-      // };
-      // setSelectedEvent(enrichedEvent);
-      // setAttendanceModalOpen(true);
     } catch (err) {
       console.error("Failed to fetch full event:", err);
       setSelectedEvent(event);
