@@ -129,7 +129,7 @@ export default function Sidebar({ mode, setMode }) {
 
       const userRole = user?.role?.toLowerCase() || "";
       const isSupremeAdmin =
-        user?.is_supreme_admin || user?.email === "tkgenia1234@gmail.com";
+        user?.is_supreme_admin || user?.email === "plaatjiessamuel98@gmail.com";
       const isCustomRole = !SYSTEM_ROLES.includes(userRole);
 
       console.log(

@@ -78,7 +78,7 @@ const withAuthCheck = (WrappedComponent, allowedRoles = [], requiresCell = false
     }
 
     const userRole = user.role;
-    const isSupremeAdmin = user.is_supreme_admin || user.email === "tkgenia1234@gmail.com";
+    const isSupremeAdmin = user.is_supreme_admin || user.email === "plaatjiessamuel98@gmail.com";
     const isCustomRole = !SYSTEM_ROLES.includes(userRole);
 
     if (isSupremeAdmin) {
