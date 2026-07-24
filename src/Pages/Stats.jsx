@@ -79,10 +79,62 @@ const toSATime = (d) => {
 };
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
 
+const CellsExportBar = ({
+  exportStartDate,
+  exportEndDate,
+  exporting,
+  setExportStartDate,
+  setExportEndDate,
+  handleCellsExcelExport,
+}) => (
+  <Box
+    display="flex"
+    alignItems="center"
+    gap={2}
+    flexWrap="wrap"
+    sx={{ mb: 2, p: 2, borderRadius: 2, bgcolor: "background.paper", boxShadow: 1 }}
+  >
+    <Typography variant="subtitle2" fontWeight={600} sx={{ mr: 1 }}>
+      Export Cells Attendance
+    </Typography>
+    <TextField
+      label="From"
+      type="date"
+      size="small"
+      value={exportStartDate}
+      onChange={(e) => setExportStartDate(e.target.value)}
+      InputLabelProps={{ shrink: true }}
+      sx={{ width: 160 }}
+    />
+    <TextField
+      label="To"
+      type="date"
+      size="small"
+      value={exportEndDate}
+      onChange={(e) => setExportEndDate(e.target.value)}
+      InputLabelProps={{ shrink: true }}
+      sx={{ width: 160 }}
+    />
+    <Button
+      variant="contained"
+      size="small"
+      startIcon={exporting ? <CircularProgress size={16} color="inherit" /> : <Download />}
+      onClick={handleCellsExcelExport}
+      disabled={exporting || !exportStartDate || !exportEndDate}
+    >
+      {exporting ? "Generating…" : "Download Excel"}
+    </Button>
+    <Typography variant="caption" color="text.secondary">
+      Weekly cell attendance + active cell counts with embedded chart
+    </Typography>
+  </Box>
+);
+
 // Add this memoized component OUTSIDE StatsDashboard
 const TaskGroupRow = React.memo(
   ({ group, isExpanded, onToggle, formatDate }) => {
-    const { user, tasks, totalCount, completedCount, incompleteCount } = group;
+    const { user, tasks: rawTasks, totalCount, completedCount, incompleteCount } = group;
+    const tasks = rawTasks || [];
     const key = user.email || user.fullName;
 
     return (
@@ -263,6 +315,18 @@ const StatsDashboard = () => {
     error: null,
     dateRange: { start: "", end: "" },
   });
+
+  const [exportStartDate, setExportStartDate] = useState(() => {
+    const d = new Date();
+    d.setDate(d.getDate() - 112);
+    return d.toISOString().split("T")[0];
+  });
+
+  const [exportEndDate, setExportEndDate] = useState(
+    () => new Date().toISOString().split("T")[0]
+  );
+
+  const [exporting, setExporting] = useState(false);
 
   const [period, setPeriod] = useState("today");
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -839,6 +903,41 @@ const StatsDashboard = () => {
     }
   };
 
+  const handleCellsExcelExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({
+        start_date: exportStartDate,
+        end_date: exportEndDate,
+      });
+      const res = await authFetch(
+        `${BACKEND_URL}/stats/export-cells-excel?${params}`
+      );
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        toast.error(errData.detail || "Export failed");
+        return;
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `cells_attendance_${exportStartDate}_to_${exportEndDate}.xlsx`;
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }, 100);
+      toast.success("Export downloaded successfully");
+    } catch (err) {
+      console.error("Export error:", err);
+      toast.error("Could not generate export");
+    } finally {
+      setExporting(false);
+    }
+  }, [authFetch, exportStartDate, exportEndDate]);
+
   useEffect(() => {
     fetchCalendarEvents();
   }, [fetchCalendarEvents]);
@@ -966,22 +1065,22 @@ const StatsDashboard = () => {
   const filteredEventTypes = eventTypes?.filter((et) => !et.isTicketed);
 
   const handleCloseCreateEventModal = useCallback((shouldRefresh = false) => {
-  setCreateEventModalOpen(false);
+    setCreateEventModalOpen(false);
 
-  if (shouldRefresh) {
-    toast.success("Event created successfully!");
+    if (shouldRefresh) {
+      toast.success("Event created successfully!");
 
-    // Refresh all relevant data
-    fetchStats(true);
-    fetchOverdueCells(true);
-    fetchCalendarEvents();
+      // Refresh all relevant data
+      fetchStats(true);
+      fetchOverdueCells(true);
+      fetchCalendarEvents();
 
-    // Optional: small delay for better UX
-    setTimeout(() => {
-      console.log("✅ Event created - data refreshed");
-    }, 300);
-  }
-}, [fetchStats, fetchOverdueCells, fetchCalendarEvents]);
+      // Optional: small delay for better UX
+      setTimeout(() => {
+        console.log("✅ Event created - data refreshed");
+      }, 300);
+    }
+  }, [fetchStats, fetchOverdueCells, fetchCalendarEvents]);
 
   const handleCreateEvent = useCallback(() => {
     setNewEventData((prev) => ({
@@ -1578,6 +1677,7 @@ const StatsDashboard = () => {
           <Tab label={`Overdue Cells (${filteredOverdueCells.length})`} />
           <Tab label={`Tasks (${filteredTasks.length})`} />
           <Tab label={`Calendar (${calendarEvents.length} events)`} />
+          <Tab label="Graphs" />
         </Tabs>
       </Paper>
 
@@ -1815,7 +1915,7 @@ const StatsDashboard = () => {
                                   cell.Status?.toLowerCase() === "complete"
                                     ? "success"
                                     : cell.Status?.toLowerCase() ===
-                                        "did_not_meet"
+                                      "did_not_meet"
                                       ? "error"
                                       : "default"
                                 }
@@ -1935,7 +2035,9 @@ const StatsDashboard = () => {
 
         {/* CALENDAR TAB */}
         {activeTab === 2 && (
+
           <>
+            {CellsExportBar}
             <Paper
               sx={{
                 flex: 1,
@@ -2249,70 +2351,92 @@ const StatsDashboard = () => {
             </Dialog>
           </>
         )}
+
+        {/* GRAPHS TAB */}
+        {activeTab === 3 && (
+          <Box>
+            <Paper sx={{ p: 2.5, mb: 3, borderRadius: 2, boxShadow: 1 }}>
+              <Typography variant="subtitle1" fontWeight={600} gutterBottom>
+                Cells Attendance Export
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Select a date range to generate a weekly Excel report with an embedded line chart.
+              </Typography>
+              <CellsExportBar
+                exportStartDate={exportStartDate}
+                exportEndDate={exportEndDate}
+                exporting={exporting}
+                setExportStartDate={setExportStartDate}
+                setExportEndDate={setExportEndDate}
+                handleCellsExcelExport={handleCellsExcelExport}
+              />
+            </Paper>
+          </Box>
+        )}
       </Box>
       {/* CREATE EVENT MODAL - Consistent with your first example */}
-<Dialog
-  open={createEventModalOpen}
-  onClose={() => setCreateEventModalOpen(false)}
-  maxWidth="md"
-  fullWidth
-  fullScreen={isXsDown}
-  PaperProps={{
-    sx: {
-      borderRadius: 3,
-      boxShadow: 24,
-      overflow: "hidden",
-    },
-  }}
->
-  <DialogTitle
-    sx={{
-      backgroundColor: theme.palette.mode === "dark" ? "#1e1e1e" : "#1976d2",
-      color: "white",
-      p: 3,
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-    }}
-  >
-    <Box>
-      <Typography variant="h6" fontWeight="bold">
-        Create New Event
-      </Typography>
-      <Typography variant="body2" sx={{ opacity: 0.9 }}>
-        {formatLocalDisplayDate(selectedDate)}
-      </Typography>
-    </Box>
-    <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: "white" }}>
-      <Close />
-    </IconButton>
-  </DialogTitle>
+      <Dialog
+        open={createEventModalOpen}
+        onClose={() => setCreateEventModalOpen(false)}
+        maxWidth="md"
+        fullWidth
+        fullScreen={isXsDown}
+        PaperProps={{
+          sx: {
+            borderRadius: 3,
+            boxShadow: 24,
+            overflow: "hidden",
+          },
+        }}
+      >
+        <DialogTitle
+          sx={{
+            backgroundColor: theme.palette.mode === "dark" ? "#1e1e1e" : "#1976d2",
+            color: "white",
+            p: 3,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <Box>
+            <Typography variant="h6" fontWeight="bold">
+              Create New Event
+            </Typography>
+            <Typography variant="body2" sx={{ opacity: 0.9 }}>
+              {formatLocalDisplayDate(selectedDate)}
+            </Typography>
+          </Box>
+          <IconButton onClick={() => setCreateEventModalOpen(false)} sx={{ color: "white" }}>
+            <Close />
+          </IconButton>
+        </DialogTitle>
 
-  <DialogContent sx={{ p: 0, height: "100%", overflow: "hidden" }}>
-    <Box
-      sx={{
-        height: "100%",
-        overflow: "auto",
-        backgroundColor: theme.palette.mode === "dark"
-          ? theme.palette.background.paper
-          : "white",
-      }}
-    >
-      <CreateEvents
-        key={newEventData.eventTypeName || "default"}   // Important for re-render when type changes
-        user={JSON.parse(localStorage.getItem("userProfile") || "{}")}
-        isModal={true}
-        onClose={handleCloseCreateEventModal}           // ← Use this clean handler
-        selectedEventType={newEventData.eventTypeName}
-        selectedEventTypeObj={eventTypes.find(
-          (et) => et.name === newEventData.eventTypeName
-        )}
-        eventTypes={filteredEventTypes}
-        defaultEventType={globalEvent?.name || "Global Events"}
-      />
-    </Box>
-  </DialogContent>
-</Dialog>
+        <DialogContent sx={{ p: 0, height: "100%", overflow: "hidden" }}>
+          <Box
+            sx={{
+              height: "100%",
+              overflow: "auto",
+              backgroundColor: theme.palette.mode === "dark"
+                ? theme.palette.background.paper
+                : "white",
+            }}
+          >
+            <CreateEvents
+              key={newEventData.eventTypeName || "default"}   // Important for re-render when type changes
+              user={JSON.parse(localStorage.getItem("userProfile") || "{}")}
+              isModal={true}
+              onClose={handleCloseCreateEventModal}           // ← Use this clean handler
+              selectedEventType={newEventData.eventTypeName}
+              selectedEventTypeObj={eventTypes.find(
+                (et) => et.name === newEventData.eventTypeName
+              )}
+              eventTypes={filteredEventTypes}
+              defaultEventType={globalEvent?.name || "Global Events"}
+            />
+          </Box>
+        </DialogContent>
+      </Dialog>
 
       {/* OVERDUE CELLS MODAL */}
       <Dialog
