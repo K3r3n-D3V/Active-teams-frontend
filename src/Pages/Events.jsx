@@ -6110,5 +6110,5 @@ const getTypeValue = (type) => {
   );
 };
 
-fix role logic
+fix role logi
 export default Events;
