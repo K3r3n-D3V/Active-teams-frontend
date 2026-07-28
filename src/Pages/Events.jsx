@@ -6109,4 +6109,6 @@ const getTypeValue = (type) => {
     </Box>
   );
 };
+
+fix role logic
 export default Events;
