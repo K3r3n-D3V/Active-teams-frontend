@@ -92,20 +92,17 @@ function resolveLeadersFromPerson(person) {
   };
 }
 
-function getHighestAvailableLeader(person) {
+function getLeaderAt12(person) {
   const leaders = resolveLeadersFromPerson(person);
 
-  const entries = Object.entries(leaders)
-    .map(([key, name]) => ({
-      level: parseInt(key.replace("leader", ""), 10),
-      name: name || "",
-    }))
-    .filter((entry) => !Number.isNaN(entry.level) && entry.name.trim())
-    .sort((a, b) => b.level - a.level);
+  // Try Leader @12 first
+  if (leaders.leader12 && leaders.leader12.trim()) {
+    return { leader: leaders.leader12.trim(), level: 12, hasLeader: true };
+  }
 
-  if (entries.length > 0) {
-    const top = entries[0];
-    return { leader: top.name, level: top.level, hasLeader: true };
+  // Fall back to Leader @1
+  if (leaders.leader1 && leaders.leader1.trim()) {
+    return { leader: leaders.leader1.trim(), level: 1, hasLeader: true };
   }
 
   return { leader: "No Leader Assigned", level: 0, hasLeader: false };
@@ -300,7 +297,7 @@ const ConsolidationModal = ({
 
   useEffect(() => {
     if (recipient) {
-      const leaderInfo = getHighestAvailableLeader(recipient);
+      const leaderInfo = getLeaderAt12(recipient);
       setAssignedTo(leaderInfo.leader);
 
       const isAlready = checkIfAlreadyConsolidated(recipient);
@@ -420,7 +417,7 @@ const ConsolidationModal = ({
       return;
     }
 
-    const leaderInfo = getHighestAvailableLeader(recipient);
+    const leaderInfo = getLeaderAt12(recipient);
     if (!leaderInfo.hasLeader) {
       setError(
         "Cannot create consolidation task: No leader available for this person.",
@@ -485,14 +482,6 @@ const ConsolidationModal = ({
 
       if (response.ok) {
         const responseData = await response.json();
-        // Create follow-up task for the leader
-        await createTaskForLeader({
-          leaderName: leaderInfo.leader,
-          leaderEmail: normalizedLeaderEmail,
-          person: recipient,
-          eventId: cleanEventId(currentEventId),
-          decisionType,
-        });
 
         setRecipient(null);
         setAssignedTo("");

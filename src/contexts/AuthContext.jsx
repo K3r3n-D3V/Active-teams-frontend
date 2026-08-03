@@ -225,6 +225,11 @@ const authFetch = useCallback(async (url, options = {}) => {
     
     return res;
   } catch (error) {
+    if (error.name === 'AbortError') {
+      // Caller (e.g. a component-level timeout) intentionally cancelled this
+      // request — not a real network/auth failure. Let it propagate silently.
+      throw error;
+    }
     console.error('authFetch error:', error);
     throw error;
   }

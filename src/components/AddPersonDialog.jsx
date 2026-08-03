@@ -16,8 +16,11 @@ const CACHE_DURATION = 30 * 60 * 1000;
 
 const initialFormState = {
   name: "", surname: "", dob: "", address: "", email: "",
-  number: "", gender: "", invitedBy: "", leader1: "", leader12: "",
-  leader144: "", stage: "Win",
+  number: "", gender: "", invitedBy: "", invitedById: "",
+  leader1: "", leader1Id: "",
+  leader12: "", leader12Id: "",
+  leader144: "", leader144Id: "",
+  stage: "Win",
 };
 
 const uniformInputSx = {
@@ -518,6 +521,7 @@ export default function AddPersonDialog({
 
       const payload = {
         invitedBy: formData.invitedBy || "",
+        invitedById: formData.invitedById || "",
         name: formData.name, surname: formData.surname,
         gender: formData.gender, email: formData.email,
         number: formData.number, phone: formData.number,
@@ -530,8 +534,13 @@ export default function AddPersonDialog({
           "",
         ],
         leader1: normalizedLeaders.leader1,
+        leader1Id: formData.leader1Id || "",
         leader12: normalizedLeaders.leader12,
+        leader12Id: formData.leader12Id || "",
         leader144: normalizedLeaders.leader144,
+        leader144Id: formData.leader144Id || "",
+        // leaderId is what your backend's create_person endpoint checks first
+        leaderId: formData.leader1Id || formData.invitedById || "",
         stage: formData.stage || "Win",
       };
 
@@ -663,31 +672,45 @@ export default function AddPersonDialog({
               setFormData((p) => {
                 const update = { ...p, invitedBy: val };
                 if (person) {
+                  update.invitedById = person._id || "";
+
                   const ancestors = [
-                    person.leader1,
-                    person.leader12,
-                    person.leader144,
-                  ]
-                    .filter(Boolean)
-                    .map((name) => name.trim());
+                    { name: person.leader1, id: person.leader1Id },
+                    { name: person.leader12, id: person.leader12Id },
+                    { name: person.leader144, id: person.leader144Id },
+                  ].filter((a) => a.name && a.name.trim());
 
                   const inviterName = person.fullName?.trim();
+                  const inviterId = person._id || "";
                   if (
                     inviterName &&
                     ancestors.length < 3 &&
-                    ancestors[ancestors.length - 1] !== inviterName
+                    ancestors[ancestors.length - 1]?.name !== inviterName
                   ) {
-                    ancestors.push(inviterName);
+                    ancestors.push({ name: inviterName, id: inviterId });
                   }
 
-                  const uniqueAncestors = [...new Set(ancestors)];
-                  update.leader1 = uniqueAncestors[0] || "";
-                  update.leader12 = uniqueAncestors[1] || "";
-                  update.leader144 = uniqueAncestors[2] || "";
+                  const seen = new Set();
+                  const uniqueAncestors = ancestors.filter((a) => {
+                    if (seen.has(a.name)) return false;
+                    seen.add(a.name);
+                    return true;
+                  });
+
+                  update.leader1 = uniqueAncestors[0]?.name || "";
+                  update.leader1Id = uniqueAncestors[0]?.id || "";
+                  update.leader12 = uniqueAncestors[1]?.name || "";
+                  update.leader12Id = uniqueAncestors[1]?.id || "";
+                  update.leader144 = uniqueAncestors[2]?.name || "";
+                  update.leader144Id = uniqueAncestors[2]?.id || "";
                 } else {
+                  update.invitedById = "";
                   update.leader1 = "";
+                  update.leader1Id = "";
                   update.leader12 = "";
+                  update.leader12Id = "";
                   update.leader144 = "";
+                  update.leader144Id = "";
                 }
                 return update;
               });
@@ -713,7 +736,10 @@ export default function AddPersonDialog({
             <PeopleSearchField
               label="Leader @1"
               value={formData.leader1}
-              onChange={(val) => { setFormData((p) => ({ ...p, leader1: val })); setErrors((p) => ({ ...p, leader1: "" })); }}
+              onChange={(val, person) => {
+                setFormData((p) => ({ ...p, leader1: val, leader1Id: person?._id || "" }));
+                setErrors((p) => ({ ...p, leader1: "" }));
+              }}
               disabled={isSubmitting || !canEditLeaders}
               error={errors.leader1}
               required
@@ -725,13 +751,17 @@ export default function AddPersonDialog({
               <PeopleSearchField
                 label="Leader @12"
                 value={formData.leader12}
-                onChange={(val) => setFormData((p) => ({ ...p, leader12: val }))}
+                onChange={(val, person) =>
+                  setFormData((p) => ({ ...p, leader12: val, leader12Id: person?._id || "" }))
+                }
                 disabled={isSubmitting || !canEditLeaders}
               />
               <PeopleSearchField
                 label="Leader @144"
                 value={formData.leader144}
-                onChange={(val) => setFormData((p) => ({ ...p, leader144: val }))}
+                onChange={(val, person) =>
+                  setFormData((p) => ({ ...p, leader144: val, leader144Id: person?._id || "" }))
+                }
                 disabled={isSubmitting || !canEditLeaders}
               />
             </Box>
