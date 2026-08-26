@@ -4,6 +4,7 @@ import { useTheme } from "@mui/material/styles";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { AuthContext } from "../contexts/AuthContext";
+import { useTaskUpdate } from "../contexts/TaskUpdateContext";
 const CACHE_DURATION = 30 * 60 * 1000;
 function Modal({ isOpen, onClose, children, isDarkMode }) {
   if (!isOpen) return null;
@@ -87,6 +88,7 @@ export default function DailyTasks() {
   const isDarkMode = theme.palette.mode === "dark";
 
   const { user, authFetch } = useContext(AuthContext);
+  const { updateCount } = useTaskUpdate();
 
   const [tasks, setTasks] = useState([]);
   const [taskTypes, setTaskTypes] = useState([]);
@@ -367,72 +369,120 @@ export default function DailyTasks() {
 
     try {
       setLoading(true);
-      const res = await authFetch(
-        `${API_URL}/tasks?email=${encodeURIComponent(user.email)}`,
-        { signal },
-      );
-      if (!res.ok) throw new Error("Failed to fetch tasks");
-      const data = await res.json();
-      const tasksArray = Array.isArray(data) ? data : data.tasks || [];
+      const normalizedEmail = (user.email || "").trim().toLowerCase();
 
-      const normalizedTasks = tasksArray.map((task) => {
+      // Fetch regular tasks and special tasks in parallel
+      const [regularRes, specialRes] = await Promise.all([
+        authFetch(
+          `${API_URL}/tasks?email=${encodeURIComponent(normalizedEmail)}`,
+          { signal },
+        ),
+        authFetch(`${API_URL}/tasks/my-special-tasks`, { signal }),
+      ]);
+
+      const regularData = regularRes.ok ? await regularRes.json() : {};
+      const specialData = specialRes.ok ? await specialRes.json() : {};
+
+      const regularTasks = Array.isArray(regularData)
+        ? regularData
+        : regularData.tasks || [];
+
+      const specialTasks = Array.isArray(specialData)
+        ? specialData
+        : specialData.tasks || [];
+
+      // Merge and deduplicate by _id / id
+      const tasksMap = new Map();
+
+      [...regularTasks, ...specialTasks].forEach((task) => {
+        const key = String(task._id || task.id || task.taskId || "");
+        if (key && !tasksMap.has(key)) {
+          tasksMap.set(key, task);
+        }
+      });
+
+      const normalizeTask = (task) => {
+        const taskId = task._id || task.id || task.taskId || "";
+        const normalizedTaskType = (task.taskType || "").toLowerCase().trim();
+
         const isConsolidation =
-          task.taskType === "consolidation" || task.is_consolidation_task;
+          normalizedTaskType === "consolidation" ||
+          task.is_consolidation_task === true;
+
+        const isNewPerson =
+          ["service follow up", "new_person", "new person"].includes(
+            normalizedTaskType,
+          ) || task.is_new_person_task === true;
+
         let assignedTo = "";
-        if (isConsolidation) {
+        if (isConsolidation || isNewPerson) {
           assignedTo =
             task.leader_name ||
             task.leader_assigned ||
-            task.assigned_to ||
+            task.name ||
             `${user.name || ""} ${user.surname || ""}`.trim();
-          if (assignedTo.includes("@")) assignedTo = "Consolidation Leader";
+          if (assignedTo.includes("@")) {
+            assignedTo = isNewPerson
+              ? "New Person Leader"
+              : "Consolidation Leader";
+          }
         } else {
-          assignedTo = task.name || task.assignedfor || "";
+          assignedTo = task.name || "";
         }
 
-        let recipientId = task.recipient_id || task.assignedfor_id || null;
-        if (!recipientId && task.assignedfor_email) {
-          const matchedPerson = window.globalPeopleCache?.find(
-            (p) =>
-              p.email.toLowerCase() === task.assignedfor_email.toLowerCase(),
-          );
-          recipientId = matchedPerson?._id || null;
-        }
+        const resolvedDate =
+          task.followup_date ||
+          task.date ||
+          task.completedAt ||
+          task.completed_at ||
+          task.createdAt ||
+          task.created_at ||
+          null;
+
+        const resolvedType =
+          task.type ||
+          (isNewPerson
+            ? "follow up"
+            : isConsolidation
+              ? "consolidation"
+              : normalizedTaskType.includes("visit")
+                ? "visit"
+                : normalizedTaskType.includes("follow")
+                  ? "follow up"
+                  : "call");
 
         return {
           ...task,
+          _id: String(taskId),
           assignedTo,
-          recipientId,
-          date: task.date || task.followup_date,
-          status: (task.status || "Open").toLowerCase(),
-          taskName: task.name || task.taskName,
-          type:
-            task.type ||
-            (task.taskType?.toLowerCase()?.includes("visit")
-              ? "visit"
-              : "call") ||
-            "call",
-          leader_name: task.leader_name || task.leader_assigned,
-          leader_assigned: task.leader_assigned,
-          consolidation_name:
-            task.consolidation_name ||
-            (isConsolidation
-              ? `${task.person_name || ""} ${task.person_surname || ""} - ${task.decision_display_name || "Consolidation"}`
-              : task.name),
-          decision_display_name: task.decision_display_name,
+          date: resolvedDate,
+          followup_date: task.followup_date || resolvedDate,
+          status: (task.status || "open").toLowerCase(),
+          taskType: normalizedTaskType,
+          taskName: task.name || task.taskName || "",
+          type: resolvedType,
+          leader_name: task.leader_name || task.leader_assigned || "",
+          leader_assigned: task.leader_assigned || "",
           is_consolidation_task: isConsolidation,
+          is_new_person_task: isNewPerson,
+          created_by_email: task.created_by_email || "",
         };
-      });
+      };
 
+      const normalizedTasks = Array.from(tasksMap.values()).map(normalizeTask);
+
+      // Filter: regular tasks by assignedfor/assigned_to_email
+      // Special tasks already scoped by backend — just ensure they belong to user
       const myTasks = normalizedTasks.filter((task) => {
-        const isMyTask =
-          task.assignedfor === user.email ||
-          task.assigned_to_email === user.email;
-        const isAssignedToSomeoneElse =
-          task.assignedfor &&
-          task.assignedfor !== user.email &&
-          task.assigned_to_email !== user.email;
-        return isMyTask && !isAssignedToSomeoneElse;
+        const assignedFor = (task.assignedfor || "").trim().toLowerCase();
+        const assignedTo = (task.assigned_to_email || "").trim().toLowerCase();
+        const leaderEmail = (task.leader_assigned || "").trim().toLowerCase();
+
+        return (
+          assignedFor === normalizedEmail ||
+          assignedTo === normalizedEmail ||
+          leaderEmail === normalizedEmail
+        );
       });
 
       setTasks(myTasks);
@@ -678,27 +728,27 @@ export default function DailyTasks() {
 
   // === FETCH ASSIGNED (fixed argument passing) ===
   const fetchAssigned = useCallback(
-  async (q) => {
-    if (!q?.trim()) {
-      setAssignedResults([]);
-      return;
-    }
+    async (q) => {
+      if (!q?.trim()) {
+        setAssignedResults([]);
+        return;
+      }
 
-    const localSource =
-      window.globalPeopleCache?.length > 0
-        ? window.globalPeopleCache
-        : allPeople;
+      const localSource =
+        window.globalPeopleCache?.length > 0
+          ? window.globalPeopleCache
+          : allPeople;
 
-    if (localSource.length > 0) {
-      const results = searchPeople(localSource, q.trim());
-      setAssignedResults(results.slice(0, 50));
-    } else {
-      setAssignedResults([]);
-    }
-  },
-  [allPeople, searchPeople],
-  // No fetchAllPeople dependency — cache only
-);
+      if (localSource.length > 0) {
+        const results = searchPeople(localSource, q.trim());
+        setAssignedResults(results.slice(0, 50));
+      } else {
+        setAssignedResults([]);
+      }
+    },
+    [allPeople, searchPeople],
+    // No fetchAllPeople dependency — cache only
+  );
 
   // === HANDLE RECIPIENT INPUT (fixed argument passing + minor safety) ===
   // Fix handleRecipientInput — don't call fetchPeople if cache exists
@@ -757,9 +807,18 @@ export default function DailyTasks() {
       if (!res.ok) throw new Error(data.message || "Failed to create task");
 
       if (data.task) {
+        // Normalize emails for case-insensitive comparison
+        const userEmailLower = (user.email || "").trim().toLowerCase();
+        const taskAssignedForLower = (data.task.assignedfor || "")
+          .trim()
+          .toLowerCase();
+        const taskAssignedToEmailLower = (data.task.assigned_to_email || "")
+          .trim()
+          .toLowerCase();
+
         const isAssignedToMe =
-          data.task.assignedfor === user.email ||
-          data.task.assigned_to_email === user.email;
+          taskAssignedForLower === userEmailLower ||
+          taskAssignedToEmailLower === userEmailLower;
 
         // Only add to local state if assigned to current user
         if (isAssignedToMe) {
@@ -794,27 +853,33 @@ export default function DailyTasks() {
     setFormType(type);
     setIsModalOpen(true);
     const initialData = getInitialTaskData();
-    // Pre-select task type based on the button clicked
+
+    // Match by normalized name
+    const findTypeId = (name) => {
+      const match = taskTypes.find(
+        (t) =>
+          (t.name || "").toLowerCase().trim() === name.toLowerCase().trim(),
+      );
+      return match ? String(match._id || match.id) : "";
+    };
+
     if (type === "visit") {
-      const visitType = taskTypes.find(t => t.name.toLowerCase() === "visit");
-      if (visitType) {
-        initialData.taskType = visitType._id || visitType.id;
-      }
+      initialData.taskType = findTypeId("visit");
     } else if (type === "call") {
-      const callType = taskTypes.find(t => t.name.toLowerCase() === "call");
-      if (callType) {
-        initialData.taskType = callType._id || callType.id;
-      }
+      initialData.taskType = findTypeId("call");
     } else if (type === "consolidation") {
-      const consolidationType = taskTypes.find(t => t.name.toLowerCase() === "consolidation");
-      if (consolidationType) {
-        initialData.taskType = consolidationType._id || consolidationType.id;
-      }
+      initialData.taskType = findTypeId("consolidation");
+    } else if (type === "follow up") {
+      // Try "follow up" then "Follow Up" then "service follow up"
+      initialData.taskType =
+        findTypeId("follow up") || findTypeId("service follow up") || "";
     }
+
     setTaskData(initialData);
     setSearchResults([]);
     setAssignedResults([]);
     setSelectedTask({});
+
     if (
       (!window.globalPeopleCache || window.globalPeopleCache.length === 0) &&
       !isFetchingRef.current
@@ -839,7 +904,6 @@ export default function DailyTasks() {
   };
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
     setTaskData({ ...taskData, [e.target.name]: e.target.value });
   };
 
@@ -850,9 +914,27 @@ export default function DailyTasks() {
         selectedTask?.is_consolidation_task;
 
       if (isConsolidationTask) {
-        updatedData.name = selectedTask.leader_name || selectedTask.name;
-        updatedData.leader_name = selectedTask.leader_name;
-        updatedData.leader_assigned = selectedTask.leader_assigned;
+        const leaderName =
+          updatedData.leader_name ||
+          updatedData.name ||
+          updatedData.assignedTo ||
+          selectedTask.leader_name ||
+          selectedTask.name ||
+          "";
+        const leaderAssigned =
+          updatedData.leader_assigned ||
+          updatedData.assignedfor ||
+          updatedData.assigned_to_email ||
+          selectedTask.leader_assigned ||
+          "";
+
+        updatedData.name = leaderName;
+        updatedData.leader_name = leaderName;
+        updatedData.leader_assigned = leaderAssigned;
+        updatedData.assignedfor = updatedData.assignedfor || leaderAssigned;
+        updatedData.assigned_to_email =
+          updatedData.assigned_to_email || leaderAssigned;
+        updatedData.assignedTo = leaderName;
       }
 
       if (updatedData.status?.toLowerCase() === "completed") {
@@ -875,13 +957,19 @@ export default function DailyTasks() {
                 ...data.updatedTask,
                 date: data.updatedTask.followup_date,
                 ...(isConsolidationTask && {
-                  leader_name: selectedTask.leader_name,
-                  leader_assigned: selectedTask.leader_assigned,
+                  leader_name: updatedData.leader_name || selectedTask.leader_name || "",
+                  leader_assigned:
+                    updatedData.leader_assigned || selectedTask.leader_assigned || "",
+                  assignedTo: updatedData.assignedTo || updatedData.leader_name || "",
+                  assignedfor: updatedData.assignedfor || "",
+                  assigned_to_email: updatedData.assigned_to_email || "",
                 }),
               }
             : t,
         ),
       );
+
+      await fetchUserTasks();
       handleClose();
     } catch (err) {
       console.error("Error updating task:", err.message);
@@ -905,11 +993,23 @@ export default function DailyTasks() {
     const firstName = nameParts[0] || "";
     const lastName = nameParts.slice(1).join(" ") || "";
 
+    // Resolve taskType _id from taskTypes list — match by name or _id
+    const taskTypeNormalized = (task.taskType || "").toLowerCase().trim();
+    const matchedType = taskTypes.find((t) => {
+      const tId = String(t._id || t.id || "");
+      const tName = (t.name || "").toLowerCase().trim();
+      return (
+        tId === task.taskType || // exact _id match
+        tName === taskTypeNormalized // name match (case-insensitive)
+      );
+    });
+
+    const resolvedTaskTypeId = matchedType
+      ? String(matchedType._id || matchedType.id)
+      : task.taskType || "";
+
     setTaskData({
-      taskType:
-        taskTypes.find((t) => (t._id || t.id) === task.taskType)?.name ||
-        task.taskType ||
-        "",
+      taskType: resolvedTaskTypeId,
       recipient: {
         Name: firstName,
         Surname: lastName,
@@ -918,9 +1018,19 @@ export default function DailyTasks() {
         Email: task.contacted_person?.email || "",
       },
       recipientDisplay: task.contacted_person?.name || "",
-      assignedTo:task.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
-      assignedEmail: task.assignedfor || user?.email || "",
-      dueDate: formatDateTime(task.date),
+      assignedTo:
+        task.assignedTo ||
+        task.leader_name ||
+        task.leader_assigned ||
+        task.name ||
+        (user ? `${user.name} ${user.surname}` : ""),
+      assignedEmail:
+        task.assignedfor ||
+        task.assigned_to_email ||
+        task.leader_assigned ||
+        user?.email ||
+        "",
+      dueDate: formatDateTime(task.date || task.followup_date),
       status: task.status,
       taskStage: task.status,
     });
@@ -942,14 +1052,41 @@ export default function DailyTasks() {
       const isConsolidationTask =
         selectedTask?.taskType === "consolidation" ||
         selectedTask?.is_consolidation_task;
+      const fallbackAssigneeName =
+        taskData.assignedTo || (user ? `${user.name} ${user.surname}` : "");
+      const fallbackAssigneeEmail = taskData.assignedEmail || user?.email || "";
+
+      let assigneeName = fallbackAssigneeName.trim();
+      let assigneeEmail = fallbackAssigneeEmail.trim();
+
+      if (!assigneeEmail && assigneeName) {
+        const matchedPerson = allPeople.find((person) => {
+          const fullName = `${person.name || ""} ${person.surname || ""}`.trim().toLowerCase();
+          const searchValue = assigneeName.toLowerCase();
+          return (
+            fullName === searchValue ||
+            fullName.includes(searchValue) ||
+            (person.email || "").toLowerCase() === searchValue
+          );
+        });
+        assigneeEmail = matchedPerson?.email || "";
+      }
+
+      if (!assigneeName) {
+        assigneeName = user ? `${user.name || ""} ${user.surname || ""}`.trim() : "";
+      }
+      if (!assigneeEmail) {
+        assigneeEmail = user?.email || "";
+      }
 
       const taskPayload = {
         memberID: user.id,
-        name: isConsolidationTask
-          ? taskData.assignedTo
-          : taskData.assignedTo || (user ? `${user.name} ${user.surname}` : ""),
+        name: assigneeName,
+        assignedTo: assigneeName,
         taskType:
-          taskTypes.find((t) => (t._id || t.id) === taskData.taskType)?.name ||
+          taskTypes.find(
+            (t) => String(t._id || t.id) === String(taskData.taskType),
+          )?.name ||
           taskData.taskType ||
           (isConsolidationTask
             ? "consolidation"
@@ -964,17 +1101,15 @@ export default function DailyTasks() {
         followup_date: new Date(taskData.dueDate).toISOString(),
         status: taskData.taskStage || "Open",
         type: formType || "call",
-        assignedfor: taskData.assignedEmail || user.email,
-        assigned_to_email: taskData.assignedEmail || user.email,
+        assignedfor: assigneeEmail,
+        assigned_to_email: assigneeEmail,
         created_by_email: user.email,
         created_by_name: `${user.name} ${user.surname}`.trim(),
       };
 
       if (isConsolidationTask) {
-        taskPayload.leader_name =
-          selectedTask.leader_name || taskData.assignedTo;
-        taskPayload.leader_assigned =
-          selectedTask.leader_assigned || taskData.assignedTo;
+        taskPayload.leader_name = assigneeName;
+        taskPayload.leader_assigned = assigneeEmail || assigneeName;
         taskPayload.is_consolidation_task = true;
       }
 
@@ -1009,49 +1144,168 @@ export default function DailyTasks() {
     }
   };
 
-  const filteredTasks = tasks.filter((task) => {
-    const taskDate = parseDate(task.date);
-    if (!taskDate) return false;
-    let matchesType =
-      filterType === "all" ||
-      task.type === filterType ||
-      (filterType === "consolidation" && task.taskType === "consolidation");
-    let matchesDate = true;
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    if (dateRange === "today") {
-      matchesDate = isSameDay(taskDate, today);
-    } else if (dateRange === "thisWeek") {
-      const startOfWeek = getStartOfWeek(today);
-      const endOfWeek = getEndOfWeek(today);
-      matchesDate = isDateInRange(taskDate, startOfWeek, endOfWeek);
-    } else if (dateRange === "thisMonth") {
-      const startOfMonth = getStartOfMonth(today);
-      const endOfMonth = getEndOfMonth(today);
-      matchesDate = isDateInRange(taskDate, startOfMonth, endOfMonth);
-    } else if (dateRange === "previous7") {
-      const sevenDaysAgo = new Date(today);
-      sevenDaysAgo.setDate(today.getDate() - 6);
-      sevenDaysAgo.setHours(0, 0, 0, 0);
-      const endOfToday = new Date(today);
-      endOfToday.setHours(23, 59, 59, 999);
-      matchesDate = isDateInRange(taskDate, sevenDaysAgo, endOfToday);
-    } else if (dateRange === "previousWeek") {
-      const lastWeekDate = new Date(today);
-      lastWeekDate.setDate(today.getDate() - 7);
-      const startOfLastWeek = getStartOfWeek(lastWeekDate);
-      const endOfLastWeek = getEndOfWeek(lastWeekDate);
-      matchesDate = isDateInRange(taskDate, startOfLastWeek, endOfLastWeek);
-    } else if (dateRange === "previousMonth") {
-      const lastMonthDate = new Date(today);
-      lastMonthDate.setMonth(today.getMonth() - 1);
-      const startOfLastMonth = getStartOfMonth(lastMonthDate);
-      const endOfLastMonth = getEndOfMonth(lastMonthDate);
-      matchesDate = isDateInRange(taskDate, startOfLastMonth, endOfLastMonth);
+  // Helper function to get consolidation/new person chip info
+  const getTaskChipInfo = (task) => {
+    const isConsolidation = task.is_consolidation_task;
+    const isNewPerson = task.is_new_person_task;
+
+    if (!isConsolidation && !isNewPerson) return null;
+
+    // Get the service date from the task - try multiple field names
+    const serviceDate = task.decision_date || task.created_at || task.date;
+    if (!serviceDate) {
+      if (isConsolidation || isNewPerson) {
+        console.warn("No service date found for task:", task);
+      }
+      return null;
     }
 
-    return matchesType && matchesDate;
-  });
+    const date = new Date(serviceDate);
+    if (isNaN(date.getTime())) {
+      console.warn("Invalid date for task:", serviceDate);
+      return null;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const diffTime = today.getTime() - date.getTime();
+    const diffHours = diffTime / (1000 * 60 * 60);
+    const isCompleted = ["completed", "done"].includes(
+      task.status?.toLowerCase(),
+    );
+    const isOverdue = !isCompleted && diffHours > 24;
+
+    // Format the date
+    const monthNames = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+    const formattedDate = `${monthNames[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+
+    let text, backgroundColor, color;
+
+    if (isNewPerson) {
+      text = isOverdue
+        ? `Overdue New Person - ${formattedDate}`
+        : `New Person - ${formattedDate}`;
+      backgroundColor = isOverdue ? "#dbeafe" : "#bfdbfe";
+      color = isOverdue ? "#1e40af" : "#1e3a8a";
+    } else {
+      text = isOverdue
+        ? `Overdue Consolidation - ${formattedDate}`
+        : `Consolidation - ${formattedDate}`;
+      backgroundColor = isOverdue ? "#fee2e2" : "#fce7f3";
+      color = isOverdue ? "#991b1b" : "#be185d";
+    }
+
+    return {
+      text,
+      backgroundColor,
+      color,
+      isOverdue,
+    };
+  };
+
+  const filteredTasks = tasks.filter((task) => {
+  const isCompleted = (task.status || "").toLowerCase() === "completed";
+  const isConsolidationOrFollowUp =
+    task.is_consolidation_task === true || task.is_new_person_task === true;
+
+  const matchesType =
+    filterType === "all" ||
+    task.type === filterType ||
+    (filterType === "consolidation" && isConsolidationOrFollowUp);
+
+  if (!matchesType) return false;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // OPEN tasks: overdue ones always show, future/today ones show normally
+  if (!isCompleted) {
+    const followupDate = parseDate(task.followup_date || task.date);
+    // No date at all — show open consolidation/followup, hide others
+    if (!followupDate) return isConsolidationOrFollowUp;
+    // Overdue open tasks always show regardless of date filter
+    if (followupDate < today) return true;
+    // Not overdue — apply normal date filter below
+  }
+
+  // COMPLETED tasks and non-overdue open tasks: apply date filter
+  // Completed tasks use completedAt date; open non-overdue use followup_date
+  const completedDate = parseDate(task.completedAt || task.completed_at);
+  const followupDate = parseDate(task.followup_date || task.date);
+  const fallbackDate = parseDate(task.createdAt || task.created_at);
+
+  const dateToCheck = isCompleted
+    ? (completedDate || followupDate || fallbackDate)
+    : (followupDate || fallbackDate);
+
+  if (!dateToCheck) return false;
+
+  switch (dateRange) {
+    case "today":
+      // Completed: show if completed today OR (no completedAt) followup was today
+      if (isCompleted) {
+        return (
+          (completedDate && isSameDay(completedDate, today)) ||
+          (!completedDate && followupDate && isSameDay(followupDate, today))
+        );
+      }
+      return isSameDay(dateToCheck, today);
+
+    case "thisWeek": {
+      const start = getStartOfWeek(today);
+      const end = getEndOfWeek(today);
+      if (isCompleted) {
+        return (
+          (completedDate && isDateInRange(completedDate, start, end)) ||
+          (!completedDate && followupDate && isDateInRange(followupDate, start, end))
+        );
+      }
+      return isDateInRange(dateToCheck, start, end);
+    }
+
+    case "thisMonth": {
+      const start = getStartOfMonth(today);
+      const end = getEndOfMonth(today);
+      return isDateInRange(dateToCheck, start, end);
+    }
+
+    case "previousWeek": {
+      const lastWeekDate = new Date(today);
+      lastWeekDate.setDate(today.getDate() - 7);
+      return isDateInRange(
+        dateToCheck,
+        getStartOfWeek(lastWeekDate),
+        getEndOfWeek(lastWeekDate)
+      );
+    }
+
+    case "previousMonth": {
+      const lastMonthDate = new Date(today);
+      lastMonthDate.setMonth(today.getMonth() - 1);
+      return isDateInRange(
+        dateToCheck,
+        getStartOfMonth(lastMonthDate),
+        getEndOfMonth(lastMonthDate)
+      );
+    }
+
+    default:
+      return true;
+  }
+});
 
   const downloadFilteredTasks = () => {
     try {
@@ -1221,6 +1475,14 @@ export default function DailyTasks() {
       window.removeEventListener("taskUpdated", handleTaskUpdated);
     };
   }, [user]);
+
+  // Listen for task updates from TaskUpdateContext
+  useEffect(() => {
+    if (updateCount > 0) {
+      console.log("Task update from context:", updateCount);
+      fetchUserTasks();
+    }
+  }, [updateCount, fetchUserTasks]);
 
   // Whether people are still being loaded for the first time
   const peopleNotLoadedYet =
@@ -1530,12 +1792,30 @@ export default function DailyTasks() {
           ) : (
             filteredTasks.map((task) => {
               const recipientName = task.contacted_person?.name || "";
-
               const isConsolidation =
                 task.taskType === "consolidation" || task.is_consolidation_task;
+              const isNewPerson =
+                task.taskType === "service follow up" ||
+                task.taskType === "Service follow up" ||
+                task.taskType === "new_person" ||
+                task.is_new_person_task;
+
+              // Debug consolidation and new person tasks
+              if (isConsolidation || isNewPerson) {
+                console.log(
+                  `${isNewPerson ? "New Person" : "Consolidation"} task found:`,
+                  {
+                    name: recipientName,
+                    is_consolidation_task: task.is_consolidation_task,
+                    is_new_person_task: task.is_new_person_task,
+                    decision_date: task.decision_date,
+                    created_at: task.created_at,
+                    date: task.date,
+                  },
+                );
+              }
 
               const assignedDisplay = task.assignedTo || "";
-
               const sourceDisplay = task.source_display || "Manual";
 
               return (
@@ -1564,6 +1844,29 @@ export default function DailyTasks() {
                     }}
                     onClick={() => handleEdit(task)}
                   >
+                    {(() => {
+                      const chipInfo = getTaskChipInfo(task);
+                      return chipInfo ? (
+                        <div style={{ marginBottom: "6px" }}>
+                          <span
+                            style={{
+                              fontSize: "11px",
+                              fontWeight: "700",
+                              backgroundColor: chipInfo.backgroundColor,
+                              color: chipInfo.color,
+                              padding: "4px 8px",
+                              borderRadius: "4px",
+                              display: "inline-block",
+                              textTransform: "capitalize",
+                              letterSpacing: "0.3px",
+                            }}
+                          >
+                            {chipInfo.text}
+                          </span>
+                        </div>
+                      ) : null;
+                    })()}
+
                     <p
                       style={{
                         fontWeight: "700",
@@ -2187,20 +2490,9 @@ export default function DailyTasks() {
                   assignedTo: value,
                   assignedEmail: "",
                 });
-                if (
-                  !(
-                    selectedTask?.taskType === "consolidation" ||
-                    selectedTask?.is_consolidation_task
-                  )
-                ) {
-                  fetchAssigned(value);
-                }
+                fetchAssigned(value);
               }}
               autoComplete="off"
-              disabled={
-                selectedTask?.taskType === "consolidation" ||
-                selectedTask?.is_consolidation_task
-              }
               required
               style={{
                 width: "100%",
@@ -2211,24 +2503,11 @@ export default function DailyTasks() {
                 backgroundColor: isDarkMode ? "#2d2d2d" : "#f3f4f6",
                 color: isDarkMode ? "#fff" : "#1a1a24",
                 outline: "none",
-                cursor:
-                  selectedTask?.taskType === "consolidation" ||
-                  selectedTask?.is_consolidation_task
-                    ? "not-allowed"
-                    : "text",
+                cursor: "text",
               }}
-              placeholder={
-                selectedTask?.taskType === "consolidation" ||
-                selectedTask?.is_consolidation_task
-                  ? "Leader name (read-only)"
-                  : "Search and select assignee..."
-              }
+              placeholder="Search and select assignee..."
             />
-            {assignedResults.length > 0 &&
-              !(
-                selectedTask?.taskType === "consolidation" ||
-                selectedTask?.is_consolidation_task
-              ) && (
+            {assignedResults.length > 0 && (
                 <ul
                   style={{
                     position: "absolute",

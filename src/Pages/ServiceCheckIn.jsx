@@ -26,6 +26,7 @@ import EmojiPeopleIcon from "@mui/icons-material/EmojiPeople";
 import PersonAddAltIcon from "@mui/icons-material/PersonAddAlt";
 import MergeIcon from "@mui/icons-material/Merge";
 import EventHistory from "../components/EventHistory";
+import { saveToEventHistory } from "../utils/eventhistory";
 import SaveIcon from "@mui/icons-material/Save";
 import CloseIcon from "@mui/icons-material/Close";
 import RefreshIcon from "@mui/icons-material/Refresh";
@@ -134,7 +135,7 @@ const emptyForm = {
 const cleanEventId = (id) => id?.split("_")[0] ?? id;
 
 function ServiceCheckIn() {
-  const { authFetch } = useContext(AuthContext);
+  const { authFetch, user } = useContext(AuthContext);
   const { notifyTaskUpdate } = useTaskUpdate();
 
   const [attendees, setAttendees] = useState(() => {
@@ -521,7 +522,7 @@ function ServiceCheckIn() {
       ...a,
       present: presentIds.has(a._id),
       isNew: newPeopleIds.has(a._id),
-      id: a._id,
+      id: a._id || a.email || `temp-${a.email}`,
     })),
     [attendees, presentIds, newPeopleIds]
   );
@@ -840,6 +841,149 @@ const sortedFilteredAttendees = useMemo(() => {
     }
   }, [currentEventId, checkInLoading, presentIds, authFetch, fetchRealTimeEventData]);
 
+  const normalizeLeaderValue = (value) => {
+    if (value == null) return "";
+    if (typeof value === "string") return value.trim();
+    return String(value).trim();
+  };
+
+  // Helper function to get highest available leader
+  const getHighestAvailableLeader = (person) => {
+    if (!person) return { leader: "No Leader Assigned", level: 0, hasLeader: false };
+
+    const leaderEntries = [];
+
+    if (Array.isArray(person.leaders) && person.leaders.length > 0) {
+      person.leaders.forEach((leader) => {
+        const level = leader?.level ?? leader?.Level ?? leader?.leader_level ?? leader?.leaderLevel;
+        const name = normalizeLeaderValue(leader?.name || leader?.full_name || leader?.leader_name || leader?.leaderName);
+        if (level != null && name) {
+          leaderEntries.push({ level: Number(level), name });
+        }
+      });
+    }
+
+    const directFields = [
+      { level: 1, keys: ["leader1", "leaderAt1", "leader_at_1", "Leader @1", "Leader at 1"] },
+      { level: 12, keys: ["leader12", "leaderAt12", "leader_at_12", "Leader @12", "Leader at 12"] },
+      { level: 144, keys: ["leader144", "leaderAt144", "leader_at_144", "Leader @144", "Leader at 144"] },
+      { level: 1728, keys: ["leader1728", "leaderAt1728", "leader_at_1728", "Leader @1728", "Leader at 1728"] },
+    ];
+
+    directFields.forEach((group) => {
+      for (const key of group.keys) {
+        const value = person?.[key];
+        if (value) {
+          leaderEntries.push({ level: group.level, name: normalizeLeaderValue(value) });
+          break;
+        }
+      }
+    });
+
+    if (leaderEntries.length === 0) {
+      return { leader: "No Leader Assigned", level: 0, hasLeader: false };
+    }
+
+    leaderEntries.sort((a, b) => b.level - a.level);
+    return { leader: leaderEntries[0].name, level: leaderEntries[0].level, hasLeader: true };
+  };
+
+  // Helper function to resolve leader email from person object
+  const resolveLeaderEmail = (leaderName, person) => {
+    if (!leaderName || !person) return "";
+
+    const normalizedLeaderName = (leaderName || "").trim().toLowerCase();
+    const directFields = [
+      { name: person?.leader1, email: person?.leader1Email || person?.leader1_email || person?.leader1email },
+      { name: person?.leader12, email: person?.leader12Email || person?.leader12_email || person?.leader12email },
+      { name: person?.leader144, email: person?.leader144Email || person?.leader144_email || person?.leader144email },
+      { name: person?.leader1728, email: person?.leader1728Email || person?.leader1728_email || person?.leader1728email },
+      { name: person?.["Leader @1"], email: person?.["Leader @1 Email"] || person?.["Leader @1_email"] || person?.["Leader @1email"] },
+      { name: person?.["Leader @12"], email: person?.["Leader @12 Email"] || person?.["Leader @12_email"] || person?.["Leader @12email"] },
+      { name: person?.["Leader @144"], email: person?.["Leader @144 Email"] || person?.["Leader @144_email"] || person?.["Leader @144email"] },
+      { name: person?.["Leader @1728"], email: person?.["Leader @1728 Email"] || person?.["Leader @1728_email"] || person?.["Leader @1728email"] },
+    ];
+
+    for (const candidate of directFields) {
+      if ((candidate.name || "").trim().toLowerCase() === normalizedLeaderName && candidate.email) {
+        return candidate.email.trim().toLowerCase();
+      }
+    }
+
+    if (Array.isArray(person.leaders)) {
+      const found = person.leaders.find((leader) => {
+        const leaderNameValue = normalizeLeaderValue(leader?.name || leader?.full_name || leader?.leader_name || leader?.leaderName);
+        return leaderNameValue.toLowerCase() === normalizedLeaderName;
+      });
+      if (found?.email) {
+        return normalizeLeaderValue(found.email).toLowerCase();
+      }
+    }
+    return "";
+  };
+
+  // Create task for leader when new person is added
+  const createNewPersonTaskForLeader = async ({
+    leaderName,
+    leaderEmail,
+    person,
+    eventId,
+  }) => {
+    try {
+      if (!leaderEmail) {
+        console.warn("No leader email found for task assignment.");
+        toast.warning("No leader email is available for this person, so the follow-up task was not assigned.");
+        return;
+      }
+
+      const normalizedEmail = (leaderEmail || "").trim().toLowerCase();
+      const todayDate = new Date().toISOString().split("T")[0];
+      const dueDate = new Date();
+      dueDate.setHours(dueDate.getHours() + 24);
+
+      const taskPayload = {
+        memberID: user?.id || "",
+        name: leaderName,
+        taskType: "Service follow up",
+        contacted_person: {
+          name: `${person.Name || person.name || ""} ${person.Surname || person.surname || ""}`.trim(),
+          phone: person.Number || person.phone || "",
+          email: person.Email || person.email || "",
+        },
+        followup_date: dueDate.toISOString(),
+        status: "Open",
+        type: "Service follow up",
+        assignedfor: normalizedEmail,
+        assigned_to_email: normalizedEmail,
+        created_by_email: (user?.email || "").trim().toLowerCase(),
+        created_by_name: `${user?.name || ""} ${user?.surname || ""}`.trim(),
+        event_id: eventId,
+        is_new_person_task: true,
+        decision_date: todayDate,
+      };
+
+      console.log("NEW PERSON TASK PAYLOAD:", taskPayload);
+
+      const res = await authFetch(`${BASE_URL}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(taskPayload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to create follow-up task");
+      }
+
+      console.log("New person task created successfully!");
+      return data;
+    } catch (err) {
+      console.error("Error creating new person task:", err.message);
+      toast.error("Failed to create new person task: " + err.message);
+      throw err;
+    }
+  };
+
   const handlePersonSave = useCallback(async (responseData) => {
     if (!currentEventId) { toast.error("Please select an event first before adding people"); return; }
     try {
@@ -925,6 +1069,24 @@ const sortedFilteredAttendees = useMemo(() => {
 
           try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch { }
           fetchRealTimeEventData(cleanEventId(currentEventId)).then(fd => { if (fd) setRealTimeData(fd); });
+
+          // Create task for leader when new person is added
+          try {
+            const leaderInfo = getHighestAvailableLeader(newPersonForGrid);
+            if (leaderInfo.hasLeader) {
+              const resolvedLeaderEmail = resolveLeaderEmail(leaderInfo.leader, newPersonForGrid);
+              if (resolvedLeaderEmail) {
+                await createNewPersonTaskForLeader({
+                  leaderName: leaderInfo.leader,
+                  leaderEmail: resolvedLeaderEmail,
+                  person: newPersonForGrid,
+                  eventId: cleanEventId(currentEventId),
+                });
+              }
+            }
+          } catch (taskErr) {
+            console.error("Failed to create new person task:", taskErr);
+          }
         }
       }
     } catch (error) { toast.error(error.message || "Failed to save person"); }
@@ -1017,6 +1179,33 @@ const sortedFilteredAttendees = useMemo(() => {
       });
 
       setRealTimeData(null);
+      try {
+        const payload = {
+          eventId: currentEventId,
+          service_name: currentEvent.eventName || currentEvent.name || "",
+          eventType: currentEvent.eventType || currentEvent.type || "",
+          status: "complete",
+          // include attendance/new people/consolidations if available
+          attendees: realTimeData?.present_attendees || realTimeData?.attendanceData || attendees || [],
+          attendanceData: realTimeData?.present_attendees || realTimeData?.attendanceData || attendees || [],
+          new_people: realTimeData?.new_people || realTimeData?.newPeople || [],
+          newPeopleData: realTimeData?.new_people || realTimeData?.newPeople || [],
+          consolidations: realTimeData?.consolidations || [],
+          consolidatedData: realTimeData?.consolidations || [],
+          total_attendance: realTimeData?.present_count ?? (realTimeData?.present_attendees?.length ?? attendees?.length ?? 0),
+          new_people_count: realTimeData?.new_people_count ?? (realTimeData?.new_people?.length ?? 0),
+          consolidation_count: realTimeData?.consolidation_count ?? (realTimeData?.consolidations?.length ?? 0),
+          date: currentEvent.date || new Date().toISOString(),
+          eventName: currentEvent.eventName || currentEvent.name || "",
+          closed_by: result?.closed_by,
+          closed_at: result?.closed_at || result?.closedAt,
+          userEmail: user?.email || "",
+        };
+
+        saveToEventHistory(payload);
+      } catch (err) {
+        console.error("Failed to save event history:", err);
+      }
       setTimeout(() => fetchEvents(), 500);
     } catch (error) {
       if (error.message.includes("404")) toast.error("Event not found.");
@@ -1360,6 +1549,7 @@ const sortedFilteredAttendees = useMemo(() => {
           <Paper variant="outlined" sx={{ boxShadow: 3, overflow: "hidden", width: "100%", height: gridHeight, minHeight: gridMinHeight }}>
             <DataGrid
               rows={sortedFilteredAttendees} columns={mainColumns}
+              getRowId={(row) => row.id || row._id || row.email || `temp-${Math.random()}`}
               loading={isLoadingPeople} pagination
               paginationModel={{ page, pageSize: rowsPerPage }}
               onPaginationModelChange={model => { setPage(model.page); setRowsPerPage(model.pageSize); }}
@@ -1368,7 +1558,7 @@ const sortedFilteredAttendees = useMemo(() => {
               slotProps={{ toolbar: { showQuickFilter: !isSm, quickFilterProps: { debounceMs: 500 } } }}
               disableRowSelectionOnClick
               sortModel={sortModel} onSortModelChange={model => { setPage(0); setSortModel(model); }}
-              getRowId={row => row._id} rowHeight={isSm ? 44 : 52} columnHeaderHeight={isSm ? 40 : 48}
+              // getRowId={row => row._id} rowHeight={isSm ? 44 : 52} columnHeaderHeight={isSm ? 40 : 48}
               sx={{
                 width: "100%", height: "100%",
                 "& .MuiDataGrid-cell": { display: "flex", alignItems: "center", px: isSm ? "4px" : "8px", fontSize: isSm ? "0.72rem" : "0.85rem", py: "2px" },

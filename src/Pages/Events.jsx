@@ -660,18 +660,46 @@ const MobileEventCard = ({
   }
   const isDark = theme.palette.mode === "dark";
   const borderColor = isDark ? theme.palette.divider : "#e9ecef";
-
+  const { authFetch} = React.useContext(AuthContext);
   const attendeesCount = event.attendees?.length || 0;
   const isCellEvent =
     selectedEventTypeFilter === "all" ||
     selectedEventTypeFilter === "CELLS" ||
     selectedEventTypeFilter === "Cells";
-
+  const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
   const escapeHtml = (s) =>
     String(s || "")
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;");
+
+const findEventTypeByName = (typeName) => {
+    if (!typeName || typeName === "all") {
+      return {
+        name: "CELLS",
+        isGlobal: false,
+        isTicketed: false,
+        hasPersonSteps: true,
+      };
+    }
+
+    // Look for the event type in your eventTypes array
+    const found = eventTypes.find((et) => {
+      const etName = et.name || et.eventTypeName || et.displayName || "";
+      return etName.toLowerCase() === typeName.toLowerCase();
+    });
+
+    if (found) {
+      return found;
+    }
+
+    return {
+      name: typeName,
+      isGlobal: false,
+      isTicketed: false,
+      hasPersonSteps: false,
+    };
+  };
 
   const buildXlsFromRows = (rows, fileBaseName = "export") => {
     if (!rows || rows.length === 0) {
@@ -679,11 +707,19 @@ const MobileEventCard = ({
       return;
     }
 
-    const headers = Object.keys(rows[0]);
+    // Build a union of all keys across all rows so that columns aren't
+    // omitted when the first row lacks some fields (common when merging
+    // ticketed/non-ticketed rows from multiple events).
+    const headerSet = rows.reduce((set, r) => {
+      Object.keys(r || {}).forEach((k) => set.add(k));
+      return set;
+    }, new Set());
+    const headers = Array.from(headerSet);
+
     const columnWidths = headers.map((header) => {
       let maxLength = header.length;
       rows.forEach((r) => {
-        const v = String(r[header] || "");
+        const v = String((r && r[header]) || "");
         if (v.length > maxLength) maxLength = v.length;
       });
       return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
@@ -760,42 +796,98 @@ ${xmlCols}
     }, 100);
   };
 
-  const normalizeEventAttendance = (event) => {
-    if (!event) return [];
+const normalizeEventAttendance = (event) => {
+  if (!event) return [];
+  const eventDate = event.date;
 
-    const eventDate = event.date;
-    let attendees = [];
+  // 👇 Add this temporarily to see exact field names your API returns
+  console.log("FULL EVENT FIELDS:", JSON.stringify(event, null, 2));
 
-    // Check attendance object by date key first
-    if (event.attendance && typeof event.attendance === "object") {
-      const dateAttendance = event.attendance[eventDate];
-      if (dateAttendance) {
-        attendees = dateAttendance.attendees || [];
+  const eventTypeName = event.eventType || event.event_type || event.type || "";
+  const eventTypeObj = findEventTypeByName(eventTypeName);
+  const isTicketed =
+    eventTypeObj?.isTicketed === true ||
+    event.isTicketed === true ||
+    event.is_ticketed === true ||
+    event.ticketed === true;
+
+  const peopleMap = new Map();
+
+  const addPeople = (list, checkedIn) => {
+    if (!Array.isArray(list)) return;
+    list.forEach((person) => {
+      const key = person.email || person.fullName || person.name || Math.random();
+      if (!peopleMap.has(key)) {
+        peopleMap.set(key, { ...person, checkedIn });
+      } else if (checkedIn) {
+        peopleMap.set(key, { ...peopleMap.get(key), checkedIn: true });
       }
-    }
-
-    if (attendees.length === 0) {
-      attendees = event.attendees || [];
-    }
-
-    if (attendees.length === 0) return [];
-
-    return attendees.map((att) => ({
-      "Event Name": event.eventName || event["Event Name"] || "",
-      "Event Date": eventDate,
-      "Name": att.fullName || att.name || "",
-      "Email": att.email || "",
-      "Event Leader Name": event.eventLeaderName || event.Leader || "",
-      "Leader @12": event.leader12 || "",
-      "Phone": att.phone || "",
-      "Decision": att.decision || "",
-      "Price Tier": att.priceTier || "",
-      "Payment Method": att.paymentMethod || "",
-      "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-      "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-      "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-    }));
+    });
   };
+
+  if (event.attendance && typeof event.attendance === "object") {
+    const dateAttendance = event.attendance[eventDate];
+    if (dateAttendance?.attendees) addPeople(dateAttendance.attendees, true);
+  }
+
+  addPeople(event.attendees, true);
+  addPeople(event.registrants, false);
+  addPeople(event.registered, false);
+  addPeople(event.invited, false);
+  addPeople(event.members, false);
+  addPeople(event.persistent_attendees, false);
+
+  if (event.attendance_data) {
+    addPeople(event.attendance_data.attendees, true);
+    addPeople(event.attendance_data.registrants, false);
+    addPeople(event.attendance_data.registered, false);
+  }
+
+  if (peopleMap.size === 0) return [];
+
+  const leaderKeys = Object.keys(event).filter(k =>
+    k.toLowerCase().includes("leader") || k.toLowerCase().includes("at1") || k.toLowerCase().includes("144")
+  );
+  console.log("LEADER  FIELDS:", leaderKeys.reduce((acc, k) => ({ ...acc, [k]: event[k] }), {}));
+
+  
+  const leaderAt12  = event.leader12 || event.leaderAt12 || event.leader_at_12 || "";
+  const leaderAt1   = event.leader1  || event.leaderAt1  || event.leader_at_1  || event.leaderAt1Name  || "";
+  const leaderAt144 = event.leader144 || event.leaderAt144 || event.leader_at_144 || event.leaderAt144Name || "";
+
+  const hasLeaderHierarchy = leaderAt1 || leaderAt12 || leaderAt144;
+
+  return Array.from(peopleMap.values()).map((person) => {
+    const row = {
+      "Event Name":        event.eventName || event["Event Name"] || "",
+      "Event Type":        eventTypeName,
+      "Is Ticketed":       isTicketed ? "Yes" : "No",
+      "Event Date":        eventDate,
+      "Checked In":        person.checkedIn ? "Yes" : "No",
+      "Name":              person.fullName || person.name || "",
+      "Email":             person.email || "",
+      "Phone":             person.phone || "",
+      "Decision":          person.decision || person.Decision || "",
+      "Event Leader Name": event.eventLeaderName || event.Leader || "",
+    };
+
+    if (hasLeaderHierarchy) {
+      if (leaderAt1)   row["Leader @1"]   = leaderAt1;
+      if (leaderAt12)  row["Leader @12"]  = leaderAt12;
+      if (leaderAt144) row["Leader @144"] = leaderAt144;
+    }
+
+    if (isTicketed) {
+      row["Price Tier"]     = person.priceTier || person.price_tier || person.PriceTier || "";
+      row["Payment Method"] = person.paymentMethod || person.payment_method || "";
+      row["Price"]          = person.price  !== undefined ? `R${Number(person.price).toFixed(2)}`  : "";
+      row["Paid"]           = person.paid   !== undefined ? `R${Number(person.paid).toFixed(2)}`   : "";
+      row["Owing"]          = person.owing  !== undefined ? `R${Number(person.owing).toFixed(2)}`  : "";
+    }
+
+    return row;
+  });
+};
 
   const fetchEventFull = async (event) => {
 
@@ -819,39 +911,33 @@ ${xmlCols}
   };
 
   const downloadEventAttendance = async (event) => {
-    const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
-    try {
-      toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
+  const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
+  try {
+    toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
 
-      const hasLocalAttendance =
-        (event?.attendees && event.attendees.length > 0) ||
-        (event?.attendance && Object.keys(event.attendance).length > 0) ||
-        (event?.attendance_data && Array.isArray(event.attendance_data.attendees) && event.attendance_data.attendees.length > 0) ||
-        (event?.checked_in_count && event.checked_in_count > 0) ||
-        (event?.persistent_attendees && event.persistent_attendees.length > 0);
+    const fullEvent = await fetchEventFull(event); // Always fetch full event
 
-      const fullEvent = hasLocalAttendance ? event : await fetchEventFull(event);
+    const rows = normalizeEventAttendance(fullEvent);
 
-      const rows = normalizeEventAttendance(fullEvent);
-      if (!rows || rows.length === 0) {
-        toast.dismiss(TOAST_ID);
-        toast.info("No attendees found for this event.");
-        return;
-      }
-
-      buildXlsFromRows(
-        rows,
-        `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
-      );
-
+    if (!rows || rows.length === 0) {
       toast.dismiss(TOAST_ID);
-      toast.success(`Downloaded attendance of ${rows.length} members`);
-    } catch (err) {
-      console.error("Download event attendance failed:", err);
-      toast.dismiss(TOAST_ID);
-      toast.error("Failed to download event attendance");
+      toast.info("No people associated with this event.");
+      return;
     }
-  };
+    console.log("Full event",fullEvent)
+    buildXlsFromRows(
+      rows,
+      `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
+    );
+
+    toast.dismiss(TOAST_ID);
+    toast.success(`Downloaded ${rows.length} people for this event`);
+  } catch (err) {
+    console.error("Download event attendance failed:", err);
+    toast.dismiss(TOAST_ID);
+    toast.error("Failed to download event attendance");
+  }
+};
 
   return (
     <div
@@ -966,7 +1052,7 @@ ${xmlCols}
         )}
         <Tooltip title="Download Attendance (Event)" arrow>
           <IconButton
-            onClick={() => downloadEventAttendance(params.row)}
+            onClick={() => downloadEventAttendance(event)}
             size="small"
             sx={{ color: "#1976d2" }}
           >
@@ -1105,11 +1191,18 @@ const Events = () => {
       return;
     }
 
-    const headers = Object.keys(rows[0]);
+    // Build a union of all keys across all rows so exported files include
+    // columns that may be missing in the first row (e.g., Paid/Owing/etc).
+    const headerSet = rows.reduce((set, r) => {
+      Object.keys(r || {}).forEach((k) => set.add(k));
+      return set;
+    }, new Set());
+    const headers = Array.from(headerSet);
+
     const columnWidths = headers.map((header) => {
       let maxLength = header.length;
       rows.forEach((r) => {
-        const v = String(r[header] || "");
+        const v = String((r && r[header]) || "");
         if (v.length > maxLength) maxLength = v.length;
       });
       return Math.min(Math.max(maxLength * 7 + 5, 65), 350);
@@ -1224,74 +1317,128 @@ ${xmlCols}
     return results;
   };
   const downloadEventAttendance = async (event) => {
-    const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
-    try {
-      toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
-      const hasLocalAttendance =
-        (event?.attendees && event.attendees.length > 0) ||
-        (event?.attendance && Object.keys(event.attendance).length > 0) ||
-        (event?.attendance_data && Array.isArray(event.attendance_data.attendees) && event.attendance_data.attendees.length > 0) ||
-        (event?.checked_in_count && event.checked_in_count > 0) ||
-        (event?.persistent_attendees && event.persistent_attendees.length > 0);
+  const TOAST_ID = `download-event-${event?._id || event?.id || Date.now()}`;
+  try {
+    toast.info("Preparing event download…", { toastId: TOAST_ID, autoClose: false });
 
-      const fullEvent = hasLocalAttendance ? event : await fetchEventFull(event);
+    const fullEvent = await fetchEventFull(event); // Always fetch full event
 
-      const rows = normalizeEventAttendance(fullEvent);
-      if (!rows || rows.length === 0) {
-        toast.dismiss(TOAST_ID);
-        toast.info("No attendees found for this event.");
-        return;
-      }
+    const rows = normalizeEventAttendance(fullEvent);
 
-      buildXlsFromRows(
-        rows,
-        `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
-      );
-
+    if (!rows || rows.length === 0) {
       toast.dismiss(TOAST_ID);
-      toast.success(`Downloaded attendance of ${rows.length} members`);
-    } catch (err) {
-      console.error("Download event attendance failed:", err);
-      toast.dismiss(TOAST_ID);
-      toast.error("Failed to download event attendance");
+      toast.info("No people associated with this event.");
+      return;
     }
+
+    buildXlsFromRows(
+      rows,
+      `attendance_${(fullEvent.eventName || "event").replace(/\s/g, "_")}`,
+    );
+
+    toast.dismiss(TOAST_ID);
+    toast.success(`Downloaded ${rows.length} people for this event`);
+  } catch (err) {
+    console.error("Download event attendance failed:", err);
+    toast.dismiss(TOAST_ID);
+    toast.error("Failed to download event attendance");
+  }
+};
+
+const normalizeEventAttendance = (event) => {
+  if (!event) return [];
+  const eventDate = event.date;
+
+  // Determine if this is a ticketed event
+  const eventTypeName = event.eventType || event.event_type || event.type || "";
+  const eventTypeObj = findEventTypeByName(eventTypeName);
+  const isTicketed = 
+    eventTypeObj?.isTicketed === true ||
+    event.isTicketed === true ||
+    event.is_ticketed === true ||
+    event.ticketed === true;
+
+  const peopleMap = new Map();
+
+  const addPeople = (list, checkedIn) => {
+    if (!Array.isArray(list)) return;
+    list.forEach((person) => {
+      const key = person.email || person.fullName || person.name || Math.random();
+      if (!peopleMap.has(key)) {
+        peopleMap.set(key, { ...person, checkedIn });
+      } else if (checkedIn) {
+        peopleMap.set(key, { ...peopleMap.get(key), checkedIn: true });
+      }
+    });
   };
 
-  const normalizeEventAttendance = (event) => {
-    if (!event) return [];
-    const eventDate = event.date;
-    let attendees = [];
+  // 1. Attendance by date (checked-in)
+  if (event.attendance && typeof event.attendance === "object") {
+    const dateAttendance = event.attendance[eventDate];
+    if (dateAttendance?.attendees) addPeople(dateAttendance.attendees, true);
+  }
 
-    if (event.attendance && typeof event.attendance === "object") {
-      const dateAttendance = event.attendance[eventDate];
-      if (dateAttendance) {
-        attendees = dateAttendance.attendees || [];
-      }
-    }
+  // 2. Top-level attendees (checked-in)
+  addPeople(event.attendees, true);
 
-    // Fall back to top-level attendees
-    if (attendees.length === 0) {
-      attendees = event.attendees || [];
-    }
+  // 3. Registered/invited (not necessarily checked in)
+  addPeople(event.registrants, false);
+  addPeople(event.registered, false);
+  addPeople(event.invited, false);
+  addPeople(event.members, false);
+  addPeople(event.persistent_attendees, false);
 
-    if (attendees.length === 0) return [];
+  // 4. attendance_data block
+  if (event.attendance_data) {
+    addPeople(event.attendance_data.attendees, true);
+    addPeople(event.attendance_data.registrants, false);
+    addPeople(event.attendance_data.registered, false);
+  }
 
-    return attendees.map((att) => ({
-      "Event Name": event.eventName || event["Event Name"] || "",
-      "Event Date": eventDate,
-      "Name": att.fullName || att.name || "",
-      "Email": att.email || "",
+  if (peopleMap.size === 0) return [];
+
+  // Resolve leader hierarchy from the event itself
+  // Adjust these field names to match whatever your API actually returns
+  const leaderAt1   = event.leaderAt1   || event.leader_at_1   || event.leaderAt1Name   || "";
+  const leaderAt12  = event.leaderAt12  || event.leader_at_12  || event.leaderAt12Name  || event.leader12 || "";
+  const leaderAt144 = event.leaderAt144 || event.leader_at_144 || event.leaderAt144Name || "";
+
+  const hasLeaderHierarchy = leaderAt1 || leaderAt12 || leaderAt144;
+
+  return Array.from(peopleMap.values()).map((person) => {
+    // Base row — always present
+    const row = {
+      "Event Name":        event.eventName || event["Event Name"] || "",
+      "Event Type":        eventTypeName,
+      "Is Ticketed":       isTicketed ? "Yes" : "No",
+      "Event Date":        eventDate,
+      "Checked In":        person.checkedIn ? "Yes" : "No",
+      "Name":              person.fullName || person.name || "",
+      "Email":             person.email || "",
+      "Phone":             person.phone || "",
+      "Decision":          person.decision || person.Decision || "",
+      "Price Tier":        person.priceTier || person.price_tier || person.PriceTier || "",
       "Event Leader Name": event.eventLeaderName || event.Leader || "",
-      "Leader @12": event.leader12 || "",
-      "Phone": att.phone || "",
-      "Decision": att.decision || "",
-      "Price Tier": att.priceTier || "",
-      "Payment Method": att.paymentMethod || "",
-      "Price": att.price !== undefined ? `R${Number(att.price).toFixed(2)}` : "",
-      "Paid": att.paid !== undefined ? `R${Number(att.paid).toFixed(2)}` : "",
-      "Owing": att.owing !== undefined ? `R${Number(att.owing).toFixed(2)}` : "",
-    }));
-  };
+    };
+
+    // Leader hierarchy columns — only if the event has them
+    if (hasLeaderHierarchy) {
+      row["Leader @1"]   = leaderAt1;
+      row["Leader @12"]  = leaderAt12;
+      row["Leader @144"] = leaderAt144;
+    }
+
+    // Ticketed-only columns
+    if (isTicketed) {
+      row["Payment Method"] = person.paymentMethod || person.payment_method || "";
+      row["Price"]  = person.price  !== undefined ? `R${Number(person.price).toFixed(2)}`  : "";
+      row["Paid"]   = person.paid   !== undefined ? `R${Number(person.paid).toFixed(2)}`   : "";
+      row["Owing"]  = person.owing  !== undefined ? `R${Number(person.owing).toFixed(2)}`  : "";
+    }
+
+    return row;
+  });
+};
 
   const fetchEventFull = async (event) => {
     try {
@@ -1403,6 +1550,10 @@ ${xmlCols}
       for (const ev of fullEvents) {
         const rows = normalizeEventAttendance(ev);
         if (rows && rows.length > 0) {
+          // For did_not_meet events, mark all rows as Did Not Meet
+          if (status === "did_not_meet") {
+            rows.forEach(row => row.Note = "Did Not Meet");
+          }
           allRows.push(...rows);
         } else if (
           status === "did_not_meet" ||
@@ -1434,7 +1585,7 @@ ${xmlCols}
         toast.info("No attendees found for selected events.");
         return;
       }
-
+      console.log("Full event",fullEvent)
       buildXlsFromRows(allRows, `events_${status}_${period}`);
       toast.dismiss(TOAST_ID);
       toast.success(`Downloaded ${allRows.length} rows for ${status} (${period})`);
@@ -2494,11 +2645,42 @@ const getFilteredEventTypes = (allEventTypes) => {
     ],
   );
 
+  const getAttendanceEventId = (eventObject) => {
+    if (!eventObject) return "";
+
+    const rawId = eventObject._id || eventObject.id || "";
+    if (!rawId) return "";
+
+    const [baseId, ...suffixParts] = rawId.split("_");
+    const suffix = suffixParts.join("_");
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+
+    if (suffix && dateRegex.test(suffix)) {
+      return rawId;
+    }
+
+    const originalEventId = eventObject.original_event_id || baseId;
+    const dateSource =
+      eventObject.date ||
+      eventObject.event_date ||
+      eventObject.event_date_exact ||
+      eventObject.event_date_iso ||
+      "";
+    const cleanDate = String(dateSource).split("T")[0].split(" ")[0];
+
+    return originalEventId && cleanDate
+      ? `${originalEventId}_${cleanDate}`
+      : originalEventId || rawId;
+  };
+
   const handleAttendanceSubmit = useCallback(
     async (data) => {
       try {
         const token = localStorage.getItem("access_token");
-        const eventId = selectedEvent._id;
+        const eventId = getAttendanceEventId(selectedEvent);
+        if (!eventId) {
+          throw new Error("No valid event id found for attendance submission");
+        }
         const eventName = selectedEvent.eventName || "Event";
         const eventDate = selectedEvent.date || "";
 
@@ -2514,6 +2696,7 @@ const getFilteredEventTypes = (allEventTypes) => {
 
         if (data === "did_not_meet") {
           payload = {
+            event_id: eventId,
             attendees: [],
             all_attendees: [],
             leaderEmail,
@@ -2523,6 +2706,7 @@ const getFilteredEventTypes = (allEventTypes) => {
           };
         } else if (Array.isArray(data)) {
           payload = {
+            event_id: eventId,
             attendees: data,
             all_attendees: data,
             leaderEmail,
@@ -2533,6 +2717,7 @@ const getFilteredEventTypes = (allEventTypes) => {
         } else {
           payload = {
             ...data,
+            event_id: eventId,
             leaderEmail,
             leaderName,
             event_date: eventDate,
@@ -4915,7 +5100,7 @@ const getTypeValue = (type) => {
                                 </Tooltip>
                               )}
                               <Tooltip
-                                title="Download Attendance (Event)"
+                                title="Download Event"
                                 arrow
                               >
                                 <IconButton
