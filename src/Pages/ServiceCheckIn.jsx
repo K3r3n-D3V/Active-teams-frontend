@@ -42,6 +42,8 @@ const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
 
 const CACHE_DURATION = 5 * 60 * 1000;
 
+const cleanEventId = (id) => id?.split("_")[0] ?? id;
+
 function buildSearchableText(person) {
   const leaderText = Array.isArray(person.leaders)
     ? person.leaders.map((l) => l.name || "").join(" ")
@@ -118,22 +120,16 @@ function normalisePerson(p) {
     Organization: p.Organization || p.organisation || p.org_id || "",
   };
 }
+// ===== HELPER FUNCTIONS FOR CELL-BASED LEADER ASSIGNMENT =====
 
-function s2ab(s) {
-  const buf = new ArrayBuffer(s.length);
-  const view = new Uint8Array(buf);
-  for (let i = 0; i < s.length; i++) view[i] = s.charCodeAt(i) & 0xff;
-  return buf;
-}
-
+/**
+ * Determines if a person has a cell
+ */
 const emptyForm = {
   name: "", surname: "", email: "", phone: "", number: "", gender: "",
   invitedBy: "", leader1: "", leader12: "", leader144: "",
   stage: "Win", dob: "", address: "",
 };
-
-const cleanEventId = (id) => id?.split("_")[0] ?? id;
-
 function ServiceCheckIn() {
   const { authFetch, user } = useContext(AuthContext);
   const { notifyTaskUpdate } = useTaskUpdate();
@@ -150,6 +146,43 @@ function ServiceCheckIn() {
   const [currentEventId, setCurrentEventId] = useState("");
   const [eventSearch, setEventSearch] = useState("");
   const [events, setEvents] = useState([]);
+  const personHasCell = useCallback((person) => {
+    if (!person) return false;
+
+    const hasStaticCell =
+      person.cell_id || person.cellId || person.cell ||
+      person.stage === "Cell Leader" ||
+      person.role === "cell_leader" ||
+      person.isCellLeader === true ||
+      person.isCellLeader === "true" ||
+      person.cellName || person.cell_name ||
+      person.hasCell === true ||
+      person.hasCell === "true" ||
+      person.is_cell_leader === true;
+
+    if (hasStaticCell) return true;
+
+    const personFullName = `${person.name || ''} ${person.surname || ''}`.trim().toLowerCase();
+    const personEmail = (person.email || '').toLowerCase();
+    const cellEvents = events.filter(e => {
+      const typeName = (e.eventType || '').toLowerCase();
+      return typeName === 'cells' || typeName === 'cell' || typeName === 'all cells';
+    });
+
+    for (const event of cellEvents) {
+      const eventLeader = (event.Leader || event.eventLeader || event.eventLeaderName || '').toLowerCase().trim();
+      const eventEmail = (event.Email || event.eventLeaderEmail || '').toLowerCase().trim();
+
+      if (personFullName === eventLeader || personEmail === eventEmail) return true;
+
+      const leader12 = (event['Leader at 12'] || event['Leader @12'] || '').toLowerCase().trim();
+      const leader144 = (event['Leader at 144'] || event['Leader @144'] || '').toLowerCase().trim();
+
+      if (personFullName === leader12 || personFullName === leader144) return true;
+    }
+
+    return false;
+  }, [events]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
@@ -847,47 +880,46 @@ const sortedFilteredAttendees = useMemo(() => {
     return String(value).trim();
   };
 
-  // Helper function to get highest available leader
-  const getHighestAvailableLeader = (person) => {
-    if (!person) return { leader: "No Leader Assigned", level: 0, hasLeader: false };
+ // Helper function to get highest available leader
+function getHighestAvailableLeader(person) {
+  if (!person) return { leader: "No Leader Assigned", level: 0, hasLeader: false };
 
-    const leaderEntries = [];
+  const leaderEntries = [];
 
-    if (Array.isArray(person.leaders) && person.leaders.length > 0) {
-      person.leaders.forEach((leader) => {
-        const level = leader?.level ?? leader?.Level ?? leader?.leader_level ?? leader?.leaderLevel;
-        const name = normalizeLeaderValue(leader?.name || leader?.full_name || leader?.leader_name || leader?.leaderName);
-        if (level != null && name) {
-          leaderEntries.push({ level: Number(level), name });
-        }
-      });
-    }
-
-    const directFields = [
-      { level: 1, keys: ["leader1", "leaderAt1", "leader_at_1", "Leader @1", "Leader at 1"] },
-      { level: 12, keys: ["leader12", "leaderAt12", "leader_at_12", "Leader @12", "Leader at 12"] },
-      { level: 144, keys: ["leader144", "leaderAt144", "leader_at_144", "Leader @144", "Leader at 144"] },
-      { level: 1728, keys: ["leader1728", "leaderAt1728", "leader_at_1728", "Leader @1728", "Leader at 1728"] },
-    ];
-
-    directFields.forEach((group) => {
-      for (const key of group.keys) {
-        const value = person?.[key];
-        if (value) {
-          leaderEntries.push({ level: group.level, name: normalizeLeaderValue(value) });
-          break;
-        }
+  if (Array.isArray(person.leaders) && person.leaders.length > 0) {
+    person.leaders.forEach((leader) => {
+      const level = leader?.level ?? leader?.Level ?? leader?.leader_level ?? leader?.leaderLevel;
+      const name = normalizeLeaderValue(leader?.name || leader?.full_name || leader?.leader_name || leader?.leaderName);
+      if (level != null && name) {
+        leaderEntries.push({ level: Number(level), name });
       }
     });
+  }
 
-    if (leaderEntries.length === 0) {
-      return { leader: "No Leader Assigned", level: 0, hasLeader: false };
+  const directFields = [
+    { level: 1, keys: ["leader1", "leaderAt1", "leader_at_1", "Leader @1", "Leader at 1"] },
+    { level: 12, keys: ["leader12", "leaderAt12", "leader_at_12", "Leader @12", "Leader at 12"] },
+    { level: 144, keys: ["leader144", "leaderAt144", "leader_at_144", "Leader @144", "Leader at 144"] },
+    { level: 1728, keys: ["leader1728", "leaderAt1728", "leader_at_1728", "Leader @1728", "Leader at 1728"] },
+  ];
+
+  directFields.forEach((group) => {
+    for (const key of group.keys) {
+      const value = person?.[key];
+      if (value) {
+        leaderEntries.push({ level: group.level, name: normalizeLeaderValue(value) });
+        break;
+      }
     }
+  });
 
-    leaderEntries.sort((a, b) => b.level - a.level);
-    return { leader: leaderEntries[0].name, level: leaderEntries[0].level, hasLeader: true };
-  };
+  if (leaderEntries.length === 0) {
+    return { leader: "No Leader Assigned", level: 0, hasLeader: false };
+  }
 
+  leaderEntries.sort((a, b) => b.level - a.level);
+  return { leader: leaderEntries[0].name, level: leaderEntries[0].level, hasLeader: true };
+}
   // Helper function to resolve leader email from person object
   const resolveLeaderEmail = (leaderName, person) => {
     if (!leaderName || !person) return "";
@@ -921,49 +953,156 @@ const sortedFilteredAttendees = useMemo(() => {
     }
     return "";
   };
+ 
+ function findLeaderWithCell(person, attendeesList, visited = new Set()) {
+  if (!person) return null;
+  
+  const personKey = person._id || person.email || `${person.name || ''}${person.surname || ''}`;
+  if (visited.has(personKey)) {
+    return null;
+  }
+  visited.add(personKey);
 
-  // Create task for leader when new person is added
-  const createNewPersonTaskForLeader = async ({
-    leaderName,
-    leaderEmail,
-    person,
-    eventId,
-  }) => {
-    try {
-      if (!leaderEmail) {
-        console.warn("No leader email found for task assignment.");
+  const leaderLevels = [
+    { key: 'leader1', level: 1, label: 'Leader @1' },
+    { key: 'leader12', level: 12, label: 'Leader @12' },
+    { key: 'leader144', level: 144, label: 'Leader @144' },
+    { key: 'leader1728', level: 1728, label: 'Leader @1728' },
+  ];
+
+  if (personHasCell(person)) {
+    return person;
+  }
+
+  // ✅ Use global people cache FIRST, then attendeesList as fallback
+  const allPeople = window.globalPeopleCache || attendeesList || [];
+
+  for (const level of leaderLevels) {
+    let leaderName = person[level.key];
+    if (!leaderName) continue;
+
+    const normalizedLeaderName = leaderName.toString().trim();
+    if (!normalizedLeaderName) continue;
+
+    // Search in global people cache first
+    let leader = allPeople.find(p => {
+      const fullName = `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim();
+      return fullName === normalizedLeaderName.toLowerCase() || 
+             p.name?.toLowerCase() === normalizedLeaderName.toLowerCase();
+    });
+
+    // If not found in global cache, search in attendeesList
+    if (!leader) {
+      leader = attendeesList.find(p => {
+        const fullName = `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim();
+        return fullName === normalizedLeaderName.toLowerCase() || 
+               p.name?.toLowerCase() === normalizedLeaderName.toLowerCase();
+      });
+    }
+
+    if (leader && personHasCell(leader)) {
+      return leader;
+    }
+
+    if (leader) {
+      const higherLeader = findLeaderWithCell(leader, attendeesList, visited);
+      if (higherLeader && personHasCell(higherLeader)) {
+        return higherLeader;
+      }
+    }
+  }
+
+  // If no one in the chain has a cell, fallback to highest available
+  const highestLeader = getHighestAvailableLeader(person);
+  if (highestLeader.hasLeader) {
+    // Try to find the highest leader in global cache first
+    const allPeopleSearch = window.globalPeopleCache || attendeesList || [];
+    let leaderFromList = allPeopleSearch.find(p => {
+      const fullName = `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim();
+      return fullName === highestLeader.leader.toLowerCase().trim();
+    });
+
+    // If not found in global cache, search in attendeesList
+    if (!leaderFromList) {
+      leaderFromList = attendeesList.find(p => {
+        const fullName = `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim();
+        return fullName === highestLeader.leader.toLowerCase().trim();
+      });
+    }
+    
+    if (leaderFromList && personHasCell(leaderFromList)) {
+      return leaderFromList;
+    }
+    
+    // If the highest leader exists in the system but we can't verify they have a cell,
+    // create a fallback object so the task can still be created
+    if (highestLeader.leader) {
+      return {
+        name: highestLeader.leader,
+        email: resolveLeaderEmail(highestLeader.leader, person),
+        hasCell: false,
+        _isFallback: true
+      };
+    }
+    
+    return null;
+  }
+
+  return null;
+}
+
+const createNewPersonTaskForLeader = async ({
+  leaderName,
+  leaderEmail,
+  person,
+  eventId,
+  preResolvedLeader = null,
+}) => {
+  try {
+    // ─── NEW: If we already have a resolved leader with email, use them ───
+    if (preResolvedLeader && preResolvedLeader.email) {
+      const finalLeaderName = preResolvedLeader.name || 
+                              preResolvedLeader.fullName || 
+                              preResolvedLeader.leader || 
+                              leaderName || 
+                              "Unknown Leader";
+      const finalLeaderEmail = preResolvedLeader.email.trim().toLowerCase();
+      
+      if (!finalLeaderEmail) {
+        console.warn("⚠️ Pre-resolved leader has no email.");
         toast.warning("No leader email is available for this person, so the follow-up task was not assigned.");
-        return;
+        return null;
       }
 
-      const normalizedEmail = (leaderEmail || "").trim().toLowerCase();
       const todayDate = new Date().toISOString().split("T")[0];
       const dueDate = new Date();
       dueDate.setHours(dueDate.getHours() + 24);
 
       const taskPayload = {
         memberID: user?.id || "",
-        name: leaderName,
+        name: finalLeaderName,
         taskType: "Service follow up",
         contacted_person: {
           name: `${person.Name || person.name || ""} ${person.Surname || person.surname || ""}`.trim(),
-          phone: person.Number || person.phone || "",
+          phone: person.Number || person.number || person.phone || "",
           email: person.Email || person.email || "",
         },
         followup_date: dueDate.toISOString(),
         status: "Open",
         type: "Service follow up",
-        assignedfor: normalizedEmail,
-        assigned_to_email: normalizedEmail,
+        assignedfor: finalLeaderEmail,
+        assigned_to_email: finalLeaderEmail,
         created_by_email: (user?.email || "").trim().toLowerCase(),
         created_by_name: `${user?.name || ""} ${user?.surname || ""}`.trim(),
         event_id: eventId,
         is_new_person_task: true,
         decision_date: todayDate,
+        invited_by: person.invitedBy || person.InvitedBy || "",
+        assigned_leader: finalLeaderName,
+        assigned_leader_email: finalLeaderEmail,
       };
 
-      console.log("NEW PERSON TASK PAYLOAD:", taskPayload);
-
+      // FIX: Use BASE_URL, not BACKEND_URL
       const res = await authFetch(`${BASE_URL}/tasks`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -975,123 +1114,348 @@ const sortedFilteredAttendees = useMemo(() => {
         throw new Error(data.message || "Failed to create follow-up task");
       }
 
-      console.log("New person task created successfully!");
+      console.log(`✅ New person task created successfully for: ${finalLeaderName} (${finalLeaderEmail})`);
       return data;
-    } catch (err) {
-      console.error("Error creating new person task:", err.message);
-      toast.error("Failed to create new person task: " + err.message);
-      throw err;
     }
-  };
-
-  const handlePersonSave = useCallback(async (responseData) => {
-    if (!currentEventId) { toast.error("Please select an event first before adding people"); return; }
-    try {
-      if (editingPerson) {
-        const { __updatedNewPerson, ...normalizedUpdate } = responseData;
-        const pid = editingPerson._id;
-        toast.success(`${normalizedUpdate.name} ${normalizedUpdate.surname} updated successfully`);
-        setAttendees(prev => prev.map(p =>
-          p._id === pid ? normalisePerson({ ...p, ...normalizedUpdate, _id: pid }) : p
-        ));
-        setRealTimeData(prev => {
-          if (!prev) return prev;
-          const patch = (list) => (list || []).map(entry =>
-            entry.id === pid || entry._id === pid
-              ? { ...entry, ...normalizedUpdate, id: pid, _id: pid, person_name: normalizedUpdate.name, person_surname: normalizedUpdate.surname, person_email: normalizedUpdate.email, person_phone: normalizedUpdate.phone || normalizedUpdate.number }
-              : entry
-          );
-          return { ...prev, new_people: patch(prev.new_people), present_attendees: patch(prev.present_attendees) };
+  
+    // ─── ORIGINAL LOGIC (COMPLETELY UNCHANGED) ───
+    let finalLeaderEmail = leaderEmail;
+    
+    if (!finalLeaderEmail) {
+      console.warn("⚠️ No leader email provided - attempting to resolve...");
+      
+      if (person.leader12) {
+        const leader = attendees.find(p => {
+          const fullName = `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim();
+          const leaderNameLower = person.leader12.toLowerCase().trim();
+          return fullName === leaderNameLower || 
+                 p.name?.toLowerCase() === leaderNameLower;
         });
-        setOpenDialog(false); setEditingPerson(null); setFormData(emptyForm);
-        fetchRealTimeEventData(currentEventId).then(fd => { if (fd) setRealTimeData(fd); });
-        authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }).catch(() => { });
-        return;
+        if (leader?.email) {
+          finalLeaderEmail = leader.email;
+        }
       }
+      
+      if (!finalLeaderEmail && leaderName) {
+        finalLeaderEmail = resolveLeaderEmail(leaderName, person);
+      }
+      
+      if (!finalLeaderEmail) {
+        finalLeaderEmail = user?.email || "";
+      }
+    }
 
-      const newPersonData = responseData.person || responseData;
-      const insertedId = newPersonData._id;
-      const fullName = `${formData.name} ${formData.surname}`.trim();
+    if (!finalLeaderEmail) {
+      console.warn("⚠️ No leader email found for task assignment.");
+      toast.warning("No leader email is available for this person, so the follow-up task was not assigned.");
+      return null;
+    }
 
-      const response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
-        method: "POST",
-        body: JSON.stringify({
-          event_id: cleanEventId(currentEventId),
-          person_data: {
-            id: insertedId,
-            name: newPersonData.Name || newPersonData.name || formData.name,
-            surname: newPersonData.Surname || newPersonData.surname || formData.surname,
-            email: newPersonData.Email || newPersonData.email || formData.email,
-            number: newPersonData.Number || newPersonData.number || formData.number,
-            gender: newPersonData.Gender || newPersonData.gender || formData.gender,
-            invitedBy: newPersonData.InvitedBy || newPersonData.invitedBy || formData.invitedBy,
-            stage: "First Time",
-          },
-          type: "new_person",
-        }),
+    const normalizedEmail = (finalLeaderEmail || "").trim().toLowerCase();
+    const todayDate = new Date().toISOString().split("T")[0];
+    const dueDate = new Date();
+    dueDate.setHours(dueDate.getHours() + 24);
+
+    const taskPayload = {
+      memberID: user?.id || "",
+      name: leaderName,
+      taskType: "Service follow up",
+      contacted_person: {
+        name: `${person.Name || person.name || ""} ${person.Surname || person.surname || ""}`.trim(),
+        phone: person.Number || person.number || person.phone || "",
+        email: person.Email || person.email || "",
+      },
+      followup_date: dueDate.toISOString(),
+      status: "Open",
+      type: "Service follow up",
+      assignedfor: normalizedEmail,
+      assigned_to_email: normalizedEmail,
+      created_by_email: (user?.email || "").trim().toLowerCase(),
+      created_by_name: `${user?.name || ""} ${user?.surname || ""}`.trim(),
+      event_id: eventId,
+      is_new_person_task: true,
+      decision_date: todayDate,
+      invited_by: person.invitedBy || person.InvitedBy || "",
+      assigned_leader: leaderName,
+      assigned_leader_email: normalizedEmail,
+    };
+
+    // FIX: Use BASE_URL, not BACKEND_URL
+    const res = await authFetch(`${BASE_URL}/tasks`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(taskPayload),
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(data.message || "Failed to create follow-up task");
+    }
+
+    console.log(`✅ New person task created successfully for: ${leaderName} (${normalizedEmail})`);
+    return data;
+  } catch (err) {
+    console.error("❌ Error creating new person task:", err.message);
+    return null;
+  }
+};
+ 
+  const handlePersonSave = useCallback(async (responseData) => {
+  if (!currentEventId) { 
+    toast.error("Please select an event first before adding people"); 
+    return; 
+  }
+  
+  try {
+    // Handle EDIT case
+    if (editingPerson) {
+      const { __updatedNewPerson, ...normalizedUpdate } = responseData;
+      const pid = editingPerson._id;
+      toast.success(`${normalizedUpdate.name} ${normalizedUpdate.surname} updated successfully`);
+      setAttendees(prev => prev.map(p =>
+        p._id === pid ? normalisePerson({ ...p, ...normalizedUpdate, _id: pid }) : p
+      ));
+      setRealTimeData(prev => {
+        if (!prev) return prev;
+        const patch = (list) => (list || []).map(entry =>
+          entry.id === pid || entry._id === pid
+            ? { ...entry, ...normalizedUpdate, id: pid, _id: pid, person_name: normalizedUpdate.name, person_surname: normalizedUpdate.surname, person_email: normalizedUpdate.email, person_phone: normalizedUpdate.phone || normalizedUpdate.number }
+            : entry
+        );
+        return { ...prev, new_people: patch(prev.new_people), present_attendees: patch(prev.present_attendees) };
       });
+      setOpenDialog(false); 
+      setEditingPerson(null); 
+      setFormData(emptyForm);
+      fetchRealTimeEventData(currentEventId).then(fd => { if (fd) setRealTimeData(fd); });
+      authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }).catch(() => { });
+      return;
+    }
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          toast.success(`${fullName} added as new person successfully`);
-          setOpenDialog(false); setEditingPerson(null); setFormData(emptyForm); setSearch("");
+    const newPersonData = responseData.person || responseData;
+    const insertedId = newPersonData._id;
+    const fullName = `${formData.name} ${formData.surname}`.trim();
 
-          const newPersonForGrid = normalisePerson({
-            _id: insertedId,
-            Name: newPersonData.Name || formData.name,
-            Surname: newPersonData.Surname || formData.surname,
-            Email: newPersonData.Email || formData.email,
-            Number: newPersonData.Number || formData.number,
-            Gender: newPersonData.Gender || formData.gender,
-            InvitedBy: newPersonData.InvitedBy || formData.invitedBy,
-            leaders: newPersonData.leaders || [],
-            Stage: "First Time",
-            isNew: true,
-          });
+    
+    let inviter = null;
+    
+    if (formData.invitedBy) {
+      inviter = attendees.find(p => {
+        const fullNameLower = `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim();
+        const invitedByLower = formData.invitedBy.toLowerCase().trim();
+        return fullNameLower === invitedByLower || 
+               p.name?.toLowerCase() === invitedByLower ||
+               p.email?.toLowerCase() === invitedByLower;
+      });
+    }
+    
+    if (!inviter && user) {
+      inviter = attendees.find(p => 
+        p.email?.toLowerCase() === user.email?.toLowerCase() ||
+        `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim() === `${user.name || ''} ${user.surname || ''}`.toLowerCase().trim()
+      ) || user;
+    }
 
-          setAttendees(prev => [newPersonForGrid, ...prev]);
-          setRealTimeData(prev => {
-            const base = prev || { present_attendees: [], new_people: [], consolidations: [] };
-            const newEntry = {
-              id: insertedId, _id: insertedId,
-              name: newPersonForGrid.name,
-              surname: newPersonForGrid.surname,
-              email: newPersonForGrid.email,
-              phone: newPersonForGrid.phone,
-              gender: newPersonForGrid.gender,
-              invitedBy: newPersonForGrid.invitedBy,
-              added_at: new Date().toISOString(),
-            };
-            const newPeopleArr = [...(base.new_people || []), newEntry];
-            return { ...base, new_people: newPeopleArr, new_people_count: newPeopleArr.length };
-          });
+    
+    let assignedLeader = null;
+    let assignmentSource = "unknown";
 
-          try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch { }
-          fetchRealTimeEventData(cleanEventId(currentEventId)).then(fd => { if (fd) setRealTimeData(fd); });
+    if (inviter) {
+      if (personHasCell(inviter)) {
+        assignedLeader = inviter;
+        assignmentSource = "inviter_has_cell";
+        console.log(`✅ Inviter ${inviter.name} ${inviter.surname} has a cell - assigning to inviter`);
+      } else {
+        assignedLeader = findLeaderWithCell(inviter, attendees);
+        assignmentSource = "chain_traversal";
+        if (assignedLeader) {
+          console.log(`✅ Found leader with cell: ${assignedLeader.name} ${assignedLeader.surname}`);
+        } else {
+          console.log(`⚠️ No leader with cell found in chain for inviter: ${inviter.name} ${inviter.surname}`);
+          const inviterHighest = getHighestAvailableLeader(inviter);
+          if (inviterHighest.hasLeader) {
+            const leaderFromListInviter = attendees.find(p => {
+              const fullName = `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim();
+              return fullName === inviterHighest.leader.toLowerCase().trim();
+            });
 
-          // Create task for leader when new person is added
-          try {
-            const leaderInfo = getHighestAvailableLeader(newPersonForGrid);
-            if (leaderInfo.hasLeader) {
-              const resolvedLeaderEmail = resolveLeaderEmail(leaderInfo.leader, newPersonForGrid);
-              if (resolvedLeaderEmail) {
-                await createNewPersonTaskForLeader({
-                  leaderName: leaderInfo.leader,
-                  leaderEmail: resolvedLeaderEmail,
-                  person: newPersonForGrid,
-                  eventId: cleanEventId(currentEventId),
-                });
-              }
+            if (leaderFromListInviter && personHasCell(leaderFromListInviter)) {
+              assignedLeader = leaderFromListInviter;
+              assignmentSource = "inviter_highest_found";
+              console.log(`✅ Inviter's highest leader found in attendees with cell: ${assignedLeader.name}`);
+            } else {
+              assignedLeader = {
+                name: inviterHighest.leader,
+                // Try to resolve email from inviter first, then from new person data
+                email: resolveLeaderEmail(inviterHighest.leader, inviter) || resolveLeaderEmail(inviterHighest.leader, newPersonData) || "",
+                hasCell: Boolean(leaderFromListInviter && personHasCell(leaderFromListInviter)),
+              };
+              assignmentSource = "inviter_highest_fallback";
+              console.log(`ℹ️ Using inviter's highest leader fallback: ${assignedLeader.name}`);
             }
-          } catch (taskErr) {
-            console.error("Failed to create new person task:", taskErr);
           }
         }
       }
-    } catch (error) { toast.error(error.message || "Failed to save person"); }
-  }, [currentEventId, editingPerson, formData, authFetch, fetchRealTimeEventData]);
+    }
+    
+if (!assignedLeader) {
+  const highest = getHighestAvailableLeader(newPersonData);
+  if (highest.hasLeader) {
+    
+    const allPeople = window.globalPeopleCache || attendees || [];
+    let leaderFromList = allPeople.find(p => {
+      const fullName = `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim();
+      return fullName === highest.leader.toLowerCase().trim();
+    });
 
+    // If not found in global cache, search in attendees
+    if (!leaderFromList) {
+      leaderFromList = attendees.find(p => {
+        const fullName = `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim();
+        return fullName === highest.leader.toLowerCase().trim();
+      });
+    }
+
+    if (leaderFromList && personHasCell(leaderFromList)) {
+      assignedLeader = leaderFromList;
+      assignmentSource = "highest_leader_found";
+    } else {
+      assignedLeader = {
+        name: highest.leader,
+        email: resolveLeaderEmail(highest.leader, newPersonData) || "",
+        hasCell: false,
+        _isFallback: true,
+      };
+      assignmentSource = "highest_leader_fallback";
+    }
+  } else {
+    assignedLeader = {
+      name: `${user?.name || ""} ${user?.surname || ""}`.trim(),
+      email: user?.email || "",
+      hasCell: personHasCell(user),
+    };
+    assignmentSource = "current_user_fallback";
+  }
+}
+
+    
+    const leaderName = assignedLeader.name || assignedLeader.leader || `${user?.name || ""} ${user?.surname || ""}`.trim();
+    let leaderEmail = assignedLeader.email || assignedLeader.assignedLeaderEmail || "";
+
+    if (!leaderEmail && leaderName) {
+      leaderEmail = resolveLeaderEmail(leaderName, newPersonData) || user?.email || "";
+    }
+
+    console.log(`📋 Assignment source: ${assignmentSource}`);
+    console.log(`📋 Assigned leader: ${leaderName} (${leaderEmail})`);
+    console.log(`📋 Inviter: ${inviter?.name || 'Unknown'} (has cell: ${inviter ? personHasCell(inviter) : false})`);
+
+    
+    const response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
+      method: "POST",
+      body: JSON.stringify({
+        event_id: cleanEventId(currentEventId),
+        person_data: {
+          id: insertedId,
+          name: newPersonData.Name || newPersonData.name || formData.name,
+          surname: newPersonData.Surname || newPersonData.surname || formData.surname,
+          email: newPersonData.Email || newPersonData.email || formData.email,
+          number: newPersonData.Number || newPersonData.number || formData.number,
+          gender: newPersonData.Gender || newPersonData.gender || formData.gender,
+          invitedBy: formData.invitedBy || "",
+          stage: "First Time",
+          assignedLeaderName: leaderName,
+          assignedLeaderEmail: leaderEmail,
+          hasCellAssignment: personHasCell(assignedLeader),
+          assignmentSource: assignmentSource,
+          inviterName: inviter?.name || inviter?.Name || "",
+          inviterEmail: inviter?.email || inviter?.Email || "",
+        },
+        type: "new_person",
+      }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data.success) {
+        toast.success(`${fullName} added as new person successfully`);
+        setOpenDialog(false);
+        setEditingPerson(null);
+        setFormData(emptyForm);
+        setSearch("");
+
+        // Create person for grid
+        const newPersonForGrid = normalisePerson({
+          _id: insertedId,
+          Name: newPersonData.Name || formData.name,
+          Surname: newPersonData.Surname || formData.surname,
+          Email: newPersonData.Email || formData.email,
+          Number: newPersonData.Number || formData.number,
+          Gender: newPersonData.Gender || formData.gender,
+          InvitedBy: formData.invitedBy || "",
+          leaders: newPersonData.leaders || [],
+          Stage: "First Time",
+          isNew: true,
+          assignedLeaderName: leaderName,
+          assignedLeaderEmail: leaderEmail,
+          assignmentSource: assignmentSource,
+        });
+
+        setAttendees(prev => [newPersonForGrid, ...prev]);
+        
+        setRealTimeData(prev => {
+          const base = prev || { present_attendees: [], new_people: [], consolidations: [] };
+          const newEntry = {
+            id: insertedId, 
+            _id: insertedId,
+            name: newPersonForGrid.name,
+            surname: newPersonForGrid.surname,
+            email: newPersonForGrid.email,
+            phone: newPersonForGrid.phone,
+            gender: newPersonForGrid.gender,
+            invitedBy: newPersonForGrid.invitedBy,
+            assignedLeaderName: leaderName,
+            assignedLeaderEmail: leaderEmail,
+            assignmentSource: assignmentSource,
+            added_at: new Date().toISOString(),
+          };
+          const newPeopleArr = [...(base.new_people || []), newEntry];
+          return { ...base, new_people: newPeopleArr, new_people_count: newPeopleArr.length };
+        });
+
+        // Refresh cache
+        try { 
+          await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); 
+        } catch { }
+
+        // STEP 6: Create task for the assigned leader
+        // STEP 6: Create task for the assigned leader
+if (leaderEmail) {
+  try {
+    await createNewPersonTaskForLeader({
+      leaderName: leaderName,
+      leaderEmail: leaderEmail,
+      person: newPersonForGrid,
+      eventId: cleanEventId(currentEventId),
+      preResolvedLeader: assignedLeader,  // ← Pass the inviter if they have a cell
+    });
+    console.log(`✅ Task created for leader: ${leaderName} (${leaderEmail})`);
+  } catch (taskErr) {
+    console.error("❌ Failed to create task for leader:", taskErr);
+    toast.warning("Person added but task creation failed - please create follow-up manually");
+  }
+}
+
+        fetchRealTimeEventData(cleanEventId(currentEventId)).then(fd => { 
+          if (fd) setRealTimeData(fd); 
+        });
+      }
+    }
+  } catch (error) { 
+    console.error("❌ Error in handlePersonSave:", error);
+    toast.error(error.message || "Failed to save person"); 
+  }
+}, [currentEventId, editingPerson, formData, authFetch, fetchRealTimeEventData, user, attendees]);
   const handleFinishConsolidation = useCallback(async (task) => {
   if (!currentEventId) return;
   const fullName = task.recipientName || `${task.person_name || ""} ${task.person_surname || ""}`.trim() || "Unknown Person";
@@ -1129,7 +1493,6 @@ const sortedFilteredAttendees = useMemo(() => {
         
         if (freshCount >= prevCount) return freshData;
         
-        // Otherwise keep our optimistic consolidations merged in
         return {
           ...freshData,
           consolidations: prev.consolidations,

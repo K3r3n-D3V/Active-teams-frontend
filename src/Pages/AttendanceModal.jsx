@@ -25,7 +25,7 @@ const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
 ).toLowerCase();
 
-const AddPersonToEvents = ({ isOpen, onClose }) => {
+const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded, event }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   console.log("AddPersonToEvents - isDarkMode:", isDarkMode);
@@ -316,6 +316,10 @@ const AddPersonToEvents = ({ isOpen, onClose }) => {
       const result = await response.json();
       console.log("Person created:", result);
       toast.success("Person created successfully!");
+
+      if (typeof onPersonAdded === "function") {
+        await onPersonAdded(result.person || result);
+      }
 
       await authFetch(`${BACKEND_URL}/cache/people/refresh`, {
         method: "POST",
@@ -3260,6 +3264,8 @@ const AttendanceModal = ({
   const handlePersonAdded = async (newPerson) => {
     console.log("New person added:", newPerson);
 
+    const personData = newPerson?.person || newPerson;
+
     // Refresh backend cache and clear local cache
     refreshGlobalPeopleCache();
     clearGlobalPeopleCache();
@@ -3270,25 +3276,27 @@ const AttendanceModal = ({
       fetchCommonAttendees(event._id || event.id);
     }
     setShowAddPersonModal(false);
-    toast.success(`${newPerson.Name} ${newPerson.Surname} added successfully!`);
+    toast.success(
+      `${personData.Name || personData.name} ${personData.Surname || personData.surname} added successfully!`,
+    );
 
     // Build person object from the created person response
     const createdPerson = {
       fullName:
-        `${newPerson.Name || newPerson.name || ""} ${newPerson.Surname || newPerson.surname || ""}`.trim(),
-      email: newPerson.Email || newPerson.email || "",
-      phone: newPerson.Number || newPerson.phone || "",
+        `${personData.Name || personData.name || ""} ${personData.Surname || personData.surname || ""}`.trim(),
+      email: personData.Email || personData.email || "",
+      phone: personData.Number || personData.phone || "",
       // Correct field mapping from POST /people response
-      leader12: newPerson["Leader @12"] || newPerson.leader12 || "",
-      leader144: newPerson["Leader @144"] || newPerson.leader144 || "",
-      leader1: newPerson["Leader @1"] || newPerson.leader1 || "",
+      leader12: personData["Leader @12"] || personData.leader12 || "",
+      leader144: personData["Leader @144"] || personData.leader144 || "",
+      leader1: personData["Leader @1"] || personData.leader1 || "",
       // Pass through the leaders array if returned, for resolveLeaderEmail
-      leaders: newPerson.leaders || [],
+      leaders: personData.leaders || [],
       // Pass through raw fields for createCellConsolidationTaskForLeader
-      Name: newPerson.Name || newPerson.name || "",
-      Surname: newPerson.Surname || newPerson.surname || "",
-      Email: newPerson.Email || newPerson.email || "",
-      Number: newPerson.Number || newPerson.phone || "",
+      Name: personData.Name || personData.name || "",
+      Surname: personData.Surname || personData.surname || "",
+      Email: personData.Email || personData.email || "",
+      Number: personData.Number || personData.phone || "",
     };
 
     // Resolve the event ID for the consolidation record
