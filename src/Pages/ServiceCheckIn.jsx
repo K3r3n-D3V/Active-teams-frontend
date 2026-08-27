@@ -125,37 +125,6 @@ function normalisePerson(p) {
 /**
  * Determines if a person has a cell
  */
-const personHasCell = (person) => {
-  if (!person) return false;
-
-  // 1. Explicit cell ID - they have a cell
-  const hasCellId = person.cell_id || person.cellId || person.cell;
-  if (hasCellId) return true;
-
-  // 2. They are marked as a cell leader
-  const isCellLeader = 
-    person.stage === "Cell Leader" || 
-    person.role === "cell_leader" ||
-    person.isCellLeader === true ||
-    person.isCellLeader === "true";
-
-  if (isCellLeader) return true;
-
-  // 3. They have a cell name or cell number
-  const hasCellName = person.cellName || person.cell_name || person.cellNumber;
-  if (hasCellName) return true;
-
-  // 4. They are explicitly listed as having a cell in their data
-  const hasCellFlag = 
-    person.hasCell === true || 
-    person.hasCell === "true" ||
-    person.is_cell_leader === true;
-
-  if (hasCellFlag) return true;
-
-  return false;
-};
-
 const emptyForm = {
   name: "", surname: "", email: "", phone: "", number: "", gender: "",
   invitedBy: "", leader1: "", leader12: "", leader144: "",
@@ -177,6 +146,43 @@ function ServiceCheckIn() {
   const [currentEventId, setCurrentEventId] = useState("");
   const [eventSearch, setEventSearch] = useState("");
   const [events, setEvents] = useState([]);
+  const personHasCell = useCallback((person) => {
+    if (!person) return false;
+
+    const hasStaticCell =
+      person.cell_id || person.cellId || person.cell ||
+      person.stage === "Cell Leader" ||
+      person.role === "cell_leader" ||
+      person.isCellLeader === true ||
+      person.isCellLeader === "true" ||
+      person.cellName || person.cell_name ||
+      person.hasCell === true ||
+      person.hasCell === "true" ||
+      person.is_cell_leader === true;
+
+    if (hasStaticCell) return true;
+
+    const personFullName = `${person.name || ''} ${person.surname || ''}`.trim().toLowerCase();
+    const personEmail = (person.email || '').toLowerCase();
+    const cellEvents = events.filter(e => {
+      const typeName = (e.eventType || '').toLowerCase();
+      return typeName === 'cells' || typeName === 'cell' || typeName === 'all cells';
+    });
+
+    for (const event of cellEvents) {
+      const eventLeader = (event.Leader || event.eventLeader || event.eventLeaderName || '').toLowerCase().trim();
+      const eventEmail = (event.Email || event.eventLeaderEmail || '').toLowerCase().trim();
+
+      if (personFullName === eventLeader || personEmail === eventEmail) return true;
+
+      const leader12 = (event['Leader at 12'] || event['Leader @12'] || '').toLowerCase().trim();
+      const leader144 = (event['Leader at 144'] || event['Leader @144'] || '').toLowerCase().trim();
+
+      if (personFullName === leader12 || personFullName === leader144) return true;
+    }
+
+    return false;
+  }, [events]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(100);
@@ -1045,21 +1051,79 @@ function getHighestAvailableLeader(person) {
   return null;
 }
 
- // Create task for leader when new person is added
 const createNewPersonTaskForLeader = async ({
   leaderName,
   leaderEmail,
   person,
   eventId,
+  preResolvedLeader = null,
 }) => {
   try {
+    // ─── NEW: If we already have a resolved leader with email, use them ───
+    if (preResolvedLeader && preResolvedLeader.email) {
+      const finalLeaderName = preResolvedLeader.name || 
+                              preResolvedLeader.fullName || 
+                              preResolvedLeader.leader || 
+                              leaderName || 
+                              "Unknown Leader";
+      const finalLeaderEmail = preResolvedLeader.email.trim().toLowerCase();
+      
+      if (!finalLeaderEmail) {
+        console.warn("⚠️ Pre-resolved leader has no email.");
+        toast.warning("No leader email is available for this person, so the follow-up task was not assigned.");
+        return null;
+      }
+
+      const todayDate = new Date().toISOString().split("T")[0];
+      const dueDate = new Date();
+      dueDate.setHours(dueDate.getHours() + 24);
+
+      const taskPayload = {
+        memberID: user?.id || "",
+        name: finalLeaderName,
+        taskType: "Service follow up",
+        contacted_person: {
+          name: `${person.Name || person.name || ""} ${person.Surname || person.surname || ""}`.trim(),
+          phone: person.Number || person.number || person.phone || "",
+          email: person.Email || person.email || "",
+        },
+        followup_date: dueDate.toISOString(),
+        status: "Open",
+        type: "Service follow up",
+        assignedfor: finalLeaderEmail,
+        assigned_to_email: finalLeaderEmail,
+        created_by_email: (user?.email || "").trim().toLowerCase(),
+        created_by_name: `${user?.name || ""} ${user?.surname || ""}`.trim(),
+        event_id: eventId,
+        is_new_person_task: true,
+        decision_date: todayDate,
+        invited_by: person.invitedBy || person.InvitedBy || "",
+        assigned_leader: finalLeaderName,
+        assigned_leader_email: finalLeaderEmail,
+      };
+
+      // FIX: Use BASE_URL, not BACKEND_URL
+      const res = await authFetch(`${BASE_URL}/tasks`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(taskPayload),
+      });
+
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message || "Failed to create follow-up task");
+      }
+
+      console.log(`✅ New person task created successfully for: ${finalLeaderName} (${finalLeaderEmail})`);
+      return data;
+    }
+  
+    // ─── ORIGINAL LOGIC (COMPLETELY UNCHANGED) ───
     let finalLeaderEmail = leaderEmail;
     
-    // If no leader email provided, try to find it
     if (!finalLeaderEmail) {
       console.warn("⚠️ No leader email provided - attempting to resolve...");
       
-      // Try to find the leader's email from the person data or attendees
       if (person.leader12) {
         const leader = attendees.find(p => {
           const fullName = `${p.name || ''} ${p.surname || ''}`.toLowerCase().trim();
@@ -1072,12 +1136,10 @@ const createNewPersonTaskForLeader = async ({
         }
       }
       
-      // If still no email, try to resolve from the leader name
       if (!finalLeaderEmail && leaderName) {
         finalLeaderEmail = resolveLeaderEmail(leaderName, person);
       }
       
-      // Ultimate fallback: use the current user's email
       if (!finalLeaderEmail) {
         finalLeaderEmail = user?.email || "";
       }
@@ -1093,8 +1155,6 @@ const createNewPersonTaskForLeader = async ({
     const todayDate = new Date().toISOString().split("T")[0];
     const dueDate = new Date();
     dueDate.setHours(dueDate.getHours() + 24);
-
-    const inviterName = person.invitedBy || person.InvitedBy || "Unknown";
 
     const taskPayload = {
       memberID: user?.id || "",
@@ -1115,13 +1175,12 @@ const createNewPersonTaskForLeader = async ({
       event_id: eventId,
       is_new_person_task: true,
       decision_date: todayDate,
-      invited_by: inviterName,
+      invited_by: person.invitedBy || person.InvitedBy || "",
       assigned_leader: leaderName,
       assigned_leader_email: normalizedEmail,
     };
 
-    console.log("📝 NEW PERSON TASK PAYLOAD:", taskPayload);
-
+    // FIX: Use BASE_URL, not BACKEND_URL
     const res = await authFetch(`${BASE_URL}/tasks`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1140,8 +1199,8 @@ const createNewPersonTaskForLeader = async ({
     return null;
   }
 };
-
- const handlePersonSave = useCallback(async (responseData) => {
+ 
+  const handlePersonSave = useCallback(async (responseData) => {
   if (!currentEventId) { 
     toast.error("Please select an event first before adding people"); 
     return; 
@@ -1370,23 +1429,22 @@ if (!assignedLeader) {
         } catch { }
 
         // STEP 6: Create task for the assigned leader
-        if (leaderEmail) {
-          try {
-            await createNewPersonTaskForLeader({
-              leaderName: leaderName,
-              leaderEmail: leaderEmail,
-              person: newPersonForGrid,
-              eventId: cleanEventId(currentEventId),
-            });
-            console.log(`✅ Task created for leader: ${leaderName} (${leaderEmail})`);
-          } catch (taskErr) {
-            console.error("❌ Failed to create task for leader:", taskErr);
-            toast.warning("Person added but task creation failed - please create follow-up manually");
-          }
-        } else {
-          console.warn("⚠️ No leader email found for task assignment");
-          toast.warning("Person added but no task created - missing leader email");
-        }
+        // STEP 6: Create task for the assigned leader
+if (leaderEmail) {
+  try {
+    await createNewPersonTaskForLeader({
+      leaderName: leaderName,
+      leaderEmail: leaderEmail,
+      person: newPersonForGrid,
+      eventId: cleanEventId(currentEventId),
+      preResolvedLeader: assignedLeader,  // ← Pass the inviter if they have a cell
+    });
+    console.log(`✅ Task created for leader: ${leaderName} (${leaderEmail})`);
+  } catch (taskErr) {
+    console.error("❌ Failed to create task for leader:", taskErr);
+    toast.warning("Person added but task creation failed - please create follow-up manually");
+  }
+}
 
         fetchRealTimeEventData(cleanEventId(currentEventId)).then(fd => { 
           if (fd) setRealTimeData(fd); 
