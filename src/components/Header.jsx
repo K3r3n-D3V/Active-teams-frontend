@@ -1,15 +1,15 @@
-import React, { useState } from "react";
+import React  from "react";
 import styles from "../styles/Header.module.css";
 
 export default function Home() {
 
 
   const sections = [
-    { image: "/image1.PNG" },
-    { image: "/img2.jpeg" },
-    { image: "/homebanner1.jpg" },
-    { image: "/home.jpg" },
-    { image: "/newimage.jpg" }, 
+    { image: "/imagenumberone.jpeg" },
+    { image: "/imagenumbertwo.jpeg" },
+    { image: "/imagenumberthree.jpeg" },
+    { image: "/imagenumberfour.jpeg" },
+    // { image: "/newimage.jpg" }, 
   ];
 
   return (
