@@ -1510,6 +1510,13 @@ const AttendanceModal = ({
       : originalEventId || rawId;
   };
 
+  const getBaseEventId = (eventObject) => {
+    const attendanceId = getAttendanceEventId(eventObject);
+    if (!attendanceId) return "";
+    const [baseId] = attendanceId.split("_");
+    return (eventObject?.original_event_id || baseId) || "";
+  };
+
   const resolveAssignedTo = (person) => {
     const leader144 = person?.leader144?.trim() || "";
     const leader12 = person?.leader12?.trim() || "";
@@ -1565,9 +1572,45 @@ const AttendanceModal = ({
       if (!response.ok)
         throw new Error(`Check-in save failed: ${response.status}`);
       const result = await response.json().catch(() => ({}));
+
+      if (personData.checked_in && overrides.checked_in === true) {
+        const baseId = getBaseEventId(event) || eventId;
+        try {
+          await authFetch(`${BACKEND_URL}/service-checkin/checkin`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              event_id: baseId,
+              person_data: {
+                id: person.id,
+                name: person.name || person.fullName || "",
+                surname: person.surname || "",
+                fullName: person.fullName || person.name || "",
+                email: person.email || "",
+                phone: person.phone || "",
+                number: person.phone || "",
+                leader12: person.leader12 || "",
+                leader144: person.leader144 || "",
+              },
+              type: "attendee",
+            }),
+          });
+        } catch {
+          console.warn(
+            "Service check-in sync failed for",
+            person.fullName || person.id,
+            "- ticketed attendance was still saved.",
+          );
+        }
+      }
+
       window.dispatchEvent(
         new CustomEvent("attendanceUpdated", {
-          detail: { eventId: attendanceId, personId: person.id },
+          detail: {
+            eventId: getBaseEventId(event),
+            attendanceEventId: attendanceId,
+            personId: person.id,
+          },
         }),
       );
       return result;
@@ -1724,8 +1767,8 @@ const AttendanceModal = ({
     const personSurname = nameParts.slice(1).join(" ") || "";
 
     const payload = {
-      person_name: personName,
-      person_surname: personSurname,
+      person_name: person.name || personName,
+      person_surname: person.surname || personSurname,
       person_email: person.email || "",
       person_phone: person.phone || "",
       decision_type: decisionType, // "first_time" or "recommitment"
@@ -1760,7 +1803,11 @@ const AttendanceModal = ({
 
     window.dispatchEvent(
       new CustomEvent("attendanceUpdated", {
-        detail: { eventId, personId: person.id },
+        detail: {
+          eventId: getBaseEventId(event),
+          attendanceEventId: eventId,
+          personId: person.id,
+        },
       }),
     );
     return { success: true, name: person.fullName };
@@ -2049,8 +2096,9 @@ const AttendanceModal = ({
       const data = await response.json();
 
       const persistentList = data.persistent_attendees || [];
+      const baseId = getBaseEventId(event) || cleanEventId(eventId);
       const liveResponse = await authFetch(
-        `${BACKEND_URL}/service-checkin/real-time-data?event_id=${encodeURIComponent(eventId)}`,
+        `${BACKEND_URL}/service-checkin/real-time-data?event_id=${encodeURIComponent(baseId)}`,
         { headers: { Authorization: `Bearer ${token}` } },
       );
       const liveData = liveResponse.ok ? await liveResponse.json() : {};
@@ -2198,8 +2246,12 @@ const AttendanceModal = ({
   useEffect(() => {
     if (!isOpen || !event) return;
     const eventId = getAttendanceEventId(event);
+    const baseEventId = getBaseEventId(event);
     const handleAttendanceUpdated = (updatedEvent) => {
-      if (updatedEvent.detail?.eventId !== eventId) return;
+      const detail = updatedEvent.detail || {};
+      const matchesBase = baseEventId && detail.eventId === baseEventId;
+      const matchesComposite = eventId && detail.attendanceEventId === eventId;
+      if (!matchesBase && !matchesComposite && detail.eventId !== eventId) return;
       loadPersistentAttendees(eventId);
     };
     window.addEventListener("attendanceUpdated", handleAttendanceUpdated);
@@ -2689,7 +2741,10 @@ const AttendanceModal = ({
       }
       window.dispatchEvent(
         new CustomEvent("attendanceUpdated", {
-          detail: { eventId },
+          detail: {
+            eventId: getBaseEventId(event),
+            attendanceEventId: eventId,
+          },
         }),
       );
       console.log(`Saved ${enriched.length} attendees to database`);

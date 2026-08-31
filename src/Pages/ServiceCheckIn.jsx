@@ -289,16 +289,24 @@ function ServiceCheckIn() {
           const attendanceData = attendeesArray.map(a => mapEntry(a));
           const newPeopleData = newPeopleArray.map(np => mapEntry(np, true));
           const consolidatedData = consolidationsArray.map(c => {
-            const id = c.person_id || c.id || c._id;
-            const fp = findPerson(id, c.person_email || c.email);
+            const nestedPerson = c.person_data || c.person || {};
+            const id = c.person_id || c.id || c._id || nestedPerson.id;
+            const email =
+              c.person_email || c.email || nestedPerson.email || nestedPerson.Email;
+            const fp = findPerson(id, email);
             return {
               ...c,
-              name: c.person_name || c.name || fp?.name || "",
-              surname: c.person_surname || c.surname || fp?.surname || "",
-              person_name: c.person_name || c.name || fp?.name || "",
-              person_surname: c.person_surname || c.surname || fp?.surname || "",
-              person_email: c.person_email || c.email || fp?.email || "",
-              person_phone: c.person_phone || c.phone || fp?.phone || "",
+              name:
+                c.person_name || c.name || nestedPerson.name || nestedPerson.Name || fp?.name || "",
+              surname:
+                c.person_surname || c.surname || nestedPerson.surname || nestedPerson.Surname || fp?.surname || "",
+              person_name:
+                c.person_name || c.name || nestedPerson.name || nestedPerson.Name || fp?.name || "",
+              person_surname:
+                c.person_surname || c.surname || nestedPerson.surname || nestedPerson.Surname || fp?.surname || "",
+              person_email: c.person_email || c.email || nestedPerson.email || nestedPerson.Email || fp?.email || "",
+              person_phone:
+                c.person_phone || c.phone || nestedPerson.phone || nestedPerson.Number || fp?.phone || "",
               assigned_to: c.assigned_to || c.assignedTo || "",
               decision_type: c.decision_type || c.consolidation_type || "Commitment",
               status: c.status || "active",
@@ -667,17 +675,52 @@ const sortedFilteredAttendees = useMemo(() => {
 
   const filteredConsolidatedPeople = useMemo(() => {
     const full = (realTimeData?.consolidations || []).map(cons => {
-      const fp = attendeeMap.get(cons.person_id) ||
+      const nestedPerson = cons.person_data || cons.person || {};
+      const personId = cons.person_id || nestedPerson.id || cons.id || cons._id;
+      const personEmail =
+        cons.person_email ||
+        cons.email ||
+        nestedPerson.email ||
+        nestedPerson.Email ||
+        "";
+      const fp =
+        attendeeMap.get(personId) ||
+        (personEmail
+          ? [...attendeeMap.values()].find(
+              a => a.email?.toLowerCase() === personEmail.toLowerCase(),
+            )
+          : null) ||
         attendees.find(a =>
-          a.name === (cons.person_name || cons.name) &&
-          a.surname === (cons.person_surname || cons.surname)
-        ) || {};
+          a.name === (cons.person_name || cons.name || nestedPerson.name) &&
+          a.surname === (cons.person_surname || cons.surname || nestedPerson.surname)
+        ) ||
+        {};
       return {
         ...cons, ...fp,
-        person_name: fp.name || cons.person_name || "",
-        person_surname: fp.surname || cons.person_surname || "",
-        person_email: fp.email || cons.person_email || "",
-        person_phone: fp.phone || cons.person_phone || "",
+        person_name:
+          fp.name ||
+          cons.person_name ||
+          cons.name ||
+          nestedPerson.name ||
+          nestedPerson.Name ||
+          "",
+        person_surname:
+          fp.surname ||
+          cons.person_surname ||
+          cons.surname ||
+          nestedPerson.surname ||
+          nestedPerson.Surname ||
+          "",
+        person_email:
+          fp.email || personEmail || "",
+        person_phone:
+          fp.phone ||
+          fp.number ||
+          cons.person_phone ||
+          cons.phone ||
+          nestedPerson.phone ||
+          nestedPerson.Number ||
+          "",
         assigned_to: cons.assigned_to || cons.assignedTo || "",
         decision_type: cons.decision_type || cons.consolidation_type || "",
         notes: cons.notes || "",
