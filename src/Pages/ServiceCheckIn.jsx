@@ -134,13 +134,26 @@ const emptyForm = {
 
 const cleanEventId = (id) => id?.split("_")[0] ?? id;
 
+const getCachedPeople = () => {
+  const cache = window.globalPeopleCache;
+  if (Array.isArray(cache)) return cache;
+  if (cache && Array.isArray(cache.data)) return cache.data;
+  return null;
+};
+
+const getCacheTimestamp = () => {
+  const cache = window.globalPeopleCache;
+  if (cache && typeof cache === "object" && cache.timestamp) return cache.timestamp;
+  return window.globalCacheTimestamp;
+};
+
 function ServiceCheckIn() {
   const { authFetch, user } = useContext(AuthContext);
   const { notifyTaskUpdate } = useTaskUpdate();
 
   const [attendees, setAttendees] = useState(() => {
-    const cache = window.globalPeopleCache;
-    const ts = window.globalCacheTimestamp;
+    const cache = getCachedPeople();
+    const ts = getCacheTimestamp();
     if (cache && ts && (Date.now() - ts < CACHE_DURATION)) {
       return cache.map(normalisePerson);
     }
@@ -161,7 +174,7 @@ function ServiceCheckIn() {
   const [consolidationOpen, setConsolidationOpen] = useState(false);
   const [sortModel, setSortModel] = useState([]);
   const [realTimeData, setRealTimeData] = useState(null);
-  const [hasDataLoaded, setHasDataLoaded] = useState(attendees.length > 0);
+  const [, setHasDataLoaded] = useState(attendees.length > 0);
   const [isLoadingPeople, setIsLoadingPeople] = useState(attendees.length === 0);
   const [isLoadingEvents, setIsLoadingEvents] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
@@ -182,7 +195,7 @@ function ServiceCheckIn() {
   const [deleteConfirmation, setDeleteConfirmation] = useState({ open: false, personId: null, personName: "" });
   const [eventHistoryModal, setEventHistoryModal] = useState({ open: false, event: null, type: null, data: [] });
   const [formData, setFormData] = useState(emptyForm);
-  const [contextMenu, setContextMenu] = useState({ mouseX: null, mouseY: null, data: null, type: null });
+  const [, setContextMenu] = useState({ mouseX: null, mouseY: null, data: null, type: null });
 
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("xs"));
@@ -191,9 +204,9 @@ function ServiceCheckIn() {
   const isLg = useMediaQuery(theme.breakpoints.down("lg"));
   const isDarkMode = theme.palette.mode === "dark";
 
-  const rv = (xs, sm, md, lg, xl) => {
+  const rv = useCallback((xs, sm, md, lg, xl) => {
     if (isXs) return xs; if (isSm) return sm; if (isMd) return md; if (isLg) return lg; return xl;
-  };
+  }, [isXs, isSm, isMd, isLg]);
 
   const containerPadding = rv(0.5, 1, 2, 3, 3);
   const cardSpacing = rv(0.5, 1, 1.5, 2, 2);
@@ -212,38 +225,6 @@ function ServiceCheckIn() {
       const data = await res.json();
       return data.success ? data : null;
     } catch { return null; }
-  }, [authFetch]);
-
-  const fetchAllPeople = useCallback(async () => {
-    const cache = window.globalPeopleCache;
-    const ts = window.globalCacheTimestamp;
-    if (cache && ts && (Date.now() - ts < CACHE_DURATION) && window.globalPeopleCacheOrg) {
-      const normalised = cache.map(normalisePerson);
-      setAttendees(normalised);
-      setHasDataLoaded(true);
-      setIsLoadingPeople(false);
-      return normalised;
-    }
-
-    setIsLoadingPeople(true);
-    try {
-      const res = await authFetch(`${BASE_URL}/cache/people`);
-      if (!res.ok) throw new Error("Failed to fetch people");
-      const data = await res.json();
-      if (data.success && data.cached_data) {
-        const normalised = data.cached_data.map(normalisePerson);
-        window.globalPeopleCache = data.cached_data;
-        window.globalCacheTimestamp = Date.now();
-        setAttendees(normalised);
-        setHasDataLoaded(true);
-        return normalised;
-      }
-    } catch (err) {
-      toast.error("Failed to load people data. Please refresh.");
-    } finally {
-      setIsLoadingPeople(false);
-    }
-    return [];
   }, [authFetch]);
 
   const transformEvents = useCallback((eventsData, normalisedPeople) => {
@@ -367,12 +348,12 @@ function ServiceCheckIn() {
     (async () => {
       try {
         const cacheHit =
-          window.globalPeopleCache &&
-          window.globalCacheTimestamp &&
-          (Date.now() - window.globalCacheTimestamp < CACHE_DURATION);
+          getCachedPeople() &&
+          getCacheTimestamp() &&
+          (Date.now() - getCacheTimestamp() < CACHE_DURATION);
 
         if (cacheHit) {
-          const normalisedPeople = window.globalPeopleCache.map(normalisePerson);
+          const normalisedPeople = getCachedPeople().map(normalisePerson);
           setAttendees(normalisedPeople);
           setHasDataLoaded(true);
           setIsLoadingPeople(false);
@@ -441,7 +422,7 @@ function ServiceCheckIn() {
         setIsLoadingHistory(false);
       }
     })();
-  }, []);
+  }, [authFetch, filterValidEvents, transformEvents]);
 
   const fetchEvents = useCallback(async () => {
     try {
@@ -480,7 +461,7 @@ function ServiceCheckIn() {
       window.removeEventListener("attendanceUpdated", handleAttendanceUpdated);
       clearInterval(evInterval);
     };
-  }, [currentEventId, fetchRealTimeEventData]);
+  }, [currentEventId, fetchRealTimeEventData, fetchEvents]);
 
   const getFilteredEvents = useCallback((eventsList = events) => {
     const todayStr = new Date().toISOString().split("T")[0];
@@ -563,7 +544,7 @@ const sortedFilteredAttendees = useMemo(() => {
     const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
     // Score how well a value matches the search terms
-    const matchScore = (value, field) => {
+    const matchScore = (value) => {
       if (!terms.length || !value) return 0;
       const v = value.toString().toLowerCase();
       let score = 0;
@@ -803,9 +784,6 @@ const sortedFilteredAttendees = useMemo(() => {
     event.preventDefault();
     setContextMenu({ mouseX: event.clientX - 2, mouseY: event.clientY - 4, data: person, type });
   }, []);
-  const handleCloseContextMenu = useCallback(() => {
-    setContextMenu({ mouseX: null, mouseY: null, data: null, type: null });
-  }, []);
 
   const handleToggleCheckIn = useCallback(async (attendee) => {
     if (!currentEventId) { toast.error("Please select an event"); return; }
@@ -903,14 +881,14 @@ const sortedFilteredAttendees = useMemo(() => {
     }
   }, [currentEventId, checkInLoading, presentIds, authFetch, fetchRealTimeEventData]);
 
-  const normalizeLeaderValue = (value) => {
+  const normalizeLeaderValue = useCallback((value) => {
     if (value == null) return "";
     if (typeof value === "string") return value.trim();
     return String(value).trim();
-  };
+  }, []);
 
   // Helper function to get highest available leader
-  const getHighestAvailableLeader = (person) => {
+  const getHighestAvailableLeader = useCallback((person) => {
     if (!person) return { leader: "No Leader Assigned", level: 0, hasLeader: false };
 
     const leaderEntries = [];
@@ -948,10 +926,10 @@ const sortedFilteredAttendees = useMemo(() => {
 
     leaderEntries.sort((a, b) => b.level - a.level);
     return { leader: leaderEntries[0].name, level: leaderEntries[0].level, hasLeader: true };
-  };
+  }, [normalizeLeaderValue]);
 
   // Helper function to resolve leader email from person object
-  const resolveLeaderEmail = (leaderName, person) => {
+  const resolveLeaderEmail = useCallback((leaderName, person) => {
     if (!leaderName || !person) return "";
 
     const normalizedLeaderName = (leaderName || "").trim().toLowerCase();
@@ -982,10 +960,10 @@ const sortedFilteredAttendees = useMemo(() => {
       }
     }
     return "";
-  };
+  }, [normalizeLeaderValue]);
 
   // Create task for leader when new person is added
-  const createNewPersonTaskForLeader = async ({
+  const createNewPersonTaskForLeader = useCallback(async ({
     leaderName,
     leaderEmail,
     person,
@@ -1044,7 +1022,7 @@ const sortedFilteredAttendees = useMemo(() => {
       toast.error("Failed to create new person task: " + err.message);
       throw err;
     }
-  };
+  }, [user, authFetch]);
 
   const handlePersonSave = useCallback(async (responseData) => {
     if (!currentEventId) { toast.error("Please select an event first before adding people"); return; }
@@ -1134,7 +1112,7 @@ const sortedFilteredAttendees = useMemo(() => {
             return { ...base, new_people: newPeopleArr, new_people_count: newPeopleArr.length };
           });
 
-          try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch { }
+          authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }).catch(() => {});
           fetchRealTimeEventData(cleanEventId(currentEventId)).then(fd => { if (fd) setRealTimeData(fd); });
 
           // Create task for leader when new person is added
@@ -1157,7 +1135,7 @@ const sortedFilteredAttendees = useMemo(() => {
         }
       }
     } catch (error) { toast.error(error.message || "Failed to save person"); }
-  }, [currentEventId, editingPerson, formData, authFetch, fetchRealTimeEventData]);
+  }, [currentEventId, editingPerson, formData, authFetch, fetchRealTimeEventData, createNewPersonTaskForLeader, getHighestAvailableLeader, resolveLeaderEmail]);
 
   const handleFinishConsolidation = useCallback(async (task) => {
   if (!currentEventId) return;
@@ -1286,7 +1264,7 @@ const sortedFilteredAttendees = useMemo(() => {
     } finally {
       setIsClosingEvent(false);
     }
-  }, [currentEventId, events, authFetch, fetchEvents]);
+  }, [currentEventId, events, authFetch, fetchEvents, attendees, realTimeData?.attendanceData, realTimeData?.consolidation_count, realTimeData?.consolidations, realTimeData?.newPeople, realTimeData?.new_people, realTimeData?.new_people_count, realTimeData?.present_attendees, realTimeData?.present_count, user?.email]);
 
   const handleUnsaveEvent = useCallback(async (event) => {
     try {
@@ -1345,7 +1323,7 @@ const sortedFilteredAttendees = useMemo(() => {
         const newPeople = (prev.new_people || []).filter(filterFn);
         return { ...prev, present_attendees: newPresent, new_people: newPeople, present_count: newPresent.length, new_people_count: newPeople.length };
       });
-      try { await authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }); } catch { }
+      authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }).catch(() => {});
       toast.success(`"${personName}" deleted successfully`);
     } catch { toast.error("An error occurred while deleting the person"); }
     finally { setIsDeleting(false); setDeleteConfirmation({ open: false, personId: null, personName: "" }); }
