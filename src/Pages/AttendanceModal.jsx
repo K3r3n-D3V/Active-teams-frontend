@@ -25,8 +25,7 @@ const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
 ).toLowerCase();
 
-const cleanEventId = (id) => id?.split("_")[0] ?? id;
-const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
+const AddPersonToEvents = ({ isOpen, onClose }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
   console.log("AddPersonToEvents - isDarkMode:", isDarkMode);
@@ -339,11 +338,6 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
       await authFetch(`${BACKEND_URL}/cache/people/refresh`, {
         method: "POST",
       });
-
-      if (typeof onPersonAdded === "function") {
-        onPersonAdded(result.person || result);
-      }
-
       handleClose();
     } catch (error) {
       console.error("Error creating person:", error);
@@ -1465,8 +1459,6 @@ const AttendanceModal = ({
     [],
   );
   const [preloadedPeople, setPreloadedPeople] = useState([]);
-  const ticketSaveTimers = useRef({});
-  const consolidationCreatedIds = useRef(new Set());
 
   // ─── NEW: flag to prevent duplicate consolidation calls if Save is clicked twice ───
   const [consolidationsCreated, setConsolidationsCreated] = useState(false);
@@ -1499,6 +1491,19 @@ const AttendanceModal = ({
     },
   });
 
+  // ─── NEW: Helper to resolve which leader gets the consolidation task ───
+  // Uses leader144 if available, falls back to leader12
+  const resolveAssignedTo = (person) => {
+    const leader144 = person.leader144?.trim() || "";
+    const leader12 = person.leader12?.trim() || "";
+    if (leader144 && leader144 !== leader12) {
+      return leader144;
+    }
+    if (leader12) {
+      return leader12;
+    }
+    return null;
+  };
 
   const getAttendanceEventId = (eventObject) => {
     if (!eventObject) return "";
@@ -1795,20 +1800,13 @@ const AttendanceModal = ({
       assigned_to_email: "",
       event_id: eventId || "",
       source: "cell_consolidation",
-      person_data: {
-        id: person.id || "",
-        name: person.name || personName,
-        surname: person.surname || personSurname,
-        email: person.email || "",
-        phone: person.phone || "",
-      },
       leaders: [person.leader12, person.leader144].filter(
         (l) => l && l.trim() !== "",
       ),
       notes: "",
     };
 
-    const response = await authFetch(`${BACKEND_URL}/service-checkin/create-consolidation`, {
+    const response = await authFetch(`${BACKEND_URL}/consolidations`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -1823,7 +1821,6 @@ const AttendanceModal = ({
       new CustomEvent("attendanceUpdated", {
         detail: {
           eventId: getBaseEventId(event),
-          attendanceEventId: eventId,
           personId: person.id,
         },
       }),
@@ -1831,8 +1828,6 @@ const AttendanceModal = ({
     return { success: true, name: person.fullName };
   };
 
-  const calculateFinancials = (personId) => {
-    const ticketInfo = attendeeTicketInfo[personId] || {};
     if (
       ticketInfo.paid !== undefined &&
       ticketInfo.owing !== undefined &&
@@ -2121,7 +2116,6 @@ const AttendanceModal = ({
       );
       const liveData = liveResponse.ok ? await liveResponse.json() : {};
       const liveCheckedInList = [
-        ...(liveData.present_attendees || []),
         ...(liveData.new_people || []),
       ];
       const checkedInList = liveResponse.ok
@@ -2130,27 +2124,28 @@ const AttendanceModal = ({
 
       setPersistentCommonAttendees(persistentList);
 
-      const isCompleted = data.attendance_status === "complete";
-      const newCheckedIn = {};
-      persistentList.forEach((att) => {
+      const isCompleted =
+        data.attendance_status === "complete" ||
         if (att.id) newCheckedIn[att.id] = false;
       });
-      checkedInList.forEach((att) => {
-        const id = att.id || att._id || att.person_id;
-        if (id) newCheckedIn[id] = true;
-      });
+      if (isCompleted && data.attendance_status !== "did_not_meet") {
+        checkedInList.forEach((att) => {
+          if (att.id) newCheckedIn[att.id] = true;
+        });
+      }
       setCheckedIn(newCheckedIn);
 
       const newDecisions = {};
       const newDecisionTypes = {};
 
-      checkedInList.forEach((att) => {
-        const id = att.id || att._id || att.person_id;
-        if (id && att.decision) {
-          newDecisions[id] = true;
-          newDecisionTypes[id] = att.decision;
-        }
-      });
+      if (isCompleted && data.attendance_status !== "did_not_meet") {
+        checkedInList.forEach((att) => {
+          if (att.id && att.decision) {
+            newDecisions[att.id] = true;
+            newDecisionTypes[att.id] = att.decision;
+          }
+        });
+      }
 
       setDecisions(newDecisions);
       setDecisionTypes(newDecisionTypes);
@@ -2173,10 +2168,10 @@ const AttendanceModal = ({
         }
       });
 
-      checkedInList.forEach((att) => {
-          const id = att.id || att._id || att.person_id;
-          if (id) {
-            newTicketInfo[id] = {
+      if (isCompleted && data.attendance_status !== "did_not_meet") {
+        checkedInList.forEach((att) => {
+          if (att.id) {
+            newTicketInfo[att.id] = {
               ...newTicketInfo[att.id],
               priceName:
                 att.priceName ??
@@ -2209,42 +2204,10 @@ const AttendanceModal = ({
                 att.change ?? att.Change ?? newTicketInfo[att.id]?.change ?? 0,
             };
           }
-      });
-
-      setAttendeeTicketInfo(newTicketInfo);
-
-      if (liveData.new_people?.length) {
-        const liveNewPeople = liveData.new_people.map((person) => ({
-          id: person.id || person._id || person.person_id,
-          name: person.name || person.Name || person.person_name || "",
-          surname: person.surname || person.Surname || person.person_surname || "",
-          fullName:
-            person.fullName ||
-            person.FullName ||
-            person.name ||
-            person.Name ||
-            `${person.person_name || person.Name || ""} ${person.person_surname || person.Surname || ""}`.trim(),
-          email: person.email || person.Email || person.person_email || "",
-          phone: person.phone || person.Number || person.Phone || person.person_phone || "",
-          number: person.number || person.Number || person.phone || "",
-          gender: person.gender || person.Gender || "",
-          birthday: person.birthday || person.Birthday || "",
-          address: person.address || person.Address || "",
-          invitedBy: person.invitedBy || person.InvitedBy || "",
-          leader1: person.leader1 || person["Leader @1"] || "",
-          leader12: person.leader12 || person["Leader @12"] || "",
-          leader144: person.leader144 || person["Leader @144"] || "",
-          leaders: person.leaders || [],
-          isPersistent: false,
-        }));
-        setPersistentCommonAttendees((current) => {
-          const byId = new Map(current.map((person) => [person.id, person]));
-          liveNewPeople.forEach((person) => {
-            if (person.id) byId.set(person.id, { ...byId.get(person.id), ...person });
-          });
-          return Array.from(byId.values());
         });
       }
+
+      setAttendeeTicketInfo(newTicketInfo);
 
       if (data.attendance_status === "did_not_meet") {
         setDidNotMeet(true);
@@ -2394,7 +2357,6 @@ const AttendanceModal = ({
       setCheckedIn({});
       // ─── NEW: reset consolidation flag when modal opens for a new event ───
       setConsolidationsCreated(false);
-      consolidationCreatedIds.current.clear();
 
       loadPersistentAttendees(eventId);
     }
@@ -2647,62 +2609,53 @@ const AttendanceModal = ({
   }, [activeTab, preloadedPeople.length]);
 
   const handleCheckIn = (id) => {
-    const person = getAllCommonAttendees().find((item) => item.id === id);
-    if (!person) return;
-    const isNowChecked = !checkedIn[id];
+    setCheckedIn((prev) => {
+      const isNowChecked = !prev[id];
+      const newState = { ...prev, [id]: isNowChecked };
 
-    setCheckedIn((prev) => ({ ...prev, [id]: isNowChecked }));
-    if (!isNowChecked) {
-      setDecisions((prev) => ({ ...prev, [id]: false }));
-      setDecisionTypes((prev) => {
-        const next = { ...prev };
-        delete next[id];
-        return next;
-      });
-    }
+      if (!isNowChecked) {
+        setDecisions((prevDec) => ({ ...prevDec, [id]: false }));
+        setDecisionTypes((prevTypes) => {
+          const updated = { ...prevTypes };
+          delete updated[id];
+          return updated;
+        });
+      }
 
-    persistCheckIn(person, {
-      checked_in: isNowChecked,
-      decision: isNowChecked && decisions[id] ? decisionTypes[id] || "" : "",
-    }).catch((error) => {
-      setCheckedIn((prev) => ({ ...prev, [id]: !isNowChecked }));
-      toast.error(error.message || "Failed to save check-in");
+      return newState;
     });
+    const isNowChecked = !checkedIn[id];
+    if (isNowChecked) {
+      if (isTicketedEvent) {
+        setAttendeeTicketInfo((prevTicket) => {
+          if (!prevTicket[id] || !prevTicket[id].priceName) {
+            const person = getAllCommonAttendees().find((p) => p.id === id);
+            if (person && person.priceName) {
+              return {
+                ...prevTicket,
+                [id]: {
+                  priceName: person.priceName,
+                  price: person.price || 0,
+                  ageGroup: person.ageGroup || "",
+                  paymentMethod: person.paymentMethod || "Cash",
+                  paidAmount: person.paidAmount || 0,
+                },
+              };
+            }
+          }
+          return prevTicket;
+        });
+      }
+      toast.success("Person checked in for this week");
+    } else {
+      toast.warning("Person unchecked for this week");
+    }
   };
 
   const handleDecisionTypeSelect = (id, type) => {
-    const person = getAllCommonAttendees().find((item) => item.id === id);
     setDecisionTypes((prev) => ({ ...prev, [id]: type }));
     setDecisions((prev) => ({ ...prev, [id]: true }));
     setOpenDecisionDropdown(null);
-    if (person) {
-      persistCheckIn(person, { checked_in: true, decision: type })
-        .then(() =>
-          createCellConsolidation({
-            person,
-            decisionType: type === "first-time" ? "first_time" : "recommitment",
-            eventId: cleanEventId(getAttendanceEventId(event)),
-          }),
-        )
-        .then(() => consolidationCreatedIds.current.add(id))
-        .catch((error) =>
-          toast.error(error.message || "Failed to save decision"),
-        );
-    }
-  };
-
-  const updateTicketInfo = (person, updates, debounce = false) => {
-    const nextTicket = { ...(attendeeTicketInfo[person.id] || {}), ...updates };
-    setAttendeeTicketInfo((prev) => ({ ...prev, [person.id]: nextTicket }));
-
-    const save = () =>
-      persistCheckIn(person, nextTicket).catch((error) =>
-        toast.error(error.message || "Failed to save ticket details"),
-      );
-    if (ticketSaveTimers.current[person.id])
-      clearTimeout(ticketSaveTimers.current[person.id]);
-    if (debounce) ticketSaveTimers.current[person.id] = setTimeout(save, 500);
-    else save();
   };
 
   const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
@@ -2766,7 +2719,6 @@ const AttendanceModal = ({
         }),
       );
       console.log(`Saved ${enriched.length} attendees to database`);
-      await refreshGlobalPeopleCache();
       return true;
     } catch (error) {
       console.error("Failed to save:", error);
@@ -2775,8 +2727,6 @@ const AttendanceModal = ({
     }
   };
 
-  const handleAssociatePerson = async (person) => {
-    const isAlreadyAdded = persistentCommonAttendees.some(
       (p) => p.id === person.id,
     );
 
@@ -2896,14 +2846,12 @@ const AttendanceModal = ({
         if (attendeeId && !combinedMap.has(attendeeId)) {
           combinedMap.set(attendeeId, {
             id: attendeeId,
-            name: att.name || att.Name || "",
-            surname: att.surname || att.Surname || "",
-            fullName: att.fullName || att.FullName || `${att.name || att.Name || ""} ${att.surname || att.Surname || ""}`.trim() || "Unknown Person",
-            email: att.email || att.Email || "",
-            leader12: att.leader12 || att["Leader @12"] || "",
-            leader144: att.leader144 || att["Leader @144"] || "",
-            phone: att.phone || att.Number || att.Phone || "",
-            invitedBy: att.invitedBy || att.InvitedBy || "",
+            fullName: att.fullName || att.name || "Unknown Person",
+            email: att.email || "",
+            leader12: att.leader12 || "",
+            leader144: att.leader144 || "",
+            phone: att.phone || "",
+            invitedBy: att.invitedBy || "",
             priceName: att.priceName || "",
             price: att.price || 0,
             ageGroup: att.ageGroup || "",
@@ -2921,13 +2869,11 @@ const AttendanceModal = ({
         if (attendeeId && !combinedMap.has(attendeeId)) {
           combinedMap.set(attendeeId, {
             id: attendeeId,
-            name: savedAtt.name || savedAtt.Name || "",
-            surname: savedAtt.surname || savedAtt.Surname || "",
-            fullName: savedAtt.fullName || savedAtt.FullName || `${savedAtt.name || savedAtt.Name || ""} ${savedAtt.surname || savedAtt.Surname || ""}`.trim() || "Unknown Person",
-            email: savedAtt.email || savedAtt.Email || "",
+            fullName: savedAtt.fullName || savedAtt.name || "Unknown Person",
+            email: savedAtt.email || "",
             leader12: savedAtt.leader12 || "",
             leader144: savedAtt.leader144 || "",
-            phone: savedAtt.phone || savedAtt.Number || savedAtt.Phone || "",
+            phone: savedAtt.phone || "",
             priceName: savedAtt.priceName || "",
             price: savedAtt.price || 0,
             ageGroup: savedAtt.ageGroup || "",
@@ -3096,9 +3042,6 @@ const AttendanceModal = ({
 
       console.log("Saving payload:", payload);
 
-      // Check-ins are already durable; final submission must not overwrite them.
-      delete payload.attendees;
-      delete payload.persistent_attendees;
       let result;
 
       if (typeof onSubmit === "function") {
@@ -3132,9 +3075,7 @@ const AttendanceModal = ({
           setConsolidationsCreated(true);
 
           const decisionMakers = selectedAttendees.filter(
-            (attendee) =>
-              decisions[attendee.id] === true &&
-              !consolidationCreatedIds.current.has(attendee.id),
+            (attendee) => decisions[attendee.id] === true,
           );
 
           if (decisionMakers.length > 0) {
@@ -3436,9 +3377,6 @@ const AttendanceModal = ({
         week: get_current_week_identifier(),
       };
 
-      // Check-ins are already durable; final submission must not overwrite them.
-      delete payload.attendees;
-      delete payload.persistent_attendees;
       let result;
 
       if (typeof onSubmit === "function") {
@@ -3490,10 +3428,6 @@ const AttendanceModal = ({
   const handlePersonAdded = async (newPerson) => {
     console.log("New person added:", newPerson);
 
-    const leaderByLevel = (level) =>
-      newPerson.leaders?.find((leader) => Number(leader.level) === level)
-        ?.name || "";
-
     // Refresh backend cache and clear local cache
     refreshGlobalPeopleCache();
     clearGlobalPeopleCache();
@@ -3508,20 +3442,14 @@ const AttendanceModal = ({
 
     // Build person object from the created person response
     const createdPerson = {
-      id: newPerson._id || newPerson.id || "",
-      name: newPerson.Name || newPerson.name || "",
-      surname: newPerson.Surname || newPerson.surname || "",
       fullName:
         `${newPerson.Name || newPerson.name || ""} ${newPerson.Surname || newPerson.surname || ""}`.trim(),
       email: newPerson.Email || newPerson.email || "",
       phone: newPerson.Number || newPerson.phone || "",
       // Correct field mapping from POST /people response
-      leader12:
-        newPerson["Leader @12"] || newPerson.leader12 || leaderByLevel(12),
-      leader144:
-        newPerson["Leader @144"] || newPerson.leader144 || leaderByLevel(144),
-      leader1:
-        newPerson["Leader @1"] || newPerson.leader1 || leaderByLevel(1),
+      leader12: newPerson["Leader @12"] || newPerson.leader12 || "",
+      leader144: newPerson["Leader @144"] || newPerson.leader144 || "",
+      leader1: newPerson["Leader @1"] || newPerson.leader1 || "",
       // Pass through the leaders array if returned, for resolveLeaderEmail
       leaders: newPerson.leaders || [],
       // Pass through raw fields for createCellConsolidationTaskForLeader
@@ -3529,10 +3457,6 @@ const AttendanceModal = ({
       Surname: newPerson.Surname || newPerson.surname || "",
       Email: newPerson.Email || newPerson.email || "",
       Number: newPerson.Number || newPerson.phone || "",
-      Gender: newPerson.Gender || newPerson.gender || "",
-      Birthday: newPerson.Birthday || newPerson.dob || "",
-      Address: newPerson.Address || newPerson.address || "",
-      InvitedBy: newPerson.InvitedBy || newPerson.invitedBy || "",
     };
 
     // Resolve the event ID for the consolidation record
@@ -4509,18 +4433,6 @@ const AttendanceModal = ({
                                                         },
                                                       }),
                                                     );
-                                                    updateTicketInfo(person, {
-                                                      priceName: tier.name,
-                                                      price: tier.price,
-                                                      ageGroup: tier.ageGroup,
-                                                      paymentMethod:
-                                                        tier.paymentMethod ||
-                                                        "Cash",
-                                                      paidAmount:
-                                                        attendeeTicketInfo[
-                                                          person.id
-                                                        ]?.paidAmount || 0,
-                                                    });
                                                     setOpenPriceTierDropdown(
                                                       null,
                                                     );
@@ -4607,22 +4519,6 @@ const AttendanceModal = ({
                                               ticketInfo.paymentMethod,
                                           },
                                         }));
-                                        if (ticketSaveTimers.current[person.id])
-                                          clearTimeout(
-                                            ticketSaveTimers.current[person.id],
-                                          );
-                                        ticketSaveTimers.current[person.id] =
-                                          setTimeout(() => {
-                                            persistCheckIn(person, {
-                                              ...ticketInfo,
-                                              paidAmount: value,
-                                            }).catch((error) =>
-                                              toast.error(
-                                                error.message ||
-                                                  "Failed to save ticket details",
-                                              ),
-                                            );
-                                          }, 500);
                                       }}
                                       style={styles.paidInput}
                                       placeholder="0"

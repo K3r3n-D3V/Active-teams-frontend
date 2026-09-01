@@ -448,13 +448,6 @@ function ServiceCheckIn() {
       if (data && isMounted) setRealTimeData(data);
     };
     loadRT();
-    const handleAttendanceUpdated = (event) => {
-      if (event.detail?.eventId !== currentEventId) return;
-      fetchRealTimeEventData(currentEventId).then(data => {
-        if (data && isMounted) setRealTimeData(data);
-      });
-    };
-    window.addEventListener("attendanceUpdated", handleAttendanceUpdated);
     const evInterval = setInterval(() => fetchEvents(), 30_000);
     return () => {
       isMounted = false;
@@ -626,16 +619,16 @@ const sortedFilteredAttendees = useMemo(() => {
         (np.email ? [...attendeeMap.values()].find(p => p.email?.toLowerCase() === np.email?.toLowerCase()) : null) || {};
       return {
         ...np, ...fp,
-        name: fp.name || np.name || np.Name || np.person_name || "",
-        surname: fp.surname || np.surname || np.Surname || np.person_surname || "",
-        email: fp.email || np.email || np.Email || np.person_email || "",
-        phone: fp.phone || np.phone || np.Number || np.Phone || np.person_phone || "",
-        number: fp.number || np.number || np.Number || np.phone || "",
-        invitedBy: fp.invitedBy || np.invitedBy || np.InvitedBy || "",
-        gender: fp.gender || np.gender || np.Gender || "",
-        leader1: fp.leader1 || np.leader1 || np["Leader @1"] || "",
-        leader12: fp.leader12 || np.leader12 || np["Leader @12"] || "",
-        leader144: fp.leader144 || np.leader144 || np["Leader @144"] || "",
+        name: fp.name || np.name || "",
+        surname: fp.surname || np.surname || "",
+        email: fp.email || np.email || "",
+        phone: fp.phone || np.phone || "",
+        number: fp.number || np.number || "",
+        invitedBy: fp.invitedBy || np.invitedBy || "",
+        gender: fp.gender || np.gender || "",
+        leader1: fp.leader1 || np.leader1 || "",
+        leader12: fp.leader12 || np.leader12 || "",
+        leader144: fp.leader144 || np.leader144 || "",
       };
     });
     const sorted = [...full].sort((a, b) =>
@@ -853,14 +846,6 @@ const sortedFilteredAttendees = useMemo(() => {
           }
         });
         toast.error(`Failed to update check-in for ${fullName}`);
-      }
-
-      if (success) {
-        window.dispatchEvent(
-          new CustomEvent("attendanceUpdated", {
-            detail: { eventId: currentEventId, personId },
-          }),
-        );
       }
 
       fetchRealTimeEventData(currentEventId).then(freshData => { if (freshData) setRealTimeData(freshData); });
@@ -1141,11 +1126,6 @@ const sortedFilteredAttendees = useMemo(() => {
   }, 3000); // increased from 1500 to give backend more time
 
   notifyTaskUpdate?.();
-  window.dispatchEvent(
-    new CustomEvent("attendanceUpdated", {
-      detail: { eventId: currentEventId, personId: newCons.person_id },
-    }),
-  );
   window.dispatchEvent(new CustomEvent("taskUpdated", { detail: { action: "consolidationCreated", task } }));
 }, [currentEventId, fetchRealTimeEventData, notifyTaskUpdate]);
 
