@@ -176,7 +176,7 @@ function App() {
       <div style={{ display: "flex" }}>
         {user && !hideLayout && <Sidebar mode={mode} setMode={setMode} />}
         
-        <div style={{ flexGrow: 1 }}>
+        <div style={{ flexGrow: 1, minWidth: 0 }}>
           <Routes>
             {/* Public routes */}
             <Route 
