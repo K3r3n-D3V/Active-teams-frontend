@@ -1053,86 +1053,42 @@ const sortedFilteredAttendees = useMemo(() => {
       const insertedId = newPersonData._id;
       const fullName = `${formData.name} ${formData.surname}`.trim();
 
-      const response = await authFetch(`${BASE_URL}/service-checkin/checkin`, {
-        method: "POST",
-        body: JSON.stringify({
-          event_id: cleanEventId(currentEventId),
-          person_data: {
-            id: insertedId,
-            name: newPersonData.Name || newPersonData.name || formData.name,
-            surname: newPersonData.Surname || newPersonData.surname || formData.surname,
-            email: newPersonData.Email || newPersonData.email || formData.email,
-            number: newPersonData.Number || newPersonData.number || formData.number,
-            gender: newPersonData.Gender || newPersonData.gender || formData.gender,
-            invitedBy: newPersonData.InvitedBy || newPersonData.invitedBy || formData.invitedBy,
-            stage: "First Time",
-          },
-          type: "new_person",
-        }),
+      toast.success(`${fullName} added successfully`);
+      setOpenDialog(false); setEditingPerson(null); setFormData(emptyForm); setSearch("");
+
+      const newPersonForGrid = normalisePerson({
+        _id: insertedId,
+        Name: newPersonData.Name || formData.name,
+        Surname: newPersonData.Surname || formData.surname,
+        Email: newPersonData.Email || formData.email,
+        Number: newPersonData.Number || formData.number,
+        Gender: newPersonData.Gender || formData.gender,
+        InvitedBy: newPersonData.InvitedBy || formData.invitedBy,
+        leaders: newPersonData.leaders || [],
+        Stage: "First Time",
+        isNew: true,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success) {
-          window.dispatchEvent(
-            new CustomEvent("attendanceUpdated", {
-              detail: { eventId: currentEventId, personId: insertedId },
-            }),
-          );
-          toast.success(`${fullName} added as new person successfully`);
-          setOpenDialog(false); setEditingPerson(null); setFormData(emptyForm); setSearch("");
+      setAttendees(prev => [newPersonForGrid, ...prev]);
+      authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }).catch(() => {});
+      fetchRealTimeEventData(cleanEventId(currentEventId)).then(fd => { if (fd) setRealTimeData(fd); });
 
-          const newPersonForGrid = normalisePerson({
-            _id: insertedId,
-            Name: newPersonData.Name || formData.name,
-            Surname: newPersonData.Surname || formData.surname,
-            Email: newPersonData.Email || formData.email,
-            Number: newPersonData.Number || formData.number,
-            Gender: newPersonData.Gender || formData.gender,
-            InvitedBy: newPersonData.InvitedBy || formData.invitedBy,
-            leaders: newPersonData.leaders || [],
-            Stage: "First Time",
-            isNew: true,
-          });
-
-          setAttendees(prev => [newPersonForGrid, ...prev]);
-          setRealTimeData(prev => {
-            const base = prev || { present_attendees: [], new_people: [], consolidations: [] };
-            const newEntry = {
-              id: insertedId, _id: insertedId,
-              name: newPersonForGrid.name,
-              surname: newPersonForGrid.surname,
-              email: newPersonForGrid.email,
-              phone: newPersonForGrid.phone,
-              gender: newPersonForGrid.gender,
-              invitedBy: newPersonForGrid.invitedBy,
-              added_at: new Date().toISOString(),
-            };
-            const newPeopleArr = [...(base.new_people || []), newEntry];
-            return { ...base, new_people: newPeopleArr, new_people_count: newPeopleArr.length };
-          });
-
-          authFetch(`${BASE_URL}/cache/people/refresh`, { method: "POST" }).catch(() => {});
-          fetchRealTimeEventData(cleanEventId(currentEventId)).then(fd => { if (fd) setRealTimeData(fd); });
-
-          // Create task for leader when new person is added
-          try {
-            const leaderInfo = getHighestAvailableLeader(newPersonForGrid);
-            if (leaderInfo.hasLeader) {
-              const resolvedLeaderEmail = resolveLeaderEmail(leaderInfo.leader, newPersonForGrid);
-              if (resolvedLeaderEmail) {
-                await createNewPersonTaskForLeader({
-                  leaderName: leaderInfo.leader,
-                  leaderEmail: resolvedLeaderEmail,
-                  person: newPersonForGrid,
-                  eventId: cleanEventId(currentEventId),
-                });
-              }
-            }
-          } catch (taskErr) {
-            console.error("Failed to create new person task:", taskErr);
+      // Create task for leader when new person is added
+      try {
+        const leaderInfo = getHighestAvailableLeader(newPersonForGrid);
+        if (leaderInfo.hasLeader) {
+          const resolvedLeaderEmail = resolveLeaderEmail(leaderInfo.leader, newPersonForGrid);
+          if (resolvedLeaderEmail) {
+            await createNewPersonTaskForLeader({
+              leaderName: leaderInfo.leader,
+              leaderEmail: resolvedLeaderEmail,
+              person: newPersonForGrid,
+              eventId: cleanEventId(currentEventId),
+            });
           }
         }
+      } catch (taskErr) {
+        console.error("Failed to create new person task:", taskErr);
       }
     } catch (error) { toast.error(error.message || "Failed to save person"); }
   }, [currentEventId, editingPerson, formData, authFetch, fetchRealTimeEventData, createNewPersonTaskForLeader, getHighestAvailableLeader, resolveLeaderEmail]);

@@ -513,6 +513,26 @@ export default function AddPersonDialog({
     if (!validate() || isSubmitting) return;
     setIsSubmitting(true);
     try {
+      if (!isEdit) {
+        const norm = (s) => (s || "").toString().trim().toLowerCase();
+        const dupFull = `${norm(formData.name)} ${norm(formData.surname)}`.trim();
+        const dupEmail = norm(formData.email);
+        const dupPhone = digitsOnly(formData.number || "");
+        const existingDup = peopleStore.list.find((p) => {
+          const pEmail = norm(p.email);
+          if (dupEmail && pEmail && dupEmail === pEmail) return true;
+          const pFull = p.fullNameLower || `${norm(p.name)} ${norm(p.surname)}`.trim();
+          const pPhone = digitsOnly(p.phone || "");
+          return dupFull && pFull && dupFull === pFull && dupPhone && pPhone && dupPhone === pPhone;
+        });
+        if (existingDup) {
+          toast.warning(
+            `A person with this email or name already exists (${existingDup.fullName || existingDup.email}). Search and select the existing person instead of creating a duplicate.`,
+          );
+          return;
+        }
+      }
+
       const normalizedLeaders = normalizeLeaderChain({
         leader1: formData.leader1,
         leader12: formData.leader12,

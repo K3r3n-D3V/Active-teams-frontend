@@ -282,6 +282,24 @@ const AddPersonToEvents = ({ isOpen, onClose, onPersonAdded }) => {
 
   const handleSubmit = async (finalLeaderInfo) => {
     try {
+      const norm = (s) => (s || "").toString().trim().toLowerCase();
+      const dupFull = `${norm(formData.name)} ${norm(formData.surname)}`.trim();
+      const dupEmail = norm(formData.email);
+      const dupPhone = norm(formData.mobile || "").replace(/[^\d+]/g, "");
+      const existingDup = (peopleList || []).find((p) => {
+        const pEmail = norm(p.email);
+        if (dupEmail && pEmail && dupEmail === pEmail) return true;
+        const pFull = norm(`${p.name || ""} ${p.surname || ""}`.trim());
+        const pPhone = norm(p.phone || "").replace(/[^\d+]/g, "");
+        return dupFull && pFull && dupFull === pFull && dupPhone && pPhone && dupPhone === pPhone;
+      });
+      if (existingDup) {
+        toast.error(
+          `A person with this info already exists (${existingDup.email || existingDup.Email || existingDup.fullName || ""}). Search and select them instead of creating a duplicate.`,
+        );
+        return;
+      }
+
       const payload = {
         invitedBy: formData.invitedBy,
         name: formData.name,
@@ -3526,33 +3544,6 @@ const AttendanceModal = ({
     // Check if there is a leader to assign to before attempting either call
     const assignedTo = resolveAssignedTo(createdPerson);
 
-    try {
-      const checkInResponse = await authFetch(`${BACKEND_URL}/service-checkin/checkin`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          event_id: cleanEventId(getAttendanceEventId(event)),
-          person_data: {
-            id: createdPerson.id,
-            name: createdPerson.Name,
-            surname: createdPerson.Surname,
-            fullName: createdPerson.fullName,
-            email: createdPerson.Email,
-            phone: createdPerson.Number,
-            number: createdPerson.Number,
-            leader12: createdPerson.leader12,
-            leader144: createdPerson.leader144,
-          },
-          type: "new_person",
-        }),
-      });
-      if (!checkInResponse.ok) throw new Error(`HTTP ${checkInResponse.status}`);
-      await loadPersistentAttendees(getAttendanceEventId(event));
-    } catch (error) {
-      console.error("Failed to register new person for event:", error);
-      toast.warning(`${createdPerson.fullName} was created but not checked in`);
-    }
-
     if (!assignedTo) {
       toast.warning(
         `Person created but no consolidation task was made — no leader assigned`,
@@ -3775,6 +3766,7 @@ const AttendanceModal = ({
       display: "flex",
       flexDirection: "column",
       boxSizing: "border-box",
+      overflow: "hidden",
       border: `1px solid ${theme.palette.divider}`,
       color: theme.palette.text.primary,
     },
@@ -4026,16 +4018,16 @@ const AttendanceModal = ({
       flexWrap: "wrap",
     },
     statBox: {
-      flex: "1 1 calc(25% - 15px)",
+      flex: "1 1 200px",
       background: theme.palette.background.default,
       padding: "clamp(12px, 2vw, 18px)",
       borderRadius: 8,
       textAlign: "center",
       position: "relative",
-      minWidth: 120,
+      minWidth: 0,
     },
     statBoxInput: {
-      flex: "1 1 calc(25% - 15px)",
+      flex: "1 1 200px",
       background: theme.palette.background.default,
       padding: "clamp(12px, 2vw, 18px)",
       borderRadius: 8,
@@ -4045,7 +4037,7 @@ const AttendanceModal = ({
       flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      minWidth: 120,
+      minWidth: 0,
     },
     headcountInput: {
       fontSize: "clamp(20px, 3.5vw, 32px)",

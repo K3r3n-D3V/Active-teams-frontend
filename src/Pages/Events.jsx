@@ -494,7 +494,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     field: "overdue",
     headerName: "Status",
     flex: 0.8,
-    minWidth: 100,
+    minWidth: 90,
     renderCell: (params) => {
       const isOverdueEvent = isOverdue(params.row);
       const status = params.row.status || "incomplete";
@@ -520,7 +520,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
     field: "recurring_info",
     headerName: "Recurring",
     flex: 0.8,
-    minWidth: 120,
+    minWidth: 90,
     renderCell: (params) => {
       if (!params?.row) return <Box sx={{ color: "#6c757d", fontSize: "0.95rem" }}>-</Box>;
       const row = params.row;
@@ -543,7 +543,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
         field: "eventName",
         headerName: "Event Name",
         flex: 1.2,
-        minWidth: 160,
+        minWidth: 120,
         renderCell: (params) => (
           <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 220 }} title={params.value || ""}>
             {params.value || "-"}
@@ -554,7 +554,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
         field: "eventLeaderName",
         headerName: "Event Leader Name",
         flex: 1,
-        minWidth: 160,
+        minWidth: 120,
         renderCell: (params) => (
           <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 180 }} title={params.value || ""}>
             {params.value || "-"}
@@ -565,7 +565,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
         field: "eventLeaderEmail",
         headerName: "Event Leader Email",
         flex: 1,
-        minWidth: 180,
+        minWidth: 150,
         renderCell: (params) => (
           <Box sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 200 }} title={params.value || ""}>
             {params.value || "-"}
@@ -576,14 +576,14 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
         field: "day",
         headerName: "Day",
         flex: 0.7,
-        minWidth: 100,
+        minWidth: 80,
         renderCell: (params) => params.value || "-",
       },
       {
         field: "date",
         headerName: "Date",
         flex: 0.9,
-        minWidth: 120,
+        minWidth: 115,
         renderCell: (params) => formatDate(params.value),
       },
     ];
@@ -625,7 +625,7 @@ const generateDynamicColumns = (events, isOverdue, selectedEventTypeFilter) => {
       field: key,
       headerName: key.replace(/_/g, " ").replace(/([A-Z])/g, " $1").replace(/^./, (str) => str.toUpperCase()),
       flex: 1,
-      minWidth: 150,
+      minWidth: 130,
       renderCell: (params) => {
         const value = params.value;
         if (key.toLowerCase().includes("date")) return formatDate(value);
@@ -5054,7 +5054,7 @@ const getTypeValue = (type) => {
                           headerName: "Actions",
                           sortable: false,
                           flex: 1,
-                          minWidth: 200,
+                          minWidth: 150,
                           renderCell: (params) => (
                             <Box sx={{ display: "flex", gap: 1 }}>
                               <Tooltip
