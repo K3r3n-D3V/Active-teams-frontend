@@ -25,6 +25,8 @@ const GEOAPIFY_COUNTRY_CODE = (
   import.meta.env.VITE_GEOAPIFY_COUNTRY_CODE || "za"
 ).toLowerCase();
 
+const cleanEventId = (id) => id?.split("_")[0] ?? id;
+
 const AddPersonToEvents = ({ isOpen, onClose }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
@@ -983,7 +985,6 @@ const LeaderSelectionModal = ({
   onBack,
   onSubmit,
   preloadedPeople = [],
-  autoFilledLeaders,
 }) => {
   const theme = useTheme();
   const isDarkMode = theme.palette.mode === "dark";
@@ -1540,116 +1541,6 @@ const AttendanceModal = ({
     return (eventObject?.original_event_id || baseId) || "";
   };
 
-  const resolveAssignedTo = (person) => {
-    const leader144 = person?.leader144?.trim() || "";
-    const leader12 = person?.leader12?.trim() || "";
-    return leader144 && leader144 !== leader12 ? leader144 : leader12 || null;
-  };
-
-
-  const persistCheckIn = useCallback(
-    async (person, overrides = {}) => {
-      const attendanceId = getAttendanceEventId(event);
-      const [eventId, ...dateParts] = attendanceId.split("_");
-      const date = dateParts.join("_");
-      if (!eventId || !date || !person?.id)
-        throw new Error("A dated event and attendee are required");
-
-      const ticket = { ...(attendeeTicketInfo[person.id] || {}), ...overrides };
-      const personData = {
-        id: person.id,
-        name: person.fullName || person.name || "",
-        fullName: person.fullName || person.name || "",
-        email: person.email || "",
-        phone: person.phone || "",
-        leader12: person.leader12 || "",
-        leader144: person.leader144 || "",
-        checked_in: overrides.checked_in ?? checkedIn[person.id] ?? false,
-        decision:
-          overrides.decision ??
-          (decisions[person.id] ? decisionTypes[person.id] || "" : ""),
-      };
-      if (isTicketedEvent)
-        Object.assign(personData, {
-          priceName: ticket.priceName || "",
-          price: ticket.price ?? 0,
-          ageGroup: ticket.ageGroup || "",
-          paymentMethod: ticket.paymentMethod || "Cash",
-          paidAmount: ticket.paidAmount ?? 0,
-        });
-
-      const response = await authFetch(
-        `${BACKEND_URL}/events/${eventId}/attendance/${date}/checkin`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            event_id: eventId,
-            date,
-            person_id: person.id,
-            person_data: personData,
-            ...personData,
-          }),
-        },
-      );
-      if (!response.ok)
-        throw new Error(`Check-in save failed: ${response.status}`);
-      const result = await response.json().catch(() => ({}));
-
-      if (personData.checked_in && overrides.checked_in === true) {
-        const baseId = getBaseEventId(event) || eventId;
-        try {
-          await authFetch(`${BACKEND_URL}/service-checkin/checkin`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              event_id: baseId,
-              person_data: {
-                id: person.id,
-                name: person.name || person.fullName || "",
-                surname: person.surname || "",
-                fullName: person.fullName || person.name || "",
-                email: person.email || "",
-                phone: person.phone || "",
-                number: person.phone || "",
-                leader12: person.leader12 || "",
-                leader144: person.leader144 || "",
-              },
-              type: "attendee",
-            }),
-          });
-        } catch {
-          console.warn(
-            "Service check-in sync failed for",
-            person.fullName || person.id,
-            "- ticketed attendance was still saved.",
-          );
-        }
-      }
-
-      window.dispatchEvent(
-        new CustomEvent("attendanceUpdated", {
-          detail: {
-            eventId: getBaseEventId(event),
-            attendanceEventId: attendanceId,
-            personId: person.id,
-          },
-        }),
-      );
-      return result;
-    },
-    [
-      event,
-      attendeeTicketInfo,
-      checkedIn,
-      decisions,
-      decisionTypes,
-      isTicketedEvent,
-      authFetch,
-      BACKEND_URL,
-    ],
-  );
-
   const getHighestAvailableLeader = (person) => {
     if (!person)
       return { leader: "No Leader Assigned", level: 0, hasLeader: false };
@@ -1828,6 +1719,8 @@ const AttendanceModal = ({
     return { success: true, name: person.fullName };
   };
 
+  const calculateFinancials = (personId) => {
+    const ticketInfo = attendeeTicketInfo[personId] || {};
     if (
       ticketInfo.paid !== undefined &&
       ticketInfo.owing !== undefined &&
@@ -2116,6 +2009,7 @@ const AttendanceModal = ({
       );
       const liveData = liveResponse.ok ? await liveResponse.json() : {};
       const liveCheckedInList = [
+        ...(liveData.present_attendees || []),
         ...(liveData.new_people || []),
       ];
       const checkedInList = liveResponse.ok
@@ -2126,11 +2020,17 @@ const AttendanceModal = ({
 
       const isCompleted =
         data.attendance_status === "complete" ||
+        data.attendance_status === "did_not_meet";
+
+      const newCheckedIn = {};
+      persistentList.forEach((att) => {
         if (att.id) newCheckedIn[att.id] = false;
       });
+
       if (isCompleted && data.attendance_status !== "did_not_meet") {
         checkedInList.forEach((att) => {
-          if (att.id) newCheckedIn[att.id] = true;
+          const id = att.id || att._id || att.person_id;
+          if (id) newCheckedIn[id] = true;
         });
       }
       setCheckedIn(newCheckedIn);
@@ -2471,18 +2371,7 @@ const AttendanceModal = ({
         `${BACKEND_URL}/events/cell/${cellId}/common-attendees`,
         { headers },
       );
-      const data = await res.json();
-      const attendeesArray = data.common_attendees || [];
-
-      const formatted = attendeesArray.map((p) => ({
-        id: p._id,
-        fullName:
-          `${p.Name || p.name || ""} ${p.Surname || p.surname || ""}`.trim(),
-        email: p.Email || p.email || "",
-        leader12: p["Leader @12"] || p.leader12 || "",
-        leader144: p["Leader @144"] || p.leader144 || "",
-        phone: p.Number || p.Phone || p.phone || "",
-      }));
+      await res.json();
     } catch (err) {
       console.error("Failed to fetch common attendees:", err);
     }
@@ -2727,6 +2616,8 @@ const AttendanceModal = ({
     }
   };
 
+  const handleAssociatePerson = async (person) => {
+    const isAlreadyAdded = persistentCommonAttendees.some(
       (p) => p.id === person.id,
     );
 

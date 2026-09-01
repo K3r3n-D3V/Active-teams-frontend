@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useContext, useRef } from "react";
+import { useEffect, useState, useMemo, useContext, useRef } from "react";
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, Button, Typography, useTheme, MenuItem,
@@ -127,7 +127,7 @@ function normalizeLeaderChain({ leader1, leader12, leader144 }) {
 }
 
 // ─── PeopleSearchField ────────────────────────────────────────────────────────
-function PeopleSearchField({ label, value, onChange, disabled, error, required }) {
+function PeopleSearchField({ label, value, onChange, disabled, error }) {
   const theme  = useTheme();
   const isDark = theme.palette.mode === "dark";
 
@@ -373,7 +373,6 @@ export default function AddPersonDialog({
   open, onClose, onSave, formData, setFormData,
   isEdit = false, personId = null, editingPersonObject = null,
 }) {
-  const theme = useTheme();
   const { authFetch, user } = useContext(AuthContext);
 
   const [errors,           setErrors]           = useState({});

@@ -462,10 +462,6 @@ const login = async (email, password) => {
     persistLeadersData(leadersData, leaderStatus);
   };
 
-  const fetchCurrentUser = useCallback(async () => {
-    if (!localStorage.getItem('access_token')) return;
-  }, [authFetch]);
-
   const requestPasswordReset = async (email) => {
     try {
       const res = await fetch(`${BACKEND_URL}/forgot-password`, {
