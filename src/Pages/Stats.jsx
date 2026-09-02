@@ -61,7 +61,6 @@ import {
 import { toast } from "react-toastify";
 import * as XLSX from "xlsx";
 import { AuthContext } from "../contexts/AuthContext";
-import { useTaskUpdate } from "../contexts/TaskUpdateContext";
 import CreateEvents from "./CreateEvents";
 
 const toSATime = (d) => {
@@ -286,7 +285,7 @@ const StatsDashboard = () => {
       if (!selectedDate || !sameMonth || selDate < new Date("2020-01-01")) {
         setSelectedDate(todayStr);
       }
-    } catch (err) {
+    } catch {
       setSelectedDate(todayStr);
     }
   }, [currentMonth]);
@@ -311,7 +310,7 @@ const StatsDashboard = () => {
     severity: "success",
   });
   const [eventTypes, setEventTypes] = useState([]);
-  const [eventTypesLoading, setEventTypesLoading] = useState(true);
+  const [, setEventTypesLoading] = useState(true);
   const [overdueModalOpen, setOverdueModalOpen] = useState(false);
   const [calendarEvents, setCalendarEvents] = useState([]);
   const [calendarLoading, setCalendarLoading] = useState(false);
@@ -1056,92 +1055,6 @@ const StatsDashboard = () => {
 
     setCreateEventModalOpen(true);
   }, [selectedDate, globalEvent]);
-
-  const handleSaveEvent = async () => {
-    if (!newEventData.eventName.trim()) {
-      setSnackbar({
-        open: true,
-        message: "Event Name is required!",
-        severity: "error",
-      });
-      return;
-    }
-
-    try {
-      const user = JSON.parse(localStorage.getItem("userProfile") || "{}");
-
-      const payload = {
-        eventName: newEventData.eventName.trim(),
-        eventTypeName: newEventData.eventTypeName,
-        date: newEventData.date || selectedDate,
-        time: newEventData.time,
-        location: newEventData.location || null,
-        description: newEventData.description || null,
-        isRecurring: newEventData.isRecurring,
-        status: "incomplete",
-        created_at: new Date().toISOString(),
-        calendarOnly: true,          // ← ADD THIS
-};
-
-      const res = await authFetch(`${BACKEND_URL}/events`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json().catch(() => ({}));
-        throw new Error(errorData.detail?.[0]?.msg || `HTTP ${res.status}`);
-      }
-
-      setCreateEventModalOpen(false);
-      setNewEventData({
-        eventName: "",
-        eventTypeName: "",
-        date: "",
-        eventLeaderName: "",
-        eventLeaderEmail: "",
-        location: "",
-        time: "19:00",
-        description: "",
-        isRecurring: false,
-      });
-
-      setSnackbar({
-        open: true,
-        message: "Event created successfully!",
-        severity: "success",
-      });
-
-      /** CHANGE:
-       * After creating an event, refresh stats and cells.
-       */
-
-      fetchStats(true);
-      fetchOverdueCells(true);
-      console.log("[CreateEvents] → showing success toast");
-      toast.success(
-        `Event "${newEventData.eventName || "new event"}" created successfully!`,
-        {
-          position: "top-right",
-          autoClose: 4000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-          progress: undefined,
-          theme: "light",
-        },
-      );
-    } catch (err) {
-      console.error("Create event failed:", err);
-      setSnackbar({
-        open: true,
-        message: err.message || "Failed to create event",
-        severity: "error",
-      });
-    }
-  };
 
   const EnhancedCalendar = useMemo(() => {
     const eventCounts = {};

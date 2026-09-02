@@ -654,13 +654,14 @@ const MobileEventCard = ({
   isAdmin,
 
   selectedEventTypeFilter,
+  eventTypes,
 }) => {
+  const { authFetch } = React.useContext(AuthContext);
   if (!theme) {
     return <Box sx={{ height: 100 }} />;
   }
   const isDark = theme.palette.mode === "dark";
   const borderColor = isDark ? theme.palette.divider : "#e9ecef";
-  const { authFetch} = React.useContext(AuthContext);
   const attendeesCount = event.attendees?.length || 0;
   const isCellEvent =
     selectedEventTypeFilter === "all" ||
@@ -1585,7 +1586,6 @@ const normalizeEventAttendance = (event) => {
         toast.info("No attendees found for selected events.");
         return;
       }
-      console.log("Full event",fullEvent)
       buildXlsFromRows(allRows, `events_${status}_${period}`);
       toast.dismiss(TOAST_ID);
       toast.success(`Downloaded ${allRows.length} rows for ${status} (${period})`);
@@ -4776,6 +4776,7 @@ const getTypeValue = (type) => {
                           isLeaderAt12={isLeaderAt12}
                           currentUserLeaderAt1={currentUserLeaderAt1}
                           selectedEventTypeFilter={selectedEventTypeFilter}
+                          eventTypes={eventTypes}
                         />
                       </>
                     ))
@@ -4795,6 +4796,7 @@ const getTypeValue = (type) => {
                           isLeaderAt12={isLeaderAt12}
                           currentUserLeaderAt1={currentUserLeaderAt1}
                           selectedEventTypeFilter={selectedEventTypeFilter}
+                          eventTypes={eventTypes}
                         />
                       </>
                     ))}

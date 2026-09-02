@@ -241,7 +241,8 @@ export default function Sidebar({ mode, setMode }) {
       </Box>
 
       <List sx={{ flexGrow: 1 }}>
-        {menuItems.map(({ label, path, icon: Icon, external }) => {
+        {menuItems.map(({ label, path, icon, external }) => {
+          const Icon = icon;
           const isActive = !external && location.pathname === path;
           return (
             <ListItemButton

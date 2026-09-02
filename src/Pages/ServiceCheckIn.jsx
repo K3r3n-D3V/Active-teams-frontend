@@ -448,6 +448,13 @@ function ServiceCheckIn() {
       if (data && isMounted) setRealTimeData(data);
     };
     loadRT();
+    const handleAttendanceUpdated = (event) => {
+      if (event.detail?.eventId !== currentEventId) return;
+      fetchRealTimeEventData(currentEventId).then(data => {
+        if (data && isMounted) setRealTimeData(data);
+      });
+    };
+    window.addEventListener("attendanceUpdated", handleAttendanceUpdated);
     const evInterval = setInterval(() => fetchEvents(), 30_000);
     return () => {
       isMounted = false;

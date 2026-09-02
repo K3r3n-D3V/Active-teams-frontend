@@ -432,14 +432,6 @@ const Signup = ({ onSignup, mode, setMode }) => {
     }
   };
 
-  const handleOrganizationChange = (e) => {
-    const orgValue = e.target.value;
-    setForm((prev) => ({ ...prev, organization: orgValue }));
-    if (errors.organization) {
-      setErrors((prev) => ({ ...prev, organization: "" }));
-    }
-  };
-
   const handleInvitedByChange = (event, newValue) => {
     const invitedByValue =
       newValue && typeof newValue === "object" ? (newValue.label || "") : (newValue || "");
@@ -500,7 +492,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
         try {
           await login(submitData.email, submitData.password);
           toast.success("You've been signed up!", toastOptions);
-        } catch (loginErr) {
+        } catch {
           toast.error("Signup successful, but automatic login failed. Please log in.", {
             ...toastOptions,
             autoClose: 5000,
@@ -522,7 +514,7 @@ const Signup = ({ onSignup, mode, setMode }) => {
           navigate("/");
         }, 2000);
       }
-    } catch (error) {
+    } catch {
       toast.error("Network or server error occurred.", toastOptions);
     } finally {
       setLoading(false);

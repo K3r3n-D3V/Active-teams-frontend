@@ -15,16 +15,9 @@ import { LoadingButton } from "@mui/lab";
 import dayjs from "dayjs";
 import Autocomplete from "@mui/material/Autocomplete";
 import { debounce } from "lodash";
-import { toast } from "react-toastify";
 import { AuthContext } from "../contexts/AuthContext";
 
 const BASE_URL = `${import.meta.env.VITE_BACKEND_URL}`;
-function getDueDate(date = new Date()) {
-  const d = new Date(date);
-  d.setHours(d.getHours() + 24);
-  return d;
-}
-
 const cleanEventId = (id) => id?.split("_")[0] ?? id;
 
 function normalizeLeaderValue(value) {
@@ -128,7 +121,7 @@ const ConsolidationModal = ({
   const [alreadyConsolidated, setAlreadyConsolidated] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { authFetch, user } = useContext(AuthContext);
+  const { authFetch } = useContext(AuthContext);
 
   const decisionTypes = ["First Time", "Recommitment"];
 
@@ -317,82 +310,6 @@ const ConsolidationModal = ({
     }
   }, [recipient, checkIfAlreadyConsolidated]);
 
-  // Import createTask logic from DailyTasks.jsx
-  const createTaskForLeader = async ({
-    leaderName,
-    leaderEmail,
-    person,
-    eventId,
-    decisionType,
-  }) => {
-    try {
-      console.log("createTaskForLeader INPUT:");
-      console.log("leaderName:", leaderName);
-      console.log("leaderEmail (resolved):", leaderEmail);
-      console.log("person:", person);
-      // Normalize leader email
-      let normalizedEmail = (leaderEmail || "").trim().toLowerCase();
-
-      console.log("Email Processing:");
-      console.log("Before normalize:", leaderEmail);
-      console.log("After normalize:", normalizedEmail);
-      if (!normalizedEmail) {
-        console.warn("No leader email found for task assignment.");
-        toast.warning("No leader email is available for this person, so the consolidation task was not assigned.");
-        return;
-      }
-      const dueDate = getDueDate(new Date());
-      const todayDate = new Date().toISOString().split("T")[0];
-      const taskPayload = {
-        memberID: user?.id || "",
-        name: leaderName,
-        taskType: "consolidation",
-        contacted_person: {
-          name: `${person.Name || person.name || ""} ${person.Surname || person.surname || ""}`.trim(),
-          phone: person.Phone || person.phone || "",
-          email: person.Email || person.email || "",
-        },
-        followup_date: dueDate.toISOString(),
-        status: "Open",
-        type: "consolidation",
-        assignedfor: normalizedEmail,
-        assigned_to_email: normalizedEmail,
-        created_by_email: (user?.email || "").trim().toLowerCase(),
-        created_by_name: `${user?.name || ""} ${user?.surname || ""}`.trim(),
-        event_id: eventId,
-        is_consolidation_task: true,
-        decision_type: decisionType,
-        decision_date: todayDate,
-      };
-      console.log("TASK PAYLOAD:");
-      console.log({
-        assignedfor: normalizedEmail,
-        assigned_to_email: normalizedEmail,
-        created_by_email: (user?.email || "").trim().toLowerCase(),
-        leaderName,
-        person: {
-          name: `${person.Name || person.name || ""} ${person.Surname || person.surname || ""}`.trim(),
-          email: person.Email || person.email || "",
-        },
-        followup_date: dueDate,
-      });
-      const res = await authFetch(`${BASE_URL}/tasks`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(taskPayload),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message || "Failed to create follow-up task");
-      }
-      toast.success("Consolidation task created for leader!");
-      return data;
-    } catch (err) {
-      console.error("Error creating follow-up task:", err.message);
-      toast.error("Failed to create follow-up task: " + err.message);
-      throw err;
-    }
-  };
 
   const handleFinish = async () => {
     if (isSubmitting) return;
