@@ -27,7 +27,6 @@ export default function getCroppedImg(imageSrc, pixelCrop) {
           pixelCrop.height
         );
 
-<<<<<<< HEAD
     return new Promise((resolve, reject) => {
       canvas.toBlob((blob) => {
         if (!blob) {
@@ -38,17 +37,5 @@ export default function getCroppedImg(imageSrc, pixelCrop) {
         resolve(fileUrl);
       }, "image/jpeg");
     });
-=======
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            reject(new Error("Canvas is empty"));
-            return;
-          }
-          const fileUrl = URL.createObjectURL(blob);
-          resolve(fileUrl);
-        }, "image/jpeg");
-      })
-      .catch(reject);
->>>>>>> main
   });
 }
