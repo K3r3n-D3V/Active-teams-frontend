@@ -797,7 +797,7 @@ ${xmlCols}
     }, 100);
   };
 
-const normalizeEventAttendance = (event) => {
+const normalizeEventAttendance = (event, eventTypes = []) => {
   if (!event) return [];
   const eventDate = event.date;
 
@@ -805,7 +805,7 @@ const normalizeEventAttendance = (event) => {
   console.log("FULL EVENT FIELDS:", JSON.stringify(event, null, 2));
 
   const eventTypeName = event.eventType || event.event_type || event.type || "";
-  const eventTypeObj = findEventTypeByName(eventTypeName);
+  const eventTypeObj = findEventTypeByName(eventTypeName, eventTypes);
   const isTicketed =
     eventTypeObj?.isTicketed === true ||
     event.isTicketed === true ||
@@ -918,7 +918,7 @@ const normalizeEventAttendance = (event) => {
 
     const fullEvent = await fetchEventFull(event); // Always fetch full event
 
-    const rows = normalizeEventAttendance(fullEvent);
+    const rows = normalizeEventAttendance(fullEvent, eventTypes);
 
     if (!rows || rows.length === 0) {
       toast.dismiss(TOAST_ID);
@@ -1280,7 +1280,7 @@ ${xmlCols}
     }, 100);
   };
 
-  const findEventTypeByName = (typeName) => {
+const findEventTypeByName = (typeName, eventTypes = []) => {
     if (!typeName || typeName === "all") {
       return {
         name: "CELLS",
@@ -1291,7 +1291,7 @@ ${xmlCols}
     }
 
     // Look for the event type in your eventTypes array
-    const found = eventTypes.find((et) => {
+    const found = (eventTypes || []).find((et) => {
       const etName = et.name || et.eventTypeName || et.displayName || "";
       return etName.toLowerCase() === typeName.toLowerCase();
     });

@@ -2009,6 +2009,7 @@ const AttendanceModal = ({
       );
       const liveData = liveResponse.ok ? await liveResponse.json() : {};
       const liveCheckedInList = [
+        ...(liveData.present_attendees || []),
         ...(liveData.new_people || []),
       ];
       const checkedInList = liveResponse.ok
@@ -2025,9 +2026,11 @@ const AttendanceModal = ({
       persistentList.forEach((att) => {
         if (att.id) newCheckedIn[att.id] = false;
       });
+
       if (isCompleted && data.attendance_status !== "did_not_meet") {
         checkedInList.forEach((att) => {
-          if (att.id) newCheckedIn[att.id] = true;
+          const id = att.id || att._id || att.person_id;
+          if (id) newCheckedIn[id] = true;
         });
       }
       setCheckedIn(newCheckedIn);

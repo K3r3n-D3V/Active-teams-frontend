@@ -277,7 +277,7 @@ export default function Sidebar({ mode, setMode }) {
               }}
             >
               <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
-                <Icon />
+                <ItemIcon />
               </ListItemIcon>
 
               <ListItemText
