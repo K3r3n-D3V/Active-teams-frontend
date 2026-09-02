@@ -70,7 +70,6 @@ const createAuthenticatedRequest = () => {
   });
 };
 
-
 async function updateUserProfile(data, authFetch) {
   const token = localStorage.getItem("access_token") ||
     localStorage.getItem("token") ||

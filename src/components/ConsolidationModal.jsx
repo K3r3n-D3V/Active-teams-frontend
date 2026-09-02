@@ -310,7 +310,6 @@ const ConsolidationModal = ({
     }
   }, [recipient, checkIfAlreadyConsolidated]);
 
-  // Import createTask logic from DailyTasks.jsx
 
   const handleFinish = async () => {
     if (isSubmitting) return;

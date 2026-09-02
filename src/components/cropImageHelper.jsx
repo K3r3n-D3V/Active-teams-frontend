@@ -9,13 +9,11 @@ export default function getCroppedImg(imageSrc, pixelCrop) {
       image.src = url;
     });
 
-  return new Promise((resolve, reject) => {
-    createImage(imageSrc)
-      .then((image) => {
-        const canvas = document.createElement("canvas");
-        canvas.width = pixelCrop.width;
-        canvas.height = pixelCrop.height;
-        const ctx = canvas.getContext("2d");
+  return createImage(imageSrc).then((image) => {
+    const canvas = document.createElement("canvas");
+    canvas.width = pixelCrop.width;
+    canvas.height = pixelCrop.height;
+    const ctx = canvas.getContext("2d");
 
         ctx.drawImage(
           image,
@@ -29,6 +27,18 @@ export default function getCroppedImg(imageSrc, pixelCrop) {
           pixelCrop.height
         );
 
+<<<<<<< HEAD
+    return new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error("Canvas is empty"));
+          return;
+        }
+        const fileUrl = URL.createObjectURL(blob);
+        resolve(fileUrl);
+      }, "image/jpeg");
+    });
+=======
         canvas.toBlob((blob) => {
           if (!blob) {
             reject(new Error("Canvas is empty"));
@@ -39,5 +49,6 @@ export default function getCroppedImg(imageSrc, pixelCrop) {
         }, "image/jpeg");
       })
       .catch(reject);
+>>>>>>> main
   });
 }

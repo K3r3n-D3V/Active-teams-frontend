@@ -1056,7 +1056,6 @@ const StatsDashboard = () => {
     setCreateEventModalOpen(true);
   }, [selectedDate, globalEvent]);
 
-
   const EnhancedCalendar = useMemo(() => {
     const eventCounts = {};
     calendarEvents.forEach((e) => {
