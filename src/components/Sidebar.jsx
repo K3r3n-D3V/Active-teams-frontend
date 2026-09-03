@@ -20,6 +20,7 @@ import {
   Group,
   Event,
   BarChart,
+  ShowChart,
   Assignment,
   HowToReg,
   AdminPanelSettings,
@@ -75,6 +76,13 @@ const allMenuItems = [
     icon: BarChart,
     roles: ["admin", "leader", "leaderAt12"],
     level: 3,
+  },
+  {
+    label: "Cells Graph",
+    path: "/cells-graph",
+    icon: ShowChart,
+    roles: ["admin"],
+    level: 5,
   },
   {
     label: "Service Check-in",
