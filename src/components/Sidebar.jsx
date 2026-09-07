@@ -6,7 +6,6 @@ import {
   ListItemIcon,
   IconButton,
   Box,
-  ItemIcon,
   useMediaQuery,
 } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
@@ -278,7 +277,7 @@ export default function Sidebar({ mode, setMode }) {
               }}
             >
               <ListItemIcon sx={{ minWidth: 40, color: 'inherit' }}>
-                <ItemIcon />
+                <Icon />
               </ListItemIcon>
 
               <ListItemText
