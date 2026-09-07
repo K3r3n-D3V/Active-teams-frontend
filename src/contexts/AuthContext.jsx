@@ -36,20 +36,13 @@ export const AuthProvider = ({ children }) => {
 
   const ensureUserWithAvatar = (userData) => {
     if (!userData) return null;
-    // If incoming data has no role, preserve stored role instead of defaulting to 'user'
-    // This prevents admin -> user downgrade when /profile returns incomplete data
-    let storedRole = null;
-    try {
-      const stored = JSON.parse(localStorage.getItem(KEY_USER) || 'null');
-      storedRole = stored?.role || null;
-    } catch {}
-    let rawRole = userData.role && String(userData.role).trim().length
+    let userRole = userData.role && String(userData.role).trim().length
       ? userData.role
-      : (storedRole || 'user');
+      : 'user';
     
     // Normalize the role to handle various formats from backend
     // e.g., "leader at 12", "leader@12" -> "leaderat12"
-    let userRole = normalizeRole(rawRole);
+    userRole = normalizeRole(userRole);
     
     const profilePicture = userData.profile_picture || 
                           userData.avatarUrl || 
@@ -399,55 +392,32 @@ const login = async (email, password) => {
               'Authorization': `Bearer ${finalAccess}`,
               'Content-Type': 'application/json'
             };
-            // Handle both `id` and `_id` (Mongo) and token payload ids
-            const verifyId = finalUser.id || finalUser._id || finalUser.user_id || finalUser.sub;
-            if (!verifyId) {
-              console.warn('No user id found for profile verification, using stored user');
-              if (mounted) {
-                setUser(finalUser);
-                setIsAuthenticated(true);
-              }
-            } else {
-              const res = await fetch(`${BACKEND_URL}/profile/${verifyId}`, {
-                headers: headerWithAuth
-              });
-              
-              if (res.ok) {
-                const backendUser = await res.json();
-                // Preserve stored role if backend returns no role / defaults to user incorrectly
-                if (!backendUser.role && finalUser.role) {
-                  backendUser.role = finalUser.role;
-                }
-                // Check if the backend user email matches stored user email
-                if (backendUser.email && finalUser.email && 
-                    backendUser.email.toLowerCase() !== finalUser.email.toLowerCase()) {
-                  console.warn('Stored user mismatch detected. Using backend user.');
-                  const verifiedUser = ensureUserWithAvatar(backendUser);
-                  persistUser(verifiedUser);
-                  if (mounted) {
-                    setUser(verifiedUser);
-                    setIsAuthenticated(true);
-                  }
-                } else {
-                  // User verified, use stored version (keeps admin role safe)
-                  if (mounted) {
-                    setUser(finalUser);
-                    setIsAuthenticated(true);
-                  }
+            const res = await fetch(`${BACKEND_URL}/profile/${finalUser.id}`, {
+              headers: headerWithAuth
+            });
+            
+            if (res.ok) {
+              const backendUser = await res.json();
+              // Check if the backend user email matches stored user email
+              if (backendUser.email && finalUser.email && 
+                  backendUser.email.toLowerCase() !== finalUser.email.toLowerCase()) {
+                console.warn('Stored user mismatch detected. Using backend user.');
+                const verifiedUser = ensureUserWithAvatar(backendUser);
+                persistUser(verifiedUser);
+                if (mounted) {
+                  setUser(verifiedUser);
+                  setIsAuthenticated(true);
                 }
               } else {
-                // Don't logout on transient 404/500 during verification - keep stored session
-                // Only logout on explicit 401/403
-                if (res.status === 401 || res.status === 403) {
-                  if (mounted) logout();
-                } else {
-                  console.warn(`Profile verify failed with ${res.status}, keeping stored session`);
-                  if (mounted) {
-                    setUser(finalUser);
-                    setIsAuthenticated(true);
-                  }
+                // User verified, use stored version
+                if (mounted) {
+                  setUser(finalUser);
+                  setIsAuthenticated(true);
                 }
               }
+            } else {
+              // Backend fetch failed, logout
+              if (mounted) logout();
             }
           } catch (verifyError) {
             console.error('Error verifying user:', verifyError);
