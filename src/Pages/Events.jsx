@@ -3352,7 +3352,12 @@ const getFilteredEventTypes = (allEventTypes) => {
               },
             );
 
-            const { hasCell, canAccessEvents } = response.data;
+            if (!response.ok) {
+              throw new Error(`Failed to check leader status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            const { hasCell, canAccessEvents } = data;
 
             if (!canAccessEvents || !hasCell) {
               toast.warning("You must have a cell to access the Events page");

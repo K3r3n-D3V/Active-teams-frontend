@@ -117,6 +117,10 @@ function App() {
         if (!response.ok) return;
 
         const profileData = await response.json();
+        // Don't overwrite stored admin role if backend returns missing/empty role
+        if (!profileData.role && user?.role) {
+          profileData.role = user.role;
+        }
 
         const getDefaultAvatarUrl = (gender) => {
           if (!gender) return "https://cdn-icons-png.flaticon.com/512/147/147144.png";

@@ -37,8 +37,17 @@ const getProfilePictureFromUser = (userData) => {
 const normalizeUserProfile = (userData) => {
   if (!userData) return null;
   const profilePicture = getProfilePictureFromUser(userData);
+  // Preserve existing role if incoming data has no role (prevents admin -> user downgrade)
+  let roleToKeep = userData.role;
+  if (!roleToKeep) {
+    try {
+      const stored = JSON.parse(localStorage.getItem('userProfile') || 'null');
+      roleToKeep = stored?.role || roleToKeep;
+    } catch {}
+  }
   return {
     ...userData,
+    ...(roleToKeep ? { role: roleToKeep } : {}),
     profile_picture: profilePicture,
     avatarUrl: profilePicture,
     profilePicUrl: profilePicture,
