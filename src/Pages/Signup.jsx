@@ -24,7 +24,7 @@ import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import darkLogo from "../assets/active-teams.png";
 import { UserContext } from "../contexts/UserContext";
-import { AuthContext, supabase } from "../contexts/AuthContext";
+import { AuthContext } from "../contexts/AuthContext";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { v4 as uuidv4 } from "uuid"; // npm i uuid  (add to your project)
@@ -192,21 +192,19 @@ const Signup = ({ onSignup, mode, setMode }) => {
     theme: isDark ? "dark" : "light",
   };
 
-  // ── Fetch organizations from Supabase ──────────────────────────────────────
+  // ── Fetch organizations from backend ────────────────────────────────────────
   useEffect(() => {
     const fetchOrgs = async () => {
       setOrgsLoading(true);
       setOrgsError("");
       try {
-        // Assumes you have a public "Organizations" table with a "name" column.
-        // Adjust the table/column name to match your schema.
-        const { data, error } = await supabase
-          .from("Organizations")
-          .select("_id, name")
-          .order("name", { ascending: true });
-
-        if (error) throw error;
-        setOrganizations(data ?? []);
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+        const res = await fetch(`${backendUrl}/organizations`);
+        if (!res.ok) throw new Error(`Failed to fetch organizations`);
+        const data = await res.json();
+        // Handle both single and multiple results
+        const orgs = Array.isArray(data) ? data : data.organizations || data.data || [];
+        setOrganizations(orgs);
       } catch (err) {
         console.error("Error fetching organizations:", err);
         setOrgsError(
@@ -235,14 +233,14 @@ const Signup = ({ onSignup, mode, setMode }) => {
     const fetchUsers = async () => {
       setOrgUsersLoading(true);
       try {
-        const { data, error } = await supabase
-          .from("Users")
-          .select("_id, name, surname, email")
-          .eq("Organization", org); // column name from your schema
-
+        const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+        const res = await fetch(`${backendUrl}/admin/users?organization=${encodeURIComponent(org)}`);
+        if (!res.ok) throw new Error(`Failed to fetch users`);
+        const data = await res.json();
+        // Handle both single and multiple results
+        const users = Array.isArray(data) ? data : data.users || data.data || [];
         if (!active) return;
-        if (error) throw error;
-        setOrgUsers(data ?? []);
+        setOrgUsers(users);
       } catch (err) {
         if (!active) return;
         console.error("Error fetching org users:", err);
@@ -400,48 +398,30 @@ const Signup = ({ onSignup, mode, setMode }) => {
     setLoading(true);
 
     try {
-      // 1. Create Supabase Auth user
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: form.email,
-        password: form.password,
-      });
-
-      if (authError) {
-        toast.error(authError.message || "Signup failed.", toastOptions);
-        setLoading(false);
-        return;
-      }
-
-      // 2. Insert profile row into public."Users"
-      const newId = uuidv4();
-      const profileRow = {
-        _id: newId,
+      // Call backend signup endpoint
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+      const signupPayload = {
         name: form.name,
         surname: form.surname,
+        email: form.email,
+        password: form.password,
         date_of_birth: form.date_of_birth,
         home_address: form.home_address,
-        invited_by: form.invited_by || null,
-        // invited_by_id is not a column in your schema; store in a note if needed
         phone_number: form.phone_number,
-        email: form.email,
         gender: form.gender,
-        // Never store raw passwords — Supabase Auth manages credentials.
-        // The password columns in your schema are legacy; leave them null.
-        password: null,
-        confirm_password: null,
-        Organization: form.organization,
-        role: "user",
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
+        invited_by: form.invited_by || null,
+        organization: form.organization,
       };
 
-      const { error: dbError } = await supabase
-        .from("Users")
-        .insert([profileRow]);
+      const res = await fetch(`${backendUrl}/signup`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(signupPayload),
+      });
 
-      if (dbError) {
-        // If the auth user was created but DB insert failed, surface the error
-        toast.error(dbError.message || "Failed to save profile.", toastOptions);
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        toast.error(errData.detail || "Signup failed.", toastOptions);
         setLoading(false);
         return;
       }

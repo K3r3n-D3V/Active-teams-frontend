@@ -32,7 +32,7 @@ import {
 import Cropper from "react-easy-crop";
 import getCroppedImg from "../components/cropImageHelper";
 import { UserContext } from "../contexts/UserContext.jsx";
-import { AuthContext, supabase } from "../contexts/AuthContext.jsx";
+import { AuthContext } from "../contexts/AuthContext.jsx";
 import {
   Save,
   Cancel,
@@ -71,14 +71,13 @@ const normalizeGender = (g) => {
   return map[g] || g;
 };
 
-const API = import.meta.env.VITE_API_URL || "http://localhost:8000";
+const API = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
 
 // ─── API helpers ──────────────────────────────────────────────────────────────
 
-/** Get the current Supabase session token */
+/** Get the current JWT access token from localStorage */
 async function getToken() {
-  const { data } = await supabase.auth.getSession();
-  return data?.session?.access_token || null;
+  return localStorage.getItem('access_token') || null;
 }
 
 /** GET /profile/{userId} */
@@ -142,10 +141,30 @@ async function uploadAvatarViaAPI(userId, blob, contentType) {
   return res.json(); // { avatarUrl }
 }
 
-/** Change password via Supabase Auth directly (no backend round-trip needed) */
-async function changePasswordViaSupabase(newPassword) {
-  const { error } = await supabase.auth.updateUser({ password: newPassword });
-  if (error) throw new Error(error.message);
+/** Change password via backend API */
+async function changePasswordViaBackend(userId, currentPassword, newPassword) {
+  const token = await getToken();
+  if (!token) {
+    throw new Error("Not authenticated. Please log in again.");
+  }
+  
+  const res = await fetch(`${API}/profile/${userId}/password`, {
+    method: "PUT",
+    headers: { 
+      "Content-Type": "application/json",
+      "Authorization": `Bearer ${token}`
+    },
+    body: JSON.stringify({
+      current_password: currentPassword,
+      new_password: newPassword
+    })
+  });
+  
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `Password change failed: ${res.status}`);
+  }
+  return res.json();
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -458,10 +477,10 @@ export default function Profile() {
       }
     }
 
-    // 2. Password via Supabase Auth
+    // 2. Password via Backend API
     if (hasPasswordChange) {
       try {
-        await changePasswordViaSupabase(form.newPassword);
+        await changePasswordViaBackend(userId, form.currentPassword, form.newPassword);
         passwordUpdated = true;
         setForm((prev) => ({ ...prev, currentPassword: "", newPassword: "", confirmPassword: "" }));
       } catch (err) {

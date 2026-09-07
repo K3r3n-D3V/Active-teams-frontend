@@ -388,7 +388,7 @@ const login = async (email, password) => {
               'Authorization': `Bearer ${finalAccess}`,
               'Content-Type': 'application/json'
             };
-            const res = await fetch(`${BACKEND_URL}/profile/${finalUser.id}`, {
+            const res = await fetch(`${BACKEND_URL}/profile/me/details`, {
               headers: headerWithAuth
             });
             

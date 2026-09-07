@@ -225,7 +225,7 @@ export default function AdminDashboard() {
     if (!isSupremeAdmin) return;
     setLoadingOrgs(true);
     try {
-      const res = await authFetch(`${API_BASE_URL}/organizations`, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
+      const res = await authFetch(`${API_BASE_URL}/admin/organizations`, { method: 'GET', headers: { 'Content-Type': 'application/json' } });
       if (!res.ok) return;
       const data = await res.json();
       const orgs = (data.organizations || []).map(o => ({
@@ -412,7 +412,7 @@ export default function AdminDashboard() {
     setSavingOrg(true);
     try {
       const oldName = editingOrg?.name;
-      const url = editingOrg ? `${API_BASE_URL}/organizations/${editingOrg.id || editingOrg._id}` : `${API_BASE_URL}/organizations`;
+      const url = editingOrg ? `${API_BASE_URL}/admin/organizations/${editingOrg.id || editingOrg._id}` : `${API_BASE_URL}/admin/organizations`;
       const method = editingOrg ? 'PUT' : 'POST';
       const payload = { name: orgFormData.name };
       if (orgFormData.address) payload.address = orgFormData.address;
@@ -434,7 +434,7 @@ export default function AdminDashboard() {
     if (!window.confirm(`Delete "${orgName}"? This cannot be undone.`)) return;
     setDeletingOrg(true);
     try {
-      const res = await authFetch(`${API_BASE_URL}/organizations/${orgId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
+      const res = await authFetch(`${API_BASE_URL}/admin/organizations/${orgId}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' } });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.detail || 'Failed to delete'); }
       addActivityLog('ORG_DELETED', `Deleted: ${orgName}`);
       await fetchOrgs();
