@@ -6,6 +6,7 @@ import {
   ListItemIcon,
   IconButton,
   Box,
+  ItemIcon,
   useMediaQuery,
 } from '@mui/material';
 import { Link, useLocation } from 'react-router-dom';
