@@ -1463,6 +1463,9 @@ const AttendanceModal = ({
 
   // ─── NEW: flag to prevent duplicate consolidation calls if Save is clicked twice ───
   const [consolidationsCreated, setConsolidationsCreated] = useState(false);
+  const ticketSaveTimers = useRef({});
+  const pendingTicketSaveIds = useRef(new Set());
+  const persistentAttendeesRef = useRef([]);
 
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || "";
 
@@ -1721,19 +1724,12 @@ const AttendanceModal = ({
 
   const calculateFinancials = (personId) => {
     const ticketInfo = attendeeTicketInfo[personId] || {};
-    if (
-      ticketInfo.paid !== undefined &&
-      ticketInfo.owing !== undefined &&
-      ticketInfo.change !== undefined
-    ) {
-      return {
-        paid: ticketInfo.paid,
-        owing: ticketInfo.owing,
-        change: ticketInfo.change,
-      };
-    }
-    const price = ticketInfo.price || 0;
-    const paidAmount = ticketInfo.paidAmount || 0;
+    const toNumber = (v) => {
+      const n = Number(v);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const price = toNumber(ticketInfo.price);
+    const paidAmount = toNumber(ticketInfo.paidAmount);
 
     if (paidAmount >= price) {
       return {
@@ -1754,6 +1750,87 @@ const AttendanceModal = ({
         change: 0,
       };
     }
+  };
+
+  const syncServiceCheckIn = async (person, isCheckedIn) => {
+    const baseId = cleanEventId(getAttendanceEventId(event));
+    if (!baseId || !person?.id) return;
+
+    const personData = {
+      id: person.id,
+      name: person.name || person.fullName || "",
+      surname: person.surname || "",
+      fullName: person.fullName || person.name || "",
+      email: person.email || "",
+      phone: person.phone || "",
+      number: person.phone || "",
+      leader12: person.leader12 || "",
+      leader144: person.leader144 || "",
+    };
+
+    if (isCheckedIn) {
+      const res = await authFetch(`${BACKEND_URL}/service-checkin/checkin`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: baseId,
+          person_data: personData,
+          type: "attendee",
+        }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (!String(body?.message || "").toLowerCase().includes("already")) {
+          throw new Error(`Check-in sync failed: ${res.status}`);
+        }
+      }
+    } else {
+      const res = await authFetch(`${BACKEND_URL}/service-checkin/remove`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          event_id: baseId,
+          person_id: person.id,
+          type: "attendees",
+        }),
+      });
+      if (!res.ok) throw new Error(`Check-in remove sync failed: ${res.status}`);
+    }
+
+    window.dispatchEvent(
+      new CustomEvent("attendanceUpdated", {
+        detail: {
+          eventId: baseId,
+          attendanceEventId: getAttendanceEventId(event),
+        },
+      }),
+    );
+  };
+
+  const persistTicketInfoDebounced = (person, nextTicket) => {
+    if (!person?.id) return;
+    pendingTicketSaveIds.current.add(person.id);
+    if (ticketSaveTimers.current[person.id])
+      clearTimeout(ticketSaveTimers.current[person.id]);
+    ticketSaveTimers.current[person.id] = setTimeout(() => {
+      ticketSaveTimers.current[person.id] = null;
+      const overrideMap = {
+        ...attendeeTicketInfo,
+        [person.id]: nextTicket,
+      };
+      saveAllAttendees(
+        persistentAttendeesRef.current || [],
+        overrideMap,
+        true,
+      )
+        .catch((err) => {
+          console.error("Failed to save ticket details:", err);
+          toast.error("Failed to save ticket details");
+        })
+        .finally(() => {
+          pendingTicketSaveIds.current.delete(person.id);
+        });
+    }, 600);
   };
 
   const clearGlobalPeopleCache = () => {
@@ -2027,25 +2104,22 @@ const AttendanceModal = ({
         if (att.id) newCheckedIn[att.id] = false;
       });
 
-      if (isCompleted && data.attendance_status !== "did_not_meet") {
-        checkedInList.forEach((att) => {
-          const id = att.id || att._id || att.person_id;
-          if (id) newCheckedIn[id] = true;
-        });
-      }
+      checkedInList.forEach((att) => {
+        const id = att.id || att._id || att.person_id;
+        if (id) newCheckedIn[id] = true;
+      });
       setCheckedIn(newCheckedIn);
 
       const newDecisions = {};
       const newDecisionTypes = {};
 
-      if (isCompleted && data.attendance_status !== "did_not_meet") {
-        checkedInList.forEach((att) => {
-          if (att.id && att.decision) {
-            newDecisions[att.id] = true;
-            newDecisionTypes[att.id] = att.decision;
-          }
-        });
-      }
+      checkedInList.forEach((att) => {
+        const id = att.id || att._id || att.person_id;
+        if (id && att.decision) {
+          newDecisions[id] = true;
+          newDecisionTypes[id] = att.decision;
+        }
+      });
 
       setDecisions(newDecisions);
       setDecisionTypes(newDecisionTypes);
@@ -2068,46 +2142,48 @@ const AttendanceModal = ({
         }
       });
 
-      if (isCompleted && data.attendance_status !== "did_not_meet") {
-        checkedInList.forEach((att) => {
-          if (att.id) {
-            newTicketInfo[att.id] = {
-              ...newTicketInfo[att.id],
-              priceName:
-                att.priceName ??
-                att.PriceName ??
-                newTicketInfo[att.id]?.priceName ??
-                "",
-              price:
-                att.price ?? att.Price ?? newTicketInfo[att.id]?.price ?? 0,
-              ageGroup:
-                att.ageGroup ??
-                att.AgeGroup ??
-                newTicketInfo[att.id]?.ageGroup ??
-                "",
-              paymentMethod:
-                att.paymentMethod ??
-                att.PaymentMethod ??
-                newTicketInfo[att.id]?.paymentMethod ??
-                "Cash",
-              paidAmount:
-                att.paidAmount ??
-                att.PaidAmount ??
-                att.paid ??
-                att.Paid ??
-                newTicketInfo[att.id]?.paidAmount ??
-                0,
-              paid: att.paid ?? att.Paid ?? newTicketInfo[att.id]?.paid ?? 0,
-              owing:
-                att.owing ?? att.Owing ?? newTicketInfo[att.id]?.owing ?? 0,
-              change:
-                att.change ?? att.Change ?? newTicketInfo[att.id]?.change ?? 0,
-            };
-          }
-        });
-      }
+      checkedInList.forEach((att) => {
+        const id = att.id || att._id || att.person_id;
+        if (id) {
+          newTicketInfo[id] = {
+            ...newTicketInfo[id],
+            priceName:
+              att.priceName ??
+              att.PriceName ??
+              newTicketInfo[id]?.priceName ??
+              "",
+            price: att.price ?? att.Price ?? newTicketInfo[id]?.price ?? 0,
+            ageGroup:
+              att.ageGroup ??
+              att.AgeGroup ??
+              newTicketInfo[id]?.ageGroup ??
+              "",
+            paymentMethod:
+              att.paymentMethod ??
+              att.PaymentMethod ??
+              newTicketInfo[id]?.paymentMethod ??
+              "Cash",
+            paidAmount:
+              att.paidAmount ??
+              att.PaidAmount ??
+              att.paid ??
+              att.Paid ??
+              newTicketInfo[id]?.paidAmount ??
+              0,
+            paid: att.paid ?? att.Paid ?? newTicketInfo[id]?.paid ?? 0,
+            owing: att.owing ?? att.Owing ?? newTicketInfo[id]?.owing ?? 0,
+            change: att.change ?? att.Change ?? newTicketInfo[id]?.change ?? 0,
+          };
+        }
+      });
 
-      setAttendeeTicketInfo(newTicketInfo);
+      setAttendeeTicketInfo((current = {}) => {
+        const merged = { ...newTicketInfo };
+        pendingTicketSaveIds.current.forEach((personId) => {
+          if (current[personId]) merged[personId] = current[personId];
+        });
+        return merged;
+      });
 
       if (data.attendance_status === "did_not_meet") {
         setDidNotMeet(true);
@@ -2261,6 +2337,10 @@ const AttendanceModal = ({
       loadPersistentAttendees(eventId);
     }
   }, [isOpen, event?._id, event?.id, event?.date]);
+
+  useEffect(() => {
+    persistentAttendeesRef.current = persistentCommonAttendees;
+  }, [persistentCommonAttendees]);
 
   const fetchPeople = useCallback(
     (q) => {
@@ -2535,8 +2615,31 @@ const AttendanceModal = ({
           return prevTicket;
         });
       }
+
+      const personData = getAllCommonAttendees().find((p) => p.id === id) || {
+        id,
+        fullName: id,
+      };
+      syncServiceCheckIn(personData, true)
+        .then(() =>
+          saveAllAttendees(persistentAttendeesRef.current || [], null, true).catch(
+            () => {},
+          ),
+        )
+        .catch((error) => {
+          console.error("Failed to persist check-in:", error);
+          toast.error(error.message || "Failed to save check-in");
+        });
       toast.success("Person checked in for this week");
     } else {
+      const personData = getAllCommonAttendees().find((p) => p.id === id) || {
+        id,
+        fullName: id,
+      };
+      syncServiceCheckIn(personData, false).catch((error) => {
+        console.error("Failed to persist un-check:", error);
+        toast.error(error.message || "Failed to save check-in");
+      });
       toast.warning("Person unchecked for this week");
     }
   };
@@ -2547,7 +2650,11 @@ const AttendanceModal = ({
     setOpenDecisionDropdown(null);
   };
 
-  const saveAllAttendees = async (attendees, ticketInfoOverride = null) => {
+  const saveAllAttendees = async (
+    attendees,
+    ticketInfoOverride = null,
+    skipRefresh = false,
+  ) => {
     if (!event) return false;
 
     let eventId = getAttendanceEventId(event);
@@ -2599,14 +2706,16 @@ const AttendanceModal = ({
       if (!response.ok) {
         throw new Error(`Save failed: ${response.status}`);
       }
-      window.dispatchEvent(
-        new CustomEvent("attendanceUpdated", {
-          detail: {
-            eventId: getBaseEventId(event),
-            attendanceEventId: eventId,
-          },
-        }),
-      );
+      if (!skipRefresh) {
+        window.dispatchEvent(
+          new CustomEvent("attendanceUpdated", {
+            detail: {
+              eventId: getBaseEventId(event),
+              attendanceEventId: eventId,
+            },
+          }),
+        );
+      }
       console.log(`Saved ${enriched.length} attendees to database`);
       return true;
     } catch (error) {
@@ -4307,22 +4416,37 @@ const AttendanceModal = ({
                                                     styles.priceTierMenuItem
                                                   }
                                                   onClick={() => {
+                                                    const nextTicket = {
+                                                      ...(attendeeTicketInfo[
+                                                        person.id
+                                                      ] || {}),
+                                                      priceName: tier.name,
+                                                      price: tier.price,
+                                                      ageGroup: tier.ageGroup,
+                                                      paymentMethod:
+                                                        tier.paymentMethod ||
+                                                        "Cash",
+                                                    };
                                                     setAttendeeTicketInfo(
                                                       (prev) => ({
                                                         ...prev,
                                                         [person.id]: {
-                                                          priceName: tier.name,
+                                                          ...(prev[person.id] ||
+                                                            {}),
+                                                          priceName:
+                                                            tier.name,
                                                           price: tier.price,
                                                           ageGroup:
                                                             tier.ageGroup,
                                                           paymentMethod:
                                                             tier.paymentMethod ||
                                                             "Cash",
-                                                          paidAmount:
-                                                            prev[person.id]
-                                                              ?.paidAmount || 0,
                                                         },
                                                       }),
+                                                    );
+                                                    persistTicketInfoDebounced(
+                                                      person,
+                                                      nextTicket,
                                                     );
                                                     setOpenPriceTierDropdown(
                                                       null,
@@ -4400,7 +4524,7 @@ const AttendanceModal = ({
                                               prev[person.id]?.priceName ||
                                               ticketInfo.priceName,
                                             price:
-                                              prev[person.id]?.price ||
+                                              prev[person.id]?.price ??
                                               ticketInfo.price,
                                             ageGroup:
                                               prev[person.id]?.ageGroup ||
@@ -4410,6 +4534,14 @@ const AttendanceModal = ({
                                               ticketInfo.paymentMethod,
                                           },
                                         }));
+                                        persistTicketInfoDebounced(person, {
+                                          priceName: ticketInfo.priceName,
+                                          price: ticketInfo.price ?? 0,
+                                          ageGroup: ticketInfo.ageGroup,
+                                          paymentMethod:
+                                            ticketInfo.paymentMethod || "Cash",
+                                          paidAmount: value,
+                                        });
                                       }}
                                       style={styles.paidInput}
                                       placeholder="0"
